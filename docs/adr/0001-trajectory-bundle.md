@@ -1,8 +1,8 @@
-# ADR 0001: Represent trajectories as a validated relational bundle
+# ADR 0001: Represent trajectories as an S7 relational bundle
 
 ## Status
 
-Proposed for maintainer review in issue #4.
+Accepted by the maintainer on 2026-08-22 as part of issue #4.
 
 ## Context
 
@@ -19,34 +19,37 @@ The main options are:
 
 1. Return unrelated tibbles and rely on each function to validate them.
 2. Define an S3 list that owns the related tibbles and validates their keys.
-3. Define an S7 object with typed properties for every table.
+3. Define an S7 value object with typed properties for every table.
 4. Collapse the model into one deeply nested object or one denormalized table.
 
 ## Decision
 
-Use a lightweight S3 class, `scans_trajectory_bundle`, containing four entity
-tables and one audit table:
+Use one S7 class, `TrajectoryBundle`, containing four entity-table properties,
+one audit-table property, and an integer schema-version property:
 
 - `trajectories`
 - `turns`
 - `events`
 - `evaluations`
 - `losses`
+- `schema_version`
 
 The first four tables are the public relational data model. `losses` is an
 audit table, not another agent-domain entity. It records source data that an
 adapter redacted, truncated, externalized, or could not represent exactly.
 
-The public constructor will be `trajectory_bundle()`. It will coerce inputs to
-tibbles, create typed empty optional tables where appropriate, validate the
-relational contract, and return the S3 object. An internal
-`new_trajectory_bundle()` will construct an already validated object without
-user-facing checks.
+The exported S7 class object will provide the formal type, user constructor,
+and extension point. Its customized `TrajectoryBundle()` constructor will
+coerce inputs to tibbles and create typed empty optional tables where
+appropriate. The class validator will enforce the complete relational contract
+during construction and after property replacement.
 
-`as_trajectory()` will be the adapter generic. Source-specific methods or
-explicit adapter functions will snapshot live upstream objects and return a
-bundle. The bundle will never retain a live chat, reactive, provider client,
-R6 controller, connection, environment, or external pointer.
+`as_trajectory()` will be an S7 generic. Its methods can dispatch on S7 source
+objects such as ellmer turns as well as S3, R6, and base classes exposed by
+other integrations. Source-specific methods or explicit adapter functions will
+snapshot live upstream objects and return a bundle. The bundle will never
+retain a live chat, reactive, provider client, R6 controller, connection,
+environment, or external pointer.
 
 Public accessors will return ordinary tibbles:
 
@@ -56,23 +59,28 @@ Public accessors will return ordinary tibbles:
 - `trajectory_evaluations()`
 - `trajectory_losses()`
 
-`validate_trajectory()` will return its input invisibly when valid and raise a
-classed scans error otherwise. The constructor and adapters will always call
-it; users should not need to call it in an ordinary workflow.
+The constructor and property replacement will validate automatically.
+`S7::validate()` is the manual validation entry point; scans will not add a
+redundant validation generic. Adapter and input-shape failures will continue to
+use stable scans condition classes.
 
-## Why S3
+## Why S7
 
-The bundle needs relational validation and print behavior, but it does not need
-mutable state or a new scalar type. S3 adds the smallest useful boundary while
-keeping every analysis table directly usable with base R and tidy tools.
+The bundle is a validated value boundary: five tables and one schema version
+are meaningful only when their types, keys, ordering, and references agree.
+S7 makes those properties and their whole-object validator part of the formal
+class definition. It also reruns validation when a property is replaced,
+instead of relying on every package function to remember an S3 convention.
 
-S7 would make property declarations more explicit, but it would add an object
-system dependency without improving the rectangular analysis surface. Bare
-tibbles would be maximally familiar but would repeatedly lose the fact that
-the tables form one referentially consistent snapshot.
+This formal boundary does not change the rectangular analysis surface. Each
+property is still a tibble, and the public accessors return those tibbles for
+base R, dplyr, plotting, and reporting. Individual trajectories, turns, events,
+evaluations, and losses are rows, not separate S7 objects.
 
-The S3 wrapper is deliberately shallow. It is not a workflow, query language,
-database, or execution runtime.
+S7 also fits the initial integration boundary. ellmer represents turns and
+content with S7, while S7 generics can register methods for S7, S3, and base
+classes. The class remains a shallow value object, not a workflow, query
+language, database, or execution runtime.
 
 ## Consequences
 
@@ -80,13 +88,17 @@ database, or execution runtime.
   manipulation API.
 - Adapter authors get one validator for identity, ordering, references, and
   serializability.
-- The package will import `tibble`; `dplyr` remains optional.
-- The object is immutable by convention and R copy-on-modify behavior, not by
-  an active binding or private state.
+- The package will import `S7` and `tibble`; `dplyr` remains optional.
+- Replacing one or several properties creates an updated R value and triggers
+  S7 validation. scans will not provide in-place mutation verbs.
 - Extra source columns can be preserved, but stable shared fields must use the
   canonical columns.
-- Validation has a cost proportional to the snapshot size. The internal
-  constructor prevents repeated validation inside trusted package code.
+- Validation has a cost proportional to the snapshot size. Trusted package
+  code can use S7's supported deferred-validation tools when changing several
+  properties as one operation.
+- S7 is a newer dependency with less ecosystem usage than S3. scans accepts
+  that pre-1.0 tradeoff because formal invariants and ellmer alignment are more
+  important at this boundary.
 - A future lazy or database-backed representation may implement the same
   accessors, but it is not part of schema version 1.
 
@@ -97,11 +109,13 @@ database, or execution runtime.
 Independent tables are easy to create but provide no durable place for schema
 version, adapter losses, cross-table validation, or concise printing.
 
-### S7 properties
+### An S3 list wrapper
 
-S7 is appropriate for validated value objects, but the useful values here are
-already tibbles. An S7 shell would expose essentially the same list of tables
-with more dependency and dispatch machinery.
+An S3 wrapper would keep the same tidy analysis surface with one fewer
+dependency. It would not formally declare the table properties, automatically
+validate property replacement, or provide the same adapter-dispatch path
+across S7 and S3 sources. Those omissions matter more than the smaller object
+system footprint.
 
 ### One denormalized table
 

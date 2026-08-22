@@ -24,7 +24,7 @@ inputs from an outcome-evaluation system; findings are outputs from scans.
 The initial core API should contain:
 
 ```r
-trajectory_bundle(
+TrajectoryBundle(
   trajectories,
   turns,
   events,
@@ -33,7 +33,6 @@ trajectory_bundle(
 )
 
 as_trajectory(x, ...)
-validate_trajectory(x)
 is_trajectory_bundle(x)
 
 trajectory_info(x)
@@ -43,27 +42,31 @@ trajectory_evaluations(x)
 trajectory_losses(x)
 ```
 
-`trajectory_bundle()` is the manual constructor. It accepts data frames,
-returns a `scans_trajectory_bundle`, and constructs correctly typed empty
-`evaluations` and `losses` tables when those arguments are `NULL`.
+`TrajectoryBundle()` is a customized S7 constructor. It accepts data frames,
+coerces them to tibbles, and constructs correctly typed empty `evaluations` and
+`losses` properties when those arguments are `NULL`. The class object is
+exported so downstream packages can identify the formal class and register
+methods against it.
 
-`as_trajectory()` is an S3 generic for source adapters. Adapter-specific
-arguments belong on the applicable method or an explicit source function, not
-on the core constructor.
+`as_trajectory()` is an S7 generic for source adapters. It can dispatch on S7,
+S3, R6, and base source classes. Adapter-specific arguments belong on the
+applicable method or an explicit source function, not on the core constructor.
 
-The five accessors return tibbles. They do not expose or depend on the bundle's
-internal list layout. A compact print method reports table counts, source
-types, run count, and statuses without printing event values or metadata.
+The five accessors return the bundle's tibble properties. Callers do not need
+to use `@` or depend on property storage. A compact S7 print method reports
+table counts, source types, run count, and statuses without printing event
+values or metadata.
 
 The contract does not initially include mutation verbs. A user may extract a
 table for ordinary analysis. Functions that later return a modified bundle
-must revalidate all affected references.
+must replace all affected properties as one operation and pass S7 validation.
 
 ## Bundle invariants
 
-The object has schema version `1`. Every bundle must satisfy these rules:
+`TrajectoryBundle` has six formal properties: the five tibbles and
+`schema_version = 1L`. Every bundle must satisfy these rules:
 
-1. All five components are tibbles with their canonical columns, including
+1. All five table properties are tibbles with their canonical columns, including
    zero-row components.
 2. `trajectory_id`, `turn_id`, `event_id`, and `evaluation_id` are unique in
    their respective tables within one bundle.
@@ -79,6 +82,11 @@ The object has schema version `1`. Every bundle must satisfy these rules:
    or reactives.
 8. Stable optional fields are represented by typed missing values, not by
    removing canonical columns.
+
+S7 checks each property's declared class and runs the whole-object validator at
+construction and after property replacement. `S7::validate()` is the explicit
+manual validation entry point. scans conditions cover adapter and source-input
+failures; invalid class state uses S7's validation condition.
 
 Tool calls and tool results use `call_id` for correlation. An unmatched call or
 result remains valid data because unresolved tool activity is itself diagnostic
@@ -319,8 +327,8 @@ bundles identify their schema independently of the package version.
 
 ## Decisions resolved from the concept map
 
-1. The class is a lightweight S3 `scans_trajectory_bundle`; the public manual
-   constructor is `trajectory_bundle()` and adapters use `as_trajectory()`.
+1. The class and customized constructor are S7 `TrajectoryBundle`; adapters use
+   the S7 `as_trajectory()` generic.
 2. Canonical IDs are bundle-unique, not globally namespaced.
 3. Core role, event, content, and loss vocabularies are small; source additions
    use namespaced extensions.
