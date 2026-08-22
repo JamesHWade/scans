@@ -12,4 +12,6 @@ reference:
   - trajectory_accessors
 - title: Trajectory diagnostics
   contents:
-  - trajectory_scan_primitives
+  - filter_trajectory_events
+  - summarize_trajectories
+  - scan_trajectories

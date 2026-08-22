@@ -782,7 +782,11 @@ trajectory_value_problems <- function(data) {
     if (!all(valid)) {
       problems <- c(
         problems,
-        paste0("@", table, "$metadata elements must be named lists")
+        paste0(
+          "@",
+          table,
+          "$metadata elements must be uniquely named lists"
+        )
       )
     }
   }
@@ -861,7 +865,9 @@ trajectory_is_named_list <- function(x) {
     return(TRUE)
   }
   names <- names(x)
-  !is.null(names) && all(!is.na(names) & nzchar(trimws(names)))
+  !is.null(names) &&
+    all(!is.na(names) & nzchar(trimws(names))) &&
+    !anyDuplicated(names)
 }
 
 `%||%` <- function(x, y) {

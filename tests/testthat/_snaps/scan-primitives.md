@@ -1,3 +1,12 @@
+# filter_trajectory_events() rejects reserved source columns
+
+    Code
+      filter_trajectory_events(bundle)
+    Condition
+      Error:
+      ! Can't add derived turn context to the filtered events.
+      x Source event columns use reserved names: .turn_role.
+
 # scan primitive arguments fail with stable conditions
 
     Code

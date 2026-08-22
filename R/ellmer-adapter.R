@@ -13,7 +13,9 @@
 #' request ID and point to the matching request event when it is present.
 #' Provider response JSON is excluded by default, inline binary content is
 #' externalized, sensitive named fields are redacted, and unknown content
-#' classes produce a namespaced custom event plus an explicit loss row.
+#' classes produce a namespaced custom event containing their sanitized
+#' properties. A loss is recorded only for properties that cannot be retained
+#' exactly.
 #'
 #' Ellmer does not provide stable IDs for chats, turns, or content blocks. The
 #' adapter therefore generates fixed-width IDs from source order. Re-converting
@@ -31,8 +33,8 @@
 #' @param agent An optional agent label.
 #' @param model An optional model label. For a `Chat`, the public
 #'   `get_model()` value is used by default.
-#' @param metadata A named list of safe application metadata. Sensitive keys
-#'   are redacted and recorded in the bundle's losses table.
+#' @param metadata A uniquely named list of safe application metadata.
+#'   Sensitive keys are redacted and recorded in the bundle's losses table.
 #' @param include_system_prompt Whether a `Chat` system prompt should be
 #'   included as a system turn.
 #'
@@ -201,7 +203,7 @@ ellmer_is_turn_list <- function(x) {
     return(FALSE)
   }
   if (length(x) == 0L) {
-    return(TRUE)
+    return(FALSE)
   }
   any(vapply(x, ellmer_is_turn, logical(1)))
 }
@@ -210,7 +212,6 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
   turn_rows <- vector("list", length(turns))
   event_rows <- list()
   loss_rows <- list()
-  call_events <- character()
   event_index <- 0L
   interrupted <- FALSE
 
@@ -298,31 +299,43 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
       )
       event <- mapped$row
 
-      if (
-        identical(event$event_type, "tool_result") &&
-          !is.na(event$call_id) &&
-          event$call_id %in% names(call_events)
-      ) {
-        event$parent_event_id <- unname(call_events[[event$call_id]])
-      }
-      if (
-        identical(event$event_type, "tool_call") &&
-          !is.na(event$call_id)
-      ) {
-        call_events[event$call_id] <- event_id
-      }
-
       event_rows[[length(event_rows) + 1L]] <- event
       loss_rows <- c(loss_rows, mapped$losses)
     }
   }
 
+  events <- ellmer_bind_rows(event_rows)
   list(
     turns = ellmer_bind_rows(turn_rows),
-    events = ellmer_bind_rows(event_rows),
+    events = ellmer_link_tool_results(events),
     losses = loss_rows,
     interrupted = interrupted
   )
+}
+
+ellmer_link_tool_results <- function(events) {
+  if (nrow(events) == 0L) {
+    return(events)
+  }
+  calls <- which(events$event_type == "tool_call" & !is.na(events$call_id))
+  results <- which(events$event_type == "tool_result" & !is.na(events$call_id))
+  if (length(calls) == 0L || length(results) == 0L) {
+    return(events)
+  }
+
+  for (result in results) {
+    call_id <- events$call_id[[result]]
+    matching_calls <- calls[events$call_id[calls] == call_id]
+    matching_results <- results[events$call_id[results] == call_id]
+    if (
+      length(matching_calls) == 1L &&
+        length(matching_results) == 1L &&
+        events$event_index[[matching_calls]] < events$event_index[[result]]
+    ) {
+      events$parent_event_id[[result]] <- events$event_id[[matching_calls]]
+    }
+  }
+  events
 }
 
 ellmer_turn_row <- function(
@@ -669,20 +682,20 @@ ellmer_unknown_content_event <- function(content, ids) {
     kind <- paste0("content_", kind)
   }
 
+  properties <- ellmer_sanitize_value(
+    S7::props(content),
+    "contents$properties",
+    ids
+  )
+
   list(
     row = ellmer_event_row(
       event_type = "custom",
       content_type = paste0("ellmer:", kind),
-      value = list(),
+      value = properties$value,
       metadata = list(source_class = source_class)
     ),
-    losses = list(ellmer_new_loss(
-      ids,
-      "contents",
-      "unsupported",
-      "An unsupported ellmer content class was not retained",
-      metadata = list(source_class = source_class)
-    ))
+    losses = properties$losses
   )
 }
 

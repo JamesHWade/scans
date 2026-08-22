@@ -38,8 +38,8 @@ and fragments are removed.}
 \item{model}{An optional model label. For a \code{Chat}, the public
 \code{get_model()} value is used by default.}
 
-\item{metadata}{A named list of safe application metadata. Sensitive keys
-are redacted and recorded in the bundle's losses table.}
+\item{metadata}{A uniquely named list of safe application metadata.
+Sensitive keys are redacted and recorded in the bundle's losses table.}
 
 \item{include_system_prompt}{Whether a \code{Chat} system prompt should be
 included as a system turn.}
@@ -62,7 +62,9 @@ and PDFs receive canonical event representations. Tool results retain the
 request ID and point to the matching request event when it is present.
 Provider response JSON is excluded by default, inline binary content is
 externalized, sensitive named fields are redacted, and unknown content
-classes produce a namespaced custom event plus an explicit loss row.
+classes produce a namespaced custom event containing their sanitized
+properties. A loss is recorded only for properties that cannot be retained
+exactly.
 
 Ellmer does not provide stable IDs for chats, turns, or content blocks. The
 adapter therefore generates fixed-width IDs from source order. Re-converting

@@ -86,7 +86,16 @@
     Condition
       Error:
       ! Can't construct a <TrajectoryBundle>.
-      x @events$metadata elements must be named lists
+      x @events$metadata elements must be uniquely named lists
+
+---
+
+    Code
+      TrajectoryBundle(tables$trajectories, tables$turns, tables$events)
+    Condition
+      Error:
+      ! Can't construct a <TrajectoryBundle>.
+      x @events$metadata elements must be uniquely named lists
 
 # S7 property replacement preserves relational validity
 

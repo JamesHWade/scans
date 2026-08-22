@@ -1,267 +1,3 @@
-#' Filter, summarize, and scan trajectory bundles
-#'
-#' These functions provide the first composable post-run diagnostics for a
-#' [TrajectoryBundle]. `filter_trajectory_events()` selects canonical events,
-#' `summarize_trajectories()` returns one summary row per trajectory, and
-#' `scan_trajectories()` emits deterministic findings for common tool and
-#' error patterns.
-#'
-#' `filter_trajectory_events()` joins each event to its containing turn for
-#' role-based filtering and returns `role`, `turn_index`, and `round_index`
-#' alongside the canonical event columns. A named `metadata` list matches
-#' top-level event metadata entries using exact R equality.
-#'
-#' `scan_trajectories()` detects unresolved tool calls, unmatched tool results,
-#' repeated tool calls, suspicious consecutive tool-call loops, failed events,
-#' and causal error chains. It analyzes a completed snapshot and never calls a
-#' model or tool. Finding identifiers are deterministic for an unchanged
-#' bundle, argument set, and `scan_id`.
-#'
-#' @param x A [TrajectoryBundle].
-#' @param trajectory_id,role,event_type,content_type,tool,status Optional
-#'   character vectors. When supplied, an event must match one of the values
-#'   in every supplied filter.
-#' @param metadata An optional named list of top-level event metadata values to
-#'   match exactly.
-#' @param scan_id A non-empty identifier for this diagnostic run.
-#' @param repeat_threshold The minimum number of calls with the same tool name
-#'   and arguments that produces a `repeated_tool_call` finding.
-#' @param loop_threshold The minimum consecutive calls with the same tool name
-#'   and arguments that produces a `suspicious_tool_loop` finding. Tool results
-#'   between calls do not break a call sequence.
-#'
-#' @returns
-#' - `filter_trajectory_events()` returns a tibble of selected events.
-#' - `summarize_trajectories()` returns one tibble row per trajectory.
-#' - `scan_trajectories()` returns a tibble with one row per finding and the
-#'   event identifiers supporting that finding.
-#'
-#' @examples
-#' bundle <- TrajectoryBundle(
-#'   data.frame(
-#'     trajectory_id = "trajectory-1",
-#'     source_type = "manual"
-#'   ),
-#'   data.frame(
-#'     trajectory_id = "trajectory-1",
-#'     turn_id = "turn-1",
-#'     turn_index = 1L,
-#'     role = "assistant"
-#'   ),
-#'   data.frame(
-#'     trajectory_id = "trajectory-1",
-#'     event_id = "event-1",
-#'     event_index = 1L,
-#'     turn_id = "turn-1",
-#'     event_type = "content",
-#'     content_type = "text",
-#'     text = "Done"
-#'   )
-#' )
-#'
-#' filter_trajectory_events(bundle, role = "assistant")
-#' summarize_trajectories(bundle)
-#' scan_trajectories(bundle)
-#'
-#' @name trajectory_scan_primitives
-NULL
-
-#' @rdname trajectory_scan_primitives
-#' @export
-filter_trajectory_events <- function(
-  x,
-  trajectory_id = NULL,
-  role = NULL,
-  event_type = NULL,
-  content_type = NULL,
-  tool = NULL,
-  status = NULL,
-  metadata = NULL
-) {
-  check_trajectory_bundle(x)
-  call <- rlang::caller_env()
-  filters <- list(
-    trajectory_id = trajectory_id,
-    role = role,
-    event_type = event_type,
-    content_type = content_type,
-    tool = tool,
-    status = status
-  )
-  for (name in names(filters)) {
-    scan_check_character_filter(filters[[name]], name, call)
-  }
-  scan_check_metadata_filter(metadata, call)
-
-  events <- trajectory_events(x)
-  turns <- trajectory_turns(x)
-  turn_match <- match(events$turn_id, turns$turn_id)
-  event_roles <- turns$role[turn_match]
-  event_turn_indices <- turns$turn_index[turn_match]
-  event_round_indices <- turns$round_index[turn_match]
-
-  keep <- rep(TRUE, nrow(events))
-  keep <- keep & scan_filter_match(events$trajectory_id, trajectory_id)
-  keep <- keep & scan_filter_match(event_roles, role)
-  keep <- keep & scan_filter_match(events$event_type, event_type)
-  keep <- keep & scan_filter_match(events$content_type, content_type)
-  keep <- keep & scan_filter_match(events$status, status)
-  if (!is.null(tool)) {
-    keep <- keep &
-      events$event_type %in% c("tool_call", "tool_result") &
-      events$name %in% tool
-  }
-  if (!is.null(metadata)) {
-    keep <- keep &
-      vapply(
-        events$metadata,
-        scan_metadata_matches,
-        logical(1),
-        expected = metadata
-      )
-  }
-
-  out <- events[keep, , drop = FALSE]
-  out$role <- event_roles[keep]
-  out$turn_index <- event_turn_indices[keep]
-  out$round_index <- event_round_indices[keep]
-  out <- scan_reorder_event_columns(out)
-
-  trajectory_order <- match(out$trajectory_id, trajectory_info(x)$trajectory_id)
-  row_order <- order(
-    trajectory_order,
-    out$event_index,
-    out$event_id,
-    na.last = TRUE,
-    method = "radix"
-  )
-  out[row_order, , drop = FALSE]
-}
-
-#' @rdname trajectory_scan_primitives
-#' @export
-summarize_trajectories <- function(x) {
-  check_trajectory_bundle(x)
-  info <- trajectory_info(x)
-  turns <- trajectory_turns(x)
-  events <- trajectory_events(x)
-  losses <- trajectory_losses(x)
-
-  if (nrow(info) == 0L) {
-    return(scan_empty_summaries())
-  }
-
-  rows <- lapply(seq_len(nrow(info)), function(index) {
-    trajectory <- info[index, , drop = FALSE]
-    trajectory_id <- trajectory$trajectory_id[[1L]]
-    trajectory_turns <- turns[
-      turns$trajectory_id == trajectory_id,
-      ,
-      drop = FALSE
-    ]
-    trajectory_events <- events[
-      events$trajectory_id == trajectory_id,
-      ,
-      drop = FALSE
-    ]
-    trajectory_losses <- losses[
-      !is.na(losses$trajectory_id) & losses$trajectory_id == trajectory_id,
-      ,
-      drop = FALSE
-    ]
-    relations <- scan_tool_relations(trajectory_events)
-    error_events <- scan_event_is_error(trajectory_events)
-
-    tibble::tibble(
-      trajectory_id = trajectory_id,
-      run_id = trajectory$run_id[[1L]],
-      parent_trajectory_id = trajectory$parent_trajectory_id[[1L]],
-      source_type = trajectory$source_type[[1L]],
-      status = trajectory$status[[1L]],
-      trajectory_depth = scan_trajectory_depth(trajectory_id, info),
-      max_event_depth = scan_max_event_depth(trajectory_events),
-      n_turns = nrow(trajectory_turns),
-      n_rounds = length(unique(stats::na.omit(trajectory_turns$round_index))),
-      n_events = nrow(trajectory_events),
-      n_tool_calls = sum(trajectory_events$event_type == "tool_call"),
-      n_tool_results = sum(trajectory_events$event_type == "tool_result"),
-      n_unresolved_tool_calls = length(relations$unresolved_calls),
-      n_unmatched_tool_results = length(relations$unmatched_results),
-      n_error_events = sum(error_events),
-      n_failed_turns = sum(
-        !is.na(trajectory_turns$status) & trajectory_turns$status == "failed"
-      ),
-      n_losses = nrow(trajectory_losses),
-      input_tokens = scan_sum_known(trajectory_turns$input_tokens),
-      output_tokens = scan_sum_known(trajectory_turns$output_tokens),
-      cached_input_tokens = scan_sum_known(
-        trajectory_turns$cached_input_tokens
-      ),
-      cost = scan_sum_known(trajectory_turns$cost),
-      turn_duration = scan_sum_known(trajectory_turns$duration),
-      elapsed = scan_trajectory_elapsed(trajectory)
-    )
-  })
-
-  do.call(rbind, rows)
-}
-
-#' @rdname trajectory_scan_primitives
-#' @export
-scan_trajectories <- function(
-  x,
-  scan_id = "scan-000001",
-  repeat_threshold = 2L,
-  loop_threshold = 3L
-) {
-  check_trajectory_bundle(x)
-  call <- rlang::caller_env()
-  scan_check_id(scan_id, call)
-  repeat_threshold <- scan_check_threshold(
-    repeat_threshold,
-    "repeat_threshold",
-    call
-  )
-  loop_threshold <- scan_check_threshold(
-    loop_threshold,
-    "loop_threshold",
-    call
-  )
-
-  info <- trajectory_info(x)
-  events <- trajectory_events(x)
-  findings <- list()
-
-  for (trajectory_id in info$trajectory_id) {
-    trajectory_events <- events[
-      events$trajectory_id == trajectory_id,
-      ,
-      drop = FALSE
-    ]
-    trajectory_events <- trajectory_events[
-      order(
-        trajectory_events$event_index,
-        trajectory_events$event_id,
-        method = "radix"
-      ),
-      ,
-      drop = FALSE
-    ]
-    findings <- c(
-      findings,
-      scan_tool_findings(
-        trajectory_events,
-        scan_id,
-        repeat_threshold,
-        loop_threshold
-      ),
-      scan_error_findings(trajectory_events, scan_id)
-    )
-  }
-
-  scan_bind_findings(findings, scan_id, info)
-}
-
 scan_check_character_filter <- function(x, arg, call) {
   if (is.null(x)) {
     return(invisible(x))
@@ -311,6 +47,22 @@ scan_check_metadata_filter <- function(x, call) {
     )
   }
   invisible(x)
+}
+
+scan_check_turn_context_columns <- function(events, call) {
+  reserved <- c(".turn_role", ".turn_index", ".round_index")
+  collisions <- intersect(names(events), reserved)
+  if (length(collisions) > 0L) {
+    scans_abort(
+      c(
+        "Can't add derived turn context to the filtered events.",
+        "x" = "Source event columns use reserved names: {.field {collisions}}."
+      ),
+      class = "scans_error_scan_column_collision",
+      call = call
+    )
+  }
+  invisible(events)
 }
 
 scan_check_id <- function(x, call) {
@@ -363,7 +115,7 @@ scan_metadata_matches <- function(x, expected) {
 }
 
 scan_reorder_event_columns <- function(x) {
-  derived <- c("role", "turn_index", "round_index")
+  derived <- c(".turn_role", ".turn_index", ".round_index")
   canonical <- setdiff(names(x), derived)
   turn_position <- match("turn_id", canonical)
   before <- canonical[seq_len(turn_position)]
@@ -387,6 +139,7 @@ scan_empty_summaries <- function() {
     n_tool_results = integer(),
     n_unresolved_tool_calls = integer(),
     n_unmatched_tool_results = integer(),
+    n_ambiguous_tool_correlations = integer(),
     n_error_events = integer(),
     n_failed_turns = integer(),
     n_losses = integer(),
@@ -399,86 +152,150 @@ scan_empty_summaries <- function() {
   )
 }
 
-scan_sum_known <- function(x) {
-  if (length(x) == 0L || all(is.na(x))) {
-    return(NA_real_)
-  }
-  sum(x, na.rm = TRUE)
+scan_group_count <- function(include, groups, size) {
+  tabulate(groups[include], nbins = size)
 }
 
-scan_trajectory_elapsed <- function(trajectory) {
-  if (
-    is.na(trajectory$started_at[[1L]]) || is.na(trajectory$completed_at[[1L]])
-  ) {
-    return(NA_real_)
+scan_group_distinct_count <- function(x, groups, size) {
+  known <- !is.na(x) & !is.na(groups)
+  if (!any(known)) {
+    return(integer(size))
   }
-  as.numeric(
-    difftime(
-      trajectory$completed_at[[1L]],
-      trajectory$started_at[[1L]],
-      units = "secs"
-    )
+  pairs <- data.frame(
+    group = groups[known],
+    value = x[known]
   )
+  first <- !duplicated(pairs)
+  tabulate(pairs$group[first], nbins = size)
 }
 
-scan_trajectory_depth <- function(trajectory_id, trajectories) {
-  depth <- 0L
-  current <- trajectory_id
-  repeat {
-    index <- match(current, trajectories$trajectory_id)
-    parent <- trajectories$parent_trajectory_id[[index]]
-    if (is.na(parent)) {
-      return(depth)
+scan_group_max <- function(x, groups, size) {
+  out <- integer(size)
+  if (length(x) == 0L) {
+    return(out)
+  }
+  maxima <- tapply(x, groups, max)
+  out[as.integer(names(maxima))] <- as.integer(maxima)
+  out
+}
+
+scan_group_sum <- function(x, groups, size) {
+  out <- rep(NA_real_, size)
+  known <- !is.na(x) & !is.na(groups)
+  if (!any(known)) {
+    return(out)
+  }
+  sums <- rowsum(x[known], groups[known], reorder = FALSE)
+  out[as.integer(rownames(sums))] <- sums[, 1L]
+  out
+}
+
+scan_split_trajectory_rows <- function(data, trajectory_ids) {
+  positions <- split(
+    seq_len(nrow(data)),
+    match(data$trajectory_id, trajectory_ids)
+  )
+  lapply(seq_along(trajectory_ids), function(index) {
+    rows <- positions[[as.character(index)]]
+    if (is.null(rows)) {
+      rows <- integer()
     }
-    depth <- depth + 1L
-    current <- parent
-  }
+    data[rows, , drop = FALSE]
+  })
 }
 
-scan_event_depths <- function(events) {
-  depths <- integer(nrow(events))
-  names(depths) <- events$event_id
-  for (event_id in events$event_id) {
-    depth <- 0L
-    current <- event_id
-    repeat {
-      index <- match(current, events$event_id)
-      parent <- events$parent_event_id[[index]]
-      if (is.na(parent)) {
-        break
-      }
-      depth <- depth + 1L
-      current <- parent
+scan_parent_depths <- function(ids, parent_ids) {
+  size <- length(ids)
+  depths <- rep(NA_integer_, size)
+  parents <- match(parent_ids, ids)
+  path <- integer(size)
+
+  for (start in seq_len(size)) {
+    if (!is.na(depths[[start]])) {
+      next
     }
-    depths[[event_id]] <- depth
-  }
-  unname(depths)
-}
+    path_size <- 0L
+    current <- start
+    while (!is.na(current) && is.na(depths[[current]])) {
+      path_size <- path_size + 1L
+      path[[path_size]] <- current
+      current <- parents[[current]]
+    }
 
-scan_max_event_depth <- function(events) {
-  if (nrow(events) == 0L) {
-    return(0L)
+    next_depth <- if (is.na(current)) 0L else depths[[current]] + 1L
+    for (position in rev(seq_len(path_size))) {
+      depths[[path[[position]]]] <- next_depth
+      next_depth <- next_depth + 1L
+    }
   }
-  max(scan_event_depths(events))
+  depths
 }
 
 scan_tool_relations <- function(events) {
-  calls <- which(events$event_type == "tool_call")
-  results <- which(events$event_type == "tool_result")
-  call_ids <- events$call_id[calls]
-  result_ids <- events$call_id[results]
+  scan_tool_relation_indices(events$event_type, events$call_id)
+}
 
-  unresolved_calls <- calls[
-    is.na(call_ids) | !call_ids %in% result_ids[!is.na(result_ids)]
-  ]
-  unmatched_results <- results[
-    is.na(result_ids) | !result_ids %in% call_ids[!is.na(call_ids)]
-  ]
+scan_tool_relation_counts <- function(event_type, call_id, groups, size) {
+  out <- list(
+    unresolved = integer(size),
+    unmatched = integer(size),
+    ambiguous = integer(size)
+  )
+  tool_rows <- which(event_type %in% c("tool_call", "tool_result"))
+  positions <- split(tool_rows, groups[tool_rows])
+  for (group in names(positions)) {
+    rows <- positions[[group]]
+    relations <- scan_tool_relation_indices(event_type[rows], call_id[rows])
+    index <- as.integer(group)
+    out$unresolved[[index]] <- length(relations$unresolved_calls)
+    out$unmatched[[index]] <- length(relations$unmatched_results)
+    out$ambiguous[[index]] <- length(relations$ambiguous)
+  }
+  out
+}
+
+scan_tool_relation_indices <- function(event_type, call_id) {
+  calls <- which(event_type == "tool_call")
+  results <- which(event_type == "tool_result")
+  call_ids <- call_id[calls]
+  result_ids <- call_id[results]
+
+  unresolved_calls <- calls[is.na(call_ids)]
+  unmatched_results <- results[is.na(result_ids)]
+  ambiguous <- list()
+  ids <- unique(c(call_ids[!is.na(call_ids)], result_ids[!is.na(result_ids)]))
+
+  for (call_id in ids) {
+    matching_calls <- calls[!is.na(call_ids) & call_ids == call_id]
+    matching_results <- results[!is.na(result_ids) & result_ids == call_id]
+    matched <- min(length(matching_calls), length(matching_results))
+    if (length(matching_calls) > matched) {
+      unresolved_calls <- c(
+        unresolved_calls,
+        matching_calls[seq.int(matched + 1L, length(matching_calls))]
+      )
+    }
+    if (length(matching_results) > matched) {
+      unmatched_results <- c(
+        unmatched_results,
+        matching_results[seq.int(matched + 1L, length(matching_results))]
+      )
+    }
+    if (length(matching_calls) > 1L || length(matching_results) > 1L) {
+      ambiguous[[length(ambiguous) + 1L]] <- list(
+        call_id = call_id,
+        indices = sort(c(matching_calls, matching_results)),
+        n_calls = length(matching_calls),
+        n_results = length(matching_results)
+      )
+    }
+  }
   list(
     calls = calls,
     results = results,
-    unresolved_calls = unresolved_calls,
-    unmatched_results = unmatched_results
+    unresolved_calls = sort(unresolved_calls),
+    unmatched_results = sort(unmatched_results),
+    ambiguous = ambiguous
   )
 }
 
@@ -490,8 +307,26 @@ scan_event_is_error <- function(events) {
 
 scan_tool_signature <- function(name, value) {
   name <- if (is.na(name)) "<missing>" else name
+  value <- scan_canonicalize_value(value)
   serialized <- serialize(value, NULL, version = 3L)
   paste0(name, "\r", paste(format(serialized), collapse = ""))
+}
+
+scan_canonicalize_value <- function(x) {
+  if (is.list(x) && !is.data.frame(x) && !is.object(x)) {
+    x <- lapply(x, scan_canonicalize_value)
+  }
+
+  element_names <- names(x)
+  mapping <- !is.null(element_names) &&
+    length(element_names) > 0L &&
+    !anyNA(element_names) &&
+    all(nzchar(element_names)) &&
+    !anyDuplicated(element_names)
+  if (mapping && !is.object(x)) {
+    x <- x[order(element_names, method = "radix")]
+  }
+  x
 }
 
 scan_tool_findings <- function(
@@ -502,6 +337,27 @@ scan_tool_findings <- function(
 ) {
   relations <- scan_tool_relations(events)
   findings <- list()
+
+  for (ambiguous in relations$ambiguous) {
+    findings[[length(findings) + 1L]] <- scan_new_finding(
+      scan_id = scan_id,
+      scan = "ambiguous_tool_correlation",
+      events = events,
+      indices = ambiguous$indices,
+      severity = "warning",
+      label = "Ambiguous tool correlation",
+      explanation = paste(
+        "The call identifier is reused, so requests and results cannot be",
+        "paired uniquely."
+      ),
+      value = list(
+        call_id = ambiguous$call_id,
+        n_calls = ambiguous$n_calls,
+        n_results = ambiguous$n_results
+      ),
+      scan_order = 1L
+    )
+  }
 
   for (index in relations$unresolved_calls) {
     findings[[length(findings) + 1L]] <- scan_new_finding(
@@ -516,7 +372,7 @@ scan_tool_findings <- function(
         tool = events$name[[index]],
         call_id = events$call_id[[index]]
       ),
-      scan_order = 1L
+      scan_order = 2L
     )
   }
   for (index in relations$unmatched_results) {
@@ -532,7 +388,7 @@ scan_tool_findings <- function(
         tool = events$name[[index]],
         call_id = events$call_id[[index]]
       ),
-      scan_order = 2L
+      scan_order = 3L
     )
   }
 
@@ -562,7 +418,7 @@ scan_tool_findings <- function(
           count = length(indices),
           call_ids = events$call_id[indices]
         ),
-        scan_order = 3L
+        scan_order = 4L
       )
     }
   }
@@ -586,7 +442,7 @@ scan_tool_findings <- function(
         count = length(indices),
         call_ids = events$call_id[indices]
       ),
-      scan_order = 4L
+      scan_order = 5L
     )
   }
 
@@ -633,7 +489,7 @@ scan_error_findings <- function(events, scan_id) {
         status = events$status[[index]],
         error = events$error[[index]]
       ),
-      scan_order = 5L
+      scan_order = 6L
     )
   })
   if (length(error_indices) < 2L) {
@@ -663,7 +519,7 @@ scan_error_findings <- function(events, scan_id) {
       label = "Causal error chain",
       explanation = "Failed events form a causal parent chain.",
       value = list(length = length(chain)),
-      scan_order = 6L
+      scan_order = 7L
     )
   }
   findings
