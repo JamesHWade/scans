@@ -16,7 +16,9 @@ Depends:
     R (>= 4.2.0)
 Imports:
     cli (>= 3.6.3),
-    rlang (>= 1.1.4)
+    rlang (>= 1.1.4),
+    S7 (>= 0.2.2),
+    tibble (>= 3.3.0)
 Suggests:
     ellmer,
     shinychat,
