@@ -7,6 +7,13 @@ S7::method(as_trajectory, TrajectoryBundle) <- function(x, ...) {
 }
 
 S7::method(as_trajectory, S7::class_any) <- function(x, ...) {
+  if (
+    rlang::is_installed("ellmer", version = "0.4.2") &&
+      (ellmer_is_turn_list(x) || ellmer_is_chat(x) || ellmer_is_turn(x))
+  ) {
+    return(as_trajectory_ellmer(x, ...))
+  }
+
   scans_abort(
     c(
       "No trajectory adapter is available for {.obj_type_friendly {x}}.",

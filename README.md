@@ -49,6 +49,19 @@ bundle <- TrajectoryBundle(
 trajectory_info(bundle)
 ```
 
+Completed ellmer chats and public turn objects can be snapshotted without a
+provider call:
+
+```r
+turns <- list(
+  ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
+  ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))
+)
+
+bundle <- as_trajectory(turns)
+trajectory_events(bundle)
+```
+
 ## Installation
 
 You can install the development version from GitHub with:
