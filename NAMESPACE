@@ -2,6 +2,7 @@
 
 export(TrajectoryBundle)
 export(as_trajectory)
+export(as_trajectory_deputy)
 export(as_trajectory_ellmer)
 export(as_trajectory_vitals)
 export(filter_trajectory_events)

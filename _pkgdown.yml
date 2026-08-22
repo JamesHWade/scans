@@ -8,6 +8,7 @@ reference:
   contents:
   - TrajectoryBundle
   - as_trajectory
+  - as_trajectory_deputy
   - as_trajectory_ellmer
   - as_trajectory_vitals
   - trajectory_accessors
