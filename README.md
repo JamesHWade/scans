@@ -62,6 +62,25 @@ bundle <- as_trajectory(turns)
 trajectory_events(bundle)
 ```
 
+## Trajectory diagnostics
+
+Core diagnostics return ordinary tibbles and compose with the base pipe:
+
+```r
+bundle |>
+  filter_trajectory_events(role = "assistant")
+
+bundle |>
+  summarize_trajectories()
+
+bundle |>
+  scan_trajectories()
+```
+
+Built-in scans identify unresolved or unmatched tool activity, repeated calls,
+suspicious tool loops, failed events, and causal error chains. Every finding
+retains the trajectory and event identifiers that support it.
+
 ## Installation
 
 You can install the development version from GitHub with:
