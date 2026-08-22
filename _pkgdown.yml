@@ -8,4 +8,5 @@ reference:
   contents:
   - TrajectoryBundle
   - as_trajectory
+  - as_trajectory_ellmer
   - trajectory_accessors

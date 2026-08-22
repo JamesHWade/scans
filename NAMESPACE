@@ -2,6 +2,7 @@
 
 export(TrajectoryBundle)
 export(as_trajectory)
+export(as_trajectory_ellmer)
 export(is_trajectory_bundle)
 export(trajectory_evaluations)
 export(trajectory_events)

@@ -20,7 +20,7 @@ Imports:
     S7 (>= 0.2.2),
     tibble (>= 3.3.0)
 Suggests:
-    ellmer,
+    ellmer (>= 0.4.2),
     shinychat,
     testthat (>= 3.0.0),
     vitals

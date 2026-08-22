@@ -1,0 +1,252 @@
+test_that("ellmer turn lists pass the shared conformance contract", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  expect_adapter_conforms(
+    source = ellmer_tool_turns_fixture(),
+    expected = ellmer_tool_bundle_fixture(),
+    adapter = as_trajectory_ellmer
+  )
+})
+
+test_that("as_trajectory() dispatches for ellmer lists and turns", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  turns <- ellmer_tool_turns_fixture()
+
+  list_bundle <- as_trajectory(turns)
+  turn_bundle <- as_trajectory(turns[[1L]])
+
+  expect_s7_class(list_bundle, TrajectoryBundle)
+  expect_s7_class(turn_bundle, TrajectoryBundle)
+  expect_identical(nrow(trajectory_turns(turn_bundle)), 1L)
+})
+
+test_that("ellmer Chat snapshots use public history and model methods", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  chat <- ellmer_chat_fixture()
+
+  bundle <- as_trajectory(chat)
+
+  expect_s7_class(bundle, TrajectoryBundle)
+  expect_identical(
+    trajectory_turns(bundle)$role,
+    c("system", "user", "assistant")
+  )
+  expect_identical(trajectory_info(bundle)$model, "gpt-4o-mini")
+  expect_identical(nrow(trajectory_events(bundle)), 3L)
+
+  without_system <- as_trajectory(chat, include_system_prompt = FALSE)
+  expect_identical(
+    trajectory_turns(without_system)$role,
+    c("user", "assistant")
+  )
+})
+
+test_that("serialized ellmer Chat objects remain convertible", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  chat <- unserialize(serialize(ellmer_chat_fixture(), NULL))
+
+  bundle <- as_trajectory(chat)
+
+  expect_s7_class(bundle, TrajectoryBundle)
+  expect_identical(trajectory_info(bundle)$source_type, "ellmer")
+  expect_identical(nrow(trajectory_turns(bundle)), 3L)
+})
+
+test_that("ellmer adapter preserves caller correlation identities", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  bundle <- as_trajectory_ellmer(
+    ellmer_tool_turns_fixture(),
+    trajectory_id = "trajectory-custom",
+    run_id = "run-1",
+    source_id = "chat-1",
+    source_uri = "https://user:password@example.com/chat?api_key=secret",
+    task_id = "task-1",
+    sample_id = "sample-1",
+    epoch = 2L,
+    agent = "assistant",
+    model = "fixture-model",
+    metadata = list(dataset = "fixture")
+  )
+  info <- trajectory_info(bundle)
+
+  expect_identical(info$trajectory_id, "trajectory-custom")
+  expect_identical(info$run_id, "run-1")
+  expect_identical(info$source_id, "chat-1")
+  expect_identical(info$source_uri, "https://example.com/chat")
+  expect_identical(info$task_id, "task-1")
+  expect_identical(info$sample_id, "sample-1")
+  expect_identical(info$epoch, 2L)
+  expect_identical(info$agent, "assistant")
+  expect_identical(info$model, "fixture-model")
+  expect_in("redacted", trajectory_losses(bundle)$reason)
+})
+
+test_that("ellmer tool errors remain agent-visible", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  request <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 42L))
+  turns <- list(
+    ellmer::AssistantTurn(list(request)),
+    ellmer::UserTurn(list(ellmer::ContentToolResult(
+      error = simpleError("Service unavailable"),
+      request = request
+    )))
+  )
+
+  bundle <- as_trajectory_ellmer(turns)
+  events <- trajectory_events(bundle)
+  turns <- trajectory_turns(bundle)
+
+  expect_identical(events$call_id, c("call-1", "call-1"))
+  expect_identical(events$parent_event_id[[2L]], events$event_id[[1L]])
+  expect_identical(events$status, c("completed", "failed"))
+  expect_identical(events$error[[2L]], "Service unavailable")
+  expect_identical(turns$status, c("completed", "failed"))
+  expect_identical(turns$error[[2L]], "Service unavailable")
+})
+
+test_that("ellmer metadata and tool payload secrets are redacted", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  request <- ellmer::ContentToolRequest(
+    "call-1",
+    "lookup",
+    list(api_key = "argument-secret", query = "safe"),
+    extra = list(access_token = "metadata-secret", provider = "fixture")
+  )
+  turn <- ellmer::AssistantTurn(
+    list(request),
+    json = list(response = "provider-secret")
+  )
+
+  bundle <- as_trajectory_ellmer(
+    turn,
+    metadata = list(password = "trajectory-secret")
+  )
+  event <- trajectory_events(bundle)
+  losses <- trajectory_losses(bundle)
+  rendered <- capture.output(str(S7::props(bundle)))
+
+  expect_identical(event$value[[1L]]$api_key, "<redacted>")
+  expect_identical(event$metadata[[1L]]$access_token, "<redacted>")
+  expect_identical(
+    trajectory_info(bundle)$metadata[[1L]]$password,
+    "<redacted>"
+  )
+  expect_setequal(unique(losses$reason), "redacted")
+  expect_no_match(
+    rendered,
+    "argument-secret|metadata-secret|provider-secret|trajectory-secret"
+  )
+})
+
+test_that("ellmer binary and unknown content produces explicit losses", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  FixtureContent <- S7::new_class(
+    "FixtureContent",
+    parent = ellmer::Content,
+    properties = list(value = S7::class_character)
+  )
+  turn <- ellmer::UserTurn(list(
+    ellmer::ContentImageRemote(
+      "https://user:password@example.com/image.png?token=secret",
+      "low"
+    ),
+    ellmer::ContentImageInline("image/png", "ZmFrZQ=="),
+    ellmer::ContentPDF("application/pdf", "cGRm", "fixture.pdf"),
+    FixtureContent(value = "unknown")
+  ))
+
+  bundle <- as_trajectory_ellmer(turn)
+  events <- trajectory_events(bundle)
+  losses <- trajectory_losses(bundle)
+
+  expect_identical(events$value[[1L]]$url, "https://example.com/image.png")
+  expect_identical(events$content_type[[2L]], "image")
+  expect_identical(events$content_type[[3L]], "pdf")
+  expect_match(events$content_type[[4L]], "^ellmer:")
+  expect_setequal(
+    unique(losses$reason),
+    c("redacted", "externalized", "unsupported")
+  )
+})
+
+test_that("ellmer partial turns mark the trajectory interrupted", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  turn <- ellmer::AssistantPartialTurn(
+    list(ellmer::ContentText("Partial")),
+    reason = "cancelled"
+  )
+
+  bundle <- as_trajectory_ellmer(turn)
+
+  expect_identical(trajectory_info(bundle)$status, "interrupted")
+  expect_identical(trajectory_turns(bundle)$status, "cancelled")
+  expect_identical(
+    trajectory_turns(bundle)$metadata[[1L]]$interruption_reason,
+    "cancelled"
+  )
+})
+
+test_that("ellmer empty histories remain valid snapshots", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  bundle <- as_trajectory_ellmer(list())
+
+  expect_identical(nrow(trajectory_info(bundle)), 1L)
+  expect_identical(nrow(trajectory_turns(bundle)), 0L)
+  expect_identical(nrow(trajectory_events(bundle)), 0L)
+  expect_identical(trajectory_info(bundle)$status, "completed")
+})
+
+test_that("ellmer thinking and oversized text are retained safely", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  turn <- ellmer::AssistantTurn(list(
+    ellmer::ContentThinking(
+      "Reasoning",
+      extra = list(signature = "fixture")
+    ),
+    ellmer::ContentText(strrep("x", 65537L))
+  ))
+
+  bundle <- as_trajectory_ellmer(turn)
+  events <- trajectory_events(bundle)
+
+  expect_identical(events$content_type, c("thinking", "text"))
+  expect_identical(events$text[[1L]], "Reasoning")
+  expect_identical(events$metadata[[1L]]$signature, "fixture")
+  expect_lt(nchar(events$text[[2L]], type = "bytes"), 65536L)
+  expect_in("truncated", trajectory_losses(bundle)$reason)
+})
+
+test_that("ellmer unmatched tool results remain diagnostic data", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  turn <- ellmer::UserTurn(list(ellmer::ContentToolResult("orphaned")))
+
+  bundle <- as_trajectory_ellmer(turn)
+  event <- trajectory_events(bundle)
+
+  expect_identical(event$event_type, "tool_result")
+  expect_identical(event$call_id, NA_character_)
+  expect_identical(event$parent_event_id, NA_character_)
+  expect_identical(event$text, "orphaned")
+})
+
+test_that("ellmer adapter rejects malformed sources and arguments", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  condition <- rlang::catch_cnd(as_trajectory(list(ellmer::UserTurn(), 1)))
+  expect_s3_class(condition, "scans_error_ellmer_source")
+
+  expect_snapshot(
+    error = TRUE,
+    as_trajectory(list(ellmer::UserTurn(), 1))
+  )
+  expect_snapshot(
+    error = TRUE,
+    as_trajectory_ellmer(ellmer::UserTurn(), epoch = 0L)
+  )
+  expect_snapshot(
+    error = TRUE,
+    as_trajectory_ellmer(ellmer::UserTurn(), metadata = list("unnamed"))
+  )
+})
