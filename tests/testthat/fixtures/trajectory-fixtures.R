@@ -5,6 +5,7 @@ trajectory_fixtures <- function() {
     tool_error = fixture_tool_error(),
     repeated_tools = fixture_repeated_tools(),
     delegated_agent = fixture_delegated_agent(),
+    ellmerverse_correlation = fixture_ellmerverse_correlation(),
     missing_data = fixture_missing_data(),
     evaluated = fixture_evaluated()
   )
@@ -245,6 +246,180 @@ fixture_delegated_agent <- function() {
       event_type = c("synthetic:delegation", "content"),
       content_type = c(NA, "text"),
       text = c("Delegate research", "Research complete")
+    )
+  )
+}
+
+fixture_ellmerverse_correlation <- function() {
+  started_at <- as.POSIXct("2026-08-22 16:00:00", tz = "UTC")
+  program_id <- paste0("sha256:", strrep("a", 64L))
+
+  TrajectoryBundle(
+    trajectories = tibble::tibble(
+      trajectory_id = c(
+        "tempest-research-001",
+        "deputy-agent-001",
+        "dsprrr-program-001",
+        "ellmer-chat-001"
+      ),
+      run_id = c(
+        "research-run-001",
+        "deputy-run-001",
+        "deputy-run-001",
+        "deputy-run-001"
+      ),
+      source_type = c("tempest", "deputy", "dsprrr", "ellmer"),
+      source_id = c(
+        "tempest-review-001",
+        "deputy-run-001",
+        program_id,
+        "ellmer-chat-001"
+      ),
+      agent = c("storm", "research-agent", "research-module", "research-agent"),
+      started_at = started_at + c(0, 1, 2, 3),
+      completed_at = started_at + c(10, 9, 8, 7),
+      status = rep("completed", 4L),
+      metadata = list(
+        list(
+          schema_version = 1L,
+          review_id = "tempest-review-001",
+          deputy_run_id = "deputy-run-001",
+          program_artifact_id = program_id,
+          correlation_id = "research-step-001"
+        ),
+        list(
+          session_id = "deputy-session-001",
+          agent_id = "agent-research-001",
+          run_context = list(
+            product = "tempest",
+            research_run_id = "research-run-001",
+            program_artifact_id = program_id
+          )
+        ),
+        list(
+          program_artifact_id = program_id,
+          trace_context = list(
+            product = "tempest",
+            research_run_id = "research-run-001",
+            deputy_run_id = "deputy-run-001"
+          )
+        ),
+        list(
+          host = "deputy",
+          deputy_run_id = "deputy-run-001",
+          tool_call_id = "tool-call-001"
+        )
+      )
+    ),
+    turns = tibble::tibble(
+      trajectory_id = rep(
+        c("deputy-agent-001", "dsprrr-program-001", "ellmer-chat-001"),
+        each = 2L
+      ),
+      turn_id = c(
+        "deputy-turn-1",
+        "deputy-turn-2",
+        "dsprrr-turn-1",
+        "dsprrr-turn-2",
+        "ellmer-turn-1",
+        "ellmer-turn-2"
+      ),
+      turn_index = rep(1:2, 3L),
+      role = rep(c("user", "assistant"), 3L),
+      status = rep("completed", 6L)
+    ),
+    events = tibble::tibble(
+      trajectory_id = c(
+        "tempest-research-001",
+        "deputy-agent-001",
+        "deputy-agent-001",
+        "dsprrr-program-001",
+        "ellmer-chat-001",
+        "ellmer-chat-001"
+      ),
+      event_id = c(
+        "tempest-event-1",
+        "deputy-event-1",
+        "deputy-event-2",
+        "dsprrr-event-1",
+        "ellmer-event-1",
+        "ellmer-event-2"
+      ),
+      event_index = c(1L, 1L, 2L, 1L, 1L, 2L),
+      turn_id = c(
+        NA,
+        "deputy-turn-2",
+        "deputy-turn-2",
+        "dsprrr-turn-2",
+        "ellmer-turn-2",
+        "ellmer-turn-2"
+      ),
+      content_index = c(NA, 1L, 2L, 1L, 1L, 2L),
+      event_type = c(
+        "tempest:stage_succeeded",
+        "tool_call",
+        "tool_result",
+        "dsprrr:trace",
+        "tool_call",
+        "tool_result"
+      ),
+      name = c(
+        "research",
+        "research_module",
+        "research_module",
+        "research_module",
+        "research_module",
+        "research_module"
+      ),
+      call_id = c(
+        NA,
+        "tool-call-001",
+        "tool-call-001",
+        NA,
+        "tool-call-001",
+        "tool-call-001"
+      ),
+      timestamp = started_at + c(9, 4, 8, 6, 4, 8),
+      duration = c(9, NA, 4, 2, NA, NA),
+      status = rep("completed", 6L),
+      value = list(
+        NULL,
+        list(question = "Find the evidence"),
+        list(answer = "Evidence found"),
+        list(input_tokens = 18L, output_tokens = 6L),
+        list(question = "Find the evidence"),
+        list(answer = "Evidence found")
+      ),
+      metadata = list(
+        list(
+          attempt_id = "stage-attempt-001",
+          trace_id = "stage-attempt-001",
+          deputy_run_id = "deputy-run-001",
+          program_artifact_id = program_id,
+          correlation_id = "research-step-001"
+        ),
+        list(source_event_type = "tool_start"),
+        list(source_event_type = "tool_end"),
+        list(
+          program_artifact_id = program_id,
+          trace_context = list(
+            research_run_id = "research-run-001",
+            deputy_run_id = "deputy-run-001"
+          )
+        ),
+        list(source_class = "ellmer::ContentToolRequest"),
+        list(source_class = "ellmer::ContentToolResult")
+      )
+    ),
+    losses = tibble::tibble(
+      trajectory_id = "tempest-research-001",
+      field = "turns",
+      reason = "unsupported",
+      detail = paste(
+        "TempestTrajectoryReview intentionally excludes prompts",
+        "and responses"
+      ),
+      metadata = list(list(source = "tempest_trajectory_review"))
     )
   )
 }

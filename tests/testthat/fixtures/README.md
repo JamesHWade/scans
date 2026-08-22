@@ -6,8 +6,10 @@ canonical output an adapter must produce.
 
 The corpus covers simple conversation, parallel tool calls, tool failure,
 repeated tool use, delegated activity, missing source data, and an evaluated
-trajectory. Together the fixtures populate every canonical schema column and
-exercise every core loss reason.
+trajectory. The `ellmerverse_correlation` fixture adds independent Tempest,
+Deputy, dsprrr, and ellmer source views whose exact identifiers correlate
+without being collapsed into one source identity. Together the fixtures
+populate every canonical schema column and exercise every core loss reason.
 
 ## Add a source fixture
 
