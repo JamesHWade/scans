@@ -1,0 +1,5 @@
+^\.github$
+^AGENTS\.md$
+^docs$
+^LICENSE\.md$
+^_pkgdown\.yml$
