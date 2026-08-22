@@ -3,19 +3,28 @@ Title: Analyze AI Agent Trajectories
 Version: 0.0.0.9000
 Authors@R:
     person("James", "Wade", , "github@jameshwade.com", role = c("aut", "cre"))
-Description: Provides tools to import, inspect, scan, and validate trajectories
-    produced by artificial intelligence agents built with 'ellmer' and related
-    R packages. Complements outcome evaluation with post-run analysis of
-    messages, tool calls, events, and multi-agent execution.
+Description: Provides tools to import, inspect, scan, and validate
+    trajectories produced by artificial intelligence agents built with
+    'ellmer' and related R packages. Complements outcome evaluation with
+    post-run analysis of messages, tool calls, events, and multi-agent
+    execution.
 License: MIT + file LICENSE
 URL: https://jameshwade.github.io/scans/,
     https://github.com/JamesHWade/scans
 BugReports: https://github.com/JamesHWade/scans/issues
-Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-Config/testthat/edition: 3
 Depends:
     R (>= 4.2.0)
+Imports:
+    cli (>= 3.6.3),
+    rlang (>= 1.1.4)
 Suggests:
-    testthat (>= 3.0.0)
+    ellmer,
+    shinychat,
+    testthat (>= 3.0.0),
+    vitals
 Config/roxygen2/version: 8.0.0
+Config/testthat/edition: 3
+Config/testthat/parallel: true
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0

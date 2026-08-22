@@ -3,3 +3,6 @@
 ^docs$
 ^LICENSE\.md$
 ^_pkgdown\.yml$
+^[.]?air[.]toml$
+^\.vscode$
+^jarl\.toml$
