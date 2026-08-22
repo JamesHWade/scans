@@ -9,6 +9,7 @@ test_that("fixture corpus covers the adapter contract scenarios", {
       "tool_error",
       "repeated_tools",
       "delegated_agent",
+      "ellmerverse_correlation",
       "missing_data",
       "evaluated"
     )
@@ -18,6 +19,31 @@ test_that("fixture corpus covers the adapter contract scenarios", {
     unlist(lapply(fixtures, \(x) trajectory_losses(x)$reason)),
     c("unsupported", "redacted", "truncated", "externalized")
   )
+})
+
+test_that("ellmerverse fixture correlates sources without conflating them", {
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  info <- trajectory_info(bundle)
+  metadata <- stats::setNames(info$metadata, info$source_type)
+
+  expect_identical(
+    info$source_type,
+    c("tempest", "deputy", "dsprrr", "ellmer")
+  )
+  expect_identical(info$parent_trajectory_id, rep(NA_character_, 4L))
+
+  deputy_run_id <- info$run_id[info$source_type == "deputy"]
+  expect_identical(metadata$tempest$deputy_run_id, deputy_run_id)
+  expect_identical(metadata$dsprrr$trace_context$deputy_run_id, deputy_run_id)
+  expect_identical(metadata$ellmer$deputy_run_id, deputy_run_id)
+
+  program_id <- info$source_id[info$source_type == "dsprrr"]
+  expect_identical(metadata$tempest$program_artifact_id, program_id)
+  expect_identical(metadata$deputy$run_context$program_artifact_id, program_id)
+
+  events <- trajectory_events(bundle)
+  tool_calls <- events$call_id[events$event_type == "tool_call"]
+  expect_identical(tool_calls, rep("tool-call-001", 2L))
 })
 
 test_that("fixture corpus exercises every canonical column", {
