@@ -3,6 +3,7 @@
 * Initial package scaffold.
 * `as_trajectory()` no longer treats an empty list as an ellmer source only because ellmer is installed (#14).
 * `as_trajectory_deputy()` snapshots completed Deputy results, lifecycle events, run context, usage, and delegation correlation into canonical trajectories (#18).
+* `as_trajectory_dsprrr()` snapshots dsprrr modules and exported traces, preserving semantic turns, program artifact identity, metrics, and caller-supplied run correlation without treating artifact integrity as authenticity (#19).
 * `as_trajectory_ellmer()` converts completed ellmer chats and turns into canonical trajectory bundles without provider calls (#6).
 * `as_trajectory_ellmer()` now redacts sensitive named-vector elements and attributes, preserves sanitized properties from unknown content classes, and avoids ambiguous tool-result parent links (#14).
 * `as_trajectory_vitals()` snapshots evaluated vitals tasks and sample data, including the development `vitals_log_read()` output, into solver trajectories joined to canonical evaluations (#8).

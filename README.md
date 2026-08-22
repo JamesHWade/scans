@@ -26,7 +26,8 @@ tidyverse organization.
 composable analysis functions. Integrations with
 [{ellmer}](https://ellmer.tidyverse.org/),
 [{vitals}](https://vitals.tidyverse.org/),
-[{deputy}](https://github.com/JamesHWade/deputy), and
+[{deputy}](https://github.com/JamesHWade/deputy),
+[{dsprrr}](https://github.com/JamesHWade/dsprrr), and
 [{shinychat}](https://posit-dev.github.io/shinychat/r/) will remain optional so
 the core analysis layer can also inspect trajectories from other agent
 frameworks.
@@ -120,6 +121,30 @@ trajectory_info(bundle)[
 
 Unresolved parent IDs and missing run IDs remain explicit adapter losses; the
 adapter does not invent related executions.
+
+## Inspect dsprrr traces
+
+A dsprrr module can be converted after execution through its public trace
+exporter. Already-exported trace tibbles use the explicit adapter because they
+do not carry a package-specific class:
+
+```r
+bundle <- as_trajectory(program)
+
+traces <- dsprrr::export_traces(
+  program,
+  include_prompts = TRUE,
+  include_outputs = TRUE
+)
+bundle <- as_trajectory_dsprrr(traces)
+```
+
+Each trace becomes a trajectory. The adapter reuses the ellmer conversion for
+model-visible turns, keeps token, cost, latency, model, output, and trace
+context data, and uses the program artifact digest as its source identity. The
+digest establishes integrity, not authenticity. A caller-supplied
+`deputy_run_id` may correlate the trace to a Deputy run; Tempest product
+identifiers remain metadata rather than ownership claims.
 
 ## Compose trajectory diagnostics
 

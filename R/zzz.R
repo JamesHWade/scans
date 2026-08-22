@@ -7,6 +7,10 @@ S7::method(as_trajectory, TrajectoryBundle) <- function(x, ...) {
 }
 
 S7::method(as_trajectory, S7::class_any) <- function(x, ...) {
+  if (dsprrr_is_module(x)) {
+    return(as_trajectory_dsprrr(x, ...))
+  }
+
   if (deputy_is_result(x) || deputy_is_result_list(x)) {
     return(as_trajectory_deputy(x, ...))
   }
