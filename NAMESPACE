@@ -3,6 +3,7 @@
 export(TrajectoryBundle)
 export(as_trajectory)
 export(as_trajectory_ellmer)
+export(as_trajectory_vitals)
 export(filter_trajectory_events)
 export(is_trajectory_bundle)
 export(scan_trajectories)
