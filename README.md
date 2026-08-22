@@ -25,7 +25,8 @@ tidyverse organization.
 {scans} is being designed around tidy, rectangular trajectory data and small,
 composable analysis functions. Integrations with
 [{ellmer}](https://ellmer.tidyverse.org/),
-[{vitals}](https://vitals.tidyverse.org/), and
+[{vitals}](https://vitals.tidyverse.org/),
+[{deputy}](https://github.com/JamesHWade/deputy), and
 [{shinychat}](https://posit-dev.github.io/shinychat/r/) will remain optional so
 the core analysis layer can also inspect trajectories from other agent
 frameworks.
@@ -92,6 +93,33 @@ Each sample and epoch receives a stable trajectory identity within the bundle,
 so outcomes, summaries, and evidence-linked findings join by `trajectory_id`.
 The adapter snapshots the solver chat and never reaches into private vitals
 state.
+
+## Inspect Deputy execution
+
+A completed Deputy result adds run lifecycle, tool timing, usage, immutable run
+context, and delegation identity to its model-visible ellmer turns:
+
+```r
+bundle <- as_trajectory(agent_result)
+
+trajectory_info(bundle)
+trajectory_events(bundle)
+```
+
+Passing a list of results preserves each run as a separate trajectory. A child
+is linked through `parent_trajectory_id` only when its parent run is included
+in that same snapshot:
+
+```r
+bundle <- as_trajectory_deputy(list(parent_result, child_result))
+
+trajectory_info(bundle)[
+  , c("trajectory_id", "run_id", "parent_trajectory_id")
+]
+```
+
+Unresolved parent IDs and missing run IDs remain explicit adapter losses; the
+adapter does not invent related executions.
 
 ## Compose trajectory diagnostics
 
