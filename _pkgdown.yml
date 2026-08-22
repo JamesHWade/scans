@@ -2,3 +2,10 @@ url: https://jameshwade.github.io/scans/
 
 template:
   bootstrap: 5
+
+reference:
+- title: Trajectory bundles
+  contents:
+  - TrajectoryBundle
+  - as_trajectory
+  - trajectory_accessors

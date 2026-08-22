@@ -2,8 +2,7 @@
 
 ## Status
 
-Proposed for maintainer review in issue #4. No package API should implement this
-contract until the proposal is accepted.
+Accepted by the maintainer on 2026-08-22 for implementation in issue #4.
 
 ## Purpose
 
@@ -85,8 +84,9 @@ must replace all affected properties as one operation and pass S7 validation.
 
 S7 checks each property's declared class and runs the whole-object validator at
 construction and after property replacement. `S7::validate()` is the explicit
-manual validation entry point. scans conditions cover adapter and source-input
-failures; invalid class state uses S7's validation condition.
+manual validation entry point. `TrajectoryBundle()` runs the same validator
+before S7 construction so invalid input raises a stable scans validation
+condition. Direct property replacement uses S7's native validation error.
 
 Tool calls and tool results use `call_id` for correlation. An unmatched call or
 result remains valid data because unresolved tool activity is itself diagnostic

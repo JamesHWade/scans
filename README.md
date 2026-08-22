@@ -13,7 +13,8 @@ the trajectories that produce evaluation outcomes. Its design is inspired by
 Meridian Labs' [inspect_scout](https://meridianlabs-ai.github.io/inspect_scout/)
 and is intended for agents built with the ellmerverse and related R packages.
 
-The package is at the initial design and prototyping stage.
+The package is in early development. Its canonical trajectory contract is a
+validated S7 object whose analysis properties remain ordinary tibbles.
 
 {scans} is independently maintained. It borrows development conventions and
 interface principles from tidyverse packages, but it is not part of the
@@ -28,6 +29,25 @@ composable analysis functions. Integrations with
 [{shinychat}](https://posit-dev.github.io/shinychat/r/) will remain optional so
 the core analysis layer can also inspect trajectories from other agent
 frameworks.
+
+## Trajectory bundles
+
+`TrajectoryBundle()` creates a detached snapshot with explicit relational
+tables. Empty semantic tables are valid, so adapters can preserve incomplete
+or interrupted agent paths without inventing events.
+
+```r
+bundle <- TrajectoryBundle(
+  data.frame(
+    trajectory_id = "trajectory-1",
+    source_type = "manual"
+  ),
+  data.frame(),
+  data.frame()
+)
+
+trajectory_info(bundle)
+```
 
 ## Installation
 

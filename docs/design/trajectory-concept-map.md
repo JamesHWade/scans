@@ -328,7 +328,7 @@ deliberately outside the v0 trajectory contract.
 | Gap or risk | v0 treatment |
 |---|---|
 | ellmer turns lack public IDs and timestamps | Generate snapshot-local ordinal IDs; allow missing timestamps. |
-| Mutable chats can be edited or reset | Adapters return immutable snapshots and document that regenerated IDs describe that snapshot. |
+| Mutable chats can be edited or reset | Adapters return detached, validated snapshots and document that regenerated IDs describe that snapshot. |
 | Provider JSON is inconsistent and may be sensitive | Exclude by default; permit explicit sanitized retention. |
 | vitals does not expose persisted run/task IDs through `vitals_log_read()` | Preserve IDs when available without private R6 access; otherwise record the gap. |
 | shinychat rendered state can diverge from model-visible state | Keep it optional and presentation-scoped. |
