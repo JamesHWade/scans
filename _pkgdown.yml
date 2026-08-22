@@ -10,3 +10,6 @@ reference:
   - as_trajectory
   - as_trajectory_ellmer
   - trajectory_accessors
+- title: Trajectory diagnostics
+  contents:
+  - trajectory_scan_primitives
