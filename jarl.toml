@@ -1,0 +1,11 @@
+[lint]
+extend-select = ["TESTTHAT", "assignment", "quotes"]
+default-exclude = true
+check-roxygen = true
+fix-roxygen = false
+
+[lint.assignment]
+operator = "<-"
+
+[lint.quotes]
+quote = "double"
