@@ -69,6 +69,30 @@ bundle |>
 The scan returns evidence-linked findings for both the repeated request and its
 missing result. It never calls the model or tool.
 
+## Connect vitals outcomes
+
+Evaluated vitals tasks can be converted through their public sample interface:
+
+```r
+bundle <- as_trajectory_vitals(task)
+
+outcomes <- trajectory_evaluations(bundle)
+diagnostics <- scan_trajectories(bundle)
+```
+
+The development version of vitals can also reconstruct persisted eval logs.
+Its output uses the same adapter:
+
+```r
+samples <- vitals::vitals_log_read(log_path)
+bundle <- as_trajectory_vitals(samples, source_uri = log_path)
+```
+
+Each sample and epoch receives a stable trajectory identity within the bundle,
+so outcomes, summaries, and evidence-linked findings join by `trajectory_id`.
+The adapter snapshots the solver chat and never reaches into private vitals
+state.
+
 ## Compose trajectory diagnostics
 
 Core diagnostics return ordinary tibbles and compose with the base pipe:

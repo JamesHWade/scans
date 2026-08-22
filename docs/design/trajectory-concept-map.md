@@ -361,7 +361,7 @@ Research was performed on 2026-08-22 against these upstream commits:
 |---|---|---|
 | inspect_scout | Development snapshot | [`63b481d64db14b98fb476b0071827f1d41b3c96d`](https://github.com/meridianlabs-ai/inspect_scout/tree/63b481d64db14b98fb476b0071827f1d41b3c96d) |
 | ellmer | 0.4.2.9000 | [`19be478ebf1a2e5d2db96a8aeaca71592c8d3f26`](https://github.com/tidyverse/ellmer/tree/19be478ebf1a2e5d2db96a8aeaca71592c8d3f26) |
-| vitals | 0.3.0.9001 | [`e1ad045bbaf846a9e4fdda651f4892017f4a85d0`](https://github.com/tidyverse/vitals/tree/e1ad045bbaf846a9e4fdda651f4892017f4a85d0) |
+| vitals | 0.3.0.9001 | [`df01dc956276fcf257a471f9fef297a00802b6cd`](https://github.com/tidyverse/vitals/tree/df01dc956276fcf257a471f9fef297a00802b6cd) |
 | shinychat | 0.4.0.9000 | [`c6121f15192472d058241a9ad987d1b35a84dbbc`](https://github.com/posit-dev/shinychat/tree/c6121f15192472d058241a9ad987d1b35a84dbbc) |
 
 ## Code reference index
@@ -378,9 +378,9 @@ Research was performed on 2026-08-22 against these upstream commits:
 | ellmer | [`R/turns.R`](https://github.com/tidyverse/ellmer/blob/19be478ebf1a2e5d2db96a8aeaca71592c8d3f26/R/turns.R) | `Turn`, `UserTurn`, `SystemTurn`, `AssistantTurn`, `AssistantPartialTurn` |
 | ellmer | [`R/rounds.R`](https://github.com/tidyverse/ellmer/blob/19be478ebf1a2e5d2db96a8aeaca71592c8d3f26/R/rounds.R) | `Round`, `get_rounds` |
 | ellmer | [`R/content.R`](https://github.com/tidyverse/ellmer/blob/19be478ebf1a2e5d2db96a8aeaca71592c8d3f26/R/content.R) | `ContentText`, `ContentThinking`, `ContentCitation`, `ContentToolRequest`, `ContentToolResult` |
-| vitals | [`R/task.R`](https://github.com/tidyverse/vitals/blob/e1ad045bbaf846a9e4fdda651f4892017f4a85d0/R/task.R) | `Task`, `get_samples`, `log`, `set_id_column`, `join_epochs` |
-| vitals | [`R/log-read.R`](https://github.com/tidyverse/vitals/blob/e1ad045bbaf846a9e4fdda651f4892017f4a85d0/R/log-read.R) | `vitals_log_read`, `log_sample_row`, `chat_from_log_messages`, `turns_from_messages` |
-| vitals | [`R/translate.R`](https://github.com/tidyverse/vitals/blob/e1ad045bbaf846a9e4fdda651f4892017f4a85d0/R/translate.R) | `eval_log`, `translate_to_sample`, `translate_to_eval` |
+| vitals | [`R/task.R`](https://github.com/tidyverse/vitals/blob/df01dc956276fcf257a471f9fef297a00802b6cd/R/task.R) | `Task`, `get_samples`, `log`, `set_id_column`, `join_epochs` |
+| vitals | [`R/log-read.R`](https://github.com/tidyverse/vitals/blob/df01dc956276fcf257a471f9fef297a00802b6cd/R/log-read.R) | `vitals_log_read`, `log_sample_row`, `chat_from_log_messages`, `turns_from_messages` |
+| vitals | [`R/translate.R`](https://github.com/tidyverse/vitals/blob/df01dc956276fcf257a471f9fef297a00802b6cd/R/translate.R) | `eval_log`, `translate_to_sample`, `translate_to_eval` |
 | shinychat | [`pkg-r/R/chat.R`](https://github.com/posit-dev/shinychat/blob/c6121f15192472d058241a9ad987d1b35a84dbbc/pkg-r/R/chat.R) | `chat_ui`, `chat_append`, `chat_append_message` |
 | shinychat | [`pkg-r/R/chat_app.R`](https://github.com/posit-dev/shinychat/blob/c6121f15192472d058241a9ad987d1b35a84dbbc/pkg-r/R/chat_app.R) | `chat_server`, `last_input`, `last_turn`, `status`, `last_error` |
 | shinychat | [`pkg-r/R/chat_history_types.R`](https://github.com/posit-dev/shinychat/blob/c6121f15192472d058241a9ad987d1b35a84dbbc/pkg-r/R/chat_history_types.R) | `new_conversation_record`, `record_path_turns`, `extend_record_linear` |
