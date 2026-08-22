@@ -9,7 +9,8 @@ commitment to exact R class names or function signatures.
 
 The intended audience is package developers and coding agents working on
 scans. The source review used the upstream snapshots listed in
-[Source snapshots](#source-snapshots).
+[Source snapshots](#source-snapshots). The approach was approved by the
+maintainer on 2026-08-22 and is the baseline for issue #4.
 
 ## Decision summary
 
