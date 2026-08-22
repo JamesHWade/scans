@@ -8,3 +8,4 @@
       ! Can't scan this trajectory.
       x The trajectory has no events.
       i Supply at least one message or tool event.
+
