@@ -8,7 +8,7 @@
 
 Trajectory diagnostics for AI agents in R.
 
-{scans} will complement [{vitals}](https://vitals.tidyverse.org/) by examining
+{scans} complements [{vitals}](https://vitals.tidyverse.org/) by examining
 the trajectories that produce evaluation outcomes. Its design is inspired by
 Meridian Labs' [inspect_scout](https://meridianlabs-ai.github.io/inspect_scout/)
 and is intended for agents built with the ellmerverse and related R packages.
@@ -30,39 +30,46 @@ composable analysis functions. Integrations with
 the core analysis layer can also inspect trajectories from other agent
 frameworks.
 
-## Trajectory bundles
+## Start with an ellmer trajectory
 
-`TrajectoryBundle()` creates a detached snapshot with explicit relational
-tables. Empty semantic tables are valid, so adapters can preserve incomplete
-or interrupted agent paths without inventing events.
+Completed ellmer chats and public turn objects can be snapshotted and inspected
+without a provider call. Here the agent repeats a tool request after receiving
+a result:
 
 ```r
-bundle <- TrajectoryBundle(
-  data.frame(
-    trajectory_id = "trajectory-1",
-    source_type = "manual"
-  ),
-  data.frame(),
-  data.frame()
+first_request <- ellmer::ContentToolRequest(
+  "call-weather-1",
+  "weather",
+  list(city = "Detroit")
+)
+second_request <- ellmer::ContentToolRequest(
+  "call-weather-2",
+  "weather",
+  list(city = "Detroit")
 )
 
-trajectory_info(bundle)
-```
-
-Completed ellmer chats and public turn objects can be snapshotted without a
-provider call:
-
-```r
 turns <- list(
-  ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
-  ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))
+  ellmer::AssistantTurn(list(first_request)),
+  ellmer::UserTurn(list(ellmer::ContentToolResult(
+    "Cloudy",
+    request = first_request
+  ))),
+  ellmer::AssistantTurn(list(second_request))
 )
 
 bundle <- as_trajectory(turns)
-trajectory_events(bundle)
+
+bundle |>
+  summarize_trajectories()
+
+bundle |>
+  scan_trajectories()
 ```
 
-## Trajectory diagnostics
+The scan returns evidence-linked findings for both the repeated request and its
+missing result. It never calls the model or tool.
+
+## Compose trajectory diagnostics
 
 Core diagnostics return ordinary tibbles and compose with the base pipe:
 
@@ -78,8 +85,29 @@ bundle |>
 ```
 
 Built-in scans identify unresolved or unmatched tool activity, repeated calls,
-suspicious tool loops, failed events, and causal error chains. Every finding
-retains the trajectory and event identifiers that support it.
+ambiguous correlation, suspicious tool loops, failed events, and causal error
+chains. Every finding retains the trajectory and event identifiers that support
+it.
+
+## Construct a bundle directly
+
+Adapters normalize other sources into the same validated relational boundary.
+`TrajectoryBundle()` is also available when data is already rectangular. Empty
+semantic tables are valid, so incomplete or interrupted paths do not require
+invented events.
+
+```r
+bundle <- TrajectoryBundle(
+  data.frame(
+    trajectory_id = "trajectory-1",
+    source_type = "manual"
+  ),
+  data.frame(),
+  data.frame()
+)
+
+trajectory_info(bundle)
+```
 
 ## Installation
 

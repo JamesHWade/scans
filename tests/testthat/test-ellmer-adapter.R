@@ -20,6 +20,15 @@ test_that("as_trajectory() dispatches for ellmer lists and turns", {
   expect_identical(nrow(trajectory_turns(turn_bundle)), 1L)
 })
 
+test_that("as_trajectory() rejects an ambiguous empty list", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  condition <- rlang::catch_cnd(as_trajectory(list()))
+
+  expect_s3_class(condition, "scans_error_unsupported_source")
+  expect_snapshot(error = TRUE, as_trajectory(list()))
+})
+
 test_that("ellmer Chat snapshots use public history and model methods", {
   skip_if_not_installed("ellmer", "0.4.2")
   chat <- ellmer_chat_fixture()
@@ -139,12 +148,65 @@ test_that("ellmer metadata and tool payload secrets are redacted", {
   )
 })
 
+test_that("ellmer named vectors and attributes cannot retain secrets", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  headers <- c(
+    authorization = "Bearer header-secret",
+    accept = "application/json"
+  )
+  payload <- structure("safe", api_key = "attribute-secret")
+
+  bundle <- as_trajectory_ellmer(
+    ellmer::UserTurn(),
+    metadata = list(headers = headers, payload = payload)
+  )
+  metadata <- trajectory_info(bundle)$metadata[[1L]]
+  rendered <- capture.output(str(S7::props(bundle)))
+
+  expect_identical(metadata$headers[["authorization"]], "<redacted>")
+  expect_identical(metadata$headers[["accept"]], "application/json")
+  expect_identical(attr(metadata$payload, "api_key"), "<redacted>")
+  expect_no_match(rendered, "header-secret|attribute-secret")
+  expect_identical(sum(trajectory_losses(bundle)$reason == "redacted"), 2L)
+})
+
+test_that("ellmer sanitization covers duplicate names and deep values", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  headers <- stats::setNames(
+    c("Bearer first-secret", "Bearer second-secret"),
+    c("authorization", "authorization")
+  )
+  deep <- "depth-secret"
+  for (index in seq_len(52L)) {
+    deep <- list(value = deep)
+  }
+
+  bundle <- as_trajectory_ellmer(
+    ellmer::UserTurn(),
+    metadata = list(headers = headers, deep = deep)
+  )
+  rendered <- capture.output(str(S7::props(bundle)))
+
+  expect_identical(
+    unname(trajectory_info(bundle)$metadata[[1L]]$headers),
+    list("<redacted>", "<redacted>")
+  )
+  expect_no_match(rendered, "first-secret|second-secret|depth-secret")
+  expect_setequal(
+    unique(trajectory_losses(bundle)$reason),
+    c("redacted", "unsupported")
+  )
+})
+
 test_that("ellmer binary and unknown content produces explicit losses", {
   skip_if_not_installed("ellmer", "0.4.2")
   FixtureContent <- S7::new_class(
     "FixtureContent",
     parent = ellmer::Content,
-    properties = list(value = S7::class_character)
+    properties = list(
+      value = S7::class_character,
+      metadata = S7::class_list
+    )
   )
   turn <- ellmer::UserTurn(list(
     ellmer::ContentImageRemote(
@@ -153,7 +215,10 @@ test_that("ellmer binary and unknown content produces explicit losses", {
     ),
     ellmer::ContentImageInline("image/png", "ZmFrZQ=="),
     ellmer::ContentPDF("application/pdf", "cGRm", "fixture.pdf"),
-    FixtureContent(value = "unknown")
+    FixtureContent(
+      value = "unknown",
+      metadata = list(api_key = "unknown-secret", provider = "fixture")
+    )
   ))
 
   bundle <- as_trajectory_ellmer(turn)
@@ -164,9 +229,34 @@ test_that("ellmer binary and unknown content produces explicit losses", {
   expect_identical(events$content_type[[2L]], "image")
   expect_identical(events$content_type[[3L]], "pdf")
   expect_match(events$content_type[[4L]], "^ellmer:")
+  expect_identical(events$value[[4L]]$value, "unknown")
+  expect_identical(events$value[[4L]]$metadata$api_key, "<redacted>")
+  expect_identical(events$value[[4L]]$metadata$provider, "fixture")
+  expect_no_match(capture.output(str(S7::props(bundle))), "unknown-secret")
   expect_setequal(
     unique(losses$reason),
-    c("redacted", "externalized", "unsupported")
+    c("redacted", "externalized")
+  )
+})
+
+test_that("ellmer duplicate call identifiers do not invent a parent", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  first <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 1L))
+  second <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 2L))
+  result <- ellmer::ContentToolResult("done", request = first)
+  turns <- list(
+    ellmer::AssistantTurn(list(first, second)),
+    ellmer::UserTurn(list(result))
+  )
+
+  bundle <- as_trajectory_ellmer(turns)
+  events <- trajectory_events(bundle)
+  findings <- scan_trajectories(bundle)
+
+  expect_identical(events$parent_event_id, rep(NA_character_, 3L))
+  expect_setequal(
+    findings$scan,
+    c("ambiguous_tool_correlation", "unresolved_tool_call")
   )
 })
 

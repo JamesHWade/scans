@@ -6,7 +6,7 @@ test_that("filter_trajectory_events() composes event and turn filters", {
     assistant$event_id,
     c("tools-event-2", "tools-event-3", "tools-event-6")
   )
-  expect_identical(assistant$role, rep("assistant", 3L))
+  expect_identical(assistant[[".turn_role"]], rep("assistant", 3L))
 
   weather <- filter_trajectory_events(
     bundle,
@@ -28,7 +28,7 @@ test_that("filter_trajectory_events() matches event metadata exactly", {
     metadata = list(kind = "result")
   )
   expect_identical(result$event_id, "evaluated-event-2")
-  expect_identical(result$role, "tool")
+  expect_identical(result[[".turn_role"]], "tool")
 
   missing <- filter_trajectory_events(bundle, tool = "missing")
   expect_identical(nrow(missing), 0L)
@@ -49,7 +49,35 @@ test_that("filter_trajectory_events() applies every canonical filter", {
 
   expect_identical(result$event_id, "error-event-4")
   expect_identical(result$trajectory_id, "trajectory-error")
-  expect_identical(result$role, "tool")
+  expect_identical(result[[".turn_role"]], "tool")
+})
+
+test_that("filter_trajectory_events() preserves source context columns", {
+  tables <- minimal_trajectory_tables()
+  tables$events$role <- "source-role"
+  tables$events$turn_index <- 99L
+  tables$events$round_index <- 98L
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  result <- filter_trajectory_events(bundle)
+
+  expect_identical(result$role, "source-role")
+  expect_identical(result$turn_index, 99L)
+  expect_identical(result$round_index, 98L)
+  expect_identical(result[[".turn_role"]], "user")
+  expect_identical(result[[".turn_index"]], 1L)
+  expect_identical(result[[".round_index"]], NA_integer_)
+})
+
+test_that("filter_trajectory_events() rejects reserved source columns", {
+  tables <- minimal_trajectory_tables()
+  tables$events$.turn_role <- "source-role"
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  condition <- rlang::catch_cnd(filter_trajectory_events(bundle))
+
+  expect_s3_class(condition, "scans_error_scan_column_collision")
+  expect_snapshot(error = TRUE, filter_trajectory_events(bundle))
 })
 
 test_that("summarize_trajectories() reports activity, usage, and depth", {
@@ -175,6 +203,48 @@ test_that("scan_trajectories() preserves unresolved correlation evidence", {
   expect_identical(findings$value[[2L]]$call_id, "call-orphan")
 })
 
+test_that("scan_trajectories() reports ambiguous call identifiers", {
+  tables <- minimal_trajectory_tables()
+  tables$turns <- tables$turns[rep(1L, 3L), , drop = FALSE]
+  tables$turns$turn_id <- paste0("turn-", 1:3)
+  tables$turns$turn_index <- 1:3
+  tables$events <- tables$events[rep(1L, 3L), , drop = FALSE]
+  tables$events$event_id <- paste0("event-", 1:3)
+  tables$events$event_index <- 1:3
+  tables$events$turn_id <- tables$turns$turn_id
+  tables$events$event_type <- c("tool_call", "tool_call", "tool_result")
+  tables$events$name <- "lookup"
+  tables$events$call_id <- "duplicate-call"
+  tables$events$value <- list(list(id = 1L), list(id = 2L), "done")
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  summary <- summarize_trajectories(bundle)
+  findings <- scan_trajectories(bundle)
+
+  expect_identical(summary$n_unresolved_tool_calls, 1L)
+  expect_identical(summary$n_unmatched_tool_results, 0L)
+  expect_identical(summary$n_ambiguous_tool_correlations, 1L)
+  expect_setequal(
+    findings$scan,
+    c("ambiguous_tool_correlation", "unresolved_tool_call")
+  )
+})
+
+test_that("scan_trajectories() canonicalizes named tool arguments", {
+  tables <- fixture_source(trajectory_fixture("repeated_tools"))
+  tables$events$value[[2L]] <- list(
+    options = list(query = "same", limit = 10L)
+  )
+  tables$events$value[[4L]] <- list(
+    options = list(limit = 10L, query = "same")
+  )
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  findings <- scan_trajectories(bundle)
+
+  expect_in("repeated_tool_call", findings$scan)
+})
+
 test_that("scan_trajectories() finds event errors and causal chains", {
   findings <- scan_trajectories(scan_error_chain_fixture())
 
@@ -192,9 +262,107 @@ test_that("scan_trajectories() finds event errors and causal chains", {
 test_that("scan primitives return typed empty results", {
   bundle <- TrajectoryBundle(data.frame(), data.frame(), data.frame())
 
+  summary <- summarize_trajectories(bundle)
+  findings <- scan_trajectories(bundle)
+
   expect_identical(nrow(filter_trajectory_events(bundle)), 0L)
-  expect_identical(summarize_trajectories(bundle), scan_empty_summaries())
-  expect_identical(scan_trajectories(bundle), scan_empty_findings())
+  expect_named(
+    summary,
+    c(
+      "trajectory_id",
+      "run_id",
+      "parent_trajectory_id",
+      "source_type",
+      "status",
+      "trajectory_depth",
+      "max_event_depth",
+      "n_turns",
+      "n_rounds",
+      "n_events",
+      "n_tool_calls",
+      "n_tool_results",
+      "n_unresolved_tool_calls",
+      "n_unmatched_tool_results",
+      "n_ambiguous_tool_correlations",
+      "n_error_events",
+      "n_failed_turns",
+      "n_losses",
+      "input_tokens",
+      "output_tokens",
+      "cached_input_tokens",
+      "cost",
+      "turn_duration",
+      "elapsed"
+    )
+  )
+  expect_identical(
+    unname(vapply(summary, typeof, character(1))),
+    c(
+      rep("character", 5L),
+      rep("integer", 13L),
+      rep("double", 6L)
+    )
+  )
+  expect_named(
+    findings,
+    c(
+      "finding_id",
+      "scan_id",
+      "scan",
+      "scan_version",
+      "trajectory_id",
+      "turn_id",
+      "event_id",
+      "event_ids",
+      "severity",
+      "label",
+      "value",
+      "explanation",
+      "metadata"
+    )
+  )
+  expect_identical(
+    unname(vapply(findings, typeof, character(1))),
+    c(
+      rep("character", 7L),
+      "list",
+      rep("character", 2L),
+      "list",
+      "character",
+      "list"
+    )
+  )
+})
+
+test_that("summarize_trajectories() handles many independent trajectories", {
+  size <- 1000L
+  ids <- sprintf("trajectory-%04d", seq_len(size))
+  bundle <- TrajectoryBundle(
+    trajectories = tibble::tibble(
+      trajectory_id = ids,
+      source_type = "synthetic"
+    ),
+    turns = tibble::tibble(
+      trajectory_id = ids,
+      turn_id = sprintf("turn-%04d", seq_len(size)),
+      turn_index = 1L,
+      role = "assistant"
+    ),
+    events = tibble::tibble(
+      trajectory_id = ids,
+      event_id = sprintf("event-%04d", seq_len(size)),
+      event_index = 1L,
+      turn_id = sprintf("turn-%04d", seq_len(size)),
+      event_type = "content",
+      content_type = "text"
+    )
+  )
+
+  summary <- summarize_trajectories(bundle)
+
+  expect_identical(summary$trajectory_id, ids)
+  expect_identical(summary$n_turns, rep(1L, size))
+  expect_identical(summary$n_events, rep(1L, size))
 })
 
 test_that("ordinary conversations do not produce findings", {

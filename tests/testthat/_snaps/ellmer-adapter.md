@@ -1,3 +1,12 @@
+# as_trajectory() rejects an ambiguous empty list
+
+    Code
+      as_trajectory(list())
+    Condition
+      Error in `method(as_trajectory, class_any)`:
+      ! No trajectory adapter is available for an empty list.
+      i Supply a <TrajectoryBundle> or install an adapter for the source class.
+
 # ellmer adapter rejects malformed sources and arguments
 
     Code

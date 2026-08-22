@@ -276,6 +276,21 @@ test_that("TrajectoryBundle() validates vocabularies and metadata", {
       tables$events
     )
   )
+
+  tables <- minimal_trajectory_tables()
+  tables$events$metadata <- list(stats::setNames(
+    list("first", "second"),
+    c("kind", "kind")
+  ))
+
+  expect_snapshot(
+    error = TRUE,
+    TrajectoryBundle(
+      tables$trajectories,
+      tables$turns,
+      tables$events
+    )
+  )
 })
 
 test_that("S7 property replacement preserves relational validity", {

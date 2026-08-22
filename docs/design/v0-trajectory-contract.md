@@ -146,7 +146,7 @@ later schema version.
 | `metadata` | list | Named lists of sanitized source-specific data. |
 
 `trajectory_id` and `source_type` cannot be missing. `metadata` elements are
-named lists, using `list()` when empty.
+uniquely named lists, using `list()` when empty.
 
 ### `turns`
 
@@ -254,7 +254,8 @@ values for known sensitive keys with `"<redacted>"` while retaining the key and
 recording a `redacted` loss. Sensitive keys include authorization and proxy
 authorization headers, cookies, passwords, API keys, access and refresh
 tokens, secrets, and credentials. Token-usage fields are not sensitive merely
-because their names contain `token`.
+because their names contain `token`. The same rule applies to named atomic
+vectors and attributes, not only list elements.
 
 Raw binary content is not embedded. It is represented by a safe reference and
 an `externalized` loss when the representation differs from the source.
@@ -291,6 +292,12 @@ the adapter creates one trajectory and four turns. The event table contains:
 The structured tool arguments and result remain in `value`. Assistant usage,
 duration, and finish reason belong to their turn rows. Provider-specific extras
 are excluded unless a caller explicitly requests sanitized metadata.
+
+Call identifiers are correlation evidence, not unique keys. When a snapshot
+reuses one for multiple calls or results, adapters leave `parent_event_id`
+missing rather than inventing a unique causal parent. Scans report the
+ambiguity and pair only as many call and result records as the observed counts
+support.
 
 ## Initial integration scope
 

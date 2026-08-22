@@ -151,7 +151,18 @@ ellmer_sanitize_text <- function(x, field, ids) {
   list(value = x, losses = list())
 }
 
-ellmer_sanitize_value <- function(x, field, ids) {
+ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
+  if (depth >= 40L) {
+    return(list(
+      value = "<unsupported>",
+      losses = list(ellmer_new_loss(
+        ids,
+        field,
+        "unsupported",
+        "Source data exceeded the supported nesting depth"
+      ))
+    ))
+  }
   if (is.null(x)) {
     return(list(value = NULL, losses = list()))
   }
@@ -187,8 +198,60 @@ ellmer_sanitize_value <- function(x, field, ids) {
 
   losses <- list()
   out <- x
-  if (is.list(x)) {
-    element_names <- names(x)
+  element_names <- names(x)
+  sensitive_atomic <- !is.list(x) &&
+    !is.null(element_names) &&
+    any(
+      !is.na(element_names) &
+        vapply(element_names, ellmer_sensitive_name, logical(1))
+    )
+  if (sensitive_atomic) {
+    out <- vector("list", length(x))
+    names(out) <- element_names
+    for (index in seq_along(x)) {
+      name <- element_names[[index]]
+      child_field <- ellmer_child_field(field, name, index)
+      if (!is.na(name) && ellmer_sensitive_name(name)) {
+        out[[index]] <- "<redacted>"
+        losses <- c(
+          losses,
+          list(ellmer_new_loss(
+            ids,
+            child_field,
+            "redacted",
+            "A sensitive source field was redacted"
+          ))
+        )
+      } else {
+        element <- if (is.object(x)) {
+          as.character(x)[[index]]
+        } else {
+          x[[index]]
+        }
+        attributes(element) <- NULL
+        child <- ellmer_sanitize_value(
+          element,
+          child_field,
+          ids,
+          depth + 1L
+        )
+        out[[index]] <- child$value
+        losses <- c(losses, child$losses)
+      }
+    }
+    extra_attributes <- setdiff(names(attributes(x)), "names")
+    if (length(extra_attributes) > 0L) {
+      losses <- c(
+        losses,
+        list(ellmer_new_loss(
+          ids,
+          field,
+          "unsupported",
+          "Attributes on a sensitive named vector were not retained"
+        ))
+      )
+    }
+  } else if (is.list(x)) {
     for (index in seq_along(x)) {
       name <- if (is.null(element_names)) {
         NA_character_
@@ -208,13 +271,36 @@ ellmer_sanitize_value <- function(x, field, ids) {
           ))
         )
       } else {
-        child <- ellmer_sanitize_value(x[[index]], child_field, ids)
+        child <- ellmer_sanitize_value(
+          x[[index]],
+          child_field,
+          ids,
+          depth + 1L
+        )
         out[index] <- list(child$value)
         losses <- c(losses, child$losses)
       }
     }
-  } else if (is.character(x)) {
-    bytes <- nchar(x, type = "bytes", allowNA = TRUE)
+  } else if (!is.null(element_names)) {
+    for (index in seq_along(x)) {
+      name <- element_names[[index]]
+      if (!is.na(name) && ellmer_sensitive_name(name)) {
+        out[index] <- "<redacted>"
+        losses <- c(
+          losses,
+          list(ellmer_new_loss(
+            ids,
+            ellmer_child_field(field, name, index),
+            "redacted",
+            "A sensitive source field was redacted"
+          ))
+        )
+      }
+    }
+  }
+
+  if (is.character(out)) {
+    bytes <- nchar(out, type = "bytes", allowNA = TRUE)
     too_large <- !is.na(bytes) & bytes > trajectory_payload_max_bytes
     if (any(too_large)) {
       out[too_large] <- paste0(substr(out[too_large], 1L, 2048L), "...")
@@ -228,6 +314,38 @@ ellmer_sanitize_value <- function(x, field, ids) {
         ))
       )
     }
+  }
+
+  source_attributes <- if (sensitive_atomic) NULL else attributes(x)
+  if (!is.null(source_attributes)) {
+    safe_attributes <- source_attributes
+    attribute_names <- names(source_attributes)
+    for (index in seq_along(source_attributes)) {
+      name <- attribute_names[[index]]
+      child_field <- paste0(field, "@", name)
+      if (ellmer_sensitive_name(name)) {
+        safe_attributes[[index]] <- "<redacted>"
+        losses <- c(
+          losses,
+          list(ellmer_new_loss(
+            ids,
+            child_field,
+            "redacted",
+            "A sensitive source attribute was redacted"
+          ))
+        )
+      } else {
+        child <- ellmer_sanitize_value(
+          source_attributes[[index]],
+          child_field,
+          ids,
+          depth + 1L
+        )
+        safe_attributes[[index]] <- child$value
+        losses <- c(losses, child$losses)
+      }
+    }
+    attributes(out) <- safe_attributes
   }
 
   safe <- trajectory_value_is_safe(out)
