@@ -27,7 +27,8 @@ composable analysis functions. Integrations with
 [{ellmer}](https://ellmer.tidyverse.org/),
 [{vitals}](https://vitals.tidyverse.org/),
 [{deputy}](https://github.com/JamesHWade/deputy),
-[{dsprrr}](https://github.com/JamesHWade/dsprrr), and
+[{dsprrr}](https://github.com/JamesHWade/dsprrr),
+[{commons}](https://github.com/posit-dev/commons), and
 [{shinychat}](https://posit-dev.github.io/shinychat/r/) will remain optional so
 the core analysis layer can also inspect trajectories from other agent
 frameworks.
@@ -145,6 +146,28 @@ context data, and uses the program artifact digest as its source identity. The
 digest establishes integrity, not authenticity. A caller-supplied
 `deputy_run_id` may correlate the trace to a Deputy run; Tempest product
 identifiers remain metadata rather than ownership claims.
+
+## Inspect commons provenance
+
+commons reconstructs conversations and their OpenTelemetry provenance. Read
+the trajectory through commons, then pass that settled value to the explicit
+adapter:
+
+```r
+conversations <- commons::trajectory_read("path/to/otel-traces")
+bundle <- as_trajectory_commons(conversations)
+
+trajectory_info(bundle)
+bundle |>
+  filter_trajectory_events(event_type = "commons:provenance")
+```
+
+Each named conversation becomes a trajectory. Model-visible turns reuse the
+ellmer adapter, while `last_active`, the local or Connect source descriptor,
+trust tags, and citation decisions remain inspectable. Missing or conflicting
+provenance produces an explicit loss; scans does not infer a stronger trust
+claim. The input has no package-specific class, so `as_trajectory_commons()`
+is intentionally explicit and performs no filesystem or Connect I/O.
 
 ## Compose trajectory diagnostics
 

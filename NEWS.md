@@ -2,6 +2,7 @@
 
 * Initial package scaffold.
 * `as_trajectory()` no longer treats an empty list as an ellmer source only because ellmer is installed (#14).
+* `as_trajectory_commons()` snapshots already-read commons conversations, preserving source identity, activity time, exchange trust tags, and citation decisions without performing filesystem or Connect I/O (#20).
 * `as_trajectory_deputy()` snapshots completed Deputy results, lifecycle events, run context, usage, and delegation correlation into canonical trajectories (#18).
 * `as_trajectory_dsprrr()` snapshots dsprrr modules and exported traces, preserving semantic turns, program artifact identity, metrics, and caller-supplied run correlation without treating artifact integrity as authenticity (#19).
 * `as_trajectory_ellmer()` converts completed ellmer chats and turns into canonical trajectory bundles without provider calls (#6).
