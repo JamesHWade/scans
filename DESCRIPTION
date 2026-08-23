@@ -21,13 +21,15 @@ Imports:
     tibble (>= 3.3.0)
 Suggests:
     deputy (>= 0.0.0.9000),
+    dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.4.2),
     shinychat,
     testthat (>= 3.0.0),
     vitals (>= 0.3.0),
     withr
 Remotes:
-    JamesHWade/deputy@c474452dadd387c5c5f14874cc3789f244b54d32
+    JamesHWade/deputy@c474452dadd387c5c5f14874cc3789f244b54d32,
+    JamesHWade/dsprrr@0215110b73a823fa1a3891b5b57d54f873d1ee47
 Config/roxygen2/version: 8.0.0
 Config/testthat/edition: 3
 Config/testthat/parallel: true
