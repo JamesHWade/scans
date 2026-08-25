@@ -41,6 +41,30 @@ test_that("scans app preserves dependencies attached by bslib", {
   )
 })
 
+test_that("scans app stylesheet dependency tracks the package version", {
+  dependency <- scans_app_dependency(
+    package_version = function(...) numeric_version("1.2.3")
+  )
+
+  expect_identical(dependency$version, "1.2.3")
+})
+
+test_that("scans app groups searchable event rows in canonical order", {
+  events <- tibble::tibble(
+    trajectory_id = c("first", "second", "first", "first"),
+    event_id = c("first-3", "second-1", "first-1", "first-2"),
+    event_index = c(3L, 1L, 1L, 2L),
+    text = c("Later", "Only", "Earlier", "  ")
+  )
+
+  groups <- scans_app_event_text_groups(
+    c("first", "second", "eventless"),
+    events
+  )
+
+  expect_identical(groups, list(c(3L, 1L), 2L, integer()))
+})
+
 test_that("scans app records retain source identity and deterministic findings", {
   data <- scans_app_data(trajectory_fixture("tool_error"))
 

@@ -148,8 +148,9 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
   }
 
   ids <- info$trajectory_id
-  snippets <- scans_app_trajectory_snippets(ids, turns, events)
-  transcripts <- scans_app_trajectory_text(ids, events)
+  event_text_groups <- scans_app_event_text_groups(ids, events)
+  snippets <- scans_app_trajectory_snippets(event_text_groups, turns, events)
+  transcripts <- scans_app_trajectory_text(event_text_groups, events)
   titles <- vapply(
     seq_along(ids),
     function(index) {
@@ -216,22 +217,38 @@ scans_app_search_string <- function(...) {
   paste(values, collapse = " ")
 }
 
-scans_app_trajectory_text <- function(ids, events) {
+scans_app_event_text_groups <- function(ids, events) {
+  groups <- rep(list(integer()), length(ids))
+  if (length(ids) == 0L || nrow(events) == 0L) {
+    return(groups)
+  }
+  rows <- which(
+    events$trajectory_id %in%
+      ids &
+      !is.na(events$text) &
+      nzchar(trimws(events$text))
+  )
+  if (length(rows) == 0L) {
+    return(groups)
+  }
+  group_index <- match(events$trajectory_id[rows], ids)
+  order_index <- order(
+    group_index,
+    events$event_index[rows],
+    events$event_id[rows],
+    method = "radix"
+  )
+  rows <- rows[order_index]
+  group_index <- group_index[order_index]
+  grouped <- split(rows, group_index)
+  groups[as.integer(names(grouped))] <- unname(grouped)
+  groups
+}
+
+scans_app_trajectory_text <- function(event_text_groups, events) {
   vapply(
-    ids,
-    function(id) {
-      rows <- which(
-        events$trajectory_id == id &
-          !is.na(events$text) &
-          nzchar(trimws(events$text))
-      )
-      rows <- rows[
-        order(
-          events$event_index[rows],
-          events$event_id[rows],
-          method = "radix"
-        )
-      ]
+    event_text_groups,
+    function(rows) {
       text <- trimws(events$text[rows])
       paste(gsub("\\s+", " ", text), collapse = " ")
     },
@@ -239,16 +256,11 @@ scans_app_trajectory_text <- function(ids, events) {
   )
 }
 
-scans_app_trajectory_snippets <- function(ids, turns, events) {
+scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
   roles <- turns$role[match(events$turn_id, turns$turn_id)]
   vapply(
-    ids,
-    function(id) {
-      rows <- which(
-        events$trajectory_id == id &
-          !is.na(events$text) &
-          nzchar(trimws(events$text))
-      )
+    event_text_groups,
+    function(rows) {
       if (length(rows) == 0L) {
         return(NA_character_)
       }
@@ -256,13 +268,6 @@ scans_app_trajectory_snippets <- function(ids, turns, events) {
       if (length(user_rows) > 0L) {
         rows <- user_rows
       }
-      rows <- rows[
-        order(
-          events$event_index[rows],
-          events$event_id[rows],
-          method = "radix"
-        )
-      ]
       scans_app_truncate(
         gsub("\\s+", " ", trimws(events$text[[rows[[1L]]]])),
         90L
@@ -1188,10 +1193,10 @@ scans_app_time_string <- function(x) {
   format(x, "%Y-%m-%d %H:%M:%S UTC", tz = "UTC")
 }
 
-scans_app_dependency <- function() {
+scans_app_dependency <- function(package_version = utils::packageVersion) {
   htmltools::htmlDependency(
     name = "scans-app",
-    version = "0.0.0.9000",
+    version = as.character(package_version("scans")),
     src = c(
       file = system.file("www", "scans-app", package = "scans")
     ),
