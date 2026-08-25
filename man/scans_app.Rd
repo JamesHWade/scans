@@ -36,12 +36,10 @@ loaded.
 }
 \section{Posit Connect}{
 
-Deploy \code{scans_app()} from an \code{app.R} and pass a named list of lazy loaders to
-review multiple deployed applications. A loader can read a versioned
-\code{TrajectoryBundle} from \code{\link[pins:board_connect]{pins::board_connect()}} or another durable store.
-Keep trace collection outside the review app: Connect application working
-directories are not persistent storage, and concurrent trace writers should
-use a database or another concurrency-safe backend.
+Use \code{\link[=scans_app_connect]{scans_app_connect()}} when Connect content observability is enabled. It
+reads native OTLP traces for named deployed applications and supplies the
+lazy loaders used by the application switcher. Custom loaders remain useful
+for completed snapshots held outside Connect's trace store.
 }
 
 \examples{

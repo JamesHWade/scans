@@ -20,3 +20,4 @@ reference:
   - summarize_trajectories
   - scan_trajectories
   - scans_app
+  - scans_app_connect

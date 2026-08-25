@@ -51,6 +51,13 @@ normalization to the ellmer adapter, then retains conversation IDs, source,
 trust tags, and citation decisions. Reading Connect traces remains commons'
 responsibility.
 
+The scans app may compose that reader with the explicit adapter without moving
+the I/O seam into `as_trajectory_commons()`: `scans_app_connect()` creates one
+lazy source per allow-listed Connect content item, calls
+`commons::trajectory_read()` only when selected, and then converts the completed
+result. The Connect endpoint compatibility logic therefore remains localized in
+commons while scans owns review, caching, and application switching.
+
 ### dsprrr
 
 `export_traces()` is the stable snapshot seam. With outputs enabled it can

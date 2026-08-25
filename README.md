@@ -219,37 +219,48 @@ missing source facts. The app depends on the optional {shiny}, {bslib}, and
 
 ### Deploy a multi-application reviewer to Posit Connect
 
-A Connect pin provides a simple durable handoff between trace collection and
-review. Publish one versioned `TrajectoryBundle` pin per deployed application,
-then use this `app.R` for the reviewer:
+When [content observability](https://docs.posit.co/connect/user/content-settings/#content-observability)
+is enabled, Connect retains the OpenTelemetry traces emitted by compatible R
+libraries. `{commons}` already reconstructs its logged `ellmer` conversations
+from that store, so the review app can read the native traces directly. Use a
+named allow-list of content GUIDs in `app.R`:
 
 ```r
 library(scans)
 
-board <- pins::board_connect()
-
-pin_loader <- function(name) {
-  force(name)
-  function() pins::pin_read(board, name)
-}
-
-scans_app(list(
-  "Support assistant" = pin_loader("agents/support-traces"),
-  "Research assistant" = pin_loader("agents/research-traces")
+scans_app_connect(c(
+  "Support assistant" = "11111111-1111-4111-8111-111111111111",
+  "Research assistant" = "22222222-2222-4222-8222-222222222222"
 ))
 ```
 
-On Connect, `pins::board_connect()` can use the server and ephemeral API-key
-environment variables supplied to the content process. The content owner must
-have access to each pin; installations that disable those automatic variables
-need an administrator-approved credential configuration. Deploy the directory
-containing `app.R` with `rsconnect::deployApp()`.
+Each application is fetched only when selected, cached for that browser
+session, and fetched again by **Reload traces**. The default keeps the 100 most
+recent conversations from the seven-day window ending at each load; use `n`,
+`from`, and `to` to choose another window. Supplying a bound as `NULL`
+explicitly leaves that side open. `{commons}` isolates Connect's current
+content-wide trace endpoint and its legacy per-job fallback; scans requires the
+current trajectory reader instead of duplicating that version-sensitive
+transport.
 
-Use a scheduled collector or another single-writer process to update each pin.
-Connect application working directories are not persistent across deployments,
-and pins are not a concurrent telemetry database. For high-volume applications,
-keep traces in a database or object store and replace each `pin_loader()` with a
-zero-argument loader that returns a detached `TrajectoryBundle`.
+The Connect administrator must enable OpenTelemetry and allow content
+instrumentation. Turn on **Monitoring > Content Observability** for every source
+application, redeploy with compatible versions of
+[ellmer and otelsdk](https://docs.posit.co/connect/user/traces/compatible-libraries.html),
+and run the commons agent with trajectory logging enabled. The reviewer uses
+Connect's injected `CONNECT_SERVER` and ephemeral owner `CONNECT_API_KEY`; its
+owner must own or collaborate on every configured source application.
+
+Only content GUIDs are accepted. All sources therefore stay on the hosting
+`CONNECT_SERVER`; a content URL cannot redirect the injected API key to another
+server.
+
+That key acts as the deployment owner, not the person currently viewing the
+review app. Restrict the reviewer app to people permitted to inspect every
+configured application's potentially sensitive prompts, responses, tool
+arguments, and results. Pins and custom lazy loaders remain useful as explicit
+offline import/export paths, but they are no longer the primary Connect
+transport.
 
 ## Construct a bundle directly
 

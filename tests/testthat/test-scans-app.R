@@ -84,36 +84,125 @@ test_that("scans app loads and reloads application sources lazily", {
   })
 })
 
-test_that("scans app loads a serialized trajectory bundle from a pins board", {
+scans_app_connect_trace_line <- function(prompt) {
+  start_time <- sprintf("%.0f", (as.numeric(Sys.time()) - 60) * 1e9)
+  end_time <- sprintf("%.0f", (as.numeric(Sys.time()) - 59) * 1e9)
+  messages <- paste0(
+    '[{\\"role\\":\\"user\\",\\"parts\\":[{\\"type\\":\\"text\\",',
+    '\\"content\\":\\"',
+    prompt,
+    '\\"}]}]'
+  )
+  paste0(
+    '{"resourceSpans":[{"scopeSpans":[{"spans":[{',
+    '"traceId":"0123456789abcdef","spanId":"0123456789abcdef",',
+    '"name":"chat test-model","startTimeUnixNano":"',
+    start_time,
+    '","endTimeUnixNano":"',
+    end_time,
+    '","attributes":[',
+    '{"key":"gen_ai.operation.name","value":{"stringValue":"chat"}},',
+    '{"key":"gen_ai.input.messages","value":{"stringValue":"',
+    messages,
+    '"}}]}]}]}]}'
+  )
+}
+
+test_that("scans app switches between Posit Connect trace stores lazily", {
   skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("commons", "0.0.0.9002")
   skip_if_not_installed("htmltools")
-  skip_if_not_installed("pins")
   skip_if_not_installed("shiny", "1.11.1")
 
-  board <- pins::board_temp()
-  suppressMessages(
-    pins::pin_write(
-      board,
-      trajectory_fixture("simple_exchange"),
-      name = "support-traces",
-      type = "rds"
-    )
+  support_guid <- "11111111-1111-4111-8111-111111111111"
+  research_guid <- "22222222-2222-4222-8222-222222222222"
+  withr::local_envvar(
+    CONNECT_SERVER = "https://connect.example.com",
+    CONNECT_API_KEY = "secret"
   )
-  app <- scans_app(list(
-    "Support deployment" = function() {
-      pins::pin_read(board, "support-traces")
+  requests <- new.env(parent = emptyenv())
+  requests$n <- 0L
+  requests$urls <- character()
+  httr2::local_mocked_responses(function(req) {
+    requests$n <- requests$n + 1L
+    requests$urls <- c(requests$urls, req$url)
+    if (grepl("/jobs", req$url, fixed = TRUE)) {
+      return(httr2::new_response(
+        "GET",
+        req$url,
+        200L,
+        list(`Content-Type` = "application/json"),
+        charToRaw("[]"),
+        request = req
+      ))
     }
+    prompt <- if (grepl(support_guid, req$url, fixed = TRUE)) {
+      "Support question"
+    } else {
+      "Research question"
+    }
+    line <- scans_app_connect_trace_line(prompt)
+    httr2::new_response(
+      "GET",
+      req$url,
+      200L,
+      list(
+        Server = "Posit Connect v2026.08.0",
+        `X-Total-Count` = "1"
+      ),
+      charToRaw(line),
+      request = req
+    )
+  })
+
+  app <- scans_app_connect(c(
+    "Support deployment" = support_guid,
+    "Research deployment" = research_guid
   ))
+  expect_identical(requests$n, 0L)
 
   shiny::testServer(app$serverFuncSource(), {
     session$flushReact()
 
-    expect_match(
-      as.character(output$scans_app_entries)[[1L]],
-      "trajectory-simple",
-      fixed = TRUE
-    )
+    entries <- as.character(output$scans_app_entries)[[1L]]
+    expect_match(entries, "Support question", fixed = TRUE)
+    expect_no_match(entries, "Research question", fixed = TRUE)
+
+    session$setInputs(scans_app_application = "Research deployment")
+    session$flushReact()
+
+    entries <- as.character(output$scans_app_entries)[[1L]]
+    expect_match(entries, "Research question", fixed = TRUE)
+    expect_no_match(entries, "Support question", fixed = TRUE)
   })
+
+  trace_urls <- requests$urls[!grepl("/jobs", requests$urls, fixed = TRUE)]
+  expect_true(all(grepl("from=", trace_urls, fixed = TRUE)))
+  expect_true(all(grepl("to=", trace_urls, fixed = TRUE)))
+})
+
+test_that("scans_app_connect requires named scalar content references", {
+  skip_if_not_installed("commons", "0.0.0.9002")
+
+  expect_error(
+    scans_app_connect("11111111-1111-4111-8111-111111111111"),
+    class = "scans_error_connect_source"
+  )
+  expect_error(
+    scans_app_connect(list("App" = c("first", "second"))),
+    class = "scans_error_connect_source"
+  )
+  expect_error(
+    scans_app_connect(c("App" = "https://other.example.com/content/guid")),
+    class = "scans_error_connect_source"
+  )
+  expect_error(
+    scans_app_connect(
+      c("App" = "11111111-1111-4111-8111-111111111111"),
+      n = 0
+    ),
+    class = "rlang_error"
+  )
 })
 
 test_that("scans app contains application source failures", {
