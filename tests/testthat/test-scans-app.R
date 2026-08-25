@@ -10,6 +10,20 @@ test_that("scans_app() creates a read-only Shiny app", {
   expect_identical(trajectory_events(bundle)$text, c("Hello", "Hi there"))
 })
 
+test_that("scans app enforces optional dependency minimum versions", {
+  expect_error(
+    scans_app_check_packages(
+      namespace_available = function(...) TRUE,
+      package_version = function(package) {
+        versions <- c(bslib = "0.10.0", shiny = "1.10.0")
+        numeric_version(versions[[package]])
+      }
+    ),
+    regexp = "bslib.*0[.]11[.]0.*shiny.*1[.]11[.]1",
+    class = "scans_error_app_dependency"
+  )
+})
+
 test_that("scans app records retain source identity and deterministic findings", {
   data <- scans_app_data(trajectory_fixture("tool_error"))
 
@@ -32,18 +46,18 @@ test_that("scans app titles use canonical event order", {
     ),
     tibble::tibble(
       trajectory_id = "unordered-title",
-      turn_id = c("later-turn", "earlier-turn"),
-      turn_index = c(2L, 1L),
+      turn_id = c("later-turn", "earlier-turn", "middle-turn"),
+      turn_index = c(3L, 1L, 2L),
       role = "user"
     ),
     tibble::tibble(
       trajectory_id = "unordered-title",
-      event_id = c("later-event", "earlier-event"),
-      event_index = c(2L, 1L),
+      event_id = c("later-event", "earlier-event", "middle-event"),
+      event_index = c(3L, 1L, 2L),
       event_type = "content",
-      turn_id = c("later-turn", "earlier-turn"),
+      turn_id = c("later-turn", "earlier-turn", "middle-turn"),
       content_type = "text",
-      text = c("Later prompt", "Earlier prompt")
+      text = c("Later prompt", "Earlier prompt", "Middle prompt")
     )
   )
   app <- scans_app(bundle)
@@ -54,6 +68,12 @@ test_that("scans app titles use canonical event order", {
 
     expect_match(entries, "Earlier prompt", fixed = TRUE)
     expect_no_match(entries, "Later prompt", fixed = TRUE)
+
+    session$setInputs(
+      scans_app_query = "Earlier prompt Middle prompt Later prompt"
+    )
+    session$flushReact()
+    expect_identical(output$scans_app_visible_count, "1 of 1 trajectory")
   })
 })
 

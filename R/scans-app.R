@@ -42,19 +42,47 @@ scans_app <- function(x) {
   )
 }
 
-scans_app_check_packages <- function(call = rlang::caller_env()) {
+scans_app_check_packages <- function(
+  call = rlang::caller_env(),
+  namespace_available = requireNamespace,
+  package_version = utils::packageVersion
+) {
   packages <- c("bslib", "htmltools", "shiny")
-  missing <- packages[
-    !vapply(packages, requireNamespace, logical(1), quietly = TRUE)
-  ]
-  if (length(missing) == 0L) {
+  minimum <- c(bslib = "0.11.0", htmltools = NA, shiny = "1.11.1")
+  available <- vapply(
+    packages,
+    namespace_available,
+    logical(1),
+    quietly = TRUE
+  )
+  outdated <- vapply(
+    packages,
+    function(package) {
+      available[[package]] &&
+        !is.na(minimum[[package]]) &&
+        package_version(package) < numeric_version(minimum[[package]])
+    },
+    logical(1)
+  )
+  version_problems <- character()
+  if (any(outdated)) {
+    version_problems <- paste0(
+      packages[outdated],
+      " (>= ",
+      minimum[outdated],
+      ")"
+    )
+  }
+  problems <- c(packages[!available], version_problems)
+  if (length(problems) == 0L) {
     return(invisible(packages))
   }
+  requirements <- paste(problems, collapse = ", ")
 
   scans_abort(
     c(
-      "{.fn scans_app} requires missing package{?s}: {.pkg {missing}}.",
-      "i" = "Install {.pkg {missing}} to use the scans app."
+      "{.fn scans_app} requires unavailable package requirements: {requirements}.",
+      "i" = "Install or update these packages to use the scans app."
     ),
     class = "scans_error_app_dependency",
     call = call,
@@ -197,6 +225,13 @@ scans_app_trajectory_text <- function(ids, events) {
           !is.na(events$text) &
           nzchar(trimws(events$text))
       )
+      rows <- rows[
+        order(
+          events$event_index[rows],
+          events$event_id[rows],
+          method = "radix"
+        )
+      ]
       text <- trimws(events$text[rows])
       paste(gsub("\\s+", " ", text), collapse = " ")
     },
