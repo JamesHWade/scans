@@ -44,6 +44,62 @@ test_that("scans app filters compose without interpreting the query as a regex",
   )
 })
 
+test_that("scans app search covers the entire transcript", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  tables <- fixture_source(trajectory_fixture("simple_exchange"))
+  tables$events$text[[2L]] <- paste(
+    strrep("x", 100L),
+    "late transcript token"
+  )
+  app <- scans_app(do.call(TrajectoryBundle, tables))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_source = "all",
+      scans_app_status = "all",
+      scans_app_query = "late transcript token",
+      scans_app_findings_only = FALSE
+    )
+    session$flushReact()
+
+    expect_identical(output$scans_app_visible_count, "1 of 1 trajectory")
+  })
+})
+
+test_that("scans app distinguishes a missing status from an unknown status", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = c("literal-missing", "unknown-status"),
+      source_type = "manual",
+      status = c("missing", NA_character_)
+    ),
+    data.frame(),
+    data.frame()
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_source = "all",
+      scans_app_status = "missing",
+      scans_app_query = "",
+      scans_app_findings_only = FALSE
+    )
+    session$flushReact()
+
+    entries <- as.character(output$scans_app_entries)[[1L]]
+    expect_match(entries, "literal-missing", fixed = TRUE)
+    expect_no_match(entries, "unknown-status", fixed = TRUE)
+  })
+})
+
 test_that("scans app keeps selection and empty filter states reactive", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")

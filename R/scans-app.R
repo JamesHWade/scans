@@ -107,6 +107,7 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
 
   ids <- info$trajectory_id
   snippets <- scans_app_trajectory_snippets(ids, turns, events)
+  transcripts <- scans_app_trajectory_text(ids, events)
   titles <- vapply(
     seq_along(ids),
     function(index) {
@@ -137,7 +138,8 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
         info$source_id[[index]],
         info$agent[[index]],
         info$model[[index]],
-        titles[[index]]
+        titles[[index]],
+        transcripts[[index]]
       )
     },
     character(1)
@@ -154,6 +156,22 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
     n_events = summaries$n_events,
     n_findings = n_findings,
     n_errors = n_errors
+  )
+}
+
+scans_app_trajectory_text <- function(ids, events) {
+  vapply(
+    ids,
+    function(id) {
+      rows <- which(
+        events$trajectory_id == id &
+          !is.na(events$text) &
+          nzchar(trimws(events$text))
+      )
+      text <- trimws(events$text[rows])
+      paste(gsub("\\s+", " ", text), collapse = " ")
+    },
+    character(1)
   )
 }
 
@@ -209,7 +227,8 @@ scans_app_filter_records <- function(
   if (!identical(source, "all")) {
     keep <- keep & records$source_type %in% source
   }
-  if (identical(status, "missing")) {
+  missing_status <- scans_app_missing_status_value(records$status)
+  if (identical(status, missing_status)) {
     keep <- keep & is.na(records$status)
   } else if (!identical(status, "all")) {
     keep <- keep & records$status %in% status
@@ -224,6 +243,14 @@ scans_app_filter_records <- function(
   records$index[keep]
 }
 
+scans_app_missing_status_value <- function(statuses) {
+  value <- ".scans-app-status-unknown"
+  while (value %in% statuses) {
+    value <- paste0(value, "-")
+  }
+  value
+}
+
 scans_app_ui <- function(data) {
   sources <- sort(unique(data$records$source_type))
   sources <- sources[!is.na(sources) & nzchar(sources)]
@@ -231,7 +258,10 @@ scans_app_ui <- function(data) {
   statuses <- statuses[!is.na(statuses) & nzchar(statuses)]
   status_choices <- c("All statuses" = "all")
   if (anyNA(data$records$status)) {
-    status_choices <- c(status_choices, "Unknown" = "missing")
+    status_choices <- c(
+      status_choices,
+      "Unknown" = scans_app_missing_status_value(statuses)
+    )
   }
   status_choices <- c(status_choices, stats::setNames(statuses, statuses))
 
