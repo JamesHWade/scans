@@ -58,14 +58,37 @@ test_that("scans app search covers the entire transcript", {
 
   shiny::testServer(app$serverFuncSource(), {
     session$setInputs(
-      scans_app_source = "all",
-      scans_app_status = "all",
       scans_app_query = "late transcript token",
       scans_app_findings_only = FALSE
     )
     session$flushReact()
 
     expect_identical(output$scans_app_visible_count, "1 of 1 trajectory")
+  })
+})
+
+test_that("scans app search ignores missing metadata", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "plain",
+      source_type = "manual"
+    ),
+    data.frame(),
+    data.frame()
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_query = "na",
+      scans_app_findings_only = FALSE
+    )
+    session$flushReact()
+
+    expect_identical(output$scans_app_visible_count, "0 of 1 trajectory")
   })
 })
 
@@ -87,7 +110,6 @@ test_that("scans app distinguishes a missing status from an unknown status", {
 
   shiny::testServer(app$serverFuncSource(), {
     session$setInputs(
-      scans_app_source = "all",
       scans_app_status = "missing",
       scans_app_query = "",
       scans_app_findings_only = FALSE
@@ -100,6 +122,37 @@ test_that("scans app distinguishes a missing status from an unknown status", {
   })
 })
 
+test_that("scans app distinguishes literal all values from All filters", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = c("literal-all", "other-value"),
+      source_type = c("all", "manual"),
+      status = c("all", "complete")
+    ),
+    data.frame(),
+    data.frame()
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_source = "all",
+      scans_app_status = "all",
+      scans_app_query = "",
+      scans_app_findings_only = FALSE
+    )
+    session$flushReact()
+
+    entries <- as.character(output$scans_app_entries)[[1L]]
+    expect_match(entries, "literal-all", fixed = TRUE)
+    expect_no_match(entries, "other-value", fixed = TRUE)
+  })
+})
+
 test_that("scans app keeps selection and empty filter states reactive", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
@@ -108,8 +161,6 @@ test_that("scans app keeps selection and empty filter states reactive", {
   data <- scans_app_data(trajectory_fixture("delegated_agent"))
   shiny::testServer(scans_app_server(data), {
     session$setInputs(
-      scans_app_source = "all",
-      scans_app_status = "all",
       scans_app_query = "child",
       scans_app_findings_only = FALSE
     )
@@ -146,6 +197,45 @@ test_that("scans app renders canonical text as text and links finding evidence",
   expect_no_match(transcript, "<script>", fixed = TRUE)
   expect_match(evidence, "#scans-app-event-3", fixed = TRUE)
   expect_match(evidence, "error-event-3", fixed = TRUE)
+})
+
+test_that("scans app renders transcript blocks in canonical event order", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "ordered-events",
+      source_type = "manual"
+    ),
+    tibble::tibble(
+      trajectory_id = "ordered-events",
+      turn_id = "turn-1",
+      turn_index = 1L,
+      role = "assistant"
+    ),
+    tibble::tibble(
+      trajectory_id = "ordered-events",
+      event_id = c("turn-event", "run-event"),
+      event_index = 1:2,
+      event_type = "content",
+      content_type = "text",
+      turn_id = c("turn-1", NA_character_),
+      text = c("Turn event first", "Run event second")
+    )
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    transcript <- as.character(output$scans_app_transcript)[[1L]]
+
+    expect_lt(
+      regexpr("Turn event first", transcript, fixed = TRUE)[[1L]],
+      regexpr("Run event second", transcript, fixed = TRUE)[[1L]]
+    )
+  })
 })
 
 test_that("scans app supports event-only and empty bundles", {

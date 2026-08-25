@@ -131,7 +131,7 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
   search <- vapply(
     seq_along(ids),
     function(index) {
-      paste(
+      scans_app_search_string(
         ids[[index]],
         info$run_id[[index]],
         info$source_type[[index]],
@@ -157,6 +157,21 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
     n_findings = n_findings,
     n_errors = n_errors
   )
+}
+
+scans_app_search_string <- function(...) {
+  values <- vapply(
+    list(...),
+    function(value) {
+      if (is.character(value) && length(value) == 1L && !is.na(value)) {
+        value
+      } else {
+        ""
+      }
+    },
+    character(1)
+  )
+  paste(values, collapse = " ")
 }
 
 scans_app_trajectory_text <- function(ids, events) {
@@ -218,19 +233,21 @@ scans_app_first_string <- function(...) {
 
 scans_app_filter_records <- function(
   records,
-  source = "all",
-  status = "all",
+  source = NULL,
+  status = NULL,
   query = "",
   findings_only = FALSE
 ) {
   keep <- rep(TRUE, nrow(records))
-  if (!identical(source, "all")) {
+  source_all <- scans_app_filter_sentinel(records$source_type, "source-all")
+  if (!is.null(source) && !identical(source, source_all)) {
     keep <- keep & records$source_type %in% source
   }
-  missing_status <- scans_app_missing_status_value(records$status)
+  status_all <- scans_app_filter_sentinel(records$status, "status-all")
+  missing_status <- scans_app_filter_sentinel(records$status, "status-unknown")
   if (identical(status, missing_status)) {
     keep <- keep & is.na(records$status)
-  } else if (!identical(status, "all")) {
+  } else if (!is.null(status) && !identical(status, status_all)) {
     keep <- keep & records$status %in% status
   }
   query <- trimws(tolower(query))
@@ -243,9 +260,9 @@ scans_app_filter_records <- function(
   records$index[keep]
 }
 
-scans_app_missing_status_value <- function(statuses) {
-  value <- ".scans-app-status-unknown"
-  while (value %in% statuses) {
+scans_app_filter_sentinel <- function(values, type) {
+  value <- paste0(".scans-app-", type)
+  while (value %in% values) {
     value <- paste0(value, "-")
   }
   value
@@ -256,11 +273,13 @@ scans_app_ui <- function(data) {
   sources <- sources[!is.na(sources) & nzchar(sources)]
   statuses <- sort(unique(data$records$status))
   statuses <- statuses[!is.na(statuses) & nzchar(statuses)]
-  status_choices <- c("All statuses" = "all")
+  source_all <- scans_app_filter_sentinel(sources, "source-all")
+  status_all <- scans_app_filter_sentinel(statuses, "status-all")
+  status_choices <- c("All statuses" = status_all)
   if (anyNA(data$records$status)) {
     status_choices <- c(
       status_choices,
-      "Unknown" = scans_app_missing_status_value(statuses)
+      "Unknown" = scans_app_filter_sentinel(statuses, "status-unknown")
     )
   }
   status_choices <- c(status_choices, stats::setNames(statuses, statuses))
@@ -294,7 +313,7 @@ scans_app_ui <- function(data) {
         shiny::selectInput(
           "scans_app_source",
           "Source",
-          choices = c("All sources" = "all", sources),
+          choices = c("All sources" = source_all, sources),
           width = "100%"
         ),
         shiny::selectInput(
@@ -353,11 +372,19 @@ scans_app_server <- function(data) {
   function(input, output, session) {
     initial <- if (nrow(data$records) == 0L) NULL else 1L
     selected <- shiny::reactiveVal(initial)
+    source_all <- scans_app_filter_sentinel(
+      data$records$source_type,
+      "source-all"
+    )
+    status_all <- scans_app_filter_sentinel(
+      data$records$status,
+      "status-all"
+    )
     visible <- shiny::reactive({
       scans_app_filter_records(
         data$records,
-        source = scans_app_input_or(input$scans_app_source, "all"),
-        status = scans_app_input_or(input$scans_app_status, "all"),
+        source = scans_app_input_or(input$scans_app_source, source_all),
+        status = scans_app_input_or(input$scans_app_status, status_all),
         query = scans_app_input_or(input$scans_app_query, ""),
         findings_only = isTRUE(input$scans_app_findings_only)
       )
@@ -583,10 +610,14 @@ scans_app_transcript_ui <- function(data, index) {
   if (length(run_events) > 0L) {
     blocks <- append(
       blocks,
-      list(scans_app_event_group_ui(
-        if (length(turn_rows) == 0L) "Event stream" else "Run events",
-        data$events,
-        run_events
+      list(list(
+        event_index = min(data$events$event_index[run_events]),
+        turn_index = 0L,
+        ui = scans_app_event_group_ui(
+          if (length(turn_rows) == 0L) "Event stream" else "Run events",
+          data$events,
+          run_events
+        )
       ))
     )
   }
@@ -597,13 +628,28 @@ scans_app_transcript_ui <- function(data, index) {
     ]
     blocks <- append(
       blocks,
-      list(scans_app_turn_ui(
-        data$turns[turn_row, , drop = FALSE],
-        data$events,
-        events
+      list(list(
+        event_index = if (length(events) > 0L) {
+          min(data$events$event_index[events])
+        } else {
+          Inf
+        },
+        turn_index = data$turns$turn_index[[turn_row]],
+        ui = scans_app_turn_ui(
+          data$turns[turn_row, , drop = FALSE],
+          data$events,
+          events
+        )
       ))
     )
   }
+
+  block_order <- order(
+    vapply(blocks, `[[`, numeric(1), "event_index"),
+    vapply(blocks, `[[`, integer(1), "turn_index"),
+    method = "radix"
+  )
+  blocks <- lapply(blocks[block_order], `[[`, "ui")
 
   htmltools::div(class = "scans-app-path", htmltools::tagList(blocks))
 }
