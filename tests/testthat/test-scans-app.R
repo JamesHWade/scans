@@ -10,6 +10,142 @@ test_that("scans_app() creates a read-only Shiny app", {
   expect_identical(trajectory_events(bundle)$text, c("Hello", "Hi there"))
 })
 
+test_that("scans app switches between named applications", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  first <- trajectory_fixture("simple_exchange")
+  second <- trajectory_fixture("tool_error")
+  app <- scans_app(list(
+    "Support assistant" = first,
+    "Research assistant" = second
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    expect_match(
+      as.character(output$scans_app_entries)[[1L]],
+      "trajectory-simple",
+      fixed = TRUE
+    )
+
+    session$setInputs(
+      scans_app_source = trajectory_info(first)$source_type[[1L]]
+    )
+    session$flushReact()
+    session$setInputs(scans_app_application = "Research assistant")
+    session$flushReact()
+
+    entries <- as.character(output$scans_app_entries)[[1L]]
+    expect_match(entries, "trajectory-error", fixed = TRUE)
+    expect_no_match(entries, "trajectory-simple", fixed = TRUE)
+  })
+})
+
+test_that("scans app loads and reloads application sources lazily", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- new.env(parent = emptyenv())
+  calls$first <- 0L
+  calls$second <- 0L
+  app <- scans_app(list(
+    "First deployment" = function() {
+      calls$first <- calls$first + 1L
+      trajectory_fixture("simple_exchange")
+    },
+    "Second deployment" = function() {
+      calls$second <- calls$second + 1L
+      trajectory_fixture("tool_error")
+    }
+  ))
+  expect_identical(c(calls$first, calls$second), c(0L, 0L))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    expect_identical(c(calls$first, calls$second), c(1L, 0L))
+
+    session$flushReact()
+    expect_identical(c(calls$first, calls$second), c(1L, 0L))
+
+    session$setInputs(scans_app_application = "Second deployment")
+    session$flushReact()
+    expect_identical(c(calls$first, calls$second), c(1L, 1L))
+
+    session$setInputs(scans_app_application = "First deployment")
+    session$flushReact()
+    expect_identical(c(calls$first, calls$second), c(1L, 1L))
+
+    session$setInputs(scans_app_reload = 1L)
+    session$flushReact()
+    expect_identical(c(calls$first, calls$second), c(2L, 1L))
+  })
+})
+
+test_that("scans app loads a serialized trajectory bundle from a pins board", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("pins")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  board <- pins::board_temp()
+  suppressMessages(
+    pins::pin_write(
+      board,
+      trajectory_fixture("simple_exchange"),
+      name = "support-traces",
+      type = "rds"
+    )
+  )
+  app <- scans_app(list(
+    "Support deployment" = function() {
+      pins::pin_read(board, "support-traces")
+    }
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+
+    expect_match(
+      as.character(output$scans_app_entries)[[1L]],
+      "trajectory-simple",
+      fixed = TRUE
+    )
+  })
+})
+
+test_that("scans app contains application source failures", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(list(
+    "Broken deployment" = function() {
+      stop("database password=hunter2", call. = FALSE)
+    }
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    entries <- as.character(output$scans_app_entries)[[1L]]
+
+    expect_identical(output$scans_app_visible_count, "Traces unavailable")
+    expect_match(entries, "Could not load traces", fixed = TRUE)
+    expect_no_match(entries, "hunter2", fixed = TRUE)
+  })
+})
+
+test_that("scans app requires an unambiguous application catalog", {
+  bundle <- trajectory_fixture("simple_exchange")
+  duplicate_names <- stats::setNames(list(bundle, bundle), c("App", "App"))
+
+  expect_snapshot(scans_app(list(bundle)), error = TRUE)
+  expect_snapshot(scans_app(duplicate_names), error = TRUE)
+  expect_snapshot(scans_app(list("App" = 1)), error = TRUE)
+})
+
 test_that("scans app enforces optional dependency minimum versions", {
   expect_error(
     scans_app_check_packages(

@@ -191,19 +191,65 @@ it.
 
 ## Explore trajectories with the scans app
 
-The scans app turns the same detached bundle into a read-only Shiny app. Use its left
-sidebar to search and filter trajectories, browse canonical turns and events in
-the main canvas, and inspect linked findings, evaluations, adapter losses, and
-source context in the evidence rail.
+The scans app turns the same detached bundle into a read-only Shiny app. Use its
+left sidebar to search and filter trajectories, browse canonical turns and
+events in the main canvas, and inspect linked findings, evaluations, adapter
+losses, and source context in the evidence rail.
 
 ```r
 scans_app(bundle)
 ```
 
-The scans app computes the built-in deterministic scans once when it is created.
-It does not call a model, run tools, modify the bundle, or infer missing source
-facts. The app depends on the optional {shiny}, {bslib}, and {htmltools}
-packages.
+Pass a named list to review more than one application. Entries may be detached
+bundles or zero-argument loader functions. Loaders run only when their
+application is first selected in a browser session, and the **Reload traces**
+button fetches that application again.
+
+```r
+scans_app(list(
+  "Support assistant" = support_bundle,
+  "Research assistant" = function() load_research_bundle()
+))
+```
+
+The scans app computes the built-in deterministic scans when each snapshot is
+first loaded. It does not call a model, run tools, modify a bundle, or infer
+missing source facts. The app depends on the optional {shiny}, {bslib}, and
+{htmltools} packages.
+
+### Deploy a multi-application reviewer to Posit Connect
+
+A Connect pin provides a simple durable handoff between trace collection and
+review. Publish one versioned `TrajectoryBundle` pin per deployed application,
+then use this `app.R` for the reviewer:
+
+```r
+library(scans)
+
+board <- pins::board_connect()
+
+pin_loader <- function(name) {
+  force(name)
+  function() pins::pin_read(board, name)
+}
+
+scans_app(list(
+  "Support assistant" = pin_loader("agents/support-traces"),
+  "Research assistant" = pin_loader("agents/research-traces")
+))
+```
+
+On Connect, `pins::board_connect()` can use the server and ephemeral API-key
+environment variables supplied to the content process. The content owner must
+have access to each pin; installations that disable those automatic variables
+need an administrator-approved credential configuration. Deploy the directory
+containing `app.R` with `rsconnect::deployApp()`.
+
+Use a scheduled collector or another single-writer process to update each pin.
+Connect application working directories are not persistent across deployments,
+and pins are not a concurrent telemetry database. For high-volume applications,
+keep traces in a database or object store and replace each `pin_loader()` with a
+zero-argument loader that returns a detached `TrajectoryBundle`.
 
 ## Construct a bundle directly
 

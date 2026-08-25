@@ -1,18 +1,33 @@
 #' Explore trajectory diagnostics with the scans app
 #'
-#' `scans_app()` launches a read-only Shiny app for exploring a
-#' [TrajectoryBundle]. The scans app keeps the canonical bundle as its data
-#' boundary:
-#' it does not call a model, run tools, modify the bundle, or infer missing
-#' source facts.
+#' `scans_app()` launches a read-only Shiny app for exploring one or more
+#' [TrajectoryBundle] snapshots. A named list creates an application switcher;
+#' each entry can be a bundle or a zero-argument loader that returns one. Lazy
+#' loaders make it practical to review snapshots from multiple deployed apps
+#' without downloading every snapshot when the review app starts.
+#'
+#' The scans app keeps the canonical bundle as its data boundary. It does not
+#' call a model, run tools, modify a bundle, or infer missing source facts.
+#' Caller-supplied loaders are invoked only when their application is first
+#' selected in a session or explicitly reloaded.
 #'
 #' The app provides filters and a trajectory browser, a source-neutral
 #' transcript and event stream, and the findings, evaluations, and adapter
 #' losses associated with the selected trajectory. Built-in findings are
-#' computed once with [scan_trajectories()] when the app is created.
+#' computed with [scan_trajectories()] when each application snapshot is first
+#' loaded.
 #'
-#' @param x A [TrajectoryBundle] containing one or more completed trajectory
-#'   snapshots.
+#' @section Posit Connect:
+#' Deploy `scans_app()` from an `app.R` and pass a named list of lazy loaders to
+#' review multiple deployed applications. A loader can read a versioned
+#' `TrajectoryBundle` from [pins::board_connect()] or another durable store.
+#' Keep trace collection outside the review app: Connect application working
+#' directories are not persistent storage, and concurrent trace writers should
+#' use a database or another concurrency-safe backend.
+#'
+#' @param x A [TrajectoryBundle], or a named list of application sources. Each
+#'   source must be a `TrajectoryBundle` or a zero-argument function that
+#'   returns one. Source names are shown in the application switcher.
 #'
 #' @returns A [shiny::shinyApp()] object. Calling `scans_app()` at the console
 #'   launches the app; the returned object can also be served from an `app.R`.
@@ -29,17 +44,123 @@
 #'
 #' if (interactive()) {
 #'   scans_app(bundle)
+#'
+#'   scans_app(list(
+#'     "Support assistant" = bundle,
+#'     "Research assistant" = function() readRDS("research-bundle.rds")
+#'   ))
 #' }
 #' @export
 scans_app <- function(x) {
-  check_trajectory_bundle(x)
+  sources <- scans_app_sources(x)
   scans_app_check_packages()
-  data <- scans_app_data(x)
 
   shiny::shinyApp(
-    ui = scans_app_ui(data),
-    server = scans_app_server(data)
+    ui = scans_app_ui(sources),
+    server = scans_app_server(sources)
   )
+}
+
+scans_app_sources <- function(x, call = rlang::caller_env()) {
+  if (is_trajectory_bundle(x)) {
+    return(scans_app_source_catalog(list(
+      scans_app_source("Trajectories", x)
+    )))
+  }
+  if (!is.list(x) || length(x) == 0L) {
+    scans_abort(
+      c(
+        "{.arg x} must be a {.cls TrajectoryBundle} or a named list of application sources.",
+        "x" = "It is {.obj_type_friendly {x}}."
+      ),
+      class = "scans_error_app_source",
+      call = call
+    )
+  }
+  labels <- names(x)
+  if (
+    is.null(labels) ||
+      anyNA(labels) ||
+      !all(nzchar(trimws(labels))) ||
+      anyDuplicated(labels) > 0L
+  ) {
+    scans_abort(
+      "{.arg x} must have unique, non-empty application names.",
+      class = "scans_error_app_source",
+      call = call
+    )
+  }
+
+  sources <- Map(
+    function(label, value) {
+      if (!is_trajectory_bundle(value) && !is.function(value)) {
+        scans_abort(
+          c(
+            "Application source {.val {label}} must be a {.cls TrajectoryBundle} or a function.",
+            "x" = "It is {.obj_type_friendly {value}}."
+          ),
+          class = "scans_error_app_source",
+          call = call,
+          .envir = environment()
+        )
+      }
+      scans_app_source(label, value)
+    },
+    labels,
+    x
+  )
+  scans_app_source_catalog(unname(sources))
+}
+
+scans_app_source <- function(label, value) {
+  if (is_trajectory_bundle(value)) {
+    return(list(
+      label = label,
+      data = scans_app_data(value),
+      load = NULL
+    ))
+  }
+  list(label = label, data = NULL, load = value)
+}
+
+scans_app_source_catalog <- function(sources) {
+  list(
+    sources = sources,
+    labels = vapply(sources, `[[`, character(1), "label"),
+    reloadable = any(vapply(
+      sources,
+      function(x) is.function(x$load),
+      logical(1)
+    ))
+  )
+}
+
+scans_app_runtime_sources <- function(x) {
+  if (is.list(x) && all(c("records", "info") %in% names(x))) {
+    return(scans_app_source_catalog(list(list(
+      label = "Trajectories",
+      data = x,
+      load = NULL
+    ))))
+  }
+  x
+}
+
+scans_app_load_source <- function(source) {
+  if (!is.null(source$data)) {
+    return(source$data)
+  }
+  bundle <- source$load()
+  if (!is_trajectory_bundle(bundle)) {
+    label <- source$label
+    scans_abort(
+      "Application source {.val {label}} must return a {.cls TrajectoryBundle}.",
+      class = "scans_error_app_source",
+      call = NULL,
+      .envir = environment()
+    )
+  }
+  scans_app_data(bundle)
 }
 
 scans_app_check_packages <- function(
@@ -333,21 +454,73 @@ scans_app_unknown_status <- function(status) {
   is.na(status) | (!is.na(status) & !nzchar(trimws(status)))
 }
 
-scans_app_ui <- function(data) {
-  sources <- sort(unique(data$records$source_type))
+scans_app_filter_choices <- function(data = NULL) {
+  if (is.null(data)) {
+    source_values <- character()
+    status_values <- character()
+  } else {
+    source_values <- data$records$source_type
+    status_values <- data$records$status
+  }
+  sources <- sort(unique(source_values))
   sources <- sources[!is.na(sources) & nzchar(sources)]
-  statuses <- sort(unique(data$records$status))
+  statuses <- sort(unique(status_values))
   statuses <- statuses[!scans_app_unknown_status(statuses)]
-  source_all <- scans_app_filter_sentinel(sources, "source-all")
-  status_all <- scans_app_filter_sentinel(statuses, "status-all")
+  source_all <- scans_app_filter_sentinel(source_values, "source-all")
+  status_all <- scans_app_filter_sentinel(status_values, "status-all")
   status_choices <- c("All statuses" = status_all)
-  if (any(scans_app_unknown_status(data$records$status))) {
+  if (any(scans_app_unknown_status(status_values))) {
     status_choices <- c(
       status_choices,
-      "Unknown" = scans_app_filter_sentinel(statuses, "status-unknown")
+      "Unknown" = scans_app_filter_sentinel(status_values, "status-unknown")
     )
   }
   status_choices <- c(status_choices, stats::setNames(statuses, statuses))
+
+  list(
+    source = c("All sources" = source_all, sources),
+    status = status_choices,
+    source_all = source_all,
+    status_all = status_all
+  )
+}
+
+scans_app_application_ui <- function(sources) {
+  multiple <- length(sources$labels) > 1L
+  if (!multiple && !sources$reloadable) {
+    return(NULL)
+  }
+  selector <- if (multiple) {
+    shiny::selectInput(
+      "scans_app_application",
+      "Application",
+      choices = stats::setNames(sources$labels, sources$labels),
+      width = "100%"
+    )
+  } else {
+    htmltools::div(
+      class = "scans-app-application-label",
+      htmltools::tags$span("Application"),
+      htmltools::tags$strong(sources$labels[[1L]])
+    )
+  }
+
+  htmltools::div(
+    class = "scans-app-application-control",
+    selector,
+    if (sources$reloadable) {
+      shiny::actionButton(
+        "scans_app_reload",
+        "Reload traces",
+        class = "btn-sm btn-outline-secondary"
+      )
+    }
+  )
+}
+
+scans_app_ui <- function(sources) {
+  initial_data <- sources$sources[[1L]]$data
+  choices <- scans_app_filter_choices(initial_data)
 
   page <- bslib::page_sidebar(
     title = htmltools::div(
@@ -367,6 +540,7 @@ scans_app_ui <- function(data) {
       title = "Trajectories",
       width = 370,
       class = "scans-app-browser",
+      scans_app_application_ui(sources),
       shiny::textInput(
         "scans_app_query",
         "Search",
@@ -378,13 +552,13 @@ scans_app_ui <- function(data) {
         shiny::selectInput(
           "scans_app_source",
           "Source",
-          choices = c("All sources" = source_all, sources),
+          choices = choices$source,
           width = "100%"
         ),
         shiny::selectInput(
           "scans_app_status",
           "Status",
-          choices = status_choices,
+          choices = choices$status,
           width = "100%"
         )
       ),
@@ -441,23 +615,101 @@ scans_app_attach_dependency <- function(page) {
   )
 }
 
-scans_app_server <- function(data) {
+scans_app_server <- function(sources) {
+  sources <- scans_app_runtime_sources(sources)
+
   function(input, output, session) {
-    initial <- if (nrow(data$records) == 0L) NULL else 1L
-    selected <- shiny::reactiveVal(initial)
-    source_all <- scans_app_filter_sentinel(
-      data$records$source_type,
-      "source-all"
+    cache <- new.env(parent = emptyenv())
+    revision <- shiny::reactiveVal(0L)
+    selected <- shiny::reactiveVal(NULL)
+
+    application <- shiny::reactive({
+      label <- scans_app_input_or(
+        input$scans_app_application,
+        sources$labels[[1L]]
+      )
+      if (!label %in% sources$labels) {
+        return(sources$labels[[1L]])
+      }
+      label
+    })
+
+    active <- shiny::reactive({
+      revision()
+      label <- application()
+      if (exists(label, envir = cache, inherits = FALSE)) {
+        return(get(label, envir = cache, inherits = FALSE))
+      }
+      source <- sources$sources[[match(label, sources$labels)]]
+      result <- list(
+        data = tryCatch(
+          scans_app_load_source(source),
+          error = \(...) NULL
+        )
+      )
+      assign(label, result, envir = cache)
+      result
+    })
+
+    data <- shiny::reactive(active()$data)
+    shiny::observeEvent(
+      input$scans_app_reload,
+      ignoreInit = TRUE,
+      {
+        label <- application()
+        if (exists(label, envir = cache, inherits = FALSE)) {
+          rm(list = label, envir = cache)
+        }
+        revision(revision() + 1L)
+      }
     )
-    status_all <- scans_app_filter_sentinel(
-      data$records$status,
-      "status-all"
+
+    shiny::observeEvent(
+      data(),
+      ignoreNULL = TRUE,
+      {
+        current <- data()
+        choices <- scans_app_filter_choices(current)
+        shiny::updateSelectInput(
+          session,
+          "scans_app_source",
+          choices = choices$source,
+          selected = choices$source_all
+        )
+        shiny::updateSelectInput(
+          session,
+          "scans_app_status",
+          choices = choices$status,
+          selected = choices$status_all
+        )
+        selected(if (nrow(current$records) == 0L) NULL else 1L)
+      }
     )
+
     visible <- shiny::reactive({
+      current <- data()
+      if (is.null(current)) {
+        return(integer())
+      }
+      choices <- scans_app_filter_choices(current)
+      source <- scans_app_input_or(
+        input$scans_app_source,
+        choices$source_all
+      )
+      if (!source %in% unname(choices$source)) {
+        source <- choices$source_all
+      }
+      status <- scans_app_input_or(
+        input$scans_app_status,
+        choices$status_all
+      )
+      if (!status %in% unname(choices$status)) {
+        status <- choices$status_all
+      }
       scans_app_filter_records(
-        data$records,
-        source = scans_app_input_or(input$scans_app_source, source_all),
-        status = scans_app_input_or(input$scans_app_status, status_all),
+        current$records,
+        source = source,
+        status = status,
         query = scans_app_input_or(input$scans_app_query, ""),
         findings_only = isTRUE(input$scans_app_findings_only)
       )
@@ -476,20 +728,34 @@ scans_app_server <- function(data) {
       }
     )
 
-    if (nrow(data$records) > 0L) {
-      for (index in seq_len(nrow(data$records))) {
+    entry_observers <- new.env(parent = emptyenv())
+    shiny::observe({
+      current <- data()
+      if (is.null(current) || nrow(current$records) == 0L) {
+        return()
+      }
+      for (index in seq_len(nrow(current$records))) {
+        id <- scans_app_entry_id(index)
+        if (exists(id, envir = entry_observers, inherits = FALSE)) {
+          next
+        }
         local({
           entry <- index
-          shiny::observeEvent(input[[scans_app_entry_id(entry)]], {
+          observer <- shiny::observeEvent(input[[scans_app_entry_id(entry)]], {
             selected(entry)
           })
+          assign(id, observer, envir = entry_observers)
         })
       }
-    }
+    })
 
     output$scans_app_visible_count <- shiny::renderText({
+      current <- data()
+      if (is.null(current)) {
+        return("Traces unavailable")
+      }
       count <- length(visible())
-      total <- nrow(data$records)
+      total <- nrow(current$records)
       sprintf(
         "%d of %d %s",
         count,
@@ -499,10 +765,14 @@ scans_app_server <- function(data) {
     })
 
     output$scans_app_entries <- shiny::renderUI({
+      current <- data()
+      if (is.null(current)) {
+        return(scans_app_source_error_ui(application()))
+      }
       indices <- visible()
       if (length(indices) == 0L) {
         return(scans_app_empty_ui(
-          if (nrow(data$records) == 0L) {
+          if (nrow(current$records) == 0L) {
             "This bundle has no trajectories."
           } else {
             "No trajectories match these filters."
@@ -511,25 +781,56 @@ scans_app_server <- function(data) {
       }
       htmltools::tagList(lapply(indices, function(index) {
         scans_app_entry_ui(
-          data$records[index, , drop = FALSE],
+          current$records[index, , drop = FALSE],
           selected = identical(selected(), index)
         )
       }))
     })
 
     output$scans_app_overview <- shiny::renderUI({
-      scans_app_overview_ui(data, selected())
+      current <- data()
+      if (is.null(current)) {
+        return(NULL)
+      }
+      scans_app_overview_ui(current, selected())
     })
     output$scans_app_header <- shiny::renderUI({
-      scans_app_header_ui(data, selected())
+      current <- data()
+      if (is.null(current)) {
+        return(scans_app_source_error_heading(application()))
+      }
+      scans_app_header_ui(current, selected())
     })
     output$scans_app_transcript <- shiny::renderUI({
-      scans_app_transcript_ui(data, selected())
+      current <- data()
+      if (is.null(current)) {
+        return(scans_app_source_error_ui(application()))
+      }
+      scans_app_transcript_ui(current, selected())
     })
     output$scans_app_evidence <- shiny::renderUI({
-      scans_app_evidence_ui(data, selected())
+      current <- data()
+      if (is.null(current)) {
+        return(scans_app_source_error_ui(application()))
+      }
+      scans_app_evidence_ui(current, selected())
     })
   }
+}
+
+scans_app_source_error_heading <- function(label) {
+  htmltools::div(
+    class = "scans-app-heading",
+    htmltools::tags$strong(paste("Traces unavailable for", label))
+  )
+}
+
+scans_app_source_error_ui <- function(label) {
+  scans_app_empty_ui(paste(
+    "Could not load traces for",
+    paste0(label, "."),
+    "Reload traces to try again."
+  ))
 }
 
 scans_app_input_or <- function(value, default) {

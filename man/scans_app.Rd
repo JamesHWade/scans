@@ -7,26 +7,43 @@
 scans_app(x)
 }
 \arguments{
-\item{x}{A \link{TrajectoryBundle} containing one or more completed trajectory
-snapshots.}
+\item{x}{A \link{TrajectoryBundle}, or a named list of application sources. Each
+source must be a \code{TrajectoryBundle} or a zero-argument function that
+returns one. Source names are shown in the application switcher.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console
 launches the app; the returned object can also be served from an \code{app.R}.
 }
 \description{
-\code{scans_app()} launches a read-only Shiny app for exploring a
-\link{TrajectoryBundle}. The scans app keeps the canonical bundle as its data
-boundary:
-it does not call a model, run tools, modify the bundle, or infer missing
-source facts.
+\code{scans_app()} launches a read-only Shiny app for exploring one or more
+\link{TrajectoryBundle} snapshots. A named list creates an application switcher;
+each entry can be a bundle or a zero-argument loader that returns one. Lazy
+loaders make it practical to review snapshots from multiple deployed apps
+without downloading every snapshot when the review app starts.
 }
 \details{
+The scans app keeps the canonical bundle as its data boundary. It does not
+call a model, run tools, modify a bundle, or infer missing source facts.
+Caller-supplied loaders are invoked only when their application is first
+selected in a session or explicitly reloaded.
+
 The app provides filters and a trajectory browser, a source-neutral
 transcript and event stream, and the findings, evaluations, and adapter
 losses associated with the selected trajectory. Built-in findings are
-computed once with \code{\link[=scan_trajectories]{scan_trajectories()}} when the app is created.
+computed with \code{\link[=scan_trajectories]{scan_trajectories()}} when each application snapshot is first
+loaded.
 }
+\section{Posit Connect}{
+
+Deploy \code{scans_app()} from an \code{app.R} and pass a named list of lazy loaders to
+review multiple deployed applications. A loader can read a versioned
+\code{TrajectoryBundle} from \code{\link[pins:board_connect]{pins::board_connect()}} or another durable store.
+Keep trace collection outside the review app: Connect application working
+directories are not persistent storage, and concurrent trace writers should
+use a database or another concurrency-safe backend.
+}
+
 \examples{
 bundle <- TrajectoryBundle(
   data.frame(
@@ -39,5 +56,10 @@ bundle <- TrajectoryBundle(
 
 if (interactive()) {
   scans_app(bundle)
+
+  scans_app(list(
+    "Support assistant" = bundle,
+    "Research assistant" = function() readRDS("research-bundle.rds")
+  ))
 }
 }

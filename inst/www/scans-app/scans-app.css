@@ -51,6 +51,41 @@
   margin-bottom: 0;
 }
 
+.scans-app-application-control {
+  align-items: end;
+  border-bottom: 1px solid var(--scans-app-line);
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-bottom: 0.8rem;
+}
+
+.scans-app-application-control > .form-group:only-child {
+  grid-column: 1 / -1;
+}
+
+.scans-app-application-control .action-button {
+  margin-bottom: 1px;
+  white-space: nowrap;
+}
+
+.scans-app-application-label {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.scans-app-application-label > span {
+  font-size: 0.8rem;
+}
+
+.scans-app-application-label > strong {
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .scans-app-browser-count {
   color: var(--scans-app-muted);
   font-size: 0.78rem;
