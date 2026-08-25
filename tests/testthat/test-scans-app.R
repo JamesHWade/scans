@@ -20,6 +20,43 @@ test_that("scans app records retain source identity and deterministic findings",
   expect_setequal(data$findings$event_id, c("error-event-3", "error-event-4"))
 })
 
+test_that("scans app titles use canonical event order", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "unordered-title",
+      source_type = "manual"
+    ),
+    tibble::tibble(
+      trajectory_id = "unordered-title",
+      turn_id = c("later-turn", "earlier-turn"),
+      turn_index = c(2L, 1L),
+      role = "user"
+    ),
+    tibble::tibble(
+      trajectory_id = "unordered-title",
+      event_id = c("later-event", "earlier-event"),
+      event_index = c(2L, 1L),
+      event_type = "content",
+      turn_id = c("later-turn", "earlier-turn"),
+      content_type = "text",
+      text = c("Later prompt", "Earlier prompt")
+    )
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    entries <- as.character(output$scans_app_entries)[[1L]]
+
+    expect_match(entries, "Earlier prompt", fixed = TRUE)
+    expect_no_match(entries, "Later prompt", fixed = TRUE)
+  })
+})
+
 test_that("scans app filters compose without interpreting the query as a regex", {
   records <- scans_app_data(trajectory_fixture(
     "ellmerverse_correlation"
@@ -119,6 +156,37 @@ test_that("scans app distinguishes a missing status from an unknown status", {
     entries <- as.character(output$scans_app_entries)[[1L]]
     expect_match(entries, "literal-missing", fixed = TRUE)
     expect_no_match(entries, "unknown-status", fixed = TRUE)
+  })
+})
+
+test_that("scans app treats empty and missing statuses as unknown", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = c("empty-status", "missing-status", "complete-status"),
+      source_type = "manual",
+      status = c("", NA_character_, "complete")
+    ),
+    data.frame(),
+    data.frame()
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_status = ".scans-app-status-unknown",
+      scans_app_query = "",
+      scans_app_findings_only = FALSE
+    )
+    session$flushReact()
+
+    entries <- as.character(output$scans_app_entries)[[1L]]
+    expect_match(entries, "empty-status", fixed = TRUE)
+    expect_match(entries, "missing-status", fixed = TRUE)
+    expect_no_match(entries, "complete-status", fixed = TRUE)
   })
 })
 
@@ -265,12 +333,12 @@ test_that("scans app renders transcript blocks in canonical event order", {
     ),
     tibble::tibble(
       trajectory_id = "ordered-events",
-      event_id = c("turn-event", "run-event"),
-      event_index = 1:2,
+      event_id = c("run-before", "turn-event", "run-after"),
+      event_index = 1:3,
       event_type = "content",
       content_type = "text",
-      turn_id = c("turn-1", NA_character_),
-      text = c("Turn event first", "Run event second")
+      turn_id = c(NA_character_, "turn-1", NA_character_),
+      text = c("Run event first", "Turn event second", "Run event third")
     )
   )
   app <- scans_app(bundle)
@@ -280,8 +348,51 @@ test_that("scans app renders transcript blocks in canonical event order", {
     transcript <- as.character(output$scans_app_transcript)[[1L]]
 
     expect_lt(
-      regexpr("Turn event first", transcript, fixed = TRUE)[[1L]],
-      regexpr("Run event second", transcript, fixed = TRUE)[[1L]]
+      regexpr("Run event first", transcript, fixed = TRUE)[[1L]],
+      regexpr("Turn event second", transcript, fixed = TRUE)[[1L]]
+    )
+    expect_lt(
+      regexpr("Turn event second", transcript, fixed = TRUE)[[1L]],
+      regexpr("Run event third", transcript, fixed = TRUE)[[1L]]
+    )
+  })
+})
+
+test_that("scans app keeps eventless turns in canonical turn order", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "eventless-turn",
+      source_type = "manual"
+    ),
+    tibble::tibble(
+      trajectory_id = "eventless-turn",
+      turn_id = c("empty-turn", "later-turn"),
+      turn_index = 1:2,
+      role = c("user", "assistant")
+    ),
+    tibble::tibble(
+      trajectory_id = "eventless-turn",
+      event_id = "later-event",
+      event_index = 1L,
+      event_type = "content",
+      turn_id = "later-turn",
+      content_type = "text",
+      text = "Later event"
+    )
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    transcript <- as.character(output$scans_app_transcript)[[1L]]
+
+    expect_lt(
+      regexpr("Turn 1", transcript, fixed = TRUE)[[1L]],
+      regexpr("Turn 2", transcript, fixed = TRUE)[[1L]]
     )
   })
 })

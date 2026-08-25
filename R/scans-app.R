@@ -221,6 +221,13 @@ scans_app_trajectory_snippets <- function(ids, turns, events) {
       if (length(user_rows) > 0L) {
         rows <- user_rows
       }
+      rows <- rows[
+        order(
+          events$event_index[rows],
+          events$event_id[rows],
+          method = "radix"
+        )
+      ]
       scans_app_truncate(
         gsub("\\s+", " ", trimws(events$text[[rows[[1L]]]])),
         90L
@@ -260,7 +267,7 @@ scans_app_filter_records <- function(
   status_all <- scans_app_filter_sentinel(records$status, "status-all")
   missing_status <- scans_app_filter_sentinel(records$status, "status-unknown")
   if (identical(status, missing_status)) {
-    keep <- keep & is.na(records$status)
+    keep <- keep & scans_app_unknown_status(records$status)
   } else if (!is.null(status) && !identical(status, status_all)) {
     keep <- keep & records$status %in% status
   }
@@ -282,15 +289,19 @@ scans_app_filter_sentinel <- function(values, type) {
   value
 }
 
+scans_app_unknown_status <- function(status) {
+  is.na(status) | (!is.na(status) & !nzchar(trimws(status)))
+}
+
 scans_app_ui <- function(data) {
   sources <- sort(unique(data$records$source_type))
   sources <- sources[!is.na(sources) & nzchar(sources)]
   statuses <- sort(unique(data$records$status))
-  statuses <- statuses[!is.na(statuses) & nzchar(statuses)]
+  statuses <- statuses[!scans_app_unknown_status(statuses)]
   source_all <- scans_app_filter_sentinel(sources, "source-all")
   status_all <- scans_app_filter_sentinel(statuses, "status-all")
   status_choices <- c("All statuses" = status_all)
-  if (anyNA(data$records$status)) {
+  if (any(scans_app_unknown_status(data$records$status))) {
     status_choices <- c(
       status_choices,
       "Unknown" = scans_app_filter_sentinel(statuses, "status-unknown")
@@ -617,55 +628,99 @@ scans_app_transcript_ui <- function(data, index) {
 
   blocks <- list()
   known_turn_ids <- data$turns$turn_id[turn_rows]
-  run_events <- event_rows[
-    is.na(data$events$turn_id[event_rows]) |
-      !data$events$turn_id[event_rows] %in% known_turn_ids
-  ]
-  if (length(run_events) > 0L) {
-    blocks <- append(
-      blocks,
-      list(list(
-        event_index = min(data$events$event_index[run_events]),
-        turn_index = 0L,
+  event_turn_ids <- data$events$turn_id[event_rows]
+  known_event_turns <- !is.na(event_turn_ids) &
+    event_turn_ids %in% known_turn_ids
+  if (length(event_rows) > 0L) {
+    owners <- ifelse(
+      known_event_turns,
+      paste0("turn:", event_turn_ids),
+      "run"
+    )
+    segments <- cumsum(c(TRUE, owners[-1L] != owners[-length(owners)]))
+    event_groups <- split(event_rows, segments)
+    blocks <- lapply(event_groups, function(rows) {
+      turn_id <- data$events$turn_id[[rows[[1L]]]]
+      if (!is.na(turn_id) && turn_id %in% known_turn_ids) {
+        turn_row <- turn_rows[
+          match(turn_id, data$turns$turn_id[turn_rows])
+        ]
+        return(list(
+          event_index = data$events$event_index[[rows[[1L]]]],
+          turn_index = data$turns$turn_index[[turn_row]],
+          ui = scans_app_turn_ui(
+            data$turns[turn_row, , drop = FALSE],
+            data$events,
+            rows
+          )
+        ))
+      }
+      list(
+        event_index = data$events$event_index[[rows[[1L]]]],
+        turn_index = NA_integer_,
         ui = scans_app_event_group_ui(
           if (length(turn_rows) == 0L) "Event stream" else "Run events",
           data$events,
-          run_events
+          rows
         )
-      ))
-    )
+      )
+    })
   }
-  for (turn_row in turn_rows) {
-    events <- event_rows[
-      data$events$turn_id[event_rows] == data$turns$turn_id[[turn_row]] &
-        !is.na(data$events$turn_id[event_rows])
-    ]
+  turns_with_events <- unique(event_turn_ids[known_event_turns])
+  eventless_turn_rows <- turn_rows[
+    !data$turns$turn_id[turn_rows] %in% turns_with_events
+  ]
+  for (turn_row in eventless_turn_rows) {
     blocks <- append(
       blocks,
       list(list(
-        event_index = if (length(events) > 0L) {
-          min(data$events$event_index[events])
-        } else {
-          Inf
-        },
+        event_index = Inf,
         turn_index = data$turns$turn_index[[turn_row]],
         ui = scans_app_turn_ui(
           data$turns[turn_row, , drop = FALSE],
           data$events,
-          events
+          integer()
         )
       ))
     )
   }
 
+  event_indices <- vapply(blocks, `[[`, numeric(1), "event_index")
+  event_blocks <- blocks[is.finite(event_indices)]
   block_order <- order(
-    vapply(blocks, `[[`, numeric(1), "event_index"),
-    vapply(blocks, `[[`, integer(1), "turn_index"),
+    vapply(event_blocks, `[[`, numeric(1), "event_index"),
     method = "radix"
   )
-  blocks <- lapply(blocks[block_order], `[[`, "ui")
+  ordered_blocks <- event_blocks[block_order]
+  eventless_blocks <- blocks[!is.finite(event_indices)]
+  eventless_blocks <- eventless_blocks[
+    order(
+      vapply(eventless_blocks, `[[`, integer(1), "turn_index"),
+      method = "radix"
+    )
+  ]
+  for (block in eventless_blocks) {
+    ordered_blocks <- scans_app_insert_eventless_turn(ordered_blocks, block)
+  }
+  blocks <- lapply(ordered_blocks, `[[`, "ui")
 
   htmltools::div(class = "scans-app-path", htmltools::tagList(blocks))
+}
+
+scans_app_insert_eventless_turn <- function(blocks, block) {
+  if (length(blocks) == 0L) {
+    return(list(block))
+  }
+  turn_indices <- vapply(blocks, `[[`, integer(1), "turn_index")
+  later <- which(!is.na(turn_indices) & turn_indices > block$turn_index)
+  if (length(later) > 0L) {
+    return(append(blocks, list(block), after = min(later) - 1L))
+  }
+  earlier <- which(!is.na(turn_indices) & turn_indices < block$turn_index)
+  if (length(earlier) > 0L) {
+    return(append(blocks, list(block), after = max(earlier)))
+  }
+  append(blocks, list(block), after = 0L)
 }
 
 scans_app_event_group_ui <- function(title, events, rows) {
