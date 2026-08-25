@@ -25,6 +25,8 @@ test_that("scans app enforces optional dependency minimum versions", {
 })
 
 test_that("scans app preserves dependencies attached by bslib", {
+  skip_if_not_installed("htmltools")
+
   existing <- htmltools::htmlDependency(
     name = "existing",
     version = "1.0.0",
@@ -42,6 +44,8 @@ test_that("scans app preserves dependencies attached by bslib", {
 })
 
 test_that("scans app stylesheet dependency tracks the package version", {
+  skip_if_not_installed("htmltools")
+
   dependency <- scans_app_dependency(
     package_version = function(...) numeric_version("1.2.3")
   )
