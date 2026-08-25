@@ -658,12 +658,16 @@ scans_app_application_ui <- function(sources) {
     class = "scans-app-application-control",
     selector,
     if (sources$reloadable) {
-      shiny::actionButton(
-        "scans_app_reload",
-        "Reload traces",
-        class = "btn-sm btn-outline-secondary"
-      )
+      shiny::uiOutput("scans_app_reload_control")
     }
+  )
+}
+
+scans_app_reload_button <- function() {
+  shiny::actionButton(
+    "scans_app_reload",
+    "Reload traces",
+    class = "btn-sm btn-outline-secondary"
   )
 }
 
@@ -783,13 +787,24 @@ scans_app_server <- function(sources) {
       label
     })
 
+    active_source <- shiny::reactive({
+      sources$sources[[match(application(), sources$labels)]]
+    })
+
+    output$scans_app_reload_control <- shiny::renderUI({
+      if (!is.function(active_source()$load)) {
+        return(NULL)
+      }
+      scans_app_reload_button()
+    })
+
     active <- shiny::reactive({
       revision()
       label <- application()
       if (exists(label, envir = cache, inherits = FALSE)) {
         return(get(label, envir = cache, inherits = FALSE))
       }
-      source <- sources$sources[[match(label, sources$labels)]]
+      source <- active_source()
       result <- list(
         data = tryCatch(
           scans_app_load_source(source),
@@ -805,6 +820,9 @@ scans_app_server <- function(sources) {
       input$scans_app_reload,
       ignoreInit = TRUE,
       {
+        if (!is.function(active_source()$load)) {
+          return()
+        }
         label <- application()
         if (exists(label, envir = cache, inherits = FALSE)) {
           rm(list = label, envir = cache)

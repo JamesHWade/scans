@@ -84,6 +84,34 @@ test_that("scans app loads and reloads application sources lazily", {
   })
 })
 
+test_that("scans app offers reload only for the active lazy source", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(list(
+    "Static snapshot" = trajectory_fixture("simple_exchange"),
+    "Live deployment" = function() trajectory_fixture("tool_error")
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    expect_null(output$scans_app_reload_control)
+
+    session$setInputs(scans_app_application = "Live deployment")
+    session$flushReact()
+    expect_match(
+      as.character(output$scans_app_reload_control)[[1L]],
+      "Reload traces",
+      fixed = TRUE
+    )
+
+    session$setInputs(scans_app_application = "Static snapshot")
+    session$flushReact()
+    expect_null(output$scans_app_reload_control)
+  })
+})
+
 scans_app_connect_trace_line <- function(prompt) {
   start_time <- sprintf("%.0f", (as.numeric(Sys.time()) - 60) * 1e9)
   end_time <- sprintf("%.0f", (as.numeric(Sys.time()) - 59) * 1e9)
