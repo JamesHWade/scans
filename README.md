@@ -189,18 +189,18 @@ ambiguous correlation, suspicious tool loops, failed events, and causal error
 chains. Every finding retains the trajectory and event identifiers that support
 it.
 
-## Explore trajectories with Scout
+## Explore trajectories with the scans app
 
-Scout turns the same detached bundle into a read-only Shiny app. Use its left
+The scans app turns the same detached bundle into a read-only Shiny app. Use its left
 sidebar to search and filter trajectories, browse canonical turns and events in
 the main canvas, and inspect linked findings, evaluations, adapter losses, and
 source context in the evidence rail.
 
 ```r
-scout(bundle)
+scans_app(bundle)
 ```
 
-Scout computes the built-in deterministic scans once when the app is created.
+The scans app computes the built-in deterministic scans once when it is created.
 It does not call a model, run tools, modify the bundle, or infer missing source
 facts. The app depends on the optional {shiny}, {bslib}, and {htmltools}
 packages.

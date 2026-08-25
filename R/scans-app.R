@@ -1,7 +1,8 @@
-#' Explore trajectory diagnostics in Scout
+#' Explore trajectory diagnostics with the scans app
 #'
-#' `scout()` launches a read-only Shiny app for exploring a
-#' [TrajectoryBundle]. Scout keeps the canonical bundle as its data boundary:
+#' `scans_app()` launches a read-only Shiny app for exploring a
+#' [TrajectoryBundle]. The scans app keeps the canonical bundle as its data
+#' boundary:
 #' it does not call a model, run tools, modify the bundle, or infer missing
 #' source facts.
 #'
@@ -13,7 +14,7 @@
 #' @param x A [TrajectoryBundle] containing one or more completed trajectory
 #'   snapshots.
 #'
-#' @returns A [shiny::shinyApp()] object. Calling `scout()` at the console
+#' @returns A [shiny::shinyApp()] object. Calling `scans_app()` at the console
 #'   launches the app; the returned object can also be served from an `app.R`.
 #'
 #' @examples
@@ -27,21 +28,21 @@
 #' )
 #'
 #' if (interactive()) {
-#'   scout(bundle)
+#'   scans_app(bundle)
 #' }
 #' @export
-scout <- function(x) {
+scans_app <- function(x) {
   check_trajectory_bundle(x)
-  scout_check_packages()
-  data <- scout_data(x)
+  scans_app_check_packages()
+  data <- scans_app_data(x)
 
   shiny::shinyApp(
-    ui = scout_ui(data),
-    server = scout_server(data)
+    ui = scans_app_ui(data),
+    server = scans_app_server(data)
   )
 }
 
-scout_check_packages <- function(call = rlang::caller_env()) {
+scans_app_check_packages <- function(call = rlang::caller_env()) {
   packages <- c("bslib", "htmltools", "shiny")
   missing <- packages[
     !vapply(packages, requireNamespace, logical(1), quietly = TRUE)
@@ -52,16 +53,16 @@ scout_check_packages <- function(call = rlang::caller_env()) {
 
   scans_abort(
     c(
-      "{.fn scout} requires missing package{?s}: {.pkg {missing}}.",
-      "i" = "Install {.pkg {missing}} to use the Scout app."
+      "{.fn scans_app} requires missing package{?s}: {.pkg {missing}}.",
+      "i" = "Install {.pkg {missing}} to use the scans app."
     ),
-    class = "scans_error_scout_dependency",
+    class = "scans_error_app_dependency",
     call = call,
     .envir = environment()
   )
 }
 
-scout_data <- function(x) {
+scans_app_data <- function(x) {
   info <- trajectory_info(x)
   turns <- trajectory_turns(x)
   events <- trajectory_events(x)
@@ -78,7 +79,7 @@ scout_data <- function(x) {
     losses = losses,
     findings = findings,
     summaries = summaries,
-    records = scout_records(
+    records = scans_app_records(
       info,
       turns,
       events,
@@ -88,7 +89,7 @@ scout_data <- function(x) {
   )
 }
 
-scout_records <- function(info, turns, events, findings, summaries) {
+scans_app_records <- function(info, turns, events, findings, summaries) {
   if (nrow(info) == 0L) {
     return(tibble::tibble(
       index = integer(),
@@ -105,11 +106,11 @@ scout_records <- function(info, turns, events, findings, summaries) {
   }
 
   ids <- info$trajectory_id
-  snippets <- scout_trajectory_snippets(ids, turns, events)
+  snippets <- scans_app_trajectory_snippets(ids, turns, events)
   titles <- vapply(
     seq_along(ids),
     function(index) {
-      scout_first_string(
+      scans_app_first_string(
         snippets[[index]],
         info$agent[[index]],
         info$model[[index]],
@@ -156,7 +157,7 @@ scout_records <- function(info, turns, events, findings, summaries) {
   )
 }
 
-scout_trajectory_snippets <- function(ids, turns, events) {
+scans_app_trajectory_snippets <- function(ids, turns, events) {
   roles <- turns$role[match(events$turn_id, turns$turn_id)]
   vapply(
     ids,
@@ -173,13 +174,16 @@ scout_trajectory_snippets <- function(ids, turns, events) {
       if (length(user_rows) > 0L) {
         rows <- user_rows
       }
-      scout_truncate(gsub("\\s+", " ", trimws(events$text[[rows[[1L]]]])), 90L)
+      scans_app_truncate(
+        gsub("\\s+", " ", trimws(events$text[[rows[[1L]]]])),
+        90L
+      )
     },
     character(1)
   )
 }
 
-scout_first_string <- function(...) {
+scans_app_first_string <- function(...) {
   values <- list(...)
   for (value in values) {
     if (
@@ -194,7 +198,7 @@ scout_first_string <- function(...) {
   "Untitled trajectory"
 }
 
-scout_filter_records <- function(
+scans_app_filter_records <- function(
   records,
   source = "all",
   status = "all",
@@ -220,7 +224,7 @@ scout_filter_records <- function(
   records$index[keep]
 }
 
-scout_ui <- function(data) {
+scans_app_ui <- function(data) {
   sources <- sort(unique(data$records$source_type))
   sources <- sources[!is.na(sources) & nzchar(sources)]
   statuses <- sort(unique(data$records$status))
@@ -233,8 +237,8 @@ scout_ui <- function(data) {
 
   page <- bslib::page_sidebar(
     title = htmltools::div(
-      class = "scans-scout-brand",
-      htmltools::tags$span("Scout"),
+      class = "scans-app-brand",
+      htmltools::tags$span("scans"),
       htmltools::tags$small("Trajectory diagnostics")
     ),
     theme = bslib::bs_theme(
@@ -244,13 +248,13 @@ scout_ui <- function(data) {
       primary = "#5356c9"
     ),
     fillable = TRUE,
-    class = "bslib-page-dashboard scans-scout",
+    class = "bslib-page-dashboard scans-app",
     sidebar = bslib::sidebar(
       title = "Trajectories",
       width = 370,
-      class = "scans-scout-browser",
+      class = "scans-app-browser",
       shiny::textInput(
-        "scout_query",
+        "scans_app_query",
         "Search",
         placeholder = "ID, source, agent, or transcript",
         width = "100%"
@@ -258,39 +262,39 @@ scout_ui <- function(data) {
       bslib::layout_columns(
         col_widths = c(6, 6),
         shiny::selectInput(
-          "scout_source",
+          "scans_app_source",
           "Source",
           choices = c("All sources" = "all", sources),
           width = "100%"
         ),
         shiny::selectInput(
-          "scout_status",
+          "scans_app_status",
           "Status",
           choices = status_choices,
           width = "100%"
         )
       ),
       bslib::input_switch(
-        "scout_findings_only",
+        "scans_app_findings_only",
         "Only trajectories with findings"
       ),
       htmltools::div(
-        class = "scans-scout-browser-count",
-        shiny::textOutput("scout_visible_count", inline = TRUE)
+        class = "scans-app-browser-count",
+        shiny::textOutput("scans_app_visible_count", inline = TRUE)
       ),
       htmltools::div(
-        class = "scans-scout-browser-entries",
-        shiny::uiOutput("scout_entries")
+        class = "scans-app-browser-entries",
+        shiny::uiOutput("scans_app_entries")
       )
     ),
-    shiny::uiOutput("scout_overview"),
+    shiny::uiOutput("scans_app_overview"),
     bslib::card(
       fill = TRUE,
       full_screen = TRUE,
-      class = "scans-scout-workspace",
+      class = "scans-app-workspace",
       bslib::card_header(
-        class = "scans-scout-workspace-header",
-        shiny::uiOutput("scout_header")
+        class = "scans-app-workspace-header",
+        shiny::uiOutput("scans_app_header")
       ),
       bslib::layout_sidebar(
         fillable = TRUE,
@@ -302,30 +306,30 @@ scout_ui <- function(data) {
           title = "Evidence",
           position = "right",
           width = 350,
-          class = "scans-scout-evidence",
-          shiny::uiOutput("scout_evidence")
+          class = "scans-app-evidence",
+          shiny::uiOutput("scans_app_evidence")
         ),
         htmltools::tags$main(
-          class = "scans-scout-transcript",
-          shiny::uiOutput("scout_transcript")
+          class = "scans-app-transcript",
+          shiny::uiOutput("scans_app_transcript")
         )
       )
     )
   )
-  htmltools::attachDependencies(page, scout_dependency())
+  htmltools::attachDependencies(page, scans_app_dependency())
 }
 
-scout_server <- function(data) {
+scans_app_server <- function(data) {
   function(input, output, session) {
     initial <- if (nrow(data$records) == 0L) NULL else 1L
     selected <- shiny::reactiveVal(initial)
     visible <- shiny::reactive({
-      scout_filter_records(
+      scans_app_filter_records(
         data$records,
-        source = scout_input_or(input$scout_source, "all"),
-        status = scout_input_or(input$scout_status, "all"),
-        query = scout_input_or(input$scout_query, ""),
-        findings_only = isTRUE(input$scout_findings_only)
+        source = scans_app_input_or(input$scans_app_source, "all"),
+        status = scans_app_input_or(input$scans_app_status, "all"),
+        query = scans_app_input_or(input$scans_app_query, ""),
+        findings_only = isTRUE(input$scans_app_findings_only)
       )
     })
 
@@ -346,14 +350,14 @@ scout_server <- function(data) {
       for (index in seq_len(nrow(data$records))) {
         local({
           entry <- index
-          shiny::observeEvent(input[[scout_entry_id(entry)]], {
+          shiny::observeEvent(input[[scans_app_entry_id(entry)]], {
             selected(entry)
           })
         })
       }
     }
 
-    output$scout_visible_count <- shiny::renderText({
+    output$scans_app_visible_count <- shiny::renderText({
       count <- length(visible())
       total <- nrow(data$records)
       sprintf(
@@ -364,10 +368,10 @@ scout_server <- function(data) {
       )
     })
 
-    output$scout_entries <- shiny::renderUI({
+    output$scans_app_entries <- shiny::renderUI({
       indices <- visible()
       if (length(indices) == 0L) {
-        return(scout_empty_ui(
+        return(scans_app_empty_ui(
           if (nrow(data$records) == 0L) {
             "This bundle has no trajectories."
           } else {
@@ -376,37 +380,37 @@ scout_server <- function(data) {
         ))
       }
       htmltools::tagList(lapply(indices, function(index) {
-        scout_entry_ui(
+        scans_app_entry_ui(
           data$records[index, , drop = FALSE],
           selected = identical(selected(), index)
         )
       }))
     })
 
-    output$scout_overview <- shiny::renderUI({
-      scout_overview_ui(data, selected())
+    output$scans_app_overview <- shiny::renderUI({
+      scans_app_overview_ui(data, selected())
     })
-    output$scout_header <- shiny::renderUI({
-      scout_header_ui(data, selected())
+    output$scans_app_header <- shiny::renderUI({
+      scans_app_header_ui(data, selected())
     })
-    output$scout_transcript <- shiny::renderUI({
-      scout_transcript_ui(data, selected())
+    output$scans_app_transcript <- shiny::renderUI({
+      scans_app_transcript_ui(data, selected())
     })
-    output$scout_evidence <- shiny::renderUI({
-      scout_evidence_ui(data, selected())
+    output$scans_app_evidence <- shiny::renderUI({
+      scans_app_evidence_ui(data, selected())
     })
   }
 }
 
-scout_input_or <- function(value, default) {
+scans_app_input_or <- function(value, default) {
   if (is.null(value) || length(value) == 0L) default else value
 }
 
-scout_entry_id <- function(index) {
-  paste0("scout_entry_", index)
+scans_app_entry_id <- function(index) {
+  paste0("scans_app_entry_", index)
 }
 
-scout_entry_ui <- function(record, selected) {
+scans_app_entry_ui <- function(record, selected) {
   findings <- record$n_findings[[1L]]
   errors <- record$n_errors[[1L]]
   tone <- if (errors > 0L) {
@@ -418,24 +422,24 @@ scout_entry_ui <- function(record, selected) {
   }
 
   shiny::actionLink(
-    scout_entry_id(record$index[[1L]]),
+    scans_app_entry_id(record$index[[1L]]),
     label = htmltools::tagList(
       htmltools::div(
-        class = "scans-scout-entry-heading",
+        class = "scans-app-entry-heading",
         htmltools::tags$span(
-          class = "scans-scout-entry-title",
+          class = "scans-app-entry-title",
           record$title[[1L]]
         ),
-        scout_badge(as.character(findings), tone)
+        scans_app_badge(as.character(findings), tone)
       ),
       htmltools::div(
-        class = "scans-scout-entry-id",
+        class = "scans-app-entry-id",
         record$trajectory_id[[1L]]
       ),
       htmltools::div(
-        class = "scans-scout-entry-meta",
-        scout_badge(record$source_type[[1L]], "source"),
-        scout_status_badge(record$status[[1L]]),
+        class = "scans-app-entry-meta",
+        scans_app_badge(record$source_type[[1L]], "source"),
+        scans_app_status_badge(record$status[[1L]]),
         htmltools::tags$span(
           sprintf(
             "%d turns \u00b7 %d events",
@@ -446,14 +450,14 @@ scout_entry_ui <- function(record, selected) {
       )
     ),
     class = paste(
-      "scans-scout-entry",
-      if (selected) "scans-scout-entry-selected" else ""
+      "scans-app-entry",
+      if (selected) "scans-app-entry-selected" else ""
     ),
     `aria-current` = if (selected) "true" else NULL
   )
 }
 
-scout_overview_ui <- function(data, index) {
+scans_app_overview_ui <- function(data, index) {
   if (is.null(index)) {
     return(NULL)
   }
@@ -471,14 +475,14 @@ scout_overview_ui <- function(data, index) {
   bslib::layout_column_wrap(
     width = "145px",
     fill = FALSE,
-    class = "scans-scout-overview",
+    class = "scans-app-overview",
     !!!Map(
       function(title, value, theme) {
         bslib::value_box(
           title = title,
           value = format(value, big.mark = ",", scientific = FALSE),
           theme = theme,
-          class = "scans-scout-value"
+          class = "scans-app-value"
         )
       },
       names(counts),
@@ -488,35 +492,35 @@ scout_overview_ui <- function(data, index) {
   )
 }
 
-scout_header_ui <- function(data, index) {
+scans_app_header_ui <- function(data, index) {
   if (is.null(index)) {
     return(htmltools::div(
-      class = "scans-scout-heading",
+      class = "scans-app-heading",
       htmltools::tags$strong("No trajectory selected")
     ))
   }
   info <- data$info[index, , drop = FALSE]
   record <- data$records[index, , drop = FALSE]
   htmltools::div(
-    class = "scans-scout-heading",
+    class = "scans-app-heading",
     htmltools::div(
       htmltools::tags$strong(record$title[[1L]]),
       htmltools::tags$span(
-        class = "scans-scout-heading-id",
+        class = "scans-app-heading-id",
         info$trajectory_id[[1L]]
       )
     ),
     htmltools::div(
-      class = "scans-scout-heading-badges",
-      scout_badge(info$source_type[[1L]], "source"),
-      scout_status_badge(info$status[[1L]])
+      class = "scans-app-heading-badges",
+      scans_app_badge(info$source_type[[1L]], "source"),
+      scans_app_status_badge(info$status[[1L]])
     )
   )
 }
 
-scout_transcript_ui <- function(data, index) {
+scans_app_transcript_ui <- function(data, index) {
   if (is.null(index)) {
-    return(scout_empty_ui("Select a trajectory to inspect its path."))
+    return(scans_app_empty_ui("Select a trajectory to inspect its path."))
   }
   id <- data$info$trajectory_id[[index]]
   turn_rows <- which(data$turns$trajectory_id == id)
@@ -537,7 +541,7 @@ scout_transcript_ui <- function(data, index) {
   ]
 
   if (length(turn_rows) == 0L && length(event_rows) == 0L) {
-    return(scout_empty_ui("This trajectory has no turns or events."))
+    return(scans_app_empty_ui("This trajectory has no turns or events."))
   }
 
   blocks <- list()
@@ -549,7 +553,7 @@ scout_transcript_ui <- function(data, index) {
   if (length(run_events) > 0L) {
     blocks <- append(
       blocks,
-      list(scout_event_group_ui(
+      list(scans_app_event_group_ui(
         if (length(turn_rows) == 0L) "Event stream" else "Run events",
         data$events,
         run_events
@@ -563,7 +567,7 @@ scout_transcript_ui <- function(data, index) {
     ]
     blocks <- append(
       blocks,
-      list(scout_turn_ui(
+      list(scans_app_turn_ui(
         data$turns[turn_row, , drop = FALSE],
         data$events,
         events
@@ -571,23 +575,23 @@ scout_transcript_ui <- function(data, index) {
     )
   }
 
-  htmltools::div(class = "scans-scout-path", htmltools::tagList(blocks))
+  htmltools::div(class = "scans-app-path", htmltools::tagList(blocks))
 }
 
-scout_event_group_ui <- function(title, events, rows) {
+scans_app_event_group_ui <- function(title, events, rows) {
   htmltools::tags$section(
-    class = "scans-scout-event-group",
+    class = "scans-app-event-group",
     htmltools::tags$h2(title),
     htmltools::tagList(lapply(rows, function(row) {
-      scout_event_ui(events[row, , drop = FALSE], row)
+      scans_app_event_ui(events[row, , drop = FALSE], row)
     }))
   )
 }
 
-scout_turn_ui <- function(turn, events, rows) {
-  role <- scout_first_string(turn$role[[1L]], "unknown")
+scans_app_turn_ui <- function(turn, events, rows) {
+  role <- scans_app_first_string(turn$role[[1L]], "unknown")
   title <- paste0(
-    scout_title_case(role),
+    scans_app_title_case(role),
     " \u00b7 Turn ",
     turn$turn_index[[1L]]
   )
@@ -595,87 +599,87 @@ scout_turn_ui <- function(turn, events, rows) {
     title <- paste0(title, " \u00b7 Round ", turn$round_index[[1L]])
   }
   body <- if (length(rows) == 0L) {
-    scout_empty_ui("No events were recorded for this turn.", compact = TRUE)
+    scans_app_empty_ui("No events were recorded for this turn.", compact = TRUE)
   } else {
     htmltools::tagList(lapply(rows, function(row) {
-      scout_event_ui(events[row, , drop = FALSE], row)
+      scans_app_event_ui(events[row, , drop = FALSE], row)
     }))
   }
 
   htmltools::tags$section(
-    class = paste0("scans-scout-turn scans-scout-turn-", scout_css_token(role)),
+    class = paste0("scans-app-turn scans-app-turn-", scans_app_css_token(role)),
     htmltools::div(
-      class = "scans-scout-turn-header",
+      class = "scans-app-turn-header",
       htmltools::tags$h2(title),
-      scout_status_badge(turn$status[[1L]])
+      scans_app_status_badge(turn$status[[1L]])
     ),
-    if (scout_has_string(turn$error[[1L]])) {
-      htmltools::div(class = "scans-scout-turn-error", turn$error[[1L]])
+    if (scans_app_has_string(turn$error[[1L]])) {
+      htmltools::div(class = "scans-app-turn-error", turn$error[[1L]])
     },
     body
   )
 }
 
-scout_event_ui <- function(event, row) {
-  type <- scout_first_string(event$event_type[[1L]], "event")
+scans_app_event_ui <- function(event, row) {
+  type <- scans_app_first_string(event$event_type[[1L]], "event")
   name <- event$name[[1L]]
   heading <- switch(
     type,
-    content = scout_title_case(
-      scout_first_string(event$content_type[[1L]], "content")
+    content = scans_app_title_case(
+      scans_app_first_string(event$content_type[[1L]], "content")
     ),
     tool_call = "Tool call",
     tool_result = "Tool result",
     error = "Error",
-    scout_title_case(gsub("[:_]", " ", type))
+    scans_app_title_case(gsub("[:_]", " ", type))
   )
-  if (scout_has_string(name)) {
+  if (scans_app_has_string(name)) {
     heading <- paste(heading, name, sep = " \u00b7 ")
   }
-  meta <- scout_event_meta(event)
-  value <- scout_value_text(event$value[[1L]])
+  meta <- scans_app_event_meta(event)
+  value <- scans_app_value_text(event$value[[1L]])
 
   htmltools::tags$article(
-    id = scout_event_dom_id(row),
+    id = scans_app_event_dom_id(row),
     tabindex = "-1",
     class = paste(
-      "scans-scout-event",
-      paste0("scans-scout-event-", scout_css_token(type)),
-      if (scout_has_string(event$error[[1L]])) {
-        "scans-scout-event-failed"
+      "scans-app-event",
+      paste0("scans-app-event-", scans_app_css_token(type)),
+      if (scans_app_has_string(event$error[[1L]])) {
+        "scans-app-event-failed"
       } else {
         ""
       }
     ),
     htmltools::div(
-      class = "scans-scout-event-header",
+      class = "scans-app-event-header",
       htmltools::tags$strong(heading),
-      scout_status_badge(event$status[[1L]])
+      scans_app_status_badge(event$status[[1L]])
     ),
     if (length(meta) > 0L) {
-      htmltools::div(class = "scans-scout-event-meta", meta)
+      htmltools::div(class = "scans-app-event-meta", meta)
     },
-    if (scout_has_string(event$text[[1L]])) {
-      htmltools::div(class = "scans-scout-event-text", event$text[[1L]])
+    if (scans_app_has_string(event$text[[1L]])) {
+      htmltools::div(class = "scans-app-event-text", event$text[[1L]])
     },
     if (!is.null(value)) {
       htmltools::tags$pre(
-        class = "scans-scout-event-value",
+        class = "scans-app-event-value",
         htmltools::tags$code(value)
       )
     },
-    if (scout_has_string(event$error[[1L]])) {
+    if (scans_app_has_string(event$error[[1L]])) {
       htmltools::div(
-        class = "scans-scout-event-error",
+        class = "scans-app-event-error",
         event$error[[1L]]
       )
     }
   )
 }
 
-scout_event_meta <- function(event) {
+scans_app_event_meta <- function(event) {
   values <- character()
-  if (scout_has_string(event$call_id[[1L]])) {
+  if (scans_app_has_string(event$call_id[[1L]])) {
     values <- c(values, paste("Call", event$call_id[[1L]]))
   }
   if (!is.na(event$timestamp[[1L]])) {
@@ -702,9 +706,9 @@ scout_event_meta <- function(event) {
   ))
 }
 
-scout_evidence_ui <- function(data, index) {
+scans_app_evidence_ui <- function(data, index) {
   if (is.null(index)) {
-    return(scout_empty_ui("Select a trajectory to inspect its evidence."))
+    return(scans_app_empty_ui("Select a trajectory to inspect its evidence."))
   }
   id <- data$info$trajectory_id[[index]]
   finding_rows <- which(data$findings$trajectory_id == id)
@@ -721,33 +725,33 @@ scout_evidence_ui <- function(data, index) {
   bslib::accordion(
     open = open,
     multiple = TRUE,
-    class = "scans-scout-evidence-accordion",
+    class = "scans-app-evidence-accordion",
     bslib::accordion_panel(
       paste0("Findings (", length(finding_rows), ")"),
       value = "findings",
-      scout_findings_ui(data, finding_rows)
+      scans_app_findings_ui(data, finding_rows)
     ),
     bslib::accordion_panel(
       paste0("Evaluations (", length(evaluation_rows), ")"),
       value = "evaluations",
-      scout_evaluations_ui(data$evaluations, evaluation_rows)
+      scans_app_evaluations_ui(data$evaluations, evaluation_rows)
     ),
     bslib::accordion_panel(
       paste0("Losses (", length(loss_rows), ")"),
       value = "losses",
-      scout_losses_ui(data, loss_rows)
+      scans_app_losses_ui(data, loss_rows)
     ),
     bslib::accordion_panel(
       "Context",
       value = "context",
-      scout_context_ui(data$info[index, , drop = FALSE])
+      scans_app_context_ui(data$info[index, , drop = FALSE])
     )
   )
 }
 
-scout_findings_ui <- function(data, rows) {
+scans_app_findings_ui <- function(data, rows) {
   if (length(rows) == 0L) {
-    return(scout_empty_ui(
+    return(scans_app_empty_ui(
       "Built-in scans found no diagnostic issues.",
       compact = TRUE
     ))
@@ -755,31 +759,33 @@ scout_findings_ui <- function(data, rows) {
   htmltools::tagList(lapply(rows, function(row) {
     finding <- data$findings[row, , drop = FALSE]
     evidence <- finding$event_ids[[1L]]
-    if (length(evidence) == 0L && scout_has_string(finding$event_id[[1L]])) {
+    if (
+      length(evidence) == 0L && scans_app_has_string(finding$event_id[[1L]])
+    ) {
       evidence <- finding$event_id[[1L]]
     }
-    links <- scout_event_links(evidence, data$events)
+    links <- scans_app_event_links(evidence, data$events)
     htmltools::tags$article(
       class = paste0(
-        "scans-scout-finding scans-scout-finding-",
-        scout_css_token(finding$severity[[1L]])
+        "scans-app-finding scans-app-finding-",
+        scans_app_css_token(finding$severity[[1L]])
       ),
       htmltools::div(
-        class = "scans-scout-finding-header",
-        scout_badge(
-          scout_title_case(finding$severity[[1L]]),
+        class = "scans-app-finding-header",
+        scans_app_badge(
+          scans_app_title_case(finding$severity[[1L]]),
           finding$severity[[1L]]
         ),
         htmltools::tags$strong(
-          scout_first_string(finding$label[[1L]], finding$scan[[1L]])
+          scans_app_first_string(finding$label[[1L]], finding$scan[[1L]])
         )
       ),
-      if (scout_has_string(finding$explanation[[1L]])) {
+      if (scans_app_has_string(finding$explanation[[1L]])) {
         htmltools::tags$p(finding$explanation[[1L]])
       },
       if (length(links) > 0L) {
         htmltools::div(
-          class = "scans-scout-evidence-links",
+          class = "scans-app-evidence-links",
           htmltools::tags$span("Evidence"),
           links
         )
@@ -788,7 +794,7 @@ scout_findings_ui <- function(data, rows) {
   }))
 }
 
-scout_event_links <- function(ids, events) {
+scans_app_event_links <- function(ids, events) {
   ids <- ids[!is.na(ids) & nzchar(ids)]
   rows <- match(ids, events$event_id)
   keep <- !is.na(rows)
@@ -798,8 +804,8 @@ scout_event_links <- function(ids, events) {
   htmltools::tagList(Map(
     function(id, row) {
       htmltools::tags$a(
-        href = paste0("#", scout_event_dom_id(row)),
-        scout_truncate(id, 28L)
+        href = paste0("#", scans_app_event_dom_id(row)),
+        scans_app_truncate(id, 28L)
       )
     },
     ids[keep],
@@ -807,53 +813,56 @@ scout_event_links <- function(ids, events) {
   ))
 }
 
-scout_evaluations_ui <- function(evaluations, rows) {
+scans_app_evaluations_ui <- function(evaluations, rows) {
   if (length(rows) == 0L) {
-    return(scout_empty_ui("No evaluations are joined.", compact = TRUE))
+    return(scans_app_empty_ui("No evaluations are joined.", compact = TRUE))
   }
   htmltools::tagList(lapply(rows, function(row) {
     evaluation <- evaluations[row, , drop = FALSE]
     htmltools::tags$article(
-      class = "scans-scout-evaluation",
+      class = "scans-app-evaluation",
       htmltools::div(
-        class = "scans-scout-evidence-item-header",
-        htmltools::tags$strong(scout_first_string(
+        class = "scans-app-evidence-item-header",
+        htmltools::tags$strong(scans_app_first_string(
           evaluation$scorer[[1L]],
           evaluation$evaluation_id[[1L]]
         ))
       ),
-      scout_labeled_value("Value", evaluation$value[[1L]]),
-      scout_labeled_value("Target", evaluation$target[[1L]]),
-      if (scout_has_string(evaluation$explanation[[1L]])) {
+      scans_app_labeled_value("Value", evaluation$value[[1L]]),
+      scans_app_labeled_value("Target", evaluation$target[[1L]]),
+      if (scans_app_has_string(evaluation$explanation[[1L]])) {
         htmltools::tags$p(evaluation$explanation[[1L]])
       }
     )
   }))
 }
 
-scout_losses_ui <- function(data, rows) {
+scans_app_losses_ui <- function(data, rows) {
   if (length(rows) == 0L) {
-    return(scout_empty_ui("No adapter losses are recorded.", compact = TRUE))
+    return(scans_app_empty_ui(
+      "No adapter losses are recorded.",
+      compact = TRUE
+    ))
   }
   htmltools::tagList(lapply(rows, function(row) {
     loss <- data$losses[row, , drop = FALSE]
-    links <- scout_event_links(loss$event_id[[1L]], data$events)
+    links <- scans_app_event_links(loss$event_id[[1L]], data$events)
     htmltools::tags$article(
-      class = "scans-scout-loss",
+      class = "scans-app-loss",
       htmltools::div(
-        class = "scans-scout-evidence-item-header",
-        scout_badge(scout_title_case(loss$reason[[1L]]), "quiet"),
+        class = "scans-app-evidence-item-header",
+        scans_app_badge(scans_app_title_case(loss$reason[[1L]]), "quiet"),
         htmltools::tags$strong(loss$field[[1L]])
       ),
       htmltools::tags$p(loss$detail[[1L]]),
       if (length(links) > 0L) {
-        htmltools::div(class = "scans-scout-evidence-links", links)
+        htmltools::div(class = "scans-app-evidence-links", links)
       }
     )
   }))
 }
 
-scout_context_ui <- function(info) {
+scans_app_context_ui <- function(info) {
   fields <- c(
     "Trajectory" = info$trajectory_id[[1L]],
     "Run" = info$run_id[[1L]],
@@ -862,15 +871,18 @@ scout_context_ui <- function(info) {
     "Source ID" = info$source_id[[1L]],
     "Agent" = info$agent[[1L]],
     "Model" = info$model[[1L]],
-    "Started" = scout_time_string(info$started_at[[1L]]),
-    "Completed" = scout_time_string(info$completed_at[[1L]])
+    "Started" = scans_app_time_string(info$started_at[[1L]]),
+    "Completed" = scans_app_time_string(info$completed_at[[1L]])
   )
   fields <- fields[!is.na(fields) & nzchar(fields)]
   if (length(fields) == 0L) {
-    return(scout_empty_ui("No additional context is recorded.", compact = TRUE))
+    return(scans_app_empty_ui(
+      "No additional context is recorded.",
+      compact = TRUE
+    ))
   }
   htmltools::tags$dl(
-    class = "scans-scout-context",
+    class = "scans-app-context",
     htmltools::tagList(Map(
       function(label, value) {
         htmltools::tagList(
@@ -884,33 +896,33 @@ scout_context_ui <- function(info) {
   )
 }
 
-scout_labeled_value <- function(label, value) {
-  text <- scout_value_text(value)
+scans_app_labeled_value <- function(label, value) {
+  text <- scans_app_value_text(value)
   if (is.null(text)) {
     return(NULL)
   }
   htmltools::div(
-    class = "scans-scout-labeled-value",
+    class = "scans-app-labeled-value",
     htmltools::tags$strong(label),
     htmltools::tags$pre(htmltools::tags$code(text))
   )
 }
 
-scout_badge <- function(text, tone = "quiet") {
-  if (!scout_has_string(text)) {
+scans_app_badge <- function(text, tone = "quiet") {
+  if (!scans_app_has_string(text)) {
     return(NULL)
   }
   htmltools::tags$span(
     class = paste0(
-      "scans-scout-badge scans-scout-badge-",
-      scout_css_token(tone)
+      "scans-app-badge scans-app-badge-",
+      scans_app_css_token(tone)
     ),
     text
   )
 }
 
-scout_status_badge <- function(status) {
-  if (!scout_has_string(status)) {
+scans_app_status_badge <- function(status) {
+  if (!scans_app_has_string(status)) {
     return(NULL)
   }
   tone <- if (status %in% c("completed", "succeeded", "success", "passed")) {
@@ -920,20 +932,20 @@ scout_status_badge <- function(status) {
   } else {
     "quiet"
   }
-  scout_badge(scout_title_case(status), tone)
+  scans_app_badge(scans_app_title_case(status), tone)
 }
 
-scout_empty_ui <- function(text, compact = FALSE) {
+scans_app_empty_ui <- function(text, compact = FALSE) {
   htmltools::div(
     class = paste(
-      "scans-scout-empty",
-      if (compact) "scans-scout-empty-compact" else ""
+      "scans-app-empty",
+      if (compact) "scans-app-empty-compact" else ""
     ),
     text
   )
 }
 
-scout_value_text <- function(value, max_chars = 4000L) {
+scans_app_value_text <- function(value, max_chars = 4000L) {
   if (is.null(value) || length(value) == 0L) {
     return(NULL)
   }
@@ -949,51 +961,51 @@ scout_value_text <- function(value, max_chars = 4000L) {
     ),
     collapse = "\n"
   )
-  scout_truncate(text, max_chars)
+  scans_app_truncate(text, max_chars)
 }
 
-scout_truncate <- function(text, max_chars) {
+scans_app_truncate <- function(text, max_chars) {
   if (is.na(text) || nchar(text) <= max_chars) {
     return(text)
   }
   paste0(substr(text, 1L, max_chars - 1L), "\u2026")
 }
 
-scout_has_string <- function(x) {
+scans_app_has_string <- function(x) {
   is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
 }
 
-scout_title_case <- function(x) {
-  if (!scout_has_string(x)) {
+scans_app_title_case <- function(x) {
+  if (!scans_app_has_string(x)) {
     return("")
   }
   x <- gsub("_", " ", x)
   paste0(toupper(substr(x, 1L, 1L)), substr(x, 2L, nchar(x)))
 }
 
-scout_css_token <- function(x) {
-  token <- tolower(scout_first_string(x, "quiet"))
+scans_app_css_token <- function(x) {
+  token <- tolower(scans_app_first_string(x, "quiet"))
   gsub("[^a-z0-9-]+", "-", token)
 }
 
-scout_event_dom_id <- function(row) {
-  paste0("scout-event-", row)
+scans_app_event_dom_id <- function(row) {
+  paste0("scans-app-event-", row)
 }
 
-scout_time_string <- function(x) {
+scans_app_time_string <- function(x) {
   if (is.na(x)) {
     return(NA_character_)
   }
   format(x, "%Y-%m-%d %H:%M:%S UTC", tz = "UTC")
 }
 
-scout_dependency <- function() {
+scans_app_dependency <- function() {
   htmltools::htmlDependency(
-    name = "scans-scout",
+    name = "scans-app",
     version = "0.0.0.9000",
     src = c(
-      file = system.file("www", "scout", package = "scans")
+      file = system.file("www", "scans-app", package = "scans")
     ),
-    stylesheet = "scout.css"
+    stylesheet = "scans-app.css"
   )
 }
