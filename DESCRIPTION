@@ -20,9 +20,12 @@ Imports:
     S7 (>= 0.2.2),
     tibble (>= 3.3.0)
 Suggests:
+    bslib (>= 0.11.0),
     deputy (>= 0.0.0.9000),
     dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.4.2),
+    htmltools,
+    shiny (>= 1.11.1),
     shinychat,
     testthat (>= 3.0.0),
     vitals (>= 0.3.0),

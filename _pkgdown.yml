@@ -19,3 +19,4 @@ reference:
   - filter_trajectory_events
   - summarize_trajectories
   - scan_trajectories
+  - scout
