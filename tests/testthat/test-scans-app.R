@@ -199,6 +199,54 @@ test_that("scans app renders canonical text as text and links finding evidence",
   expect_match(evidence, "error-event-3", fixed = TRUE)
 })
 
+test_that("scans app resolves loss ownership through turns and events", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "loss-owner",
+      source_type = "manual"
+    ),
+    tibble::tibble(
+      trajectory_id = "loss-owner",
+      turn_id = "loss-turn",
+      turn_index = 1L,
+      role = "assistant"
+    ),
+    tibble::tibble(
+      trajectory_id = "loss-owner",
+      event_id = "loss-event",
+      event_index = 1L,
+      event_type = "content",
+      turn_id = "loss-turn",
+      content_type = "text",
+      text = "Done"
+    ),
+    losses = tibble::tibble(
+      trajectory_id = NA_character_,
+      turn_id = c("loss-turn", NA_character_),
+      event_id = c(NA_character_, "loss-event"),
+      field = c("turn_field", "event_field"),
+      reason = "unsupported",
+      detail = c("turn-linked loss", "event-linked loss")
+    )
+  )
+  app <- scans_app(bundle)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    overview <- as.character(output$scans_app_overview)[[1L]]
+    evidence <- as.character(output$scans_app_evidence)[[1L]]
+
+    expect_match(overview, "Losses[\\s\\S]*2", perl = TRUE)
+    expect_match(evidence, "Losses (2)", fixed = TRUE)
+    expect_match(evidence, "turn-linked loss", fixed = TRUE)
+    expect_match(evidence, "event-linked loss", fixed = TRUE)
+  })
+})
+
 test_that("scans app renders transcript blocks in canonical event order", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")

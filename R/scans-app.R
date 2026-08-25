@@ -70,6 +70,7 @@ scans_app_data <- function(x) {
   losses <- trajectory_losses(x)
   findings <- scan_trajectories(x)
   summaries <- summarize_trajectories(x)
+  loss_trajectory_ids <- scans_app_loss_trajectory_ids(losses, turns, events)
 
   list(
     info = info,
@@ -77,6 +78,7 @@ scans_app_data <- function(x) {
     events = events,
     evaluations = evaluations,
     losses = losses,
+    loss_trajectory_ids = loss_trajectory_ids,
     findings = findings,
     summaries = summaries,
     records = scans_app_records(
@@ -87,6 +89,18 @@ scans_app_data <- function(x) {
       summaries
     )
   )
+}
+
+scans_app_loss_trajectory_ids <- function(losses, turns, events) {
+  owners <- losses$trajectory_id
+  event_owners <- events$trajectory_id[match(losses$event_id, events$event_id)]
+  missing <- is.na(owners) & !is.na(event_owners)
+  owners[missing] <- event_owners[missing]
+
+  turn_owners <- turns$trajectory_id[match(losses$turn_id, turns$turn_id)]
+  missing <- is.na(owners) & !is.na(turn_owners)
+  owners[missing] <- turn_owners[missing]
+  owners
 }
 
 scans_app_records <- function(info, turns, events, findings, summaries) {
@@ -525,7 +539,7 @@ scans_app_overview_ui <- function(data, index) {
     Events = summary$n_events[[1L]],
     Findings = sum(data$findings$trajectory_id == id),
     Evaluations = sum(data$evaluations$trajectory_id == id),
-    Losses = sum(data$losses$trajectory_id == id)
+    Losses = sum(data$loss_trajectory_ids %in% id)
   )
   themes <- c("primary", "primary", "warning", "success", "secondary")
 
@@ -789,7 +803,7 @@ scans_app_evidence_ui <- function(data, index) {
   id <- data$info$trajectory_id[[index]]
   finding_rows <- which(data$findings$trajectory_id == id)
   evaluation_rows <- which(data$evaluations$trajectory_id == id)
-  loss_rows <- which(data$losses$trajectory_id == id)
+  loss_rows <- which(data$loss_trajectory_ids %in% id)
   open <- c(
     if (length(finding_rows) > 0L) "findings",
     if (length(loss_rows) > 0L) "losses"
