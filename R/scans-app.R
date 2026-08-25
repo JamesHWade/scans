@@ -1017,7 +1017,8 @@ scans_app_context_ui <- function(info) {
     "Agent" = info$agent[[1L]],
     "Model" = info$model[[1L]],
     "Started" = scans_app_time_string(info$started_at[[1L]]),
-    "Completed" = scans_app_time_string(info$completed_at[[1L]])
+    "Completed" = scans_app_time_string(info$completed_at[[1L]]),
+    "Error" = info$error[[1L]]
   )
   fields <- fields[!is.na(fields) & nzchar(fields)]
   if (length(fields) == 0L) {

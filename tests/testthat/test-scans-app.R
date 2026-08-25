@@ -315,6 +315,34 @@ test_that("scans app resolves loss ownership through turns and events", {
   })
 })
 
+test_that("scans app surfaces trajectory-level errors in context", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "trajectory-failure",
+      source_type = "manual",
+      status = "error",
+      error = "Trajectory failed before recording an event"
+    ),
+    data.frame(),
+    data.frame()
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    evidence <- as.character(output$scans_app_evidence)[[1L]]
+
+    expect_match(
+      evidence,
+      "Trajectory failed before recording an event",
+      fixed = TRUE
+    )
+  })
+})
+
 test_that("scans app renders transcript blocks in canonical event order", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
