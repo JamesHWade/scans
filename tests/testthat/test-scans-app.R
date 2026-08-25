@@ -69,6 +69,13 @@ test_that("scans app groups searchable event rows in canonical order", {
   expect_identical(groups, list(c(3L, 1L), 2L, integer()))
 })
 
+test_that("scans app title fallbacks ignore whitespace-only metadata", {
+  expect_identical(
+    scans_app_first_string("  ", NA_character_, "trajectory-id"),
+    "trajectory-id"
+  )
+})
+
 test_that("scans app records retain source identity and deterministic findings", {
   data <- scans_app_data(trajectory_fixture("tool_error"))
 

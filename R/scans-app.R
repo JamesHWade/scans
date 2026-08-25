@@ -284,7 +284,7 @@ scans_app_first_string <- function(...) {
       is.character(value) &&
         length(value) == 1L &&
         !is.na(value) &&
-        nzchar(value)
+        nzchar(trimws(value))
     ) {
       return(value)
     }
