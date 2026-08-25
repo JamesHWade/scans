@@ -24,6 +24,23 @@ test_that("scans app enforces optional dependency minimum versions", {
   )
 })
 
+test_that("scans app preserves dependencies attached by bslib", {
+  existing <- htmltools::htmlDependency(
+    name = "existing",
+    version = "1.0.0",
+    src = c(file = ".")
+  )
+  page <- htmltools::attachDependencies(htmltools::tags$div(), existing)
+
+  page <- scans_app_attach_dependency(page)
+  dependencies <- htmltools::htmlDependencies(page)
+
+  expect_setequal(
+    vapply(dependencies, `[[`, character(1), "name"),
+    c("existing", "scans-app")
+  )
+})
+
 test_that("scans app records retain source identity and deterministic findings", {
   data <- scans_app_data(trajectory_fixture("tool_error"))
 

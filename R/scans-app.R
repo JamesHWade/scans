@@ -425,7 +425,15 @@ scans_app_ui <- function(data) {
       )
     )
   )
-  htmltools::attachDependencies(page, scans_app_dependency())
+  scans_app_attach_dependency(page)
+}
+
+scans_app_attach_dependency <- function(page) {
+  htmltools::attachDependencies(
+    page,
+    scans_app_dependency(),
+    append = TRUE
+  )
 }
 
 scans_app_server <- function(data) {
