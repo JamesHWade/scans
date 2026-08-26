@@ -91,6 +91,97 @@ ellmer_check_metadata <- function(x, call) {
   x
 }
 
+ellmer_check_metadata_paths <- function(x, field, call, class) {
+  if (!ellmer_metadata_paths_bounded(x, field)) {
+    scans_abort(
+      c(
+        "{.arg metadata} paths must not exceed 65,536 bytes.",
+        "i" = "Shorten nested metadata names."
+      ),
+      class = class,
+      call = call
+    )
+  }
+  x
+}
+
+ellmer_metadata_paths_bounded <- function(x, field, depth = 0L) {
+  field_bytes <- tryCatch(
+    nchar(field, type = "bytes"),
+    error = function(...) NA_integer_
+  )
+  if (
+    length(field_bytes) != 1L ||
+      is.na(field_bytes) ||
+      field_bytes > trajectory_payload_max_bytes
+  ) {
+    return(FALSE)
+  }
+  if (
+    depth >= 40L ||
+      is.null(x) ||
+      is.raw(x) ||
+      is.environment(x) ||
+      is.function(x) ||
+      isS4(x) ||
+      inherits(x, "connection") ||
+      inherits(x, "S7_object") ||
+      typeof(x) %in% c("externalptr", "weakref", "promise", "language")
+  ) {
+    return(TRUE)
+  }
+
+  element_names <- names(x)
+  sensitive_atomic <- !is.list(x) &&
+    !is.null(element_names) &&
+    any(
+      !is.na(element_names) &
+        vapply(element_names, ellmer_sensitive_name, logical(1))
+    )
+  if (is.list(x) || !is.null(element_names)) {
+    for (index in seq_along(x)) {
+      name <- if (is.null(element_names)) {
+        NA_character_
+      } else {
+        element_names[[index]]
+      }
+      child_field <- ellmer_child_field(field, name, index)
+      if (!ellmer_metadata_paths_bounded(NULL, child_field, depth + 1L)) {
+        return(FALSE)
+      }
+      if (
+        (is.na(name) || !ellmer_sensitive_name(name)) &&
+          !ellmer_metadata_paths_bounded(x[[index]], child_field, depth + 1L)
+      ) {
+        return(FALSE)
+      }
+    }
+  }
+
+  source_attributes <- if (sensitive_atomic) NULL else attributes(x)
+  if (!is.null(source_attributes)) {
+    attribute_names <- names(source_attributes)
+    for (index in seq_along(source_attributes)) {
+      name <- attribute_names[[index]]
+      child_field <- paste0(field, "@", name)
+      if (!ellmer_metadata_paths_bounded(NULL, child_field, depth + 1L)) {
+        return(FALSE)
+      }
+      if (
+        !ellmer_sensitive_name(name) &&
+          !ellmer_metadata_paths_bounded(
+            source_attributes[[index]],
+            child_field,
+            depth + 1L
+          )
+      ) {
+        return(FALSE)
+      }
+    }
+  }
+  TRUE
+}
+
 ellmer_sanitize_metadata <- function(x, field, ids) {
   if (!trajectory_is_named_list(x)) {
     return(list(

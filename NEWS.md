@@ -7,6 +7,7 @@
 * `as_trajectory_dsprrr()` snapshots dsprrr modules and exported traces, preserving semantic turns, program artifact identity, metrics, and caller-supplied run correlation without treating artifact integrity as authenticity (#19).
 * `as_trajectory_ellmer()` converts completed ellmer chats and turns into canonical trajectory bundles without provider calls (#6).
 * `as_trajectory_ellmer()` now redacts sensitive named-vector elements and attributes, preserves sanitized properties from unknown content classes, and avoids ambiguous tool-result parent links (#14).
+* `as_trajectory_tempest()` converts Tempest's authoritative closed review projection into product, stage, agent-run, program, knowledge, evidence, join, and finding events while preserving authority distinctions and explicit source omissions. Tempest owns review validity; scans validates only its generated identities and projected-record bounds (#21).
 * `as_trajectory_vitals()` snapshots evaluated vitals tasks and sample data, including the development `vitals_log_read()` output, into solver trajectories joined to canonical evaluations (#8).
 * `filter_trajectory_events()` selects events by trajectory, role, type, tool, status, and metadata (#7). It preserves source columns and exposes containing-turn context in reserved dot-prefixed columns (#14).
 * `scan_trajectories()` emits deterministic findings for ambiguous, unresolved, unmatched, repeated, looping, and failed agent activity, and compares named tool arguments independently of key order (#7, #14).

@@ -29,3 +29,9 @@ populate every canonical schema column and exercise every core loss reason.
 
 Fixtures are loaded through `testthat::test_path()`, so adapter tests work from
 the source tree and during `R CMD check` without network access.
+
+`helper-tempest-adapter.R` constructs a bounded, provider-free review using
+Tempest's exact internal review class and digest contract. It also converts one
+review into a plain structural lookalike to verify that the adapter accepts only
+authoritative Tempest reviews; production code uses Tempest's exported
+projection accessor.
