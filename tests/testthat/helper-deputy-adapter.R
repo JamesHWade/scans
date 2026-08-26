@@ -1,4 +1,7 @@
-deputy_result_fixture <- function(events = NULL) {
+deputy_result_fixture <- function(
+  events = NULL,
+  result_class = deputy::AgentResult
+) {
   started_at <- as.POSIXct("2026-08-22 17:00:00", tz = "UTC")
   run_context <- list(
     product = "tempest",
@@ -38,7 +41,7 @@ deputy_result_fixture <- function(events = NULL) {
     events[[2L]]$timestamp <- started_at + 2
   }
 
-  deputy::AgentResult$new(
+  result_class$new(
     response = "Evidence found",
     turns = list(
       ellmer::UserTurn(list(ellmer::ContentText("Find the evidence"))),

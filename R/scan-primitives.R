@@ -235,7 +235,13 @@ scan_tool_relations <- function(events) {
   scan_tool_relation_indices(events$event_type, events$call_id)
 }
 
-scan_tool_relation_counts <- function(event_type, call_id, groups, size) {
+scan_tool_relation_counts <- function(
+  event_type,
+  call_id,
+  groups,
+  size,
+  event_index
+) {
   out <- list(
     unresolved = integer(size),
     unmatched = integer(size),
@@ -245,6 +251,7 @@ scan_tool_relation_counts <- function(event_type, call_id, groups, size) {
   positions <- split(tool_rows, groups[tool_rows])
   for (group in names(positions)) {
     rows <- positions[[group]]
+    rows <- rows[order(event_index[rows], method = "radix")]
     relations <- scan_tool_relation_indices(event_type[rows], call_id[rows])
     index <- as.integer(group)
     out$unresolved[[index]] <- length(relations$unresolved_calls)
@@ -268,19 +275,18 @@ scan_tool_relation_indices <- function(event_type, call_id) {
   for (call_id in ids) {
     matching_calls <- calls[!is.na(call_ids) & call_ids == call_id]
     matching_results <- results[!is.na(result_ids) & result_ids == call_id]
-    matched <- min(length(matching_calls), length(matching_results))
-    if (length(matching_calls) > matched) {
-      unresolved_calls <- c(
-        unresolved_calls,
-        matching_calls[seq.int(matched + 1L, length(matching_calls))]
-      )
+    pending_calls <- integer()
+    positions <- sort(c(matching_calls, matching_results))
+    for (position in positions) {
+      if (event_type[[position]] == "tool_call") {
+        pending_calls <- c(pending_calls, position)
+      } else if (length(pending_calls) == 0L) {
+        unmatched_results <- c(unmatched_results, position)
+      } else {
+        pending_calls <- pending_calls[-1L]
+      }
     }
-    if (length(matching_results) > matched) {
-      unmatched_results <- c(
-        unmatched_results,
-        matching_results[seq.int(matched + 1L, length(matching_results))]
-      )
-    }
+    unresolved_calls <- c(unresolved_calls, pending_calls)
     if (length(matching_calls) > 1L || length(matching_results) > 1L) {
       ambiguous[[length(ambiguous) + 1L]] <- list(
         call_id = call_id,

@@ -1,3 +1,12 @@
+test_that("commons public reader output passes the shared adapter contract", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  expect_adapter_conforms(
+    source = commons_trajectory_fixture(),
+    adapter = as_trajectory_commons
+  )
+})
+
 test_that("already-read commons conversations become canonical trajectories", {
   skip_if_not_installed("ellmer", "0.4.2")
 
@@ -15,22 +24,22 @@ test_that("already-read commons conversations become canonical trajectories", {
   expect_identical(info$source_id, "conversation-001")
   expect_identical(
     info$completed_at,
-    as.POSIXct("2026-08-23 12:00:00", tz = "UTC")
+    as.POSIXct("2026-08-25 12:00:01", tz = "UTC")
   )
   expect_identical(info$metadata[[1L]]$source, attr(source, "source"))
   expect_identical(
     turns$role,
-    c("user", "assistant", "user", "assistant")
+    c("user", "assistant")
   )
-  expect_identical(turns$round_index, c(1L, 1L, 2L, 2L))
-  expect_identical(nrow(provenance), 2L)
-  expect_identical(provenance$turn_id, turns$turn_id[c(2L, 4L)])
+  expect_identical(turns$round_index, c(1L, 1L))
+  expect_identical(nrow(provenance), 1L)
+  expect_true(is.na(provenance$turn_id))
   expect_identical(
     vapply(provenance$value, `[[`, character(1), "provenance_tag"),
-    c("A", "B")
+    "B"
   )
   expect_identical(
-    provenance$value[[2L]]$citation_decisions[[1L]]$label,
+    provenance$value[[1L]]$citation_decisions[[1L]]$label,
     "Data dictionary"
   )
 })
@@ -66,7 +75,7 @@ test_that("commons exchange rounds keep tool results with their request", {
   provenance <- provenance[provenance$event_type == "commons:provenance", ]
 
   expect_identical(turns$round_index, rep(1L, 4L))
-  expect_identical(provenance$turn_id, turns$turn_id[[4L]])
+  expect_true(is.na(provenance$turn_id))
 })
 
 test_that("multiple commons conversations retain stable identities", {
@@ -128,7 +137,7 @@ test_that("commons provenance gaps and conflicts are explicit losses", {
     "https://connect.example"
   )
   expect_identical(provenance$value[[1L]]$provenance_tag, c("A", "C"))
-  expect_identical(provenance$turn_id[[3L]], NA_character_)
+  expect_true(all(is.na(provenance$turn_id)))
   expect_setequal(
     losses$field,
     c(
@@ -136,8 +145,7 @@ test_that("commons provenance gaps and conflicts are explicit losses", {
       "last_active",
       "provenance[[1]]$provenance_tag",
       "provenance[[2]]$provenance_tag",
-      "provenance[[2]]$citation_decisions",
-      "provenance[[3]]"
+      "provenance[[2]]$citation_decisions"
     )
   )
   expect_setequal(unique(losses$reason), "unsupported")
@@ -179,17 +187,16 @@ test_that("commons preserves malformed provenance without trusting it", {
   expect_identical(trajectory_losses(bundle)$field, "provenance")
 })
 
-test_that("commons reports missing exchange records without inventing events", {
+test_that("commons does not infer missing exchange records", {
   skip_if_not_installed("ellmer", "0.4.2")
 
   source <- commons_trajectory_fixture()
-  provenance <- attr(source[[1L]], "provenance")
-  attr(source[[1L]], "provenance") <- provenance[1L]
+  attr(source[[1L]], "provenance") <- list()
   bundle <- as_trajectory_commons(source)
 
   events <- trajectory_events(bundle)
-  expect_identical(sum(events$event_type == "commons:provenance"), 1L)
-  expect_identical(trajectory_losses(bundle)$field, "provenance[[2]]")
+  expect_identical(sum(events$event_type == "commons:provenance"), 0L)
+  expect_identical(nrow(trajectory_losses(bundle)), 0L)
 })
 
 test_that("commons source kinds and extra attributes remain inspectable", {
@@ -241,7 +248,10 @@ test_that("commons citation decisions are sanitized and diagnosed", {
     quote = "Six orders",
     api_key = "secret"
   ))
-  provenance[[2L]]$citation_decisions <- list("malformed")
+  provenance[[2L]] <- list(
+    provenance_tag = "A",
+    citation_decisions = list("malformed")
+  )
   attr(source[[1L]], "provenance") <- provenance
 
   bundle <- as_trajectory_commons(source)

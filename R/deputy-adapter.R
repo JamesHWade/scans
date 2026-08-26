@@ -86,8 +86,8 @@ as_trajectory_deputy <- function(
     metadata = list()
   )
 
-  ids <- ellmer_ids(trajectory_id)
-  safe_metadata <- ellmer_sanitize_metadata(
+  ids <- trajectory_ids(trajectory_id)
+  safe_metadata <- trajectory_sanitize_metadata(
     deputy_result_metadata(snapshot, metadata),
     "metadata",
     ids
@@ -95,7 +95,6 @@ as_trajectory_deputy <- function(
   event_tables <- deputy_event_tables(
     snapshot$events,
     trajectory_id,
-    nrow(trajectory_events(base)),
     call
   )
 
@@ -114,7 +113,10 @@ as_trajectory_deputy <- function(
   info$status <- deputy_result_status(snapshot$stop_reason)
   info$metadata <- list(safe_metadata$value)
 
-  events <- ellmer_bind_rows(list(trajectory_events(base), event_tables$events))
+  events <- deputy_merge_events(
+    trajectory_events(base),
+    event_tables$events
+  )
   if (nrow(events) > 0L) {
     events$event_index <- seq_len(nrow(events))
   }
@@ -124,9 +126,9 @@ as_trajectory_deputy <- function(
     deputy_correlation_losses(snapshot, ids),
     event_tables$losses
   )
-  losses <- deputy_bind_tables(list(
+  losses <- trajectory_bind_rows(list(
     trajectory_losses(base),
-    ellmer_loss_table(source_losses)
+    trajectory_loss_table(source_losses)
   ))
 
   TrajectoryBundle(
@@ -135,6 +137,24 @@ as_trajectory_deputy <- function(
     events,
     losses = losses
   )
+}
+
+deputy_merge_events <- function(content_events, lifecycle_events) {
+  if (nrow(lifecycle_events) == 0L) {
+    return(content_events)
+  }
+  if (nrow(content_events) == 0L) {
+    return(lifecycle_events)
+  }
+
+  start <- lifecycle_events$event_type == "deputy:start"
+  stop <- lifecycle_events$event_type == "deputy:stop"
+  trajectory_bind_rows(list(
+    lifecycle_events[start, , drop = FALSE],
+    content_events,
+    lifecycle_events[!start & !stop, , drop = FALSE],
+    lifecycle_events[stop, , drop = FALSE]
+  ))
 }
 
 deputy_check_installed <- function(call = rlang::caller_env()) {
@@ -214,7 +234,7 @@ deputy_results_bundle <- function(results, source_uri, metadata, call) {
       metadata = metadata
     )
   })
-  info <- deputy_bind_tables(lapply(bundles, trajectory_info))
+  info <- trajectory_bind_rows(lapply(bundles, trajectory_info))
   duplicate <- !is.na(info$run_id) & duplicated(info$run_id)
   if (any(duplicate)) {
     rows <- which(duplicate)
@@ -229,7 +249,7 @@ deputy_results_bundle <- function(results, source_uri, metadata, call) {
   }
 
   info <- deputy_resolve_parents(info)
-  losses <- deputy_bind_tables(lapply(bundles, trajectory_losses))
+  losses <- trajectory_bind_rows(lapply(bundles, trajectory_losses))
   resolved <- !is.na(info$parent_trajectory_id)
   if (!is.null(losses) && any(resolved)) {
     resolved_ids <- info$trajectory_id[resolved]
@@ -240,8 +260,8 @@ deputy_results_bundle <- function(results, source_uri, metadata, call) {
 
   TrajectoryBundle(
     info,
-    deputy_bind_tables(lapply(bundles, trajectory_turns)),
-    deputy_bind_tables(lapply(bundles, trajectory_events)),
+    trajectory_bind_rows(lapply(bundles, trajectory_turns)),
+    trajectory_bind_rows(lapply(bundles, trajectory_events)),
     losses = losses
   )
 }
@@ -259,33 +279,11 @@ deputy_resolve_parents <- function(info) {
   info
 }
 
-deputy_bind_tables <- function(tables) {
-  tables <- Filter(\(table) !is.null(table) && nrow(table) > 0L, tables)
-  if (length(tables) == 0L) {
-    return(NULL)
-  }
-  tibble::as_tibble(do.call(rbind, tables))
-}
-
 deputy_is_result <- function(x) {
-  if (
-    !rlang::is_installed("deputy", version = "0.0.0.9000") ||
-      !inherits(x, "AgentResult") ||
-      !inherits(x, "R6") ||
-      !is.function(x$n_turns)
-  ) {
-    return(FALSE)
-  }
-
-  environment <- environment(x$n_turns)
-  namespace <- asNamespace("deputy")
-  while (is.environment(environment) && !identical(environment, emptyenv())) {
-    if (identical(environment, namespace)) {
-      return(TRUE)
-    }
-    environment <- parent.env(environment)
-  }
-  FALSE
+  rlang::is_installed("deputy", version = "0.0.0.9000") &&
+    inherits(x, "AgentResult") &&
+    inherits(x, "R6") &&
+    is.function(x$n_turns)
 }
 
 deputy_is_result_list <- function(x) {
@@ -390,7 +388,7 @@ deputy_correlation_losses <- function(snapshot, ids) {
   losses <- list()
   run_id <- deputy_source_string(snapshot$run_id)
   if (is.na(run_id)) {
-    losses <- list(ellmer_new_loss(
+    losses <- list(trajectory_new_loss(
       ids,
       "run_id",
       "unsupported",
@@ -404,7 +402,7 @@ deputy_correlation_losses <- function(snapshot, ids) {
   }
   c(
     losses,
-    list(ellmer_new_loss(
+    list(trajectory_new_loss(
       ids,
       "parent_run_id",
       "unsupported",
@@ -416,7 +414,7 @@ deputy_correlation_losses <- function(snapshot, ids) {
   )
 }
 
-deputy_event_tables <- function(events, trajectory_id, offset, call) {
+deputy_event_tables <- function(events, trajectory_id, call) {
   if (!is.list(events)) {
     scans_abort(
       "{.cls deputy::AgentResult} events must be a list.",
@@ -433,7 +431,7 @@ deputy_event_tables <- function(events, trajectory_id, offset, call) {
   for (index in seq_along(events)) {
     event <- events[[index]]
     event_id <- deputy_event_id(trajectory_id, index)
-    ids <- ellmer_ids(trajectory_id, event_id = event_id)
+    ids <- trajectory_ids(trajectory_id, event_id = event_id)
     if (!inherits(event, "AgentEvent") || !is.list(event)) {
       scans_abort(
         "Deputy event {index} is not an {.cls AgentEvent}.",
@@ -443,7 +441,7 @@ deputy_event_tables <- function(events, trajectory_id, offset, call) {
     }
 
     event_type <- deputy_event_type(event$type, index, call)
-    value <- ellmer_sanitize_value(
+    value <- trajectory_sanitize_value(
       deputy_plain_value(deputy_event_value(event)),
       paste0("events[[", index, "]]$value"),
       ids
@@ -466,7 +464,7 @@ deputy_event_tables <- function(events, trajectory_id, offset, call) {
         "turn"
       )
     )]
-    safe_metadata <- ellmer_sanitize_metadata(
+    safe_metadata <- trajectory_sanitize_metadata(
       deputy_plain_value(metadata),
       paste0("events[[", index, "]]$metadata"),
       ids
@@ -482,7 +480,7 @@ deputy_event_tables <- function(events, trajectory_id, offset, call) {
     rows[[index]] <- tibble::tibble(
       trajectory_id = trajectory_id,
       event_id = event_id,
-      event_index = as.integer(offset + index),
+      event_index = as.integer(index),
       turn_id = NA_character_,
       content_index = NA_integer_,
       parent_event_id = NA_character_,
@@ -500,7 +498,7 @@ deputy_event_tables <- function(events, trajectory_id, offset, call) {
     )
   }
 
-  list(events = ellmer_bind_rows(rows), losses = losses)
+  list(events = trajectory_bind_rows(rows), losses = losses)
 }
 
 deputy_event_value <- function(event) {
@@ -539,7 +537,7 @@ deputy_event_text <- function(event, index, ids) {
   } else {
     NULL
   }
-  ellmer_sanitize_text(value, paste0("events[[", index, "]]$text"), ids)
+  trajectory_sanitize_text(value, paste0("events[[", index, "]]$text"), ids)
 }
 
 deputy_event_timestamp <- function(x) {
@@ -568,7 +566,7 @@ deputy_event_error <- function(x, index, ids) {
   } else {
     "Tool execution failed"
   }
-  out <- ellmer_sanitize_text(
+  out <- trajectory_sanitize_text(
     value,
     paste0("events[[", index, "]]$error"),
     ids
@@ -576,7 +574,7 @@ deputy_event_error <- function(x, index, ids) {
   if (!inherits(x, "condition") && !is.character(x)) {
     out$losses <- c(
       out$losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         paste0("events[[", index, "]]$error"),
         "unsupported",

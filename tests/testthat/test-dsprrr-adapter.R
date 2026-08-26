@@ -1,3 +1,13 @@
+test_that("public dsprrr modules pass the shared adapter contract", {
+  skip_if_not_installed("dsprrr", "0.0.0.9000")
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  expect_adapter_conforms(
+    source = dsprrr_module_fixture(),
+    adapter = as_trajectory_dsprrr
+  )
+})
+
 test_that("exported dsprrr traces become canonical trajectories", {
   skip_if_not_installed("ellmer", "0.4.2")
 
@@ -105,7 +115,7 @@ test_that("partial dsprrr rows retain context and report unavailable semantics",
   expect_setequal(unique(losses$reason), "unsupported")
 })
 
-test_that("as_trajectory dispatches authenticated dsprrr modules", {
+test_that("as_trajectory dispatches public dsprrr modules", {
   skip_if_not_installed("dsprrr", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
@@ -283,6 +293,7 @@ test_that("dsprrr output satisfies the ellmerverse correlation fixture", {
     ],
     expected$metadata[[1L]]$trace_context
   )
+  expect_true(is.na(trace_event$turn_id))
 })
 
 test_that("generic dispatch leaves exported dsprrr data frames explicit", {
@@ -294,7 +305,7 @@ test_that("generic dispatch leaves exported dsprrr data frames explicit", {
   )
 })
 
-test_that("generic dispatch does not claim fake dsprrr modules", {
+test_that("malformed dsprrr modules fail at the adapter boundary", {
   skip_if_not_installed("dsprrr", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
@@ -303,7 +314,7 @@ test_that("generic dispatch does not claim fake dsprrr modules", {
   class(fake_module) <- c("PredictModule", "Module", "R6")
   expect_s3_class(
     rlang::catch_cnd(as_trajectory(fake_module)),
-    "scans_error_unsupported_source"
+    "scans_error_dsprrr_source"
   )
 })
 

@@ -53,7 +53,7 @@
     Code
       summarize_trajectories(data.frame())
     Condition
-      Error in `check_trajectory_bundle()`:
+      Error in `summarize_trajectories()`:
       ! `x` must be a <TrajectoryBundle>.
       x It is a data frame.
 

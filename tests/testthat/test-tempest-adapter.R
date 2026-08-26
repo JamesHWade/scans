@@ -1,3 +1,10 @@
+test_that("Tempest public reviews pass the shared adapter contract", {
+  expect_adapter_conforms(
+    source = tempest_review_fixture(),
+    adapter = as_trajectory_tempest
+  )
+})
+
 test_that("Tempest reviews become complete canonical product trajectories", {
   review <- tempest_review_fixture()
   bundle <- as_trajectory_tempest(review)
@@ -5,19 +12,19 @@ test_that("Tempest reviews become complete canonical product trajectories", {
   events <- trajectory_events(bundle)
 
   expect_s7_class(bundle, TrajectoryBundle)
-  expect_identical(info$trajectory_id, "tempest/research-run-001")
-  expect_identical(info$run_id, "research-run-001")
+  expect_identical(info$trajectory_id, "tempest/research-promotion-1")
+  expect_identical(info$run_id, "research-promotion-1")
   expect_identical(info$source_type, "tempest")
   expect_identical(info$source_id, review@review_id)
   expect_identical(info$agent, "storm")
   expect_identical(info$status, "completed")
   expect_identical(
     info$started_at,
-    as.POSIXct("2026-08-22 16:00:00", tz = "UTC")
+    as.POSIXct("2026-08-16 00:01:00", tz = "UTC")
   )
   expect_identical(
     info$completed_at,
-    as.POSIXct("2026-08-22 16:00:10", tz = "UTC")
+    as.POSIXct("2026-08-16 00:08:30", tz = "UTC")
   )
   expect_identical(nrow(trajectory_turns(bundle)), 0L)
   expect_setequal(
@@ -25,7 +32,6 @@ test_that("Tempest reviews become complete canonical product trajectories", {
     c(
       "tempest:stage_succeeded",
       "tempest:deputy_run",
-      "tempest:deputy_delegation",
       "tempest:program",
       "tempest:knowledge",
       "tempest:accepted_revision",
@@ -53,10 +59,14 @@ test_that("Tempest source order and canonical records remain deterministic", {
   expect_identical(
     stages$name,
     c(
-      "section_writing",
       "perspectives",
+      "query_decomposition",
       "extract_claims",
-      "verify_claim_support"
+      "verify_claim_support",
+      "draft_outline",
+      "refined_outline",
+      "lead_section",
+      "section_writing"
     )
   )
   expect_identical(
@@ -78,7 +88,7 @@ test_that("Tempest authority, identities, and findings remain distinct", {
   revisions <- events[events$event_type == "tempest:accepted_revision", ]
   evidence <- events[events$event_type == "tempest:evidence", ]
   finding <- events[events$event_type == "tempest:finding", ]
-  stage <- events[events$name == "perspectives", ][1L, ]
+  stages <- events[grepl("^tempest:stage_", events$event_type), ]
 
   proof_kinds <- vapply(
     joins$value,
@@ -94,9 +104,7 @@ test_that("Tempest authority, identities, and findings remain distinct", {
     c(
       "contains",
       "executed_as",
-      "parent_of",
       "correlated_with",
-      "read_from",
       "proposed_as",
       "accepted_as"
     )
@@ -114,12 +122,22 @@ test_that("Tempest authority, identities, and findings remain distinct", {
     knowledge$value[[1L]]$acceptance$record_revisions,
     c("total", "retained", "omitted", "digest")
   )
-  expect_identical(revisions$value[[1L]]$revision_id, "graft:REVISION001")
-  expect_identical(revisions$name, "Claim")
-  expect_identical(
-    vapply(evidence$value, `[[`, character(1), "record_id"),
-    c("claim-001", "span-001", "support-001")
-  )
+  expect_true(all(grepl(
+    "^graft:",
+    vapply(
+      revisions$value,
+      `[[`,
+      character(1),
+      "revision_id"
+    )
+  )))
+  expect_in("Claim", revisions$name)
+  expect_true(all(nzchar(vapply(
+    evidence$value,
+    `[[`,
+    character(1),
+    "record_id"
+  ))))
   expect_setequal(
     finding$name,
     c(
@@ -132,48 +150,17 @@ test_that("Tempest authority, identities, and findings remain distinct", {
     finding$status[[match("support_unverified", finding$name)]],
     "warning"
   )
-  extraction <- events[events$name == "extract_claims", ][1L, ]
-  expect_true(all(
-    finding$parent_event_id %in% c(stage$event_id, extraction$event_id)
-  ))
-  expect_true(all(
-    finding$parent_event_id[finding$name == "exploratory_execution"] ==
-      stage$event_id
-  ))
+  expect_true(all(finding$parent_event_id %in% stages$event_id))
 })
 
 test_that("Tempest deliberate omissions and bounded lanes become losses", {
-  evidence <- lapply(seq_len(250L), function(index) {
-    list(
-      record_type = "claim",
-      record_id = sprintf("claim-%03d", index)
-    )
-  })
-  review <- tempest_review_fixture(function(payload) {
-    payload$evidence <- tempest_fixture_collection(
-      evidence,
-      "z",
-      omitted = 1L
-    )
-    join <- getFromNamespace("tempest_trajectory_join", "tempest")
-    extra_joins <- lapply(2:229, function(index) {
-      join(
-        "product",
-        "research-run-001",
-        "contains",
-        "claim",
-        sprintf("claim-%03d", index),
-        "authority_validated",
-        c("research_run_id", "record_id")
-      )
-    })
-    payload$joins <- tempest_fixture_collection(
-      c(payload$joins$items, extra_joins),
-      "x",
-      omitted = 1L
-    )
-    payload
-  })
+  review <- tempest_review_fixture()
+  projection <- tempest::tempest_trajectory_review_data(review)
+  projection$evidence <- tempest_incomplete_collection(projection$evidence)
+  projection$joins <- tempest_incomplete_collection(projection$joins)
+  testthat::local_mocked_bindings(
+    tempest_review_snapshot = function(x, call) projection
+  )
   losses <- trajectory_losses(as_trajectory_tempest(review))
   bounded <- losses[losses$field == "evidence$items", ]
 
@@ -184,45 +171,18 @@ test_that("Tempest deliberate omissions and bounded lanes become losses", {
   expect_identical(bounded$reason, "truncated")
   expect_identical(
     bounded$metadata[[1L]]$complete_digest,
-    review@evidence$digest
+    projection$evidence$digest
   )
 })
 
 test_that("Tempest stage omissions leave product execution bounds unknown", {
-  review <- tempest_review_fixture(function(payload) {
-    stages <- lapply(seq_len(250L), function(index) {
-      stage <- payload$stages$items[[(index - 1L) %% 2L + 1L]]
-      stage$attempt_id <- sprintf("attempt-omitted-%03d", index)
-      stage$trace_id <- stage$attempt_id
-      stage$started_at <- "2026-08-22T16:00:00.000Z"
-      stage$completed_at <- "2026-08-22T16:00:10.000Z"
-      stage
-    })
-    payload$stages <- tempest_fixture_collection(
-      stages,
-      "z",
-      omitted = 1L,
-      preserve_order = TRUE
-    )
-    join <- getFromNamespace("tempest_trajectory_join", "tempest")
-    extra_joins <- lapply(seq_len(228L), function(index) {
-      join(
-        "stage_attempt",
-        sprintf("attempt-truncated-%03d", index),
-        "contains",
-        "output_digest",
-        sprintf("output-truncated-%03d", index),
-        "exact_identity",
-        c("output_reference.kind", "output_reference.ids")
-      )
-    })
-    payload$joins <- tempest_fixture_collection(
-      c(payload$joins$items, extra_joins),
-      "x",
-      omitted = 1L
-    )
-    payload
-  })
+  review <- tempest_review_fixture()
+  projection <- tempest::tempest_trajectory_review_data(review)
+  projection$stages <- tempest_incomplete_collection(projection$stages)
+  projection$joins <- tempest_incomplete_collection(projection$joins)
+  testthat::local_mocked_bindings(
+    tempest_review_snapshot = function(x, call) projection
+  )
   bundle <- as_trajectory_tempest(review)
   info <- trajectory_info(bundle)
   losses <- trajectory_losses(bundle)

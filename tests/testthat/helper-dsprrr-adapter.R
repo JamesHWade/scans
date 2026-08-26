@@ -38,26 +38,10 @@ dsprrr_trace_fixture <- function() {
 }
 
 dsprrr_module_fixture <- function() {
-  traces <- dsprrr_trace_fixture()
-  program <- dsprrr::module(dsprrr::signature("text -> answer"))
-  program$state$traces <- list(list(
-    timestamp = traces$timestamp[[1L]],
-    prompt = traces$prompt[[1L]],
-    user_turn = traces$turns[[1L]][[1L]],
-    assistant_turn = traces$turns[[1L]][[2L]],
-    turns = traces$turns[[1L]],
-    output = traces$output[[1L]],
-    latency_ms = traces$latency_ms[[1L]],
-    tokens = list(
-      input_tokens = traces$input_tokens[[1L]],
-      cached_input_tokens = traces$cached_input_tokens[[1L]],
-      output_tokens = traces$output_tokens[[1L]],
-      total_tokens = traces$total_tokens[[1L]]
-    ),
-    cost = traces$cost[[1L]],
-    model = traces$model[[1L]],
-    program_artifact_id = dsprrr::program_artifact_id(program),
-    trace_context = traces$trace_context[[1L]]
-  ))
+  program <- dsprrr::module_fn(
+    "text -> answer",
+    function(text) list(answer = paste("Echo", text))
+  )
+  dsprrr::run(program, text = "evidence", .progress = FALSE)
   program
 }
