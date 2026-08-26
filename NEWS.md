@@ -1,7 +1,7 @@
 # scans 0.0.0.9000
 
 * Initial package scaffold.
-* Tool results now resolve only calls that precede them in canonical event order. Deputy lifecycle boundaries retain their causal position, and source-wide dsprrr and Commons provenance events no longer claim an unsupported turn association.
+* Tool results now resolve only calls that precede them in canonical event order, and causal mismatch findings distinguish missing preceding calls from missing subsequent results. Deputy lifecycle boundaries retain their causal position, and source-wide dsprrr and Commons provenance events no longer claim an unsupported turn association.
 * Optional R6 adapters now accept valid upstream subclasses and method overrides through their public class contracts.
 * `as_trajectory()` no longer treats an empty list as an ellmer source only because ellmer is installed (#14).
 * `as_trajectory_commons()` snapshots already-read commons conversations, preserving source identity, activity time, trust tags, and citation decisions without performing filesystem or Connect I/O (#20).

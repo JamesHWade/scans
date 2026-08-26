@@ -227,6 +227,13 @@ test_that("tool results cannot resolve calls that occur later", {
     c("unmatched_tool_result", "unresolved_tool_call")
   )
   expect_identical(findings$event_id, c("event-2", "event-1"))
+  expect_identical(
+    findings$explanation,
+    c(
+      "No preceding tool call can be paired with this tool result.",
+      "No subsequent tool result can be paired with this tool call."
+    )
+  )
 })
 
 test_that("scan_trajectories() reports ambiguous call identifiers", {

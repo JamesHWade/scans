@@ -373,7 +373,7 @@ scan_tool_findings <- function(
       indices = index,
       severity = "warning",
       label = "Unresolved tool call",
-      explanation = "No tool result has the same call identifier.",
+      explanation = "No subsequent tool result can be paired with this tool call.",
       value = list(
         tool = events$name[[index]],
         call_id = events$call_id[[index]]
@@ -389,7 +389,7 @@ scan_tool_findings <- function(
       indices = index,
       severity = "warning",
       label = "Unmatched tool result",
-      explanation = "No tool call has the same call identifier.",
+      explanation = "No preceding tool call can be paired with this tool result.",
       value = list(
         tool = events$name[[index]],
         call_id = events$call_id[[index]]
