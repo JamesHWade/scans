@@ -177,41 +177,6 @@ tempest_review_fixture <- function(transform = identity) {
     list(record_type = "claim", record_id = "claim-001"),
     list(record_type = "evidence_span", record_id = "span-001")
   )
-  joins <- list(
-    list(
-      from_type = "product",
-      from_id = "research-run-001",
-      relation = "contains",
-      to_type = "stage_attempt",
-      to_id = "attempt-section-001",
-      proof = list(
-        kind = "authority_validated",
-        matched_fields = list("research_run_id", "attempt_id")
-      )
-    ),
-    list(
-      from_type = "deputy_run",
-      from_id = "deputy-run-001",
-      relation = "parent_of",
-      to_type = "deputy_run",
-      to_id = "deputy-run-002",
-      proof = list(
-        kind = "exact_identity",
-        matched_fields = list("parent_run_id", "delegation_id")
-      )
-    ),
-    list(
-      from_type = "stage_attempt",
-      from_id = "attempt-section-001",
-      relation = "correlated_with",
-      to_type = "deputy_run",
-      to_id = "deputy-run-001",
-      proof = list(
-        kind = "correlation_only",
-        matched_fields = list("correlation_id")
-      )
-    )
-  )
   findings <- list(
     list(
       code = "exploratory_execution",
@@ -328,6 +293,176 @@ tempest_review_fixture <- function(transform = identity) {
     "tempest_promotion_digest",
     "tempest"
   )(receipt_payload)
+  join <- getFromNamespace("tempest_trajectory_join", "tempest")
+  joins <- list(
+    join(
+      "product",
+      "research-run-001",
+      "contains",
+      "stage_attempt",
+      "attempt-section-001",
+      "authority_validated",
+      c("research_run_id", "attempt_id")
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "contains",
+      "stage_attempt",
+      "attempt-perspectives-001",
+      "authority_validated",
+      c("research_run_id", "attempt_id")
+    ),
+    join(
+      "stage_attempt",
+      "attempt-section-001",
+      "executed_as",
+      "program_artifact",
+      program_id,
+      "authority_validated",
+      c(
+        "stage",
+        "program_artifact_id",
+        "contract_version",
+        "evaluator_id",
+        "evaluator_version"
+      )
+    ),
+    join(
+      "stage_attempt",
+      "attempt-perspectives-001",
+      "executed_as",
+      "program_artifact",
+      tempest_fixture_digest("a"),
+      "authority_validated",
+      c(
+        "stage",
+        "program_artifact_id",
+        "contract_version",
+        "evaluator_id",
+        "evaluator_version"
+      )
+    ),
+    join(
+      "stage_attempt",
+      "attempt-section-001",
+      "contains",
+      "output_digest",
+      "section-output-001",
+      "exact_identity",
+      c("output_reference.kind", "output_reference.ids")
+    ),
+    join(
+      "stage_attempt",
+      "attempt-perspectives-001",
+      "contains",
+      "product_field",
+      "title",
+      "exact_identity",
+      c("output_reference.kind", "output_reference.ids")
+    ),
+    join(
+      "stage_attempt",
+      "attempt-perspectives-001",
+      "contains",
+      "product_field",
+      "perspectives",
+      "exact_identity",
+      c("output_reference.kind", "output_reference.ids")
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "contains",
+      "claim",
+      "claim-001",
+      "authority_validated",
+      c("research_run_id", "record_id")
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "contains",
+      "evidence_span",
+      "span-001",
+      "authority_validated",
+      c("research_run_id", "record_id")
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "read_from",
+      "graft_snapshot",
+      "snapshot-001",
+      "authority_validated",
+      c("snapshot_id", "store_id", "schema_build_digest", "commit_order")
+    ),
+    join(
+      "deputy_run",
+      "deputy-run-001",
+      "parent_of",
+      "deputy_run",
+      "deputy-run-002",
+      "exact_identity",
+      c(
+        "parent_agent_id",
+        "parent_run_id",
+        "delegation_id",
+        "tool_call_id"
+      )
+    ),
+    join(
+      "deputy_run",
+      "deputy-run-001",
+      "correlated_with",
+      "deputy_run",
+      "deputy-run-002",
+      "correlation_only",
+      "correlation_id"
+    ),
+    join(
+      "stage_attempt",
+      "attempt-section-001",
+      "correlated_with",
+      "deputy_run",
+      "deputy-run-001",
+      "correlation_only",
+      "correlation_id"
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "proposed_as",
+      "promotion_bundle",
+      knowledge$proposal$bundle_id,
+      "authority_validated",
+      c("research_run_id", "bundle_id", "claim_ids")
+    ),
+    join(
+      "promotion_bundle",
+      knowledge$proposal$bundle_id,
+      "accepted_as",
+      "promotion_receipt",
+      knowledge$acceptance$receipt_id,
+      "exact_identity",
+      "bundle_id"
+    ),
+    join(
+      "promotion_receipt",
+      knowledge$acceptance$receipt_id,
+      "accepted_as",
+      "graft_revision",
+      revision$revision_id,
+      "exact_identity",
+      c(
+        "record_id",
+        "revision_id",
+        "batch_id",
+        "content_digest",
+        "schema_build_digest"
+      )
+    )
+  )
 
   payload <- list(
     schema_version = 1L,

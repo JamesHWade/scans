@@ -89,12 +89,14 @@ as_trajectory_tempest <- function(
   )
   projected <- tempest_review_events(review, trajectory_id, call)
   stages_complete <- identical(review$stages$omitted, 0L)
-  started_at <- if (stages_complete) {
+  starts_complete <- stages_complete && !anyNA(projected$started_at)
+  completions_complete <- stages_complete && !anyNA(projected$completed_at)
+  started_at <- if (starts_complete) {
     tempest_review_min_time(projected$started_at)
   } else {
     as.POSIXct(NA, tz = "UTC")
   }
-  completed_at <- if (stages_complete) {
+  completed_at <- if (completions_complete) {
     tempest_review_max_time(projected$completed_at)
   } else {
     as.POSIXct(NA, tz = "UTC")

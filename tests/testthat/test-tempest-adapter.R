@@ -83,12 +83,19 @@ test_that("Tempest authority, identities, and findings remain distinct", {
   )
   expect_setequal(
     joins$name,
-    c("contains", "parent_of", "correlated_with")
+    c(
+      "contains",
+      "executed_as",
+      "parent_of",
+      "correlated_with",
+      "read_from",
+      "proposed_as",
+      "accepted_as"
+    )
   )
+  correlation_join <- which(proof_kinds == "correlation_only")[[1L]]
   expect_identical(
-    joins$value[[which(
-      proof_kinds == "correlation_only"
-    )]]$proof$matched_fields,
+    joins$value[[correlation_join]]$proof$matched_fields,
     list("correlation_id")
   )
   expect_identical(nrow(programs), 10L)
@@ -133,6 +140,23 @@ test_that("Tempest deliberate omissions and bounded lanes become losses", {
       "z",
       omitted = 1L
     )
+    join <- getFromNamespace("tempest_trajectory_join", "tempest")
+    extra_joins <- lapply(2:235, function(index) {
+      join(
+        "product",
+        "research-run-001",
+        "contains",
+        "claim",
+        sprintf("claim-%03d", index),
+        "authority_validated",
+        c("research_run_id", "record_id")
+      )
+    })
+    payload$joins <- tempest_fixture_collection(
+      c(payload$joins$items, extra_joins),
+      "x",
+      omitted = 1L
+    )
     payload
   })
   losses <- trajectory_losses(as_trajectory_tempest(review))
@@ -165,6 +189,23 @@ test_that("Tempest stage omissions leave product execution bounds unknown", {
       omitted = 1L,
       preserve_order = TRUE
     )
+    join <- getFromNamespace("tempest_trajectory_join", "tempest")
+    extra_joins <- lapply(seq_len(234L), function(index) {
+      join(
+        "stage_attempt",
+        sprintf("attempt-truncated-%03d", index),
+        "contains",
+        "output_digest",
+        sprintf("output-truncated-%03d", index),
+        "exact_identity",
+        c("output_reference.kind", "output_reference.ids")
+      )
+    })
+    payload$joins <- tempest_fixture_collection(
+      c(payload$joins$items, extra_joins),
+      "x",
+      omitted = 1L
+    )
     payload
   })
   bundle <- as_trajectory_tempest(review)
@@ -177,6 +218,24 @@ test_that("Tempest stage omissions leave product execution bounds unknown", {
     losses$reason[losses$field == "stages$items"],
     "truncated"
   )
+})
+
+test_that("Tempest execution bounds require every retained stage time", {
+  review <- tempest_review_fixture()
+  projection <- tempest::tempest_trajectory_review_data(review)
+  projection$stages$items[[2L]]$completed_at <- NULL
+  testthat::local_mocked_bindings(
+    tempest_review_snapshot = function(x, call) projection
+  )
+
+  incomplete <- trajectory_info(as_trajectory_tempest(review))
+  expect_false(is.na(incomplete$started_at))
+  expect_true(is.na(incomplete$completed_at))
+
+  projection$stages$items[[1L]]$started_at <- "<redacted>"
+  redacted <- trajectory_info(as_trajectory_tempest(review))
+  expect_true(is.na(redacted$started_at))
+  expect_true(is.na(redacted$completed_at))
 })
 
 test_that("Tempest caller metadata and source locators are sanitized", {
