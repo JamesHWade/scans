@@ -88,6 +88,17 @@ as_trajectory_tempest <- function(
     ids
   )
   projected <- tempest_review_events(review, trajectory_id, call)
+  stages_complete <- identical(review$stages$omitted, 0L)
+  started_at <- if (stages_complete) {
+    tempest_review_min_time(projected$started_at)
+  } else {
+    as.POSIXct(NA, tz = "UTC")
+  }
+  completed_at <- if (stages_complete) {
+    tempest_review_max_time(projected$completed_at)
+  } else {
+    as.POSIXct(NA, tz = "UTC")
+  }
 
   info <- tibble::tibble(
     trajectory_id = trajectory_id,
@@ -96,8 +107,8 @@ as_trajectory_tempest <- function(
     source_id = review$review_id,
     source_uri = source_uri$value,
     agent = review$product$mode,
-    started_at = tempest_review_min_time(projected$started_at),
-    completed_at = tempest_review_max_time(projected$completed_at),
+    started_at = started_at,
+    completed_at = completed_at,
     status = tempest_review_status(review$product$status),
     metadata = list(source_metadata$value)
   )

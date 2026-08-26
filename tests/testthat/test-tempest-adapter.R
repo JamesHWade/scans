@@ -149,6 +149,36 @@ test_that("Tempest deliberate omissions and bounded lanes become losses", {
   )
 })
 
+test_that("Tempest stage omissions leave product execution bounds unknown", {
+  review <- tempest_review_fixture(function(payload) {
+    stages <- lapply(seq_len(250L), function(index) {
+      stage <- payload$stages$items[[(index - 1L) %% 2L + 1L]]
+      stage$attempt_id <- sprintf("attempt-omitted-%03d", index)
+      stage$trace_id <- stage$attempt_id
+      stage$started_at <- "2026-08-22T16:00:00.000Z"
+      stage$completed_at <- "2026-08-22T16:00:10.000Z"
+      stage
+    })
+    payload$stages <- tempest_fixture_collection(
+      stages,
+      "z",
+      omitted = 1L,
+      preserve_order = TRUE
+    )
+    payload
+  })
+  bundle <- as_trajectory_tempest(review)
+  info <- trajectory_info(bundle)
+  losses <- trajectory_losses(bundle)
+
+  expect_true(is.na(info$started_at))
+  expect_true(is.na(info$completed_at))
+  expect_identical(
+    losses$reason[losses$field == "stages$items"],
+    "truncated"
+  )
+})
+
 test_that("Tempest caller metadata and source locators are sanitized", {
   bundle <- as_trajectory_tempest(
     tempest_review_fixture(),
