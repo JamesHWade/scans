@@ -22,7 +22,7 @@ vitals_samples_fixture <- function(scored = TRUE) {
   out
 }
 
-vitals_task_fixture <- function() {
+vitals_task_fixture <- function(task_class = vitals::Task) {
   solver <- function(inputs) {
     list(
       result = rep("Hi", length(inputs)),
@@ -36,7 +36,7 @@ vitals_task_fixture <- function() {
     )
   }
 
-  task <- vitals::Task$new(
+  task <- task_class$new(
     dataset = tibble::tibble(input = "Say hello", target = "Hi"),
     solver = solver,
     scorer = scorer,

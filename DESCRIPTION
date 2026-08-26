@@ -27,6 +27,7 @@ Suggests:
     ellmer (>= 0.4.2),
     htmltools,
     httr2,
+    R6,
     shiny (>= 1.11.1),
     shinychat,
     tempest (>= 0.3.0.9000),

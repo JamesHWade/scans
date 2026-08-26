@@ -58,7 +58,7 @@ as_trajectory_tempest <- function(
       call = call
     )
   }
-  metadata <- ellmer_check_metadata_paths(
+  metadata <- trajectory_check_metadata_paths(
     metadata,
     "metadata$application",
     call,
@@ -78,10 +78,10 @@ as_trajectory_tempest <- function(
     derived_trajectory_id,
     call
   )
-  ids <- ellmer_ids(trajectory_id)
+  ids <- trajectory_ids(trajectory_id)
 
-  source_uri <- ellmer_sanitize_uri(source_uri, "source_uri", ids)
-  source_metadata <- ellmer_sanitize_metadata(
+  source_uri <- trajectory_sanitize_uri(source_uri, "source_uri", ids)
+  source_metadata <- trajectory_sanitize_metadata(
     list(
       source = "tempest_trajectory_review",
       schema_version = review$schema_version,
@@ -120,7 +120,7 @@ as_trajectory_tempest <- function(
     status = tempest_review_status(review$product$status),
     metadata = list(source_metadata$value)
   )
-  losses <- ellmer_loss_table(c(
+  losses <- trajectory_loss_table(c(
     source_uri$losses,
     source_metadata$losses,
     projected$losses,
@@ -301,7 +301,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
 
   for (index in seq_along(review$stages$items)) {
     stage <- review$stages$items[[index]]
-    ids <- ellmer_ids(trajectory_id)
+    ids <- trajectory_ids(trajectory_id)
     start <- tempest_review_time(
       stage$started_at,
       paste0("stages$items[[", index, "]]$started_at"),
@@ -440,7 +440,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
   }
 
   list(
-    events = ellmer_bind_rows(rows),
+    events = trajectory_bind_rows(rows),
     losses = losses,
     started_at = started_at,
     completed_at = completed_at
@@ -468,20 +468,20 @@ tempest_review_event <- function(
     "/tempest-event-",
     sprintf("%06d", index)
   )
-  ids <- ellmer_ids(trajectory_id, event_id = event_id)
+  ids <- trajectory_ids(trajectory_id, event_id = event_id)
   tempest_review_check_payload_size(value, paste0(field, "$value"), call)
   tempest_review_check_payload_size(
     metadata,
     paste0(field, "$metadata"),
     call
   )
-  value <- ellmer_sanitize_value(value, paste0(field, "$value"), ids)
-  metadata <- ellmer_sanitize_metadata(
+  value <- trajectory_sanitize_value(value, paste0(field, "$value"), ids)
+  metadata <- trajectory_sanitize_metadata(
     metadata,
     paste0(field, "$metadata"),
     ids
   )
-  error <- ellmer_sanitize_text(error, paste0(field, "$error"), ids)
+  error <- trajectory_sanitize_text(error, paste0(field, "$error"), ids)
 
   list(
     row = tibble::tibble(
@@ -508,7 +508,7 @@ tempest_review_event <- function(
 }
 
 tempest_review_check_payload_size <- function(value, field, call) {
-  if (ellmer_serialized_bytes(value) > trajectory_payload_max_bytes) {
+  if (trajectory_serialized_bytes(value) > trajectory_payload_max_bytes) {
     tempest_review_abort(
       "Tempest {.field {field}} must not exceed 65,536 bytes when serialized.",
       call
@@ -540,7 +540,7 @@ tempest_review_time <- function(x, field, ids, nullable = FALSE) {
   }
   list(
     value = as.POSIXct(NA, tz = "UTC"),
-    losses = list(ellmer_new_loss(
+    losses = list(trajectory_new_loss(
       ids,
       field,
       "unsupported",
@@ -603,21 +603,21 @@ tempest_review_max_time <- function(x) {
 tempest_review_omission_losses <- function(review, ids) {
   metadata <- list(source = "tempest_trajectory_review")
   losses <- list(
-    ellmer_new_loss(
+    trajectory_new_loss(
       ids,
       "turns",
       "unsupported",
       "TempestTrajectoryReview intentionally excludes prompts and responses",
       metadata
     ),
-    ellmer_new_loss(
+    trajectory_new_loss(
       ids,
       "source_content",
       "unsupported",
       "TempestTrajectoryReview intentionally excludes source content",
       metadata
     ),
-    ellmer_new_loss(
+    trajectory_new_loss(
       ids,
       "runtime",
       "unsupported",
@@ -634,7 +634,7 @@ tempest_review_omission_losses <- function(review, ids) {
     if (collection$omitted > 0L) {
       losses <- c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           paste0(lane, "$items"),
           "truncated",
@@ -661,7 +661,7 @@ tempest_review_omission_losses <- function(review, ids) {
     if (revisions$omitted > 0L) {
       losses <- c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           "knowledge$acceptance$record_revisions$items",
           "truncated",

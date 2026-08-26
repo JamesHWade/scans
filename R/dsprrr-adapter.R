@@ -82,10 +82,10 @@ as_trajectory_dsprrr <- function(
   })
 
   TrajectoryBundle(
-    dsprrr_bind_tables(lapply(bundles, trajectory_info)),
-    dsprrr_bind_tables(lapply(bundles, trajectory_turns)),
-    dsprrr_bind_tables(lapply(bundles, trajectory_events)),
-    losses = dsprrr_bind_tables(lapply(bundles, trajectory_losses))
+    trajectory_bind_rows(lapply(bundles, trajectory_info)),
+    trajectory_bind_rows(lapply(bundles, trajectory_turns)),
+    trajectory_bind_rows(lapply(bundles, trajectory_events)),
+    losses = trajectory_bind_rows(lapply(bundles, trajectory_losses))
   )
 }
 
@@ -223,7 +223,7 @@ dsprrr_trace_bundle <- function(
     )
   }
 
-  ids <- ellmer_ids(trajectory_id)
+  ids <- trajectory_ids(trajectory_id)
   source_metadata <- dsprrr_trace_metadata(
     trace,
     index,
@@ -232,7 +232,11 @@ dsprrr_trace_bundle <- function(
     metadata,
     source_class
   )
-  safe_metadata <- ellmer_sanitize_metadata(source_metadata, "metadata", ids)
+  safe_metadata <- trajectory_sanitize_metadata(
+    source_metadata,
+    "metadata",
+    ids
+  )
   source_losses <- c(
     safe_metadata$losses,
     dsprrr_trace_losses(trace, ids)
@@ -240,7 +244,6 @@ dsprrr_trace_bundle <- function(
   event <- dsprrr_trace_event(
     trace,
     trajectory_id,
-    trajectory_turns(base),
     nrow(trajectory_events(base)),
     safe_metadata$value[c("program_artifact_id", "trace_context")]
   )
@@ -251,10 +254,10 @@ dsprrr_trace_bundle <- function(
   info$completed_at <- dsprrr_timestamp(trace$timestamp[[1L]])
   info$metadata <- list(safe_metadata$value)
 
-  events <- ellmer_bind_rows(list(trajectory_events(base), event))
-  losses <- dsprrr_bind_tables(list(
+  events <- trajectory_bind_rows(list(trajectory_events(base), event))
+  losses <- trajectory_bind_rows(list(
     trajectory_losses(base),
-    ellmer_loss_table(source_losses)
+    trajectory_loss_table(source_losses)
   ))
 
   TrajectoryBundle(
@@ -273,10 +276,10 @@ dsprrr_empty_base <- function(
   agent,
   model
 ) {
-  safe_uri <- ellmer_sanitize_uri(
+  safe_uri <- trajectory_sanitize_uri(
     source_uri,
     "source_uri",
-    ellmer_ids(trajectory_id)
+    trajectory_ids(trajectory_id)
   )
   TrajectoryBundle(
     tibble::tibble(
@@ -291,7 +294,7 @@ dsprrr_empty_base <- function(
     ),
     NULL,
     NULL,
-    losses = ellmer_loss_table(safe_uri$losses)
+    losses = trajectory_loss_table(safe_uri$losses)
   )
 }
 
@@ -301,7 +304,7 @@ dsprrr_trace_losses <- function(trace, ids) {
   if (is.na(artifact_id)) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "program_artifact_id",
         "unsupported",
@@ -313,7 +316,7 @@ dsprrr_trace_losses <- function(trace, ids) {
   if (is.na(dsprrr_timestamp(trace$timestamp[[1L]]))) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "timestamp",
         "unsupported",
@@ -333,7 +336,7 @@ dsprrr_trace_losses <- function(trace, ids) {
     if (is.na(dsprrr_nonnegative_number(trace[[field]][[1L]]))) {
       losses <- c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           field,
           "unsupported",
@@ -345,7 +348,7 @@ dsprrr_trace_losses <- function(trace, ids) {
   if (is.na(dsprrr_string(trace$model[[1L]]))) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "model",
         "unsupported",
@@ -358,7 +361,7 @@ dsprrr_trace_losses <- function(trace, ids) {
   if (!trajectory_is_named_list(context)) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "trace_context",
         "unsupported",
@@ -370,7 +373,7 @@ dsprrr_trace_losses <- function(trace, ids) {
       if (field %in% names(context) && is.na(dsprrr_string(context[[field]]))) {
         losses <- c(
           losses,
-          list(ellmer_new_loss(
+          list(trajectory_new_loss(
             ids,
             paste0("trace_context$", field),
             "unsupported",
@@ -384,7 +387,7 @@ dsprrr_trace_losses <- function(trace, ids) {
     if (!is.na(run_id) && !is.na(deputy_run_id) && run_id != deputy_run_id) {
       losses <- c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           "trace_context$run_id",
           "unsupported",
@@ -404,7 +407,7 @@ dsprrr_trace_losses <- function(trace, ids) {
   if (!valid_turns) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "turns",
         "unsupported",
@@ -480,20 +483,14 @@ dsprrr_source_fields <- function(trace, content_fields) {
 dsprrr_trace_event <- function(
   trace,
   trajectory_id,
-  turns,
   offset,
   metadata
 ) {
-  turn_id <- if (nrow(turns) == 0L) {
-    NA_character_
-  } else {
-    turns$turn_id[[nrow(turns)]]
-  }
   tibble::tibble(
     trajectory_id = trajectory_id,
     event_id = paste0(trajectory_id, "/dsprrr-event-000001"),
     event_index = as.integer(offset + 1L),
-    turn_id = turn_id,
+    turn_id = NA_character_,
     content_index = NA_integer_,
     parent_event_id = NA_character_,
     event_type = "dsprrr:trace",
@@ -633,30 +630,8 @@ dsprrr_version <- function() {
 }
 
 dsprrr_is_module <- function(x) {
-  if (
-    !rlang::is_installed("dsprrr", version = "0.0.0.9000") ||
-      !inherits(x, "Module") ||
-      !inherits(x, "R6") ||
-      !is.function(x$get_traces)
-  ) {
-    return(FALSE)
-  }
-
-  environment <- environment(x$get_traces)
-  namespace <- asNamespace("dsprrr")
-  while (is.environment(environment) && !identical(environment, emptyenv())) {
-    if (identical(environment, namespace)) {
-      return(TRUE)
-    }
-    environment <- parent.env(environment)
-  }
-  FALSE
-}
-
-dsprrr_bind_tables <- function(tables) {
-  tables <- Filter(\(table) !is.null(table) && nrow(table) > 0L, tables)
-  if (length(tables) == 0L) {
-    return(NULL)
-  }
-  tibble::as_tibble(do.call(rbind, tables))
+  rlang::is_installed("dsprrr", version = "0.0.0.9000") &&
+    inherits(x, "Module") &&
+    inherits(x, "R6") &&
+    is.function(x$get_traces)
 }

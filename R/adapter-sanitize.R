@@ -91,8 +91,8 @@ ellmer_check_metadata <- function(x, call) {
   x
 }
 
-ellmer_check_metadata_paths <- function(x, field, call, class) {
-  if (!ellmer_metadata_paths_bounded(x, field)) {
+trajectory_check_metadata_paths <- function(x, field, call, class) {
+  if (!trajectory_metadata_paths_bounded(x, field)) {
     scans_abort(
       c(
         "{.arg metadata} paths must not exceed 65,536 bytes.",
@@ -105,7 +105,7 @@ ellmer_check_metadata_paths <- function(x, field, call, class) {
   x
 }
 
-ellmer_metadata_paths_bounded <- function(x, field, depth = 0L) {
+trajectory_metadata_paths_bounded <- function(x, field, depth = 0L) {
   field_bytes <- tryCatch(
     nchar(field, type = "bytes"),
     error = function(...) NA_integer_
@@ -136,7 +136,7 @@ ellmer_metadata_paths_bounded <- function(x, field, depth = 0L) {
     !is.null(element_names) &&
     any(
       !is.na(element_names) &
-        vapply(element_names, ellmer_sensitive_name, logical(1))
+        vapply(element_names, trajectory_sensitive_name, logical(1))
     )
   if (is.list(x) || !is.null(element_names)) {
     for (index in seq_along(x)) {
@@ -145,13 +145,17 @@ ellmer_metadata_paths_bounded <- function(x, field, depth = 0L) {
       } else {
         element_names[[index]]
       }
-      child_field <- ellmer_child_field(field, name, index)
-      if (!ellmer_metadata_paths_bounded(NULL, child_field, depth + 1L)) {
+      child_field <- trajectory_child_field(field, name, index)
+      if (!trajectory_metadata_paths_bounded(NULL, child_field, depth + 1L)) {
         return(FALSE)
       }
       if (
-        (is.na(name) || !ellmer_sensitive_name(name)) &&
-          !ellmer_metadata_paths_bounded(x[[index]], child_field, depth + 1L)
+        (is.na(name) || !trajectory_sensitive_name(name)) &&
+          !trajectory_metadata_paths_bounded(
+            x[[index]],
+            child_field,
+            depth + 1L
+          )
       ) {
         return(FALSE)
       }
@@ -164,12 +168,12 @@ ellmer_metadata_paths_bounded <- function(x, field, depth = 0L) {
     for (index in seq_along(source_attributes)) {
       name <- attribute_names[[index]]
       child_field <- paste0(field, "@", name)
-      if (!ellmer_metadata_paths_bounded(NULL, child_field, depth + 1L)) {
+      if (!trajectory_metadata_paths_bounded(NULL, child_field, depth + 1L)) {
         return(FALSE)
       }
       if (
-        !ellmer_sensitive_name(name) &&
-          !ellmer_metadata_paths_bounded(
+        !trajectory_sensitive_name(name) &&
+          !trajectory_metadata_paths_bounded(
             source_attributes[[index]],
             child_field,
             depth + 1L
@@ -182,11 +186,11 @@ ellmer_metadata_paths_bounded <- function(x, field, depth = 0L) {
   TRUE
 }
 
-ellmer_sanitize_metadata <- function(x, field, ids) {
+trajectory_sanitize_metadata <- function(x, field, ids) {
   if (!trajectory_is_named_list(x)) {
     return(list(
       value = list(),
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         field,
         "unsupported",
@@ -195,12 +199,12 @@ ellmer_sanitize_metadata <- function(x, field, ids) {
     ))
   }
 
-  out <- ellmer_sanitize_value(x, field, ids)
+  out <- trajectory_sanitize_value(x, field, ids)
   if (!trajectory_is_named_list(out$value)) {
     out$value <- list()
     out$losses <- c(
       out$losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         field,
         "unsupported",
@@ -211,14 +215,14 @@ ellmer_sanitize_metadata <- function(x, field, ids) {
   out
 }
 
-ellmer_sanitize_text <- function(x, field, ids) {
+trajectory_sanitize_text <- function(x, field, ids) {
   if (is.null(x) || (length(x) == 1L && is.na(x))) {
     return(list(value = NA_character_, losses = list()))
   }
   if (!is.character(x) || length(x) != 1L) {
     return(list(
       value = "<unsupported>",
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         field,
         "unsupported",
@@ -231,7 +235,7 @@ ellmer_sanitize_text <- function(x, field, ids) {
   if (bytes > trajectory_payload_max_bytes) {
     return(list(
       value = paste0(substr(x, 1L, 2048L), "..."),
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         field,
         "truncated",
@@ -242,11 +246,11 @@ ellmer_sanitize_text <- function(x, field, ids) {
   list(value = x, losses = list())
 }
 
-ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
+trajectory_sanitize_value <- function(x, field, ids, depth = 0L) {
   if (depth >= 40L) {
     return(list(
       value = "<unsupported>",
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         field,
         "unsupported",
@@ -260,7 +264,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
   if (is.raw(x)) {
     return(list(
       value = list(size_bytes = length(x)),
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         field,
         "externalized",
@@ -278,7 +282,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
   ) {
     return(list(
       value = "<unsupported>",
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         field,
         "unsupported",
@@ -294,19 +298,19 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
     !is.null(element_names) &&
     any(
       !is.na(element_names) &
-        vapply(element_names, ellmer_sensitive_name, logical(1))
+        vapply(element_names, trajectory_sensitive_name, logical(1))
     )
   if (sensitive_atomic) {
     out <- vector("list", length(x))
     names(out) <- element_names
     for (index in seq_along(x)) {
       name <- element_names[[index]]
-      child_field <- ellmer_child_field(field, name, index)
-      if (!is.na(name) && ellmer_sensitive_name(name)) {
+      child_field <- trajectory_child_field(field, name, index)
+      if (!is.na(name) && trajectory_sensitive_name(name)) {
         out[[index]] <- "<redacted>"
         losses <- c(
           losses,
-          list(ellmer_new_loss(
+          list(trajectory_new_loss(
             ids,
             child_field,
             "redacted",
@@ -320,7 +324,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
           x[[index]]
         }
         attributes(element) <- NULL
-        child <- ellmer_sanitize_value(
+        child <- trajectory_sanitize_value(
           element,
           child_field,
           ids,
@@ -334,7 +338,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
     if (length(extra_attributes) > 0L) {
       losses <- c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           field,
           "unsupported",
@@ -349,12 +353,12 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
       } else {
         element_names[[index]]
       }
-      child_field <- ellmer_child_field(field, name, index)
-      if (!is.na(name) && ellmer_sensitive_name(name)) {
+      child_field <- trajectory_child_field(field, name, index)
+      if (!is.na(name) && trajectory_sensitive_name(name)) {
         out[index] <- list("<redacted>")
         losses <- c(
           losses,
-          list(ellmer_new_loss(
+          list(trajectory_new_loss(
             ids,
             child_field,
             "redacted",
@@ -362,7 +366,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
           ))
         )
       } else {
-        child <- ellmer_sanitize_value(
+        child <- trajectory_sanitize_value(
           x[[index]],
           child_field,
           ids,
@@ -375,13 +379,13 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
   } else if (!is.null(element_names)) {
     for (index in seq_along(x)) {
       name <- element_names[[index]]
-      if (!is.na(name) && ellmer_sensitive_name(name)) {
+      if (!is.na(name) && trajectory_sensitive_name(name)) {
         out[index] <- "<redacted>"
         losses <- c(
           losses,
-          list(ellmer_new_loss(
+          list(trajectory_new_loss(
             ids,
-            ellmer_child_field(field, name, index),
+            trajectory_child_field(field, name, index),
             "redacted",
             "A sensitive source field was redacted"
           ))
@@ -397,7 +401,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
       out[too_large] <- paste0(substr(out[too_large], 1L, 2048L), "...")
       losses <- c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           field,
           "truncated",
@@ -414,11 +418,11 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
     for (index in seq_along(source_attributes)) {
       name <- attribute_names[[index]]
       child_field <- paste0(field, "@", name)
-      if (ellmer_sensitive_name(name)) {
+      if (trajectory_sensitive_name(name)) {
         safe_attributes[[index]] <- "<redacted>"
         losses <- c(
           losses,
-          list(ellmer_new_loss(
+          list(trajectory_new_loss(
             ids,
             child_field,
             "redacted",
@@ -426,7 +430,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
           ))
         )
       } else {
-        child <- ellmer_sanitize_value(
+        child <- trajectory_sanitize_value(
           source_attributes[[index]],
           child_field,
           ids,
@@ -440,13 +444,13 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
   }
 
   safe <- trajectory_value_is_safe(out)
-  bytes <- if (safe) ellmer_serialized_bytes(out) else Inf
+  bytes <- if (safe) trajectory_serialized_bytes(out) else Inf
   if (!safe) {
     return(list(
       value = "<unsupported>",
       losses = c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           field,
           "unsupported",
@@ -460,7 +464,7 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
       value = "<truncated>",
       losses = c(
         losses,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           field,
           "truncated",
@@ -472,8 +476,8 @@ ellmer_sanitize_value <- function(x, field, ids, depth = 0L) {
   list(value = out, losses = losses)
 }
 
-ellmer_sanitize_uri <- function(x, field, ids) {
-  text <- ellmer_sanitize_text(x, field, ids)
+trajectory_sanitize_uri <- function(x, field, ids) {
+  text <- trajectory_sanitize_text(x, field, ids)
   if (is.na(text$value)) {
     return(text)
   }
@@ -489,7 +493,7 @@ ellmer_sanitize_uri <- function(x, field, ids) {
     text$value <- safe
     text$losses <- c(
       text$losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         field,
         "redacted",
@@ -500,7 +504,7 @@ ellmer_sanitize_uri <- function(x, field, ids) {
   text
 }
 
-ellmer_sensitive_name <- function(x) {
+trajectory_sensitive_name <- function(x) {
   normalized <- tolower(gsub("[^a-z0-9]", "_", x))
   normalized %in%
     c(
@@ -521,7 +525,7 @@ ellmer_sensitive_name <- function(x) {
     )
 }
 
-ellmer_child_field <- function(field, name, index) {
+trajectory_child_field <- function(field, name, index) {
   if (!is.na(name) && nzchar(name)) {
     paste0(field, "$", name)
   } else {
@@ -529,14 +533,14 @@ ellmer_child_field <- function(field, name, index) {
   }
 }
 
-ellmer_serialized_bytes <- function(x) {
+trajectory_serialized_bytes <- function(x) {
   tryCatch(
     length(serialize(x, NULL, xdr = FALSE)),
     error = function(...) Inf
   )
 }
 
-ellmer_new_loss <- function(
+trajectory_new_loss <- function(
   ids,
   field,
   reason,
@@ -554,7 +558,7 @@ ellmer_new_loss <- function(
   )
 }
 
-ellmer_loss_table <- function(rows) {
+trajectory_loss_table <- function(rows) {
   if (length(rows) == 0L) {
     return(NULL)
   }

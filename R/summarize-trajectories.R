@@ -64,7 +64,8 @@ summarize_trajectories <- function(x) {
     events$event_type,
     events$call_id,
     event_groups,
-    size
+    size,
+    events$event_index
   )
 
   tibble::tibble(

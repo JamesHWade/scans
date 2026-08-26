@@ -30,10 +30,11 @@ connect to Posit Connect, or parse trace records itself.
 }
 \details{
 Conversation provenance and the outer source descriptor are retained as
-sanitized metadata. Each exchange provenance record also becomes a
-\code{"commons:provenance"} event attached to the final turn in that exchange.
-Missing or malformed source facts are reported as adapter losses rather than
-inferred.
+sanitized metadata. Each source provenance record also becomes a
+\code{"commons:provenance"} event. Because the public commons result does not
+expose an exchange-to-turn key, provenance events retain their source index
+without inferring a \code{turn_id}. Missing or malformed source facts are reported
+as adapter losses.
 
 Because \code{commons::trajectory_read()} returns an ordinary list without a
 discriminating class, use this explicit adapter instead of

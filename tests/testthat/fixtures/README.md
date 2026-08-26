@@ -20,7 +20,8 @@ populate every canonical schema column and exercise every core loss reason.
    runs.
 3. Preserve explicit source identity, event order, call correlation, and any
    adapter loss in the expected bundle.
-4. In the adapter test, construct the source object locally and call
+4. In the adapter test, obtain the source through the upstream package's public
+   constructor, runner, reader, or exporter and call
    `expect_adapter_conforms(source, expected, adapter)`. The helper runs the
    adapter twice, compares canonical output independently of physical row order,
    validates serialization, and checks the full expected bundle.
@@ -30,8 +31,13 @@ populate every canonical schema column and exercise every core loss reason.
 Fixtures are loaded through `testthat::test_path()`, so adapter tests work from
 the source tree and during `R CMD check` without network access.
 
-`helper-tempest-adapter.R` constructs a bounded, provider-free review using
-Tempest's exact internal review class and digest contract. It also converts one
-review into a plain structural lookalike to verify that the adapter accepts only
-authoritative Tempest reviews; production code uses Tempest's exported
-projection accessor.
+`tempest-review.rds` was produced by the installed Tempest 0.3.0.9000 public
+`tempest_trajectory_review()` function from Tempest's provider-free STORM
+promotion fixture. Tests read that authoritative result and project it through
+Tempest's exported accessor; they do not reproduce Tempest classes or digest
+contracts.
+
+`commons/trace-0.jsonl` is a static OTLP envelope. Commons tests obtain their
+source by passing its directory to `commons::trajectory_read()`. The dsprrr
+module fixture similarly uses `dsprrr::module_fn()` and `dsprrr::run()` instead
+of mutating module state.

@@ -1,3 +1,13 @@
+test_that("Deputy results pass the shared adapter contract", {
+  skip_if_not_installed("deputy", "0.0.0.9000")
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  expect_adapter_conforms(
+    source = deputy_result_fixture(),
+    adapter = as_trajectory_deputy
+  )
+})
+
 test_that("completed Deputy results become canonical trajectories", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
@@ -27,8 +37,8 @@ test_that("completed Deputy results become canonical trajectories", {
   )
   expect_identical(trajectory_turns(bundle)$role, c("user", "assistant"))
   expect_identical(
-    events$event_type[grepl("^deputy:", events$event_type)],
-    c("deputy:start", "deputy:stop")
+    events$event_type,
+    c("deputy:start", "content", "content", "deputy:stop")
   )
 })
 
@@ -42,7 +52,22 @@ test_that("as_trajectory dispatches Deputy results", {
   expect_identical(trajectory_info(bundle)$source_type, "deputy")
 })
 
-test_that("as_trajectory does not claim unrelated AgentResult classes", {
+test_that("Deputy AgentResult subclasses may override public methods", {
+  skip_if_not_installed("deputy", "0.0.0.9000")
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  subclass <- R6::R6Class(
+    "ScansAgentResult",
+    inherit = deputy::AgentResult,
+    public = list(n_turns = function() super$n_turns())
+  )
+  bundle <- as_trajectory(deputy_result_fixture(result_class = subclass))
+
+  expect_s7_class(bundle, TrajectoryBundle)
+  expect_identical(trajectory_info(bundle)$source_type, "deputy")
+})
+
+test_that("malformed AgentResult objects fail at the adapter boundary", {
   skip_if_not_installed("deputy", "0.0.0.9000")
 
   fake_result <- new.env(parent = emptyenv())
@@ -52,7 +77,7 @@ test_that("as_trajectory does not claim unrelated AgentResult classes", {
 
   condition <- rlang::catch_cnd(as_trajectory(fake_result))
 
-  expect_s3_class(condition, "scans_error_unsupported_source")
+  expect_s3_class(condition, "scans_error_deputy_source")
 })
 
 test_that("Deputy adapter arguments use source-specific conditions", {

@@ -203,6 +203,39 @@ test_that("scan_trajectories() preserves unresolved correlation evidence", {
   expect_identical(findings$value[[2L]]$call_id, "call-orphan")
 })
 
+test_that("tool results cannot resolve calls that occur later", {
+  tables <- minimal_trajectory_tables()
+  tables$turns <- tables$turns[rep(1L, 2L), , drop = FALSE]
+  tables$turns$turn_id <- paste0("turn-", 1:2)
+  tables$turns$turn_index <- 1:2
+  tables$events <- tables$events[rep(1L, 2L), , drop = FALSE]
+  tables$events$event_id <- paste0("event-", 1:2)
+  tables$events$event_index <- c(2L, 1L)
+  tables$events$turn_id <- tables$turns$turn_id
+  tables$events$event_type <- c("tool_call", "tool_result")
+  tables$events$name <- "lookup"
+  tables$events$call_id <- "out-of-order"
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  summary <- summarize_trajectories(bundle)
+  findings <- scan_trajectories(bundle)
+
+  expect_identical(summary$n_unresolved_tool_calls, 1L)
+  expect_identical(summary$n_unmatched_tool_results, 1L)
+  expect_identical(
+    findings$scan,
+    c("unmatched_tool_result", "unresolved_tool_call")
+  )
+  expect_identical(findings$event_id, c("event-2", "event-1"))
+  expect_identical(
+    findings$explanation,
+    c(
+      "No preceding tool call can be paired with this tool result.",
+      "No subsequent tool result can be paired with this tool call."
+    )
+  )
+})
+
 test_that("scan_trajectories() reports ambiguous call identifiers", {
   tables <- minimal_trajectory_tables()
   tables$turns <- tables$turns[rep(1L, 3L), , drop = FALSE]

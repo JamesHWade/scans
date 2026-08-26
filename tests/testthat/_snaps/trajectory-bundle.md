@@ -130,7 +130,7 @@
     Code
       trajectory_events(list())
     Condition
-      Error in `check_trajectory_bundle()`:
+      Error in `trajectory_events()`:
       ! `x` must be a <TrajectoryBundle>.
       x It is an empty list.
 

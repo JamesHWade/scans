@@ -11,9 +11,7 @@ trajectory_fixture <- function(name) {
   fixtures[[name]]
 }
 
-expect_adapter_conforms <- function(source, expected, adapter, ...) {
-  expected <- as_trajectory(expected)
-
+expect_adapter_conforms <- function(source, expected = NULL, adapter, ...) {
   actual <- adapter(source, ...)
   repeated <- adapter(source, ...)
 
@@ -21,19 +19,18 @@ expect_adapter_conforms <- function(source, expected, adapter, ...) {
   testthat::expect_no_error(S7::validate(actual))
   testthat::expect_identical(S7::props(repeated), S7::props(actual))
 
-  expected_properties <- S7::props(expected)
   actual_properties <- S7::props(actual)
-  testthat::expect_identical(
-    actual_properties$schema_version,
-    expected_properties$schema_version
-  )
+  testthat::expect_identical(actual_properties$schema_version, 1L)
 
-  for (table in names(trajectory_table_schemas())) {
-    testthat::expect_identical(
-      order_fixture_table(actual_properties[[table]], table),
-      order_fixture_table(expected_properties[[table]], table),
-      info = paste("adapter table:", table)
-    )
+  if (!is.null(expected)) {
+    expected_properties <- S7::props(as_trajectory(expected))
+    for (table in names(trajectory_table_schemas())) {
+      testthat::expect_identical(
+        order_fixture_table(actual_properties[[table]], table),
+        order_fixture_table(expected_properties[[table]], table),
+        info = paste("adapter table:", table)
+      )
+    }
   }
 
   restored <- unserialize(serialize(actual, NULL))

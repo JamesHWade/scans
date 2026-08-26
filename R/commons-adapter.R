@@ -7,10 +7,11 @@
 #' connect to Posit Connect, or parse trace records itself.
 #'
 #' Conversation provenance and the outer source descriptor are retained as
-#' sanitized metadata. Each exchange provenance record also becomes a
-#' `"commons:provenance"` event attached to the final turn in that exchange.
-#' Missing or malformed source facts are reported as adapter losses rather than
-#' inferred.
+#' sanitized metadata. Each source provenance record also becomes a
+#' `"commons:provenance"` event. Because the public commons result does not
+#' expose an exchange-to-turn key, provenance events retain their source index
+#' without inferring a `turn_id`. Missing or malformed source facts are reported
+#' as adapter losses.
 #'
 #' Because `commons::trajectory_read()` returns an ordinary list without a
 #' discriminating class, use this explicit adapter instead of
@@ -107,10 +108,10 @@ as_trajectory_commons <- function(
   })
 
   TrajectoryBundle(
-    commons_bind_tables(lapply(bundles, trajectory_info)),
-    commons_bind_tables(lapply(bundles, trajectory_turns)),
-    commons_bind_tables(lapply(bundles, trajectory_events)),
-    losses = commons_bind_tables(lapply(bundles, trajectory_losses))
+    trajectory_bind_rows(lapply(bundles, trajectory_info)),
+    trajectory_bind_rows(lapply(bundles, trajectory_turns)),
+    trajectory_bind_rows(lapply(bundles, trajectory_events)),
+    losses = trajectory_bind_rows(lapply(bundles, trajectory_losses))
   )
 }
 
@@ -216,7 +217,7 @@ commons_conversation_bundle <- function(
       call = call
     )
   }
-  ids <- ellmer_ids(trajectory_id)
+  ids <- trajectory_ids(trajectory_id)
   source_metadata <- c(
     metadata,
     list(source = source, provenance = provenance)
@@ -235,7 +236,7 @@ commons_conversation_bundle <- function(
     source_id = conversation_id,
     metadata = list()
   )
-  safe_metadata <- ellmer_sanitize_metadata(
+  safe_metadata <- trajectory_sanitize_metadata(
     source_metadata,
     "metadata",
     ids
@@ -250,7 +251,6 @@ commons_conversation_bundle <- function(
   provenance_tables <- commons_provenance_events(
     provenance,
     trajectory_id,
-    turns,
     nrow(trajectory_events(base))
   )
 
@@ -259,9 +259,9 @@ commons_conversation_bundle <- function(
   info$completed_at <- active$value
   info$metadata <- list(safe_metadata$value)
 
-  losses <- commons_bind_tables(list(
+  losses <- trajectory_bind_rows(list(
     trajectory_losses(base),
-    ellmer_loss_table(c(
+    trajectory_loss_table(c(
       safe_metadata$losses,
       safe_source$losses,
       source_losses,
@@ -273,7 +273,7 @@ commons_conversation_bundle <- function(
   TrajectoryBundle(
     info,
     turns,
-    commons_bind_tables(list(
+    trajectory_bind_rows(list(
       trajectory_events(base),
       provenance_tables$events
     )),
@@ -316,14 +316,13 @@ commons_has_tool_result <- function(turn) {
 commons_provenance_events <- function(
   provenance,
   trajectory_id,
-  turns,
   offset
 ) {
   if (is.null(provenance)) {
     return(list(
       events = NULL,
-      losses = list(ellmer_new_loss(
-        ellmer_ids(trajectory_id),
+      losses = list(trajectory_new_loss(
+        trajectory_ids(trajectory_id),
         "provenance",
         "unsupported",
         "The commons conversation has no provenance records"
@@ -333,8 +332,8 @@ commons_provenance_events <- function(
   if (!is.list(provenance)) {
     return(list(
       events = NULL,
-      losses = list(ellmer_new_loss(
-        ellmer_ids(trajectory_id),
+      losses = list(trajectory_new_loss(
+        trajectory_ids(trajectory_id),
         "provenance",
         "unsupported",
         "The commons provenance attribute is not a list"
@@ -344,17 +343,10 @@ commons_provenance_events <- function(
 
   rows <- vector("list", length(provenance))
   losses <- list()
-  exchanges <- commons_exchange_count(turns$round_index)
   for (index in seq_along(provenance)) {
-    turn_rows <- which(turns$round_index == index)
-    turn_id <- if (length(turn_rows) == 0L) {
-      NA_character_
-    } else {
-      turns$turn_id[[turn_rows[[length(turn_rows)]]]]
-    }
-    event_id <- ellmer_event_id(trajectory_id, offset + index)
-    ids <- ellmer_ids(trajectory_id, turn_id, event_id)
-    value <- ellmer_sanitize_value(
+    event_id <- trajectory_event_id(trajectory_id, offset + index)
+    ids <- trajectory_ids(trajectory_id, event_id = event_id)
+    value <- trajectory_sanitize_value(
       provenance[[index]],
       paste0("provenance[[", index, "]]"),
       ids
@@ -365,7 +357,6 @@ commons_provenance_events <- function(
       commons_provenance_record_losses(
         provenance[[index]],
         index,
-        exchanges,
         ids
       )
     )
@@ -373,7 +364,7 @@ commons_provenance_events <- function(
       trajectory_id = trajectory_id,
       event_id = event_id,
       event_index = as.integer(offset + index),
-      turn_id = turn_id,
+      turn_id = NA_character_,
       content_index = NA_integer_,
       parent_event_id = NA_character_,
       event_type = "commons:provenance",
@@ -389,20 +380,7 @@ commons_provenance_events <- function(
       metadata = list(list(exchange_index = as.integer(index)))
     )
   }
-  if (length(provenance) < exchanges) {
-    for (index in seq.int(length(provenance) + 1L, exchanges)) {
-      losses <- c(
-        losses,
-        list(ellmer_new_loss(
-          ellmer_ids(trajectory_id),
-          paste0("provenance[[", index, "]]"),
-          "unsupported",
-          "The commons exchange has no provenance record"
-        ))
-      )
-    }
-  }
-  list(events = ellmer_bind_rows(rows), losses = losses)
+  list(events = trajectory_bind_rows(rows), losses = losses)
 }
 
 commons_sanitize_source <- function(source, ids) {
@@ -412,30 +390,17 @@ commons_sanitize_source <- function(source, ids) {
       identical(out$value$kind, "connect") &&
       commons_source_string(out$value$server)
   ) {
-    server <- ellmer_sanitize_uri(out$value$server, "source$server", ids)
+    server <- trajectory_sanitize_uri(out$value$server, "source$server", ids)
     out$value$server <- server$value
     out$losses <- c(out$losses, server$losses)
   }
   out
 }
 
-commons_exchange_count <- function(rounds) {
-  known <- rounds[!is.na(rounds)]
-  if (length(known) == 0L) 0L else max(known)
-}
-
-commons_provenance_record_losses <- function(record, index, exchanges, ids) {
+commons_provenance_record_losses <- function(record, index, ids) {
   field <- paste0("provenance[[", index, "]]")
-  if (index > exchanges) {
-    return(list(ellmer_new_loss(
-      ids,
-      field,
-      "unsupported",
-      "The provenance record has no matching commons exchange"
-    )))
-  }
   if (!trajectory_is_named_list(record)) {
-    return(list(ellmer_new_loss(
+    return(list(trajectory_new_loss(
       ids,
       field,
       "unsupported",
@@ -449,7 +414,7 @@ commons_provenance_record_losses <- function(record, index, exchanges, ids) {
   if (!valid_tag) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         paste0(field, "$provenance_tag"),
         "unsupported",
@@ -461,7 +426,7 @@ commons_provenance_record_losses <- function(record, index, exchanges, ids) {
   if (!is.list(decisions) || is.data.frame(decisions)) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         paste0(field, "$citation_decisions"),
         "unsupported",
@@ -474,7 +439,7 @@ commons_provenance_record_losses <- function(record, index, exchanges, ids) {
   ) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         paste0(field, "$citation_decisions"),
         "unsupported",
@@ -506,7 +471,7 @@ commons_source_losses <- function(source, ids) {
   if (valid) {
     return(list())
   }
-  list(ellmer_new_loss(
+  list(trajectory_new_loss(
     ids,
     "source",
     "unsupported",
@@ -530,7 +495,7 @@ commons_last_active <- function(x, ids) {
   ) {
     return(list(
       value = as.POSIXct(NA, tz = "UTC"),
-      losses = list(ellmer_new_loss(
+      losses = list(trajectory_new_loss(
         ids,
         "last_active",
         "unsupported",
@@ -540,12 +505,4 @@ commons_last_active <- function(x, ids) {
   }
   attr(x, "tzone") <- "UTC"
   list(value = x, losses = list())
-}
-
-commons_bind_tables <- function(tables) {
-  tables <- Filter(\(table) !is.null(table) && nrow(table) > 0L, tables)
-  if (length(tables) == 0L) {
-    return(NULL)
-  }
-  tibble::as_tibble(do.call(rbind, tables))
 }

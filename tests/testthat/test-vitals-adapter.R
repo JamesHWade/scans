@@ -1,3 +1,13 @@
+test_that("vitals Tasks pass the shared adapter contract", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("vitals", "0.3.0")
+
+  expect_adapter_conforms(
+    source = vitals_task_fixture(),
+    adapter = as_trajectory_vitals
+  )
+})
+
 test_that("vitals sample data becomes evaluated solver trajectories", {
   skip_if_not_installed("ellmer", "0.4.2")
 
@@ -82,7 +92,24 @@ test_that("vitals Task objects snapshot through their public samples", {
   expect_identical(trajectory_evaluations(explicit)$value[[1L]], "C")
 })
 
-test_that("as_trajectory does not claim unrelated Task classes", {
+test_that("vitals Task subclasses may override public methods", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("vitals", "0.3.0")
+
+  subclass <- R6::R6Class(
+    "ScansVitalsTask",
+    inherit = vitals::Task,
+    public = list(get_samples = function() super$get_samples())
+  )
+  bundle <- as_trajectory(vitals_task_fixture(subclass))
+
+  expect_s7_class(bundle, TrajectoryBundle)
+  expect_identical(trajectory_info(bundle)$source_type, "vitals")
+})
+
+test_that("malformed Task objects fail at the adapter boundary", {
+  skip_if_not_installed("vitals", "0.3.0")
+
   fake_task <- new.env(parent = emptyenv())
   fake_task$get_samples <- function() data.frame()
   fake_task$solve <- function() NULL
@@ -91,7 +118,7 @@ test_that("as_trajectory does not claim unrelated Task classes", {
 
   condition <- rlang::catch_cnd(as_trajectory(fake_task))
 
-  expect_s3_class(condition, "scans_error_unsupported_source")
+  expect_s3_class(condition, "scans_error_vitals_source")
 })
 
 test_that("development vitals logs round-trip into trajectories", {

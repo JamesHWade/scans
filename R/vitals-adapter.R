@@ -92,7 +92,7 @@ as_trajectory_vitals <- function(
     sample <- samples[index, , drop = FALSE]
     sample_id <- sample_ids[[index]]
     epoch <- epochs[[index]]
-    ids <- ellmer_ids(trajectory_id)
+    ids <- trajectory_ids(trajectory_id)
     metadata <- vitals_trajectory_metadata(sample, source$source_class)
 
     bundle <- as_trajectory_ellmer(
@@ -129,7 +129,7 @@ as_trajectory_vitals <- function(
     if (length(evaluation$losses) > 0L) {
       tables$losses <- c(
         tables$losses,
-        list(ellmer_loss_table(evaluation$losses))
+        list(trajectory_loss_table(evaluation$losses))
       )
     }
 
@@ -137,7 +137,7 @@ as_trajectory_vitals <- function(
     if (vitals_value_present(scorer_chat)) {
       tables$losses <- c(
         tables$losses,
-        list(ellmer_loss_table(list(ellmer_new_loss(
+        list(trajectory_loss_table(list(trajectory_new_loss(
           ids,
           "scorer_chat",
           "unsupported",
@@ -151,34 +151,21 @@ as_trajectory_vitals <- function(
   }
 
   TrajectoryBundle(
-    vitals_bind_rows(tables$trajectories),
-    vitals_bind_rows(tables$turns),
-    vitals_bind_rows(tables$events),
-    evaluations = vitals_bind_rows(tables$evaluations),
-    losses = vitals_bind_rows(tables$losses)
+    trajectory_bind_rows(tables$trajectories),
+    trajectory_bind_rows(tables$turns),
+    trajectory_bind_rows(tables$events),
+    evaluations = trajectory_bind_rows(tables$evaluations),
+    losses = trajectory_bind_rows(tables$losses)
   )
 }
 
 vitals_is_task <- function(x) {
-  inherits(x, "Task") &&
+  rlang::is_installed("vitals", version = "0.3.0") &&
+    inherits(x, "Task") &&
     inherits(x, "R6") &&
     is.function(x$get_samples) &&
     is.function(x$solve) &&
-    is.function(x$score) &&
-    rlang::is_installed("vitals", version = "0.3.0") &&
-    vitals_method_in_namespace(x$get_samples)
-}
-
-vitals_method_in_namespace <- function(method) {
-  env <- environment(method)
-  namespace <- asNamespace("vitals")
-  while (!identical(env, emptyenv())) {
-    if (identical(env, namespace)) {
-      return(TRUE)
-    }
-    env <- parent.env(env)
-  }
-  FALSE
+    is.function(x$score)
 }
 
 vitals_source_samples <- function(x, call) {
@@ -426,13 +413,13 @@ vitals_evaluation_row <- function(
     return(list(row = NULL, losses = list()))
   }
 
-  value <- ellmer_sanitize_value(score, "evaluations$value", ids)
-  target <- ellmer_sanitize_value(
+  value <- trajectory_sanitize_value(score, "evaluations$value", ids)
+  target <- trajectory_sanitize_value(
     vitals_row_value(sample, "target"),
     "evaluations$target",
     ids
   )
-  scorer <- ellmer_sanitize_text(
+  scorer <- trajectory_sanitize_text(
     vitals_row_value(sample, "scorer"),
     "evaluations$scorer",
     ids
@@ -442,12 +429,12 @@ vitals_evaluation_row <- function(
   } else {
     vitals_row_value(sample, "explanation")
   }
-  explanation <- ellmer_sanitize_text(
+  explanation <- trajectory_sanitize_text(
     explanation_source,
     "evaluations$explanation",
     ids
   )
-  metadata <- ellmer_sanitize_metadata(
+  metadata <- trajectory_sanitize_metadata(
     list(scorer_metadata = vitals_row_value(sample, "scorer_metadata")),
     "evaluations$metadata",
     ids
@@ -487,12 +474,4 @@ vitals_value_present <- function(x) {
     return(FALSE)
   }
   !(length(x) == 1L && is.atomic(x) && is.na(x))
-}
-
-vitals_bind_rows <- function(rows) {
-  rows <- Filter(\(row) !is.null(row) && nrow(row) > 0L, rows)
-  if (length(rows) == 0L) {
-    return(NULL)
-  }
-  tibble::as_tibble(do.call(rbind, rows))
 }

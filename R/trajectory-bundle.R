@@ -176,14 +176,19 @@ trajectory_losses <- function(x) {
   S7::prop(x, "losses")
 }
 
-check_trajectory_bundle <- function(x, arg = rlang::caller_arg(x)) {
+check_trajectory_bundle <- function(
+  x,
+  arg = rlang::caller_arg(x),
+  call = rlang::caller_env()
+) {
   if (!is_trajectory_bundle(x)) {
     scans_abort(
       c(
         "{.arg {arg}} must be a {.cls TrajectoryBundle}.",
         "x" = "It is {.obj_type_friendly {x}}."
       ),
-      class = "scans_error_trajectory_type"
+      class = "scans_error_trajectory_type",
+      call = call
     )
   }
   invisible(x)

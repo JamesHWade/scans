@@ -97,11 +97,11 @@ as_trajectory_ellmer <- function(
     model <- source$model
   }
 
-  ids <- ellmer_ids(trajectory_id)
+  ids <- trajectory_ids(trajectory_id)
   metadata$ellmer_version <- as.character(utils::packageVersion("ellmer"))
   metadata$source_class <- source$source_class
-  safe_metadata <- ellmer_sanitize_metadata(metadata, "metadata", ids)
-  safe_uri <- ellmer_sanitize_uri(source_uri, "source_uri", ids)
+  safe_metadata <- trajectory_sanitize_metadata(metadata, "metadata", ids)
+  safe_uri <- trajectory_sanitize_uri(source_uri, "source_uri", ids)
 
   tables <- ellmer_turn_tables(source$turns, trajectory_id, call)
   losses <- c(
@@ -130,7 +130,7 @@ as_trajectory_ellmer <- function(
     trajectories,
     tables$turns,
     tables$events,
-    losses = ellmer_loss_table(losses)
+    losses = trajectory_loss_table(losses)
   )
 }
 
@@ -218,13 +218,13 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
   for (turn_index in seq_along(turns)) {
     turn <- turns[[turn_index]]
     turn_id <- ellmer_turn_id(trajectory_id, turn_index)
-    ids <- ellmer_ids(trajectory_id, turn_id)
+    ids <- trajectory_ids(trajectory_id, turn_id)
     contents <- S7::prop(turn, "contents")
     turn_error <- ellmer_turn_error(contents, ids)
     partial <- S7::S7_inherits(turn, ellmer::AssistantPartialTurn)
     interrupted <- interrupted || partial
     partial_reason <- if (partial) {
-      ellmer_sanitize_text(
+      trajectory_sanitize_text(
         S7::prop(turn, "reason"),
         paste0("turns[[", turn_index, "]]$reason"),
         ids
@@ -232,7 +232,7 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
     } else {
       list(value = NA_character_, losses = list())
     }
-    finish_reason <- ellmer_sanitize_text(
+    finish_reason <- trajectory_sanitize_text(
       ellmer_prop(turn, "finish_reason", NA_character_),
       paste0("turns[[", turn_index, "]]$finish_reason"),
       ids
@@ -243,7 +243,7 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
     } else {
       list()
     }
-    safe_metadata <- ellmer_sanitize_metadata(
+    safe_metadata <- trajectory_sanitize_metadata(
       metadata,
       paste0("turns[[", turn_index, "]]$metadata"),
       ids
@@ -259,7 +259,7 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
     if (S7::prop_exists(turn, "json") && length(S7::prop(turn, "json"))) {
       loss_rows <- c(
         loss_rows,
-        list(ellmer_new_loss(
+        list(trajectory_new_loss(
           ids,
           paste0("turns[[", turn_index, "]]$json"),
           "redacted",
@@ -288,8 +288,8 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
 
     for (content_index in seq_along(contents)) {
       event_index <- event_index + 1L
-      event_id <- ellmer_event_id(trajectory_id, event_index)
-      event_ids <- ellmer_ids(trajectory_id, turn_id, event_id)
+      event_id <- trajectory_event_id(trajectory_id, event_index)
+      event_ids <- trajectory_ids(trajectory_id, turn_id, event_id)
       mapped <- ellmer_content_event(
         contents[[content_index]],
         event_ids,
@@ -304,9 +304,9 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
     }
   }
 
-  events <- ellmer_bind_rows(event_rows)
+  events <- trajectory_bind_rows(event_rows)
   list(
-    turns = ellmer_bind_rows(turn_rows),
+    turns = trajectory_bind_rows(turn_rows),
     events = ellmer_link_tool_results(events),
     losses = loss_rows,
     interrupted = interrupted
@@ -433,7 +433,7 @@ ellmer_content_event <- function(
 }
 
 ellmer_text_event <- function(content, ids) {
-  text <- ellmer_sanitize_text(
+  text <- trajectory_sanitize_text(
     S7::prop(content, "text"),
     "contents$text",
     ids
@@ -449,12 +449,12 @@ ellmer_text_event <- function(content, ids) {
 }
 
 ellmer_thinking_event <- function(content, ids) {
-  text <- ellmer_sanitize_text(
+  text <- trajectory_sanitize_text(
     S7::prop(content, "thinking"),
     "contents$thinking",
     ids
   )
-  metadata <- ellmer_sanitize_metadata(
+  metadata <- trajectory_sanitize_metadata(
     S7::prop(content, "extra"),
     "contents$extra",
     ids
@@ -471,22 +471,22 @@ ellmer_thinking_event <- function(content, ids) {
 }
 
 ellmer_tool_request_event <- function(content, ids) {
-  name <- ellmer_sanitize_text(
+  name <- trajectory_sanitize_text(
     S7::prop(content, "name"),
     "contents$name",
     ids
   )
-  call_id <- ellmer_sanitize_text(
+  call_id <- trajectory_sanitize_text(
     S7::prop(content, "id"),
     "contents$id",
     ids
   )
-  arguments <- ellmer_sanitize_value(
+  arguments <- trajectory_sanitize_value(
     S7::prop(content, "arguments"),
     "contents$arguments",
     ids
   )
-  metadata <- ellmer_sanitize_metadata(
+  metadata <- trajectory_sanitize_metadata(
     S7::prop(content, "extra"),
     "contents$extra",
     ids
@@ -500,7 +500,7 @@ ellmer_tool_request_event <- function(content, ids) {
   if (!is.null(S7::prop(content, "tool"))) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "contents$tool",
         "unsupported",
@@ -522,12 +522,12 @@ ellmer_tool_request_event <- function(content, ids) {
 }
 
 ellmer_tool_result_event <- function(content, ids) {
-  value <- ellmer_sanitize_value(
+  value <- trajectory_sanitize_value(
     S7::prop(content, "value"),
     "contents$value",
     ids
   )
-  metadata <- ellmer_sanitize_metadata(
+  metadata <- trajectory_sanitize_metadata(
     S7::prop(content, "extra"),
     "contents$extra",
     ids
@@ -538,7 +538,7 @@ ellmer_tool_result_event <- function(content, ids) {
     inherits(request, "S7_object") &&
     S7::S7_inherits(request, ellmer::ContentToolRequest)
   call_id <- if (has_request) {
-    ellmer_sanitize_text(
+    trajectory_sanitize_text(
       S7::prop(request, "id"),
       "contents$request$id",
       ids
@@ -547,7 +547,7 @@ ellmer_tool_result_event <- function(content, ids) {
     list(value = NA_character_, losses = list())
   }
   name <- if (has_request) {
-    ellmer_sanitize_text(
+    trajectory_sanitize_text(
       S7::prop(request, "name"),
       "contents$request$name",
       ids
@@ -583,12 +583,12 @@ ellmer_tool_result_event <- function(content, ids) {
 }
 
 ellmer_remote_image_event <- function(content, ids) {
-  uri <- ellmer_sanitize_uri(
+  uri <- trajectory_sanitize_uri(
     S7::prop(content, "url"),
     "contents$url",
     ids
   )
-  detail <- ellmer_sanitize_text(
+  detail <- trajectory_sanitize_text(
     S7::prop(content, "detail"),
     "contents$detail",
     ids
@@ -605,7 +605,7 @@ ellmer_remote_image_event <- function(content, ids) {
 
 ellmer_inline_image_event <- function(content, ids) {
   data <- S7::prop(content, "data")
-  type <- ellmer_sanitize_text(
+  type <- trajectory_sanitize_text(
     S7::prop(content, "type"),
     "contents$type",
     ids
@@ -615,7 +615,7 @@ ellmer_inline_image_event <- function(content, ids) {
   if (!is.null(data)) {
     losses <- c(
       losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "contents$data",
         "externalized",
@@ -639,12 +639,12 @@ ellmer_inline_image_event <- function(content, ids) {
 
 ellmer_pdf_event <- function(content, ids) {
   data <- S7::prop(content, "data")
-  type <- ellmer_sanitize_text(
+  type <- trajectory_sanitize_text(
     S7::prop(content, "type"),
     "contents$type",
     ids
   )
-  filename <- ellmer_sanitize_text(
+  filename <- trajectory_sanitize_text(
     S7::prop(content, "filename"),
     "contents$filename",
     ids
@@ -664,7 +664,7 @@ ellmer_pdf_event <- function(content, ids) {
     losses = c(
       type$losses,
       filename$losses,
-      list(ellmer_new_loss(
+      list(trajectory_new_loss(
         ids,
         "contents$data",
         "externalized",
@@ -682,7 +682,7 @@ ellmer_unknown_content_event <- function(content, ids) {
     kind <- paste0("content_", kind)
   }
 
-  properties <- ellmer_sanitize_value(
+  properties <- trajectory_sanitize_value(
     S7::props(content),
     "contents$properties",
     ids
@@ -753,36 +753,13 @@ ellmer_error_text <- function(error, ids) {
   } else {
     "Tool execution failed"
   }
-  ellmer_sanitize_text(text, "contents$error", ids)
+  trajectory_sanitize_text(text, "contents$error", ids)
 }
 
 ellmer_prop <- function(x, name, default) {
   if (S7::prop_exists(x, name)) S7::prop(x, name) else default
 }
 
-ellmer_bind_rows <- function(rows) {
-  if (length(rows) == 0L) {
-    return(tibble::tibble())
-  }
-  do.call(rbind, rows)
-}
-
-ellmer_ids <- function(
-  trajectory_id,
-  turn_id = NA_character_,
-  event_id = NA_character_
-) {
-  list(
-    trajectory_id = trajectory_id,
-    turn_id = turn_id,
-    event_id = event_id
-  )
-}
-
 ellmer_turn_id <- function(trajectory_id, index) {
   sprintf("%s/turn-%06d", trajectory_id, index)
-}
-
-ellmer_event_id <- function(trajectory_id, index) {
-  sprintf("%s/event-%06d", trajectory_id, index)
 }
