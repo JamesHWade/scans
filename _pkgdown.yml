@@ -12,6 +12,7 @@ reference:
   - as_trajectory_deputy
   - as_trajectory_dsprrr
   - as_trajectory_ellmer
+  - as_trajectory_tempest
   - as_trajectory_vitals
   - trajectory_accessors
 - title: Trajectory diagnostics

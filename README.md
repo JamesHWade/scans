@@ -28,7 +28,8 @@ composable analysis functions. Integrations with
 [{vitals}](https://vitals.tidyverse.org/),
 [{deputy}](https://github.com/JamesHWade/deputy),
 [{dsprrr}](https://github.com/JamesHWade/dsprrr),
-[{commons}](https://github.com/posit-dev/commons), and
+[{commons}](https://github.com/posit-dev/commons),
+[{tempest}](https://github.com/JamesHWade/tempest), and
 [{shinychat}](https://posit-dev.github.io/shinychat/r/) will remain optional so
 the core analysis layer can also inspect trajectories from other agent
 frameworks.
@@ -168,6 +169,29 @@ trust tags, and citation decisions remain inspectable. Missing or conflicting
 provenance produces an explicit loss; scans does not infer a stronger trust
 claim. The input has no package-specific class, so `as_trajectory_commons()`
 is intentionally explicit and performs no filesystem or Connect I/O.
+
+## Inspect Tempest product reviews
+
+Tempest exposes a bounded, deterministic review of a completed STORM or
+Co-STORM product. Create that review with Tempest, then pass the closed value to
+the explicit adapter. The adapter uses Tempest's authoritative review
+projection instead of reimplementing its source invariants:
+
+```r
+review <- tempest::tempest_trajectory_review(result)
+bundle <- as_trajectory_tempest(review)
+
+bundle |>
+  filter_trajectory_events(event_type = "tempest:join")
+```
+
+The product becomes one trajectory. Stage order remains authoritative, while
+agent runs, programs, knowledge, evidence identities, joins, and findings keep
+their deterministic source order. Join values preserve
+`authority_validated`, `exact_identity`, and `correlation_only` proof kinds.
+Prompts, responses, source content, paths, credentials, and live objects remain
+excluded and are recorded as losses; scans never reaches back into the live
+Tempest result.
 
 ## Compose trajectory diagnostics
 

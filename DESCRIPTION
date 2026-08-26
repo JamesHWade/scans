@@ -29,13 +29,15 @@ Suggests:
     httr2,
     shiny (>= 1.11.1),
     shinychat,
+    tempest (>= 0.3.0.9000),
     testthat (>= 3.0.0),
     vitals (>= 0.3.0),
     withr
 Remotes:
     posit-dev/commons/pkg-r,
-    JamesHWade/deputy@c474452dadd387c5c5f14874cc3789f244b54d32,
-    JamesHWade/dsprrr@0215110b73a823fa1a3891b5b57d54f873d1ee47
+    JamesHWade/deputy@89089c90ddeb668462422b14a4de7a8395eefdc8,
+    JamesHWade/dsprrr@db28eae2235ab15c4f5c1c9794118d127eabbdd7,
+    JamesHWade/tempest@e2a81ea92fe2b3eb243555b97008d6e162e683ad
 Config/roxygen2/version: 8.0.0
 Config/testthat/edition: 3
 Config/testthat/parallel: true
