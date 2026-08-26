@@ -99,15 +99,25 @@ test_that("Tempest authority, identities, and findings remain distinct", {
     knowledge$value[[1L]]$acceptance$record_revisions,
     c("total", "retained", "omitted", "digest")
   )
-  expect_identical(revisions$value[[1L]]$revision_id, "revision-001")
+  expect_identical(revisions$value[[1L]]$revision_id, "graft:REVISION001")
   expect_identical(revisions$name, "Claim")
   expect_identical(
     vapply(evidence$value, `[[`, character(1), "record_id"),
     c("claim-001", "span-001")
   )
-  expect_identical(finding$name, "support_unverified")
-  expect_identical(finding$status, "warning")
-  expect_identical(finding$parent_event_id, stage$event_id)
+  expect_setequal(
+    finding$name,
+    c(
+      "exploratory_execution",
+      "support_unverified",
+      "publication_blocked"
+    )
+  )
+  expect_identical(
+    finding$status[[match("support_unverified", finding$name)]],
+    "warning"
+  )
+  expect_true(all(finding$parent_event_id == stage$event_id))
 })
 
 test_that("Tempest deliberate omissions and bounded lanes become losses", {

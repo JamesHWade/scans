@@ -66,6 +66,14 @@ tempest_review_fixture <- function(transform = identity) {
   testthat::skip_if_not_installed("tempest", minimum_version = "0.3.0.9000")
 
   program_id <- tempest_fixture_digest("i")
+  schema_build_digest <- getFromNamespace(
+    "tempest_promotion_schema_build_digest",
+    "tempest"
+  )
+  store_id <- paste0(
+    "graft-store-20260822T160000.000000-",
+    "abcdefghijklmnopqrst"
+  )
   agent_id <- function(expert_id) {
     compute <- getFromNamespace("tempest_deputy_adapter_agent_id", "tempest")
     compute(list(
@@ -97,10 +105,10 @@ tempest_review_fixture <- function(transform = identity) {
       program_artifact_id = program_id,
       governed_procedure_revision_id = NULL,
       failure_class = NULL,
-      fallback_policy = "fail",
+      fallback_policy = "grounded_only",
       fallback_implementation = NULL,
       fallback_taken = FALSE,
-      execution_path = "governed",
+      execution_path = "grounded",
       support_status = "verified",
       publication_allowed = TRUE
     ),
@@ -117,13 +125,13 @@ tempest_review_fixture <- function(transform = identity) {
         digest = tempest_fixture_digest("l")
       ),
       program_artifact_id = tempest_fixture_digest("a"),
-      governed_procedure_revision_id = "procedure-revision-001",
+      governed_procedure_revision_id = NULL,
       failure_class = NULL,
-      fallback_policy = "fail",
+      fallback_policy = "exploratory_allowed",
       fallback_implementation = NULL,
       fallback_taken = FALSE,
       execution_path = "exploratory",
-      support_status = "unverified",
+      support_status = "unknown",
       publication_allowed = FALSE
     )
   )
@@ -204,21 +212,35 @@ tempest_review_fixture <- function(transform = identity) {
       )
     )
   )
-  findings <- list(list(
-    code = "support_unverified",
-    severity = "warning",
-    ref_type = "stage_attempt",
-    ref_id = "attempt-perspectives-001"
-  ))
+  findings <- list(
+    list(
+      code = "exploratory_execution",
+      severity = "info",
+      ref_type = "stage_attempt",
+      ref_id = "attempt-perspectives-001"
+    ),
+    list(
+      code = "support_unverified",
+      severity = "warning",
+      ref_type = "stage_attempt",
+      ref_id = "attempt-perspectives-001"
+    ),
+    list(
+      code = "publication_blocked",
+      severity = "warning",
+      ref_type = "stage_attempt",
+      ref_id = "attempt-perspectives-001"
+    )
+  )
   revision <- list(
     class = "Claim",
     record_id = "claim-001",
-    revision_id = "revision-001",
+    revision_id = "graft:REVISION001",
     revision_number = 1L,
     action = "insert",
-    batch_id = "plan-001",
+    batch_id = "graft:PLAN001",
     content_digest = tempest_fixture_digest("m"),
-    schema_build_digest = tempest_fixture_digest("n")
+    schema_build_digest = schema_build_digest
   )
   receipt_classes <- getFromNamespace(
     "tempest_promotion_receipt_classes",
@@ -238,8 +260,8 @@ tempest_review_fixture <- function(transform = identity) {
       snapshot_id = "snapshot-001",
       store_id = "store-001",
       store_format_version = "1",
-      schema_build_digest = tempest_fixture_digest("n"),
-      commit_order = 1L,
+      schema_build_digest = schema_build_digest,
+      commit_order = 1,
       batch_id = "batch-input-001",
       committed_at = "2026-08-22T15:59:00.000Z",
       history_complete = TRUE
@@ -248,7 +270,7 @@ tempest_review_fixture <- function(transform = identity) {
     proposal = list(
       bundle_id = tempest_fixture_digest("b"),
       research_run_id = "research-run-001",
-      schema_build_digest = tempest_fixture_digest("n"),
+      schema_build_digest = schema_build_digest,
       claim_selection = list(
         kind = "claim_ids",
         count = 1L,
@@ -258,19 +280,19 @@ tempest_review_fixture <- function(transform = identity) {
     acceptance = list(
       receipt_id = tempest_fixture_digest("c"),
       bundle_id = tempest_fixture_digest("b"),
-      plan_id = "plan-001",
+      plan_id = "graft:PLAN001",
       plan_digest = tempest_fixture_digest("p"),
-      batch_id = "plan-001",
-      store_id = "store-001",
-      schema_build_digest = tempest_fixture_digest("n"),
+      batch_id = "graft:PLAN001",
+      store_id = store_id,
+      schema_build_digest = schema_build_digest,
       snapshot = list(
         schema_version = 1L,
         snapshot_id = tempest_fixture_digest("d"),
-        store_id = "store-001",
+        store_id = store_id,
         store_format_version = "3.0.0",
-        schema_build_digest = tempest_fixture_digest("n"),
-        commit_order = 2L,
-        batch_id = "plan-001",
+        schema_build_digest = schema_build_digest,
+        commit_order = 2,
+        batch_id = "graft:PLAN001",
         committed_at = "2026-08-22T16:01:00.000Z",
         history_complete = TRUE
       ),
