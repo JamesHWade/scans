@@ -1530,14 +1530,15 @@ scans_app_evaluations_ui <- function(evaluations, rows) {
   }
   htmltools::tagList(lapply(rows, function(row) {
     evaluation <- evaluations[row, , drop = FALSE]
+    title <- evaluation$evaluation_id[[1L]]
+    if (scans_app_has_string(evaluation$scorer[[1L]])) {
+      title <- paste0(evaluation$scorer[[1L]], " \u00b7 ", title)
+    }
     htmltools::tags$article(
       class = "scans-app-evaluation",
       htmltools::div(
         class = "scans-app-evidence-item-header",
-        htmltools::tags$strong(scans_app_first_string(
-          evaluation$scorer[[1L]],
-          evaluation$evaluation_id[[1L]]
-        ))
+        htmltools::tags$strong(title)
       ),
       scans_app_labeled_value("Value", evaluation$value[[1L]]),
       scans_app_labeled_value("Target", evaluation$target[[1L]]),

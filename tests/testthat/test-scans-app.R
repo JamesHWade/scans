@@ -624,6 +624,43 @@ test_that("scans app renders canonical text as text and links finding evidence",
   expect_match(evidence, "error-event-3", fixed = TRUE)
 })
 
+test_that("scans app identifies repeated scorer evaluations", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "evaluated-trajectory",
+      source_type = "vitals"
+    ),
+    data.frame(),
+    data.frame(),
+    evaluations = tibble::tibble(
+      trajectory_id = rep("evaluated-trajectory", 2L),
+      evaluation_id = c("evaluation-epoch-1", "evaluation-epoch-2"),
+      scorer = rep("accuracy", 2L),
+      value = list(0.5, 0.75)
+    )
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    evidence <- as.character(output$scans_app_evidence)[[1L]]
+
+    expect_match(
+      evidence,
+      "<strong>accuracy[^<]*evaluation-epoch-1</strong>",
+      perl = TRUE
+    )
+    expect_match(
+      evidence,
+      "<strong>accuracy[^<]*evaluation-epoch-2</strong>",
+      perl = TRUE
+    )
+  })
+})
+
 test_that("scans app resolves loss ownership through turns and events", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
