@@ -18,15 +18,19 @@ parse_sources <- function(spec) {
   entries <- trimws(strsplit(spec, ";", fixed = TRUE)[[1]])
   entries <- entries[nzchar(entries)]
   if (length(entries) == 0) {
-    stop(
-      "Set SCANS_CONNECT_SOURCES to 'Label=<guid>;Label=<guid>'.",
-      call. = FALSE
+    cli::cli_abort(
+      "Set {.envvar SCANS_CONNECT_SOURCES} to {.code Label=<guid>;Label=<guid>}.",
     )
   }
-  parts <- regmatches(entries, regexec("^(.*?)\\s*=\\s*([0-9a-fA-F-]{36})$", entries))
-  bad <- vapply(parts, length, integer(1)) != 3L
+  parts <- regmatches(
+    entries,
+    regexec("^(.*?)\\s*=\\s*([0-9a-fA-F-]{36})$", entries)
+  )
+  bad <- lengths(parts) != 3L
   if (any(bad)) {
-    stop("Malformed SCANS_CONNECT_SOURCES entry: ", entries[bad][[1]], call. = FALSE)
+    cli::cli_abort(
+      "Malformed {.envvar SCANS_CONNECT_SOURCES} entry: {.val {entries[bad][[1]]}}.",
+    )
   }
   stats::setNames(
     vapply(parts, `[[`, character(1), 3L),
