@@ -20,7 +20,8 @@ ellmer applications, read from Connect's content observability store.
    own trajectory.
 4. **Packages reachable by Connect.** `scans` and `commons` are GitHub-only;
    either Connect can reach GitHub or mirror them to your package manager.
-5. An API key for a user with **editor** access to every source application.
+5. The deployment owner owns or collaborates on every source application.
+   Connect normally injects an ephemeral API key for that owner at runtime.
 
 ## Deploy
 
@@ -32,14 +33,15 @@ ellmer applications, read from Connect's content observability store.
 
 | Var | Value |
 |---|---|
-| `CONNECT_SERVER` | `https://<connect-host>` |
-| `CONNECT_API_KEY` | key with editor access to every source |
+| `CONNECT_SERVER` | injected by Connect; set only if `Applications.DefaultServerEnv` is disabled |
+| `CONNECT_API_KEY` | injected ephemeral owner key; set manually only if `Applications.DefaultAPIKeyEnv` is disabled |
 | `SCANS_CONNECT_SOURCES` | `Support assistant=<guid>;Research assistant=<guid>` |
 | `SCANS_CONNECT_N` | optional, default `100`; `all` for no limit |
 
-Then restrict viewers (the app reads with its own key, so anyone who can open
-it sees every configured conversation), give it a vanity URL, restart, and
-press **Reload traces**.
+Do not store a long-lived API key in Vars when Connect's default injection is
+enabled. Then restrict viewers (the app reads as its deployment owner, so
+anyone who can open it sees every configured conversation), give it a vanity
+URL, restart, and press **Reload traces**.
 
 Keep environment-specific deployment records out of the repo: `deploy/local/`
 is git-ignored for that purpose.

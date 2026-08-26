@@ -4,8 +4,9 @@
 # or more deployed applications, read lazily from Connect's trace store with
 # commons::trajectory_read(). Configure it entirely through Connect Vars:
 #
-#   CONNECT_SERVER          e.g. https://connect.example.com
-#   CONNECT_API_KEY         key for a user with editor access to every source
+#   CONNECT_SERVER          injected by Connect; configure only if disabled
+#   CONNECT_API_KEY         injected ephemeral deployment-owner key; the owner
+#                           must own or collaborate on every source
 #   SCANS_CONNECT_SOURCES   "Label=<guid>;Other label=<guid>" -- one entry per
 #                           application shown in the switcher
 #   SCANS_CONNECT_N         optional; max recent conversations per app
