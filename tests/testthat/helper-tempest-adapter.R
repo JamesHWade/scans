@@ -94,6 +94,7 @@ tempest_review_fixture <- function(transform = identity) {
       stage = "section_writing",
       attempt_id = "attempt-section-001",
       trace_id = "attempt-section-001",
+      deputy_binding = NULL,
       status = "succeeded",
       started_at = "2026-08-22T16:00:00.000Z",
       completed_at = "2026-08-22T16:00:09.000Z",
@@ -116,6 +117,7 @@ tempest_review_fixture <- function(transform = identity) {
       stage = "perspectives",
       attempt_id = "attempt-perspectives-001",
       trace_id = "attempt-perspectives-001",
+      deputy_binding = NULL,
       status = "succeeded",
       started_at = "2026-08-22T16:00:01.000Z",
       completed_at = "2026-08-22T16:00:10.000Z",
@@ -417,15 +419,6 @@ tempest_review_fixture <- function(transform = identity) {
       "correlated_with",
       "deputy_run",
       "deputy-run-002",
-      "correlation_only",
-      "correlation_id"
-    ),
-    join(
-      "stage_attempt",
-      "attempt-section-001",
-      "correlated_with",
-      "deputy_run",
-      "deputy-run-001",
       "correlation_only",
       "correlation_id"
     ),

@@ -141,7 +141,7 @@ test_that("Tempest deliberate omissions and bounded lanes become losses", {
       omitted = 1L
     )
     join <- getFromNamespace("tempest_trajectory_join", "tempest")
-    extra_joins <- lapply(2:235, function(index) {
+    extra_joins <- lapply(2:236, function(index) {
       join(
         "product",
         "research-run-001",
@@ -190,7 +190,7 @@ test_that("Tempest stage omissions leave product execution bounds unknown", {
       preserve_order = TRUE
     )
     join <- getFromNamespace("tempest_trajectory_join", "tempest")
-    extra_joins <- lapply(seq_len(234L), function(index) {
+    extra_joins <- lapply(seq_len(235L), function(index) {
       join(
         "stage_attempt",
         sprintf("attempt-truncated-%03d", index),
