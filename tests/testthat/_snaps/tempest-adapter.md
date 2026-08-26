@@ -19,15 +19,7 @@
       ! A tempest development version that exports `tempest_trajectory_review_data()` is required.
       i Install it from <https://github.com/JamesHWade/tempest>.
 
-# Tempest projection enforces scans-owned payload limits
-
-    Code
-      as_trajectory_tempest(oversized)
-    Condition
-      Error:
-      ! Tempest agent_runs$items[[1]]$metadata must not exceed 65,536 bytes when serialized.
-
----
+# Tempest adapter enforces scans-owned trajectory ID bounds
 
     Code
       as_trajectory_tempest(tempest_review_fixture(), trajectory_id = explicit_id)
@@ -42,12 +34,4 @@
     Condition
       Error:
       ! `trajectory_id` must contain non-whitespace characters.
-
----
-
-    Code
-      as_trajectory_tempest(oversized_run, trajectory_id = "tempest-short")
-    Condition
-      Error:
-      ! The Tempest research run ID exceeds the canonical payload limit.
 

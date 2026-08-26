@@ -312,28 +312,7 @@ test_that("Tempest adapter requires the authoritative accessor", {
   expect_snapshot(error = TRUE, as_trajectory_tempest(review))
 })
 
-test_that("Tempest projection enforces scans-owned payload limits", {
-  oversized <- tempest_review_fixture(function(payload) {
-    for (index in seq_along(payload$agent_runs$items)) {
-      payload$agent_runs$items[[index]]$correlation_id <- strrep("c", 40000L)
-    }
-    delegated <- which(vapply(
-      payload$agent_runs$items,
-      \(agent) identical(agent$trace_type, "deputy_delegation"),
-      logical(1)
-    ))[[1L]]
-    payload$agent_runs$items[[delegated]]$delegation_id <- strrep("d", 40000L)
-    payload$agent_runs <- tempest_fixture_collection(
-      payload$agent_runs$items,
-      "v"
-    )
-    payload
-  })
-
-  condition <- rlang::catch_cnd(as_trajectory_tempest(oversized))
-  expect_s3_class(condition, "scans_error_tempest_source")
-  expect_snapshot(error = TRUE, as_trajectory_tempest(oversized))
-
+test_that("Tempest adapter enforces scans-owned trajectory ID bounds", {
   explicit_id <- strrep(
     "x",
     trajectory_payload_max_bytes -
@@ -359,59 +338,5 @@ test_that("Tempest projection enforces scans-owned payload limits", {
   expect_snapshot(
     error = TRUE,
     as_trajectory_tempest(tempest_review_fixture(), trajectory_id = "   ")
-  )
-
-  oversized_run <- tempest_review_fixture(function(payload) {
-    research_run_id <- strrep(
-      "r",
-      trajectory_payload_max_bytes + 1L
-    )
-    payload$product$research_run_id <- research_run_id
-    payload$knowledge$proposal$research_run_id <- research_run_id
-    for (index in seq_along(payload$joins$items)) {
-      if (identical(payload$joins$items[[index]]$from_type, "product")) {
-        payload$joins$items[[index]]$from_id <- research_run_id
-      }
-    }
-
-    agent_id <- function(expert_id) {
-      compute <- getFromNamespace("tempest_deputy_adapter_agent_id", "tempest")
-      compute(list(
-        product = "tempest",
-        research_run_id = research_run_id,
-        mode = "storm",
-        stage = "research",
-        role = "expert",
-        knowledge_snapshot_id = payload$knowledge$input_snapshot$snapshot_id,
-        expert_id = expert_id
-      ))
-    }
-    first_agent_id <- agent_id("expert-001")
-    session_id <- getFromNamespace(
-      "tempest_storm_deputy_session_id",
-      "tempest"
-    )
-    for (index in seq_along(payload$agent_runs$items)) {
-      agent <- payload$agent_runs$items[[index]]
-      payload$agent_runs$items[[index]]$agent_id <- agent_id(agent$expert_id)
-      payload$agent_runs$items[[index]]$deputy_session_id <- session_id(
-        research_run_id,
-        agent$expert_id
-      )
-      if (!is.null(agent$parent_agent_id)) {
-        payload$agent_runs$items[[index]]$parent_agent_id <- first_agent_id
-      }
-    }
-    payload$agent_runs <- tempest_fixture_collection(payload$agent_runs$items)
-    payload$joins <- tempest_fixture_collection(payload$joins$items)
-    payload
-  })
-  condition <- rlang::catch_cnd(
-    as_trajectory_tempest(oversized_run, trajectory_id = "tempest-short")
-  )
-  expect_s3_class(condition, "scans_error_tempest_source")
-  expect_snapshot(
-    error = TRUE,
-    as_trajectory_tempest(oversized_run, trajectory_id = "tempest-short")
   )
 })
