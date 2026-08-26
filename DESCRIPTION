@@ -37,7 +37,7 @@ Remotes:
     posit-dev/commons/pkg-r,
     JamesHWade/deputy@89089c90ddeb668462422b14a4de7a8395eefdc8,
     JamesHWade/dsprrr@db28eae2235ab15c4f5c1c9794118d127eabbdd7,
-    JamesHWade/tempest@9aed94f6dd4253d93fb5cbca351f6e719265f39b
+    JamesHWade/tempest@87018b62fe2fdf632f33ef14b4d6fdf450d78253
 Config/roxygen2/version: 8.0.0
 Config/testthat/edition: 3
 Config/testthat/parallel: true
