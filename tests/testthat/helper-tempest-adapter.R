@@ -135,6 +135,52 @@ tempest_review_fixture <- function(transform = identity) {
       execution_path = "exploratory",
       support_status = "unknown",
       publication_allowed = FALSE
+    ),
+    list(
+      stage = "extract_claims",
+      attempt_id = "attempt-extract-001",
+      trace_id = "attempt-extract-001",
+      deputy_binding = NULL,
+      status = "succeeded",
+      started_at = "2026-08-22T16:00:02.000Z",
+      completed_at = "2026-08-22T16:00:08.000Z",
+      output = list(
+        kind = "workspace_claims",
+        count = 1L,
+        digest = tempest_fixture_digest("n")
+      ),
+      program_artifact_id = tempest_fixture_digest("d"),
+      governed_procedure_revision_id = NULL,
+      failure_class = NULL,
+      fallback_policy = "fail_closed",
+      fallback_implementation = NULL,
+      fallback_taken = FALSE,
+      execution_path = "grounded",
+      support_status = "unknown",
+      publication_allowed = FALSE
+    ),
+    list(
+      stage = "verify_claim_support",
+      attempt_id = "attempt-verify-001",
+      trace_id = "attempt-verify-001",
+      deputy_binding = NULL,
+      status = "succeeded",
+      started_at = "2026-08-22T16:00:03.000Z",
+      completed_at = "2026-08-22T16:00:09.000Z",
+      output = list(
+        kind = "claim_supports",
+        count = 1L,
+        digest = tempest_fixture_digest("o")
+      ),
+      program_artifact_id = tempest_fixture_digest("e"),
+      governed_procedure_revision_id = NULL,
+      failure_class = NULL,
+      fallback_policy = "fail_closed",
+      fallback_implementation = NULL,
+      fallback_taken = FALSE,
+      execution_path = "grounded",
+      support_status = "verified",
+      publication_allowed = TRUE
     )
   )
   agents <- list(
@@ -177,6 +223,7 @@ tempest_review_fixture <- function(transform = identity) {
   )
   evidence <- list(
     list(record_type = "claim", record_id = "claim-001"),
+    list(record_type = "claim_support", record_id = "support-001"),
     list(record_type = "evidence_span", record_id = "span-001")
   )
   findings <- list(
@@ -197,6 +244,18 @@ tempest_review_fixture <- function(transform = identity) {
       severity = "warning",
       ref_type = "stage_attempt",
       ref_id = "attempt-perspectives-001"
+    ),
+    list(
+      code = "support_unverified",
+      severity = "warning",
+      ref_type = "stage_attempt",
+      ref_id = "attempt-extract-001"
+    ),
+    list(
+      code = "publication_blocked",
+      severity = "warning",
+      ref_type = "stage_attempt",
+      ref_id = "attempt-extract-001"
     )
   )
   revision <- list(
@@ -316,6 +375,24 @@ tempest_review_fixture <- function(transform = identity) {
       c("research_run_id", "attempt_id")
     ),
     join(
+      "product",
+      "research-run-001",
+      "contains",
+      "stage_attempt",
+      "attempt-extract-001",
+      "authority_validated",
+      c("research_run_id", "attempt_id")
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "contains",
+      "stage_attempt",
+      "attempt-verify-001",
+      "authority_validated",
+      c("research_run_id", "attempt_id")
+    ),
+    join(
       "stage_attempt",
       "attempt-section-001",
       "executed_as",
@@ -347,6 +424,36 @@ tempest_review_fixture <- function(transform = identity) {
     ),
     join(
       "stage_attempt",
+      "attempt-extract-001",
+      "executed_as",
+      "program_artifact",
+      tempest_fixture_digest("d"),
+      "authority_validated",
+      c(
+        "stage",
+        "program_artifact_id",
+        "contract_version",
+        "evaluator_id",
+        "evaluator_version"
+      )
+    ),
+    join(
+      "stage_attempt",
+      "attempt-verify-001",
+      "executed_as",
+      "program_artifact",
+      tempest_fixture_digest("e"),
+      "authority_validated",
+      c(
+        "stage",
+        "program_artifact_id",
+        "contract_version",
+        "evaluator_id",
+        "evaluator_version"
+      )
+    ),
+    join(
+      "stage_attempt",
       "attempt-section-001",
       "contains",
       "output_digest",
@@ -360,6 +467,24 @@ tempest_review_fixture <- function(transform = identity) {
       "contains",
       "product_field",
       "title",
+      "exact_identity",
+      c("output_reference.kind", "output_reference.ids")
+    ),
+    join(
+      "stage_attempt",
+      "attempt-extract-001",
+      "contains",
+      "claim",
+      "claim-001",
+      "exact_identity",
+      c("output_reference.kind", "output_reference.ids")
+    ),
+    join(
+      "stage_attempt",
+      "attempt-verify-001",
+      "contains",
+      "claim_support",
+      "support-001",
       "exact_identity",
       c("output_reference.kind", "output_reference.ids")
     ),
@@ -387,6 +512,15 @@ tempest_review_fixture <- function(transform = identity) {
       "contains",
       "evidence_span",
       "span-001",
+      "authority_validated",
+      c("research_run_id", "record_id")
+    ),
+    join(
+      "product",
+      "research-run-001",
+      "contains",
+      "claim_support",
+      "support-001",
       "authority_validated",
       c("research_run_id", "record_id")
     ),

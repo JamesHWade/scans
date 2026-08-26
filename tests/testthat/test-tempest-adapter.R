@@ -50,7 +50,15 @@ test_that("Tempest source order and canonical records remain deterministic", {
     review
   )$agent_runs$items
 
-  expect_identical(stages$name, c("section_writing", "perspectives"))
+  expect_identical(
+    stages$name,
+    c(
+      "section_writing",
+      "perspectives",
+      "extract_claims",
+      "verify_claim_support"
+    )
+  )
   expect_identical(
     vapply(agents$metadata, `[[`, character(1), "deputy_run_id"),
     vapply(source_agents, `[[`, character(1), "deputy_run_id")
@@ -110,7 +118,7 @@ test_that("Tempest authority, identities, and findings remain distinct", {
   expect_identical(revisions$name, "Claim")
   expect_identical(
     vapply(evidence$value, `[[`, character(1), "record_id"),
-    c("claim-001", "span-001")
+    c("claim-001", "span-001", "support-001")
   )
   expect_setequal(
     finding$name,
@@ -124,7 +132,14 @@ test_that("Tempest authority, identities, and findings remain distinct", {
     finding$status[[match("support_unverified", finding$name)]],
     "warning"
   )
-  expect_true(all(finding$parent_event_id == stage$event_id))
+  extraction <- events[events$name == "extract_claims", ][1L, ]
+  expect_true(all(
+    finding$parent_event_id %in% c(stage$event_id, extraction$event_id)
+  ))
+  expect_true(all(
+    finding$parent_event_id[finding$name == "exploratory_execution"] ==
+      stage$event_id
+  ))
 })
 
 test_that("Tempest deliberate omissions and bounded lanes become losses", {
@@ -141,7 +156,7 @@ test_that("Tempest deliberate omissions and bounded lanes become losses", {
       omitted = 1L
     )
     join <- getFromNamespace("tempest_trajectory_join", "tempest")
-    extra_joins <- lapply(2:236, function(index) {
+    extra_joins <- lapply(2:229, function(index) {
       join(
         "product",
         "research-run-001",
@@ -190,7 +205,7 @@ test_that("Tempest stage omissions leave product execution bounds unknown", {
       preserve_order = TRUE
     )
     join <- getFromNamespace("tempest_trajectory_join", "tempest")
-    extra_joins <- lapply(seq_len(235L), function(index) {
+    extra_joins <- lapply(seq_len(228L), function(index) {
       join(
         "stage_attempt",
         sprintf("attempt-truncated-%03d", index),
