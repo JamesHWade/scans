@@ -6,3 +6,4 @@
 ^[.]?air[.]toml$
 ^\.vscode$
 ^jarl\.toml$
+^deploy$
