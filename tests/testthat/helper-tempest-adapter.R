@@ -4,6 +4,32 @@ tempest_fixture_digest <- function(letter) {
   paste0("sha256:", strrep(letter, 64L))
 }
 
+tempest_fixture_snapshot <- function(
+  store_id,
+  schema_build_digest,
+  commit_order,
+  batch_id,
+  committed_at
+) {
+  snapshot <- list(
+    schema_version = 1L,
+    snapshot_id = "",
+    store_id = store_id,
+    store_format_version = "3.0.0",
+    schema_build_digest = schema_build_digest,
+    commit_order = as.double(commit_order),
+    batch_id = batch_id,
+    committed_at = committed_at,
+    history_complete = TRUE
+  )
+  digest <- getFromNamespace(
+    "tempest_trajectory_graft_snapshot_digest",
+    "tempest"
+  )
+  snapshot$snapshot_id <- digest(snapshot)
+  snapshot
+}
+
 tempest_fixture_collection <- function(
   items,
   letter = "a",
@@ -74,6 +100,13 @@ tempest_review_fixture <- function(transform = identity) {
     "graft-store-20260822T160000.000000-",
     "abcdefghijklmnopqrst"
   )
+  input_snapshot <- tempest_fixture_snapshot(
+    store_id,
+    schema_build_digest,
+    1,
+    "graft:INPUT001",
+    "2026-08-22T15:59:00.000000Z"
+  )
   agent_id <- function(expert_id) {
     compute <- getFromNamespace("tempest_deputy_adapter_agent_id", "tempest")
     compute(list(
@@ -82,7 +115,7 @@ tempest_review_fixture <- function(transform = identity) {
       mode = "storm",
       stage = "research",
       role = "expert",
-      knowledge_snapshot_id = "snapshot-001",
+      knowledge_snapshot_id = input_snapshot$snapshot_id,
       expert_id = expert_id
     ))
   }
@@ -281,17 +314,7 @@ tempest_review_fixture <- function(transform = identity) {
   inserted_counts$Claim <- 1L
   observed_counts$Claim <- 1L
   knowledge <- list(
-    input_snapshot = list(
-      schema_version = 1L,
-      snapshot_id = "snapshot-001",
-      store_id = "store-001",
-      store_format_version = "1",
-      schema_build_digest = schema_build_digest,
-      commit_order = 1,
-      batch_id = "batch-input-001",
-      committed_at = "2026-08-22T15:59:00.000Z",
-      history_complete = TRUE
-    ),
+    input_snapshot = input_snapshot,
     promotion_state = "accepted",
     proposal = list(
       bundle_id = tempest_fixture_digest("b"),
@@ -314,16 +337,12 @@ tempest_review_fixture <- function(transform = identity) {
       batch_id = "graft:PLAN001",
       store_id = store_id,
       schema_build_digest = schema_build_digest,
-      snapshot = list(
-        schema_version = 1L,
-        snapshot_id = tempest_fixture_digest("d"),
-        store_id = store_id,
-        store_format_version = "3.0.0",
-        schema_build_digest = schema_build_digest,
-        commit_order = 2,
-        batch_id = "graft:PLAN001",
-        committed_at = "2026-08-22T16:01:00.000Z",
-        history_complete = TRUE
+      snapshot = tempest_fixture_snapshot(
+        store_id,
+        schema_build_digest,
+        2,
+        "graft:PLAN001",
+        "2026-08-22T16:01:00.000000Z"
       ),
       counts = list(
         inserted = inserted_counts,
@@ -532,7 +551,7 @@ tempest_review_fixture <- function(transform = identity) {
       "research-run-001",
       "read_from",
       "graft_snapshot",
-      "snapshot-001",
+      input_snapshot$snapshot_id,
       "authority_validated",
       c("snapshot_id", "store_id", "schema_build_digest", "commit_order")
     ),

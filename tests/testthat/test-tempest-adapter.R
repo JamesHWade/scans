@@ -382,7 +382,7 @@ test_that("Tempest projection enforces scans-owned payload limits", {
         mode = "storm",
         stage = "research",
         role = "expert",
-        knowledge_snapshot_id = "snapshot-001",
+        knowledge_snapshot_id = payload$knowledge$input_snapshot$snapshot_id,
         expert_id = expert_id
       ))
     }
