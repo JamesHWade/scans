@@ -300,7 +300,10 @@ tempest_review_fixture <- function(transform = identity) {
       claim_selection = list(
         kind = "claim_ids",
         count = 1L,
-        digest = tempest_fixture_digest("o")
+        digest = getFromNamespace(
+          "tempest_trajectory_claim_selection_digest",
+          "tempest"
+        )("claim-001")
       )
     ),
     acceptance = list(
@@ -457,7 +460,7 @@ tempest_review_fixture <- function(transform = identity) {
       "attempt-section-001",
       "contains",
       "output_digest",
-      "section-output-001",
+      tempest_fixture_digest("k"),
       "exact_identity",
       c("output_reference.kind", "output_reference.ids")
     ),
