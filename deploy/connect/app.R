@@ -19,7 +19,7 @@ parse_sources <- function(spec) {
   entries <- entries[nzchar(entries)]
   if (length(entries) == 0) {
     cli::cli_abort(
-      "Set {.envvar SCANS_CONNECT_SOURCES} to {.code Label=<guid>;Label=<guid>}.",
+      "Set {.envvar SCANS_CONNECT_SOURCES} to {.code Label=<guid>;Label=<guid>}."
     )
   }
   parts <- regmatches(
@@ -29,7 +29,7 @@ parse_sources <- function(spec) {
   bad <- lengths(parts) != 3L
   if (any(bad)) {
     cli::cli_abort(
-      "Malformed {.envvar SCANS_CONNECT_SOURCES} entry: {.val {entries[bad][[1]]}}.",
+      "Malformed {.envvar SCANS_CONNECT_SOURCES} entry: {.val {entries[bad][[1]]}}."
     )
   }
   stats::setNames(
