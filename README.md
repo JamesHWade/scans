@@ -189,6 +189,79 @@ ambiguous correlation, suspicious tool loops, failed events, and causal error
 chains. Every finding retains the trajectory and event identifiers that support
 it.
 
+## Explore trajectories with the scans app
+
+The scans app turns the same detached bundle into a read-only Shiny app. Use its
+left sidebar to search and filter trajectories, browse canonical turns and
+events in the main canvas, and inspect linked findings, evaluations, adapter
+losses, and source context in the evidence rail.
+
+```r
+scans_app(bundle)
+```
+
+Pass a named list to review more than one application. Entries may be detached
+bundles or zero-argument loader functions. Loaders run only when their
+application is first selected in a browser session, and the **Reload traces**
+button fetches that application again.
+
+```r
+scans_app(list(
+  "Support assistant" = support_bundle,
+  "Research assistant" = function() load_research_bundle()
+))
+```
+
+The scans app computes the built-in deterministic scans when each snapshot is
+first loaded. It does not call a model, run tools, modify a bundle, or infer
+missing source facts. The app depends on the optional {shiny}, {bslib}, and
+{htmltools} packages.
+
+### Deploy a multi-application reviewer to Posit Connect
+
+When [content observability](https://docs.posit.co/connect/user/content-settings/#content-observability)
+is enabled, Connect retains the OpenTelemetry traces emitted by compatible R
+libraries. `{commons}` already reconstructs its logged `ellmer` conversations
+from that store, so the review app can read the native traces directly. Use a
+named allow-list of content GUIDs in `app.R`:
+
+```r
+library(scans)
+
+scans_app_connect(c(
+  "Support assistant" = "11111111-1111-4111-8111-111111111111",
+  "Research assistant" = "22222222-2222-4222-8222-222222222222"
+))
+```
+
+Each application is fetched only when selected, cached for that browser
+session, and fetched again by **Reload traces**. The default keeps the 100 most
+recent conversations from the seven-day window ending at each load; use `n`,
+`from`, and `to` to choose another window. Supplying a bound as `NULL`
+explicitly leaves that side open. `{commons}` isolates Connect's current
+content-wide trace endpoint and its legacy per-job fallback; scans requires the
+current trajectory reader instead of duplicating that version-sensitive
+transport.
+
+The Connect administrator must enable OpenTelemetry and allow content
+instrumentation. Turn on **Monitoring > Content Observability** for every source
+application, redeploy with compatible versions of
+[ellmer and otelsdk](https://docs.posit.co/connect/user/traces/compatible-libraries.html),
+and run the commons agent with trajectory logging enabled. The reviewer uses
+Connect's injected `CONNECT_SERVER` and ephemeral owner `CONNECT_API_KEY`; its
+owner must own or collaborate on every configured source application.
+
+Only content GUIDs are accepted. All sources therefore stay on the hosting
+`CONNECT_SERVER`; a content URL cannot redirect the injected API key to another
+server.
+
+That key acts as the deployment owner, not the person currently viewing the
+review app. Restrict the reviewer app to people permitted to inspect every
+configured application's potentially sensitive prompts, responses, tool
+arguments, and results. Pins and custom lazy loaders remain useful as explicit
+offline import/export paths, but they are no longer the primary Connect
+transport.
+
 ## Construct a bundle directly
 
 Adapters normalize other sources into the same validated relational boundary.
