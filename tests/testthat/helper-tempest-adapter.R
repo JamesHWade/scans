@@ -53,7 +53,7 @@ tempest_fixture_programs <- function() {
         stage = stages[[index]],
         contract_version = 1L,
         program_artifact_id = tempest_fixture_digest(letters[[index]]),
-        evaluator_id = "fixture-evaluator",
+        evaluator_id = paste0("tempest::evaluator/", stages[[index]]),
         evaluator_version = "1",
         governed_procedure_ref = NULL
       )

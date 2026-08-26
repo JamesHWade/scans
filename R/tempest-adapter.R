@@ -58,6 +58,12 @@ as_trajectory_tempest <- function(
       call = call
     )
   }
+  metadata <- ellmer_check_metadata_paths(
+    metadata,
+    "metadata$application",
+    call,
+    "scans_error_tempest_argument"
+  )
 
   review <- tempest_review_snapshot(x, call)
   tempest_review_validate_run_id(review$product$research_run_id, call)

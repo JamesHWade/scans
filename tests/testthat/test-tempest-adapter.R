@@ -263,6 +263,20 @@ test_that("Tempest caller metadata and source locators are sanitized", {
   )
 })
 
+test_that("Tempest caller metadata paths are bounded before sanitizing", {
+  oversized <- stats::setNames(
+    list(list(api_key = "secret")),
+    strrep("x", 65530L)
+  )
+
+  condition <- rlang::catch_cnd(
+    as_trajectory_tempest(tempest_review_fixture(), metadata = oversized)
+  )
+
+  expect_s3_class(condition, "scans_error_tempest_argument")
+  expect_match(conditionMessage(condition), "paths must not exceed")
+})
+
 test_that("Tempest adapter accepts only authoritative Tempest reviews", {
   review <- tempest_review_fixture()
   lookalike <- S7::props(review)
@@ -285,8 +299,19 @@ test_that("Tempest adapter requires the authoritative accessor", {
 
 test_that("Tempest projection enforces scans-owned payload limits", {
   oversized <- tempest_review_fixture(function(payload) {
-    payload$programs$perspectives$evaluator_id <- strrep("e", 40000L)
-    payload$programs$perspectives$evaluator_version <- strrep("v", 40000L)
+    for (index in seq_along(payload$agent_runs$items)) {
+      payload$agent_runs$items[[index]]$correlation_id <- strrep("c", 40000L)
+    }
+    delegated <- which(vapply(
+      payload$agent_runs$items,
+      \(agent) identical(agent$trace_type, "deputy_delegation"),
+      logical(1)
+    ))[[1L]]
+    payload$agent_runs$items[[delegated]]$delegation_id <- strrep("d", 40000L)
+    payload$agent_runs <- tempest_fixture_collection(
+      payload$agent_runs$items,
+      "v"
+    )
     payload
   })
 

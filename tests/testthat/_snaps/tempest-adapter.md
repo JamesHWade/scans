@@ -25,7 +25,7 @@
       as_trajectory_tempest(oversized)
     Condition
       Error:
-      ! Tempest programs$perspectives$value must not exceed 65,536 bytes when serialized.
+      ! Tempest agent_runs$items[[1]]$metadata must not exceed 65,536 bytes when serialized.
 
 ---
 
