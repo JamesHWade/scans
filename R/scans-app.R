@@ -237,12 +237,62 @@ scans_app_sources <- function(x, call = rlang::caller_env()) {
           .envir = environment()
         )
       }
+      if (is.function(value)) {
+        scans_app_check_loader(value, label, call)
+      }
       scans_app_source(label, value)
     },
     labels,
     x
   )
   scans_app_source_catalog(unname(sources))
+}
+
+scans_app_check_loader <- function(loader, label, call) {
+  loader_formals <- formals(loader)
+  if (is.primitive(loader)) {
+    loader_signature <- args(loader)
+    if (!is.null(loader_signature)) {
+      loader_formals <- formals(loader_signature)
+    }
+  }
+  if (is.primitive(loader) && is.null(loader_formals)) {
+    scans_abort(
+      c(
+        "Application source {.val {label}} loader must be callable without arguments.",
+        "x" = "Its argument list could not be inspected.",
+        "i" = "Wrap it in an ordinary zero-argument function."
+      ),
+      class = "scans_error_app_source",
+      call = call,
+      .envir = environment()
+    )
+  }
+
+  required <- names(loader_formals)[vapply(
+    loader_formals,
+    rlang::is_missing,
+    logical(1)
+  )]
+  required <- setdiff(required, "...")
+  if (length(required) == 0L) {
+    return(invisible(NULL))
+  }
+
+  detail <- if (length(required) == 1L) {
+    paste0("Required argument: ", required, ".")
+  } else {
+    paste0("Required arguments: ", paste(required, collapse = ", "), ".")
+  }
+  scans_abort(
+    c(
+      "Application source {.val {label}} loader must be callable without arguments.",
+      "x" = detail
+    ),
+    class = "scans_error_app_source",
+    call = call,
+    .envir = environment()
+  )
 }
 
 scans_app_check_labels <- function(labels, class, call) {
@@ -1530,6 +1580,10 @@ scans_app_context_ui <- function(info) {
     "Parent" = info$parent_trajectory_id[[1L]],
     "Source" = info$source_type[[1L]],
     "Source ID" = info$source_id[[1L]],
+    "Source URI" = info$source_uri[[1L]],
+    "Task" = info$task_id[[1L]],
+    "Sample" = info$sample_id[[1L]],
+    "Epoch" = info$epoch[[1L]],
     "Agent" = info$agent[[1L]],
     "Model" = info$model[[1L]],
     "Started" = scans_app_time_string(info$started_at[[1L]]),
@@ -1537,7 +1591,9 @@ scans_app_context_ui <- function(info) {
     "Error" = info$error[[1L]]
   )
   fields <- fields[!is.na(fields) & nzchar(fields)]
-  if (length(fields) == 0L) {
+  metadata <- info$metadata[[1L]]
+  has_metadata <- is.list(metadata) && length(metadata) > 0L
+  if (length(fields) == 0L && !has_metadata) {
     return(scans_app_empty_ui(
       "No additional context is recorded.",
       compact = TRUE
@@ -1554,7 +1610,17 @@ scans_app_context_ui <- function(info) {
       },
       names(fields),
       fields
-    ))
+    )),
+    if (has_metadata) {
+      htmltools::tagList(
+        htmltools::tags$dt("Metadata"),
+        htmltools::tags$dd(
+          htmltools::tags$pre(
+            htmltools::tags$code(scans_app_value_text(metadata))
+          )
+        )
+      )
+    }
   )
 }
 

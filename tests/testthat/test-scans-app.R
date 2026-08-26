@@ -263,6 +263,38 @@ test_that("scans app requires an unambiguous application catalog", {
   expect_snapshot(scans_app(list("App" = 1)), error = TRUE)
 })
 
+test_that("scans app rejects loaders that require arguments", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  expect_snapshot(
+    scans_app(list(
+      "Broken deployment" = function(content_guid) NULL
+    )),
+    error = TRUE
+  )
+
+  app <- scans_app(list(
+    "Configurable deployment" = function(limit = 100L, ...) {
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  expect_s3_class(app, "shiny.appobj")
+
+  zero_argument_app <- scans_app(list(
+    "Zero-argument deployment" = function() {
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  expect_s3_class(zero_argument_app, "shiny.appobj")
+
+  expect_snapshot(
+    scans_app(list("Primitive deployment" = `if`)),
+    error = TRUE
+  )
+})
+
 test_that("scans app enforces optional dependency minimum versions", {
   expect_error(
     scans_app_check_packages(
@@ -665,6 +697,50 @@ test_that("scans app surfaces trajectory-level errors in context", {
       "Trajectory failed before recording an event",
       fixed = TRUE
     )
+  })
+})
+
+test_that("scans app renders canonical source context and bounded metadata", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = "trajectory-context",
+      source_type = "vitals",
+      source_uri = "https://connect.example.com/content/fixture",
+      task_id = "task-fixture",
+      sample_id = "sample-fixture",
+      epoch = 3L,
+      metadata = list(list(
+        dataset = "golden-set",
+        unsafe = "<script>alert('unsafe')</script>",
+        bounded = paste0(strrep("x", 5000L), "TAIL_SENTINEL")
+      ))
+    ),
+    data.frame(),
+    data.frame()
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    evidence <- as.character(output$scans_app_evidence)[[1L]]
+
+    expect_match(evidence, "Source URI", fixed = TRUE)
+    expect_match(
+      evidence,
+      "https://connect.example.com/content/fixture",
+      fixed = TRUE
+    )
+    expect_match(evidence, "Task[\\s\\S]*task-fixture", perl = TRUE)
+    expect_match(evidence, "Sample[\\s\\S]*sample-fixture", perl = TRUE)
+    expect_match(evidence, "Epoch[\\s\\S]*3", perl = TRUE)
+    expect_match(evidence, "Metadata", fixed = TRUE)
+    expect_match(evidence, "golden-set", fixed = TRUE)
+    expect_match(evidence, "&lt;script&gt;", fixed = TRUE)
+    expect_no_match(evidence, "<script>", fixed = TRUE)
+    expect_no_match(evidence, "TAIL_SENTINEL", fixed = TRUE)
   })
 })
 
