@@ -12,6 +12,10 @@
 #   SCANS_CONNECT_N         optional; max recent conversations per app
 #                           (default 100, "all" for no limit)
 
+# shiny and bslib are only Suggests of scans; attaching them here makes
+# rsconnect / Posit Publisher bundle them into the deployment.
+library(shiny)
+library(bslib)
 library(scans)
 library(commons)
 
