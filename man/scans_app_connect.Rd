@@ -9,7 +9,8 @@ scans_app_connect(
   n = 100L,
   from = NULL,
   to = NULL,
-  reader = c("otel", "commons")
+  reader = c("otel", "commons"),
+  annotations = NULL
 )
 }
 \arguments{
@@ -27,6 +28,9 @@ explicitly to leave that side of the window open.}
 
 \item{reader}{Which trace reader to use: \code{"otel"} (the default) for this
 package's native reader, or \code{"commons"} for \code{commons::trajectory_read()}.}
+
+\item{annotations}{Optional \code{\link[=scans_annotations]{scans_annotations()}} store, forwarded to
+\code{\link[=scans_app]{scans_app()}}.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.

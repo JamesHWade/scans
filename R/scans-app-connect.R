@@ -24,6 +24,8 @@
 #'   `CONNECT_SERVER` that supplies the review app's API key.
 #' @param n The maximum number of recent conversations to read per application.
 #'   The default is 100. Use `NULL` to read all available conversations.
+#' @param annotations Optional [scans_annotations()] store, forwarded to
+#'   [scans_app()].
 #' @param reader Which trace reader to use: `"otel"` (the default) for this
 #'   package's native reader, or `"commons"` for `commons::trajectory_read()`.
 #' @param from,to Optional lower-inclusive and upper-exclusive activity bounds
@@ -46,7 +48,8 @@ scans_app_connect <- function(
   n = 100L,
   from = NULL,
   to = NULL,
-  reader = c("otel", "commons")
+  reader = c("otel", "commons"),
+  annotations = NULL
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
@@ -55,15 +58,18 @@ scans_app_connect <- function(
   if (identical(reader, "commons")) {
     scans_app_connect_check_package()
   }
-  scans_app(scans_app_connect_loaders(
-    x,
-    n,
-    from,
-    to,
-    default_from,
-    default_to,
-    reader = reader
-  ))
+  scans_app(
+    annotations = annotations,
+    x = scans_app_connect_loaders(
+      x,
+      n,
+      from,
+      to,
+      default_from,
+      default_to,
+      reader = reader
+    )
+  )
 }
 
 scans_app_connect_loaders <- function(

@@ -1,4 +1,4 @@
-scans_app_server <- function(sources) {
+scans_app_server <- function(sources, annotations = NULL) {
   sources <- scans_app_runtime_sources(sources)
 
   function(input, output, session) {
@@ -28,6 +28,9 @@ scans_app_server <- function(sources) {
       scans_app_reload_button()
     })
 
+    # A failed load is kept, not discarded. Swallowing it renders an empty app
+    # with nothing in the log, which reads as "this application has no
+    # conversations" when the truth is that reading them failed.
     active <- shiny::reactive({
       revision()
       label <- application()
@@ -35,17 +38,150 @@ scans_app_server <- function(sources) {
         return(get(label, envir = cache, inherits = FALSE))
       }
       source <- active_source()
-      result <- list(
-        data = tryCatch(
-          scans_app_load_source(source),
-          error = \(...) NULL
+      result <- if (!is.null(source$data)) {
+        # Already-derived tables, as supplied internally; there is no bundle
+        # to re-scan, so the scan selection does not apply to this source.
+        list(bundle = NULL, data = source$data, error = NULL)
+      } else {
+        tryCatch(
+          list(
+            bundle = scans_app_load_source(source),
+            data = NULL,
+            error = NULL
+          ),
+          error = function(cnd) {
+            list(bundle = NULL, data = NULL, error = conditionMessage(cnd))
+          }
         )
-      )
+      }
       assign(label, result, envir = cache)
       result
     })
 
-    data <- shiny::reactive(active()$data)
+    scan_config <- shiny::reactive({
+      scans_app_scan_config(
+        scans = input$scans_app_scans %||% character(),
+        repeat_threshold = scans_app_threshold(
+          input$scans_app_repeat_threshold,
+          2L
+        ),
+        loop_threshold = scans_app_threshold(
+          input$scans_app_loop_threshold,
+          3L
+        )
+      )
+    })
+
+    # Findings are derived from the cached bundle, so changing the scan
+    # selection re-scans in memory and never refetches traces.
+    data <- shiny::reactive({
+      current <- active()
+      if (!is.null(current$data)) {
+        return(current$data)
+      }
+      if (is.null(current$bundle)) {
+        return(NULL)
+      }
+      scans_app_data(current$bundle, scan_config())
+    })
+
+    output$scans_app_load_error <- shiny::renderUI({
+      message <- active()$error
+      if (is.null(message)) {
+        return(NULL)
+      }
+      scans_app_source_error_ui(application(), message)
+    })
+
+    annotation_revision <- shiny::reactiveVal(0L)
+    annotation_status <- shiny::reactiveVal("")
+
+    selected_trajectory_id <- shiny::reactive({
+      current <- data()
+      index <- selected()
+      if (is.null(current) || is.null(index)) {
+        return(NULL)
+      }
+      current$info$trajectory_id[[index]]
+    })
+
+    shiny::observeEvent(
+      input$scans_app_annotation_save,
+      ignoreInit = TRUE,
+      {
+        if (is.null(annotations)) {
+          return()
+        }
+        id <- selected_trajectory_id()
+        if (is.null(id)) {
+          annotation_status("Select a trajectory first.")
+          return()
+        }
+        written <- tryCatch(
+          {
+            annotations$append(
+              trajectory_id = id,
+              label = input$scans_app_annotation_label,
+              note = input$scans_app_annotation_note,
+              author = annotations_default_author(session)
+            )
+            TRUE
+          },
+          error = function(cnd) {
+            annotation_status(conditionMessage(cnd))
+            FALSE
+          }
+        )
+        if (!isTRUE(written)) {
+          return()
+        }
+        shiny::updateTextAreaInput(
+          session,
+          "scans_app_annotation_note",
+          value = ""
+        )
+        annotation_status("Saved.")
+        annotation_revision(annotation_revision() + 1L)
+      }
+    )
+
+    output$scans_app_annotation_status <- shiny::renderText(annotation_status())
+
+    output$scans_app_annotation_log <- shiny::renderUI({
+      if (is.null(annotations)) {
+        return(NULL)
+      }
+      annotation_revision()
+      id <- selected_trajectory_id()
+      if (is.null(id)) {
+        return(scans_app_empty_ui("Select a trajectory to annotate it."))
+      }
+      records <- tryCatch(
+        annotations$read(id),
+        error = function(cnd) NULL
+      )
+      if (is.null(records)) {
+        return(scans_app_empty_ui("Could not read the annotation store."))
+      }
+      scans_app_annotation_log_ui(records)
+    })
+
+    output$scans_app_scan_summary <- shiny::renderText({
+      selected <- length(scan_config()$scans)
+      total <- nrow(scan_registry())
+      current <- data()
+      if (selected == 0L) {
+        return("No scans selected \u00b7 findings are hidden")
+      }
+      findings <- if (is.null(current)) 0L else nrow(current$findings)
+      sprintf(
+        "%d of %d scans \u00b7 %d finding%s",
+        selected,
+        total,
+        findings,
+        if (findings == 1L) "" else "s"
+      )
+    })
     shiny::observeEvent(
       input$scans_app_reload,
       ignoreInit = TRUE,
@@ -213,4 +349,15 @@ scans_app_server <- function(sources) {
       scans_app_evidence_ui(current, selected())
     })
   }
+}
+
+
+# A threshold the user has cleared or typed nonsense into falls back to the
+# default rather than erroring: the panel should not be able to break the
+# view it controls.
+scans_app_threshold <- function(value, default) {
+  if (is.null(value) || length(value) != 1L || is.na(value) || value < 2) {
+    return(default)
+  }
+  as.integer(value)
 }

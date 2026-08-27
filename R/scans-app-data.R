@@ -1,10 +1,31 @@
-scans_app_data <- function(x) {
+# The scanner settings the app runs with. Held as one value so the server
+# can recompute findings from a cached bundle when the settings change,
+# without refetching traces -- a Connect read is seconds of HTTP, and
+# choosing a different scan should not pay for it.
+scans_app_scan_config <- function(
+  scans = NULL,
+  repeat_threshold = 2L,
+  loop_threshold = 3L
+) {
+  list(
+    scans = scans,
+    repeat_threshold = repeat_threshold,
+    loop_threshold = loop_threshold
+  )
+}
+
+scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
   info <- trajectory_info(x)
   turns <- trajectory_turns(x)
   events <- trajectory_events(x)
   evaluations <- trajectory_evaluations(x)
   losses <- trajectory_losses(x)
-  findings <- scan_trajectories(x)
+  findings <- scan_trajectories(
+    x,
+    scans = scan_config$scans,
+    repeat_threshold = scan_config$repeat_threshold,
+    loop_threshold = scan_config$loop_threshold
+  )
   summaries <- summarize_trajectories(x)
   loss_trajectory_ids <- scans_app_loss_trajectory_ids(losses, turns, events)
 

@@ -162,3 +162,164 @@ scans_app_dependency <- function(package_version = utils::packageVersion) {
     stylesheet = "scans-app.css"
   )
 }
+
+# Render model-authored markdown for the transcript.
+#
+# Model output is untrusted: it can contain raw HTML, and commonmark 2.0
+# dropped the `sanitize` argument that used to strip it. So the rendered
+# HTML is parsed and rebuilt against an allowlist of elements and
+# attributes -- a node filter rather than a regex, because regexes do not
+# reliably see tag boundaries. Without commonmark or xml2 the text is shown
+# verbatim, which is honest rather than merely unformatted-looking.
+scans_app_markdown <- function(text) {
+  if (!scans_app_has_string(text)) {
+    return(NULL)
+  }
+  usable <- requireNamespace("commonmark", quietly = TRUE) &&
+    requireNamespace("xml2", quietly = TRUE)
+  if (!usable) {
+    return(htmltools::div(
+      class = "scans-app-prose scans-app-prose-plain",
+      text
+    ))
+  }
+  html <- commonmark::markdown_html(
+    text,
+    smart = TRUE,
+    extensions = c("table", "strikethrough", "autolink")
+  )
+  htmltools::div(
+    class = "scans-app-prose",
+    htmltools::HTML(scans_app_sanitize_html(html))
+  )
+}
+
+scans_app_allowed_tags <- c(
+  "p",
+  "br",
+  "hr",
+  "em",
+  "strong",
+  "del",
+  "code",
+  "pre",
+  "blockquote",
+  "ul",
+  "ol",
+  "li",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "a",
+  "span",
+  "table",
+  "thead",
+  "tbody",
+  "tr",
+  "th",
+  "td"
+)
+
+# Elements that carry a payload rather than readable children. Unwrapping
+# these would delete what the model actually emitted, and a transcript that
+# quietly drops content is worse than useless for diagnosis -- so they are
+# shown as their own source text instead.
+scans_app_opaque_tags <- c(
+  "script",
+  "style",
+  "iframe",
+  "object",
+  "embed",
+  "template",
+  "svg",
+  "math",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "base",
+  "form",
+  "video",
+  "audio",
+  "source"
+)
+
+scans_app_allowed_attrs <- list(
+  a = c("href", "title"),
+  th = c("align", "colspan", "rowspan"),
+  td = c("align", "colspan", "rowspan")
+)
+
+# Keep only allowlisted elements and attributes. Nothing is deleted: an
+# element with readable children is unwrapped so its text survives, and an
+# opaque one is rewritten as inline code showing its markup verbatim. The
+# result is that a model emitting `<script>` is visible in the transcript as
+# text -- which is exactly what someone inspecting a trajectory needs to see
+# -- while never being live markup in the page.
+scans_app_sanitize_html <- function(html) {
+  doc <- xml2::read_html(paste0("<div id=\"scans-root\">", html, "</div>"))
+  root <- xml2::xml_find_first(doc, "//div[@id='scans-root']")
+  query <- paste0(
+    ".//*[not(self::",
+    paste(scans_app_allowed_tags, collapse = " or self::"),
+    ")]"
+  )
+  # Bounded because rewriting a node re-queries the tree; a node that somehow
+  # resisted both branches would otherwise spin here.
+  for (pass in seq_len(20L)) {
+    bad <- xml2::xml_find_all(root, query)
+    if (length(bad) == 0L) {
+      break
+    }
+    for (node in bad) {
+      if (xml2::xml_name(node) %in% scans_app_opaque_tags) {
+        scans_app_escape_node(node)
+      } else {
+        scans_app_unwrap_node(node)
+      }
+    }
+  }
+  for (node in xml2::xml_find_all(root, ".//*")) {
+    name <- xml2::xml_name(node)
+    keep <- scans_app_allowed_attrs[[name]] %||% character()
+    for (attr in setdiff(names(xml2::xml_attrs(node)), keep)) {
+      xml2::xml_attr(node, attr) <- NULL
+    }
+    if (identical(name, "a")) {
+      href <- xml2::xml_attr(node, "href")
+      if (!is.na(href) && !grepl("^(https?:|mailto:|#|/|\\.)", href)) {
+        xml2::xml_attr(node, "href") <- NULL
+      }
+    }
+  }
+  paste(
+    vapply(xml2::xml_contents(root), as.character, character(1)),
+    collapse = ""
+  )
+}
+
+# Rewrite a node as inline code holding its own serialized markup.
+#
+# The replacement is parsed from pre-escaped text rather than renamed in
+# place: libxml2 keeps script and style content as raw text, so a renamed
+# node would serialize its payload back out as live markup.
+scans_app_escape_node <- function(node) {
+  raw <- as.character(node)
+  fragment <- xml2::read_html(paste0(
+    "<div><code>",
+    htmltools::htmlEscape(raw),
+    "</code></div>"
+  ))
+  xml2::xml_replace(node, xml2::xml_find_first(fragment, "//code"))
+  invisible(NULL)
+}
+
+scans_app_unwrap_node <- function(node) {
+  for (child in rev(xml2::xml_contents(node))) {
+    xml2::xml_add_sibling(node, child, .where = "after")
+  }
+  xml2::xml_remove(node)
+}

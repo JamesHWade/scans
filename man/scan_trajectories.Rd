@@ -7,6 +7,7 @@
 scan_trajectories(
   x,
   scan_id = "scan-000001",
+  scans = NULL,
   repeat_threshold = 2L,
   loop_threshold = 3L
 )
@@ -15,6 +16,11 @@ scan_trajectories(
 \item{x}{A \link{TrajectoryBundle}.}
 
 \item{scan_id}{A non-empty identifier for this diagnostic run.}
+
+\item{scans}{Which detectors to run, as a character vector of names from
+\code{\link[=scan_registry]{scan_registry()}}. \code{NULL} (the default) runs all of them. Selecting a
+subset narrows the findings without changing how any of them are
+computed, so a finding is the same whether or not its neighbours ran.}
 
 \item{repeat_threshold}{The minimum number of calls with the same tool name
 and arguments that produces a \code{repeated_tool_call} finding.}

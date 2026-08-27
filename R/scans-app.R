@@ -23,6 +23,9 @@
 #' lazy loaders used by the application switcher. Custom loaders remain useful
 #' for completed snapshots held outside Connect's trace store.
 #'
+#' @param annotations Optional [scans_annotations()] store. When supplied, the
+#'   app shows an annotation panel for the selected trajectory and appends what
+#'   reviewers write to that store. Without one the app makes no writes at all.
 #' @param x A [TrajectoryBundle], or a named list of application sources. Each
 #'   source must be a `TrajectoryBundle` or a zero-argument function that
 #'   returns one. Source names are shown in the application switcher.
@@ -49,13 +52,31 @@
 #'   ))
 #' }
 #' @export
-scans_app <- function(x) {
+scans_app <- function(x, annotations = NULL) {
   sources <- scans_app_sources(x)
   scans_app_check_packages()
+  scans_app_check_annotations(annotations)
 
   shiny::shinyApp(
-    ui = scans_app_ui(sources),
-    server = scans_app_server(sources)
+    ui = scans_app_ui(sources, annotations),
+    server = scans_app_server(sources, annotations)
+  )
+}
+
+scans_app_check_annotations <- function(
+  annotations,
+  call = rlang::caller_env()
+) {
+  if (is.null(annotations) || is_scans_annotations(annotations)) {
+    return(invisible(annotations))
+  }
+  scans_abort(
+    c(
+      "{.arg annotations} must be a {.cls scans_annotations} store.",
+      i = "Create one with {.fn scans_annotations}."
+    ),
+    class = "scans_error_app_annotations",
+    call = call
   )
 }
 
@@ -167,13 +188,9 @@ scans_app_check_labels <- function(labels, class, call) {
 
 scans_app_source <- function(label, value) {
   if (is_trajectory_bundle(value)) {
-    return(list(
-      label = label,
-      data = scans_app_data(value),
-      load = NULL
-    ))
+    return(list(label = label, bundle = value, load = NULL))
   }
-  list(label = label, data = NULL, load = value)
+  list(label = label, bundle = NULL, load = value)
 }
 
 scans_app_source_catalog <- function(sources) {
@@ -199,9 +216,12 @@ scans_app_runtime_sources <- function(x) {
   x
 }
 
+# Returns the bundle rather than the derived tables: the server caches this
+# per application and derives findings from it, so re-running a scan costs
+# no network.
 scans_app_load_source <- function(source) {
-  if (!is.null(source$data)) {
-    return(source$data)
+  if (!is.null(source$bundle)) {
+    return(source$bundle)
   }
   bundle <- source$load()
   if (!is_trajectory_bundle(bundle)) {
@@ -213,7 +233,7 @@ scans_app_load_source <- function(source) {
       .envir = environment()
     )
   }
-  scans_app_data(bundle)
+  bundle
 }
 
 scans_app_check_packages <- function(
