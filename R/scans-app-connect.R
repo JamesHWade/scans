@@ -2,10 +2,16 @@
 #'
 #' `scans_app_connect()` creates a [scans_app()] whose application switcher
 #' reads completed conversations from Posit Connect's content observability
-#' store. Each deployed application is loaded lazily through
-#' `commons::trajectory_read()` and converted with [as_trajectory_commons()].
-#' Switching back to an application uses the session cache; **Reload traces**
-#' fetches that application's current trace snapshot.
+#' store. Each application is loaded lazily; switching back to one uses the
+#' session cache, and **Reload traces** fetches its current trace snapshot.
+#'
+#' Two readers are available. The default, `"otel"`, uses this package's own
+#' [read_connect_traces()] with [as_trajectory_otel()]: it needs no other
+#' package, falls back to Connect's per-job trace endpoint when the aggregate
+#' one fails, and keeps the per-call tool timings and failures the span
+#' history carries. `"commons"` routes through `commons::trajectory_read()`
+#' and [as_trajectory_commons()] instead, which suits agents built with
+#' commons because it also recovers their provenance records.
 #'
 #' Connect trace access requires `CONNECT_SERVER`, `CONNECT_API_KEY`, and
 #' editor access to every selected content item. Content observability must be
@@ -18,8 +24,10 @@
 #'   `CONNECT_SERVER` that supplies the review app's API key.
 #' @param n The maximum number of recent conversations to read per application.
 #'   The default is 100. Use `NULL` to read all available conversations.
+#' @param reader Which trace reader to use: `"otel"` (the default) for this
+#'   package's native reader, or `"commons"` for `commons::trajectory_read()`.
 #' @param from,to Optional lower-inclusive and upper-exclusive activity bounds
-#'   passed to `commons::trajectory_read()`. When both are omitted, each load
+#'   passed to the reader. When both are omitted, each load
 #'   reads the seven days ending at load time. Supply either bound as `NULL`
 #'   explicitly to leave that side of the window open.
 #'
@@ -37,19 +45,24 @@ scans_app_connect <- function(
   x,
   n = 100L,
   from = NULL,
-  to = NULL
+  to = NULL,
+  reader = c("otel", "commons")
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
-  scans_app_connect_check_package()
+  reader <- rlang::arg_match(reader)
+  if (identical(reader, "commons")) {
+    scans_app_connect_check_package()
+  }
   scans_app(scans_app_connect_loaders(
     x,
     n,
     from,
     to,
     default_from,
-    default_to
+    default_to,
+    reader = reader
   ))
 }
 
@@ -60,6 +73,7 @@ scans_app_connect_loaders <- function(
   to,
   default_from,
   default_to,
+  reader = "otel",
   call = rlang::caller_env()
 ) {
   if (is.character(x)) {
@@ -106,13 +120,28 @@ scans_app_connect_loaders <- function(
           from
         }
         read_to <- if (default_to) read_now else to
-        commons::trajectory_read(
+        if (identical(reader, "commons")) {
+          return(
+            commons::trajectory_read(
+              source,
+              n = n,
+              from = read_from,
+              to = read_to
+            ) |>
+              as_trajectory_commons(metadata = list(application = label))
+          )
+        }
+        conversations <- read_connect_traces(
           source,
           n = n,
           from = read_from,
           to = read_to
-        ) |>
-          as_trajectory_commons(metadata = list(application = label))
+        )
+        as_trajectory_otel(
+          conversations,
+          source_uri = attr(conversations, "source_uri", exact = TRUE),
+          metadata = list(application = label)
+        )
       }
     },
     labels,

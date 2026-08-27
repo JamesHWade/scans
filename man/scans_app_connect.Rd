@@ -4,7 +4,13 @@
 \alias{scans_app_connect}
 \title{Review Posit Connect traces with the scans app}
 \usage{
-scans_app_connect(x, n = 100L, from = NULL, to = NULL)
+scans_app_connect(
+  x,
+  n = 100L,
+  from = NULL,
+  to = NULL,
+  reader = c("otel", "commons")
+)
 }
 \arguments{
 \item{x}{A named character vector or list of Posit Connect content GUIDs.
@@ -15,9 +21,12 @@ Names appear in the application switcher. Sources must belong to the
 The default is 100. Use \code{NULL} to read all available conversations.}
 
 \item{from, to}{Optional lower-inclusive and upper-exclusive activity bounds
-passed to \code{commons::trajectory_read()}. When both are omitted, each load
+passed to the reader. When both are omitted, each load
 reads the seven days ending at load time. Supply either bound as \code{NULL}
 explicitly to leave that side of the window open.}
+
+\item{reader}{Which trace reader to use: \code{"otel"} (the default) for this
+package's native reader, or \code{"commons"} for \code{commons::trajectory_read()}.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.
@@ -25,12 +34,18 @@ A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.
 \description{
 \code{scans_app_connect()} creates a \code{\link[=scans_app]{scans_app()}} whose application switcher
 reads completed conversations from Posit Connect's content observability
-store. Each deployed application is loaded lazily through
-\code{commons::trajectory_read()} and converted with \code{\link[=as_trajectory_commons]{as_trajectory_commons()}}.
-Switching back to an application uses the session cache; \strong{Reload traces}
-fetches that application's current trace snapshot.
+store. Each application is loaded lazily; switching back to one uses the
+session cache, and \strong{Reload traces} fetches its current trace snapshot.
 }
 \details{
+Two readers are available. The default, \code{"otel"}, uses this package's own
+\code{\link[=read_connect_traces]{read_connect_traces()}} with \code{\link[=as_trajectory_otel]{as_trajectory_otel()}}: it needs no other
+package, falls back to Connect's per-job trace endpoint when the aggregate
+one fails, and keeps the per-call tool timings and failures the span
+history carries. \code{"commons"} routes through \code{commons::trajectory_read()}
+and \code{\link[=as_trajectory_commons]{as_trajectory_commons()}} instead, which suits agents built with
+commons because it also recovers their provenance records.
+
 Connect trace access requires \code{CONNECT_SERVER}, \code{CONNECT_API_KEY}, and
 editor access to every selected content item. Content observability must be
 enabled on the server and on each application. Because the review app reads
