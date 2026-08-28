@@ -119,51 +119,66 @@ annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
   if (length(lines) == 0L) {
     return(annotations_empty())
   }
-  records <- lapply(lines, function(line) {
-    parsed <- tryCatch(
-      jsonlite::fromJSON(line, simplifyVector = FALSE),
-      error = function(e) NULL
-    )
-    if (!is.list(parsed)) {
-      return(NULL)
-    }
-    scalar_fields <- c(
-      "application",
-      "trajectory_id",
-      "label",
-      "note",
-      "author",
-      "created_at"
-    )
-    valid_fields <- vapply(
-      scalar_fields,
-      function(field) annotations_is_scalar_string(parsed[[field]]),
-      logical(1)
-    )
-    if (
-      !all(valid_fields) ||
-        !scans_app_has_string(parsed$trajectory_id)
-    ) {
-      return(NULL)
-    }
-    tibble::tibble(
-      application = if (scans_app_has_string(parsed$application)) {
-        as.character(parsed$application)
-      } else {
-        NA_character_
-      },
-      trajectory_id = as.character(parsed$trajectory_id),
-      label = as.character(parsed$label %||% NA_character_),
-      note = as.character(parsed$note %||% NA_character_),
-      author = as.character(parsed$author %||% NA_character_),
-      created_at = annotations_parse_time(parsed$created_at)
-    )
-  })
+  records <- Map(
+    function(line, record_index) {
+      parsed <- tryCatch(
+        jsonlite::fromJSON(line, simplifyVector = FALSE),
+        error = function(e) NULL
+      )
+      if (!is.list(parsed)) {
+        return(NULL)
+      }
+      scalar_fields <- c(
+        "application",
+        "trajectory_id",
+        "label",
+        "note",
+        "author",
+        "created_at"
+      )
+      valid_fields <- vapply(
+        scalar_fields,
+        function(field) annotations_is_scalar_string(parsed[[field]]),
+        logical(1)
+      )
+      if (
+        !all(valid_fields) ||
+          !scans_app_has_string(parsed$trajectory_id)
+      ) {
+        return(NULL)
+      }
+      tibble::tibble(
+        application = if (scans_app_has_string(parsed$application)) {
+          as.character(parsed$application)
+        } else {
+          NA_character_
+        },
+        trajectory_id = as.character(parsed$trajectory_id),
+        label = as.character(parsed$label %||% NA_character_),
+        note = as.character(parsed$note %||% NA_character_),
+        author = as.character(parsed$author %||% NA_character_),
+        created_at = annotations_parse_time(parsed$created_at),
+        .record_index = as.integer(record_index)
+      )
+    },
+    lines,
+    seq_along(lines)
+  )
   out <- trajectory_bind_rows(Filter(Negate(is.null), records))
   if (nrow(out) == 0L) {
     return(annotations_empty())
   }
-  out <- out[order(out$created_at, decreasing = TRUE), , drop = FALSE]
+  out <- out[
+    order(
+      out$created_at,
+      out$.record_index,
+      decreasing = TRUE,
+      na.last = TRUE
+    ),
+    ,
+    drop = FALSE
+  ]
+  out$.record_index <- NULL
   if (!is.null(application)) {
     out <- out[out$application %in% application, , drop = FALSE]
   }

@@ -61,12 +61,23 @@ test_that("unknown containers keep their text", {
 
 test_that("raw closing tags cannot hide later model output", {
   skip_if_no_markdown()
-  html <- scans_app_sanitize_html(
-    "<p>Before</p></div><p>After</p>"
+  closing_tags <- c(
+    "</div>",
+    "</body>",
+    "</html>",
+    "</scans-sanitizer-root/>",
+    "</scans-sanitizer-root x>"
   )
 
-  expect_match(html, "Before", fixed = TRUE)
-  expect_match(html, "After", fixed = TRUE)
+  for (closing_tag in closing_tags) {
+    html <- scans_app_sanitize_html(paste0(
+      "<p>Before</p>",
+      closing_tag,
+      "<p>After</p>"
+    ))
+    expect_match(html, "Before", fixed = TRUE)
+    expect_match(html, "After", fixed = TRUE)
+  }
 })
 
 test_that("empty and missing text render nothing", {

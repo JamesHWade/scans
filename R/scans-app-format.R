@@ -261,10 +261,14 @@ scans_app_allowed_attrs <- list(
 # -- while never being live markup in the page.
 scans_app_sanitize_html <- function(html) {
   root_name <- "scans-sanitizer-root"
-  root_close <- paste0("(?i)</\\s*", root_name, "\\s*>")
+  root_close <- paste0(
+    "(?i)<(/\\s*(?:html|body|",
+    root_name,
+    ")\\b[^>]*>)"
+  )
   html <- gsub(
     root_close,
-    paste0("&lt;/", root_name, "&gt;"),
+    "&lt;\\1",
     html,
     perl = TRUE
   )

@@ -45,6 +45,30 @@ test_that("the store is append-only and newest-first", {
   expect_length(readLines(path), 2L)
 })
 
+test_that("file order breaks tied annotation timestamps newest-first", {
+  skip_if_not_installed("jsonlite")
+  path <- withr::local_tempfile(fileext = ".jsonl")
+  store <- scans_annotations(path = path)
+  timestamp <- "2026-08-28T10:00:00.000Z"
+  records <- lapply(c("first", "second"), function(trajectory_id) {
+    jsonlite::toJSON(
+      list(
+        application = "Support",
+        trajectory_id = trajectory_id,
+        label = "follow up",
+        note = NULL,
+        author = "reviewer",
+        created_at = timestamp
+      ),
+      auto_unbox = TRUE,
+      null = "null"
+    )
+  })
+  writeLines(unlist(records), path)
+
+  expect_identical(store$read()$trajectory_id, c("second", "first"))
+})
+
 test_that("reads are scoped to an application and trajectory", {
   skip_if_not_installed("jsonlite")
   path <- withr::local_tempfile(fileext = ".jsonl")
