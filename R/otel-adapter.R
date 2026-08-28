@@ -116,15 +116,19 @@ otel_conversation_bundle <- function(
   latest <- otel_latest_span(chat_spans)
   tool_spans <- Filter(otel_is_tool_span, spans)
 
-  messages <- c(
-    otel_system_messages(latest),
-    otel_parse_messages(latest, "gen_ai.input.messages"),
-    otel_parse_messages(latest, "gen_ai.output.messages")
+  system_messages <- otel_system_messages(latest)
+  input_messages <- otel_parse_messages(latest, "gen_ai.input.messages")
+  output_messages <- otel_parse_messages(latest, "gen_ai.output.messages")
+  messages <- c(system_messages, input_messages, output_messages)
+  model_output_index <- otel_model_output_index(
+    output_messages,
+    length(system_messages) + length(input_messages)
   )
   tables <- otel_messages_tables(
     messages,
     trajectory_id = trajectory_id,
     latest = latest,
+    model_output_index = model_output_index,
     tool_spans = tool_spans
   )
 
@@ -246,13 +250,30 @@ otel_parse_json <- function(text) {
   parsed
 }
 
-otel_messages_tables <- function(messages, trajectory_id, latest, tool_spans) {
+otel_model_output_index <- function(messages, offset) {
+  indices <- which(vapply(
+    messages,
+    function(message) identical(otel_message_role(message), "assistant"),
+    logical(1)
+  ))
+  if (length(indices) == 0L) {
+    return(NA_integer_)
+  }
+  as.integer(offset + utils::tail(indices, 1L))
+}
+
+otel_messages_tables <- function(
+  messages,
+  trajectory_id,
+  latest,
+  model_output_index,
+  tool_spans
+) {
   turns <- list()
   events <- list()
   losses <- list()
   event_index <- 0L
   tool_index <- otel_tool_index(tool_spans)
-  last_index <- length(messages)
 
   for (index in seq_along(messages)) {
     message <- messages[[index]]
@@ -280,7 +301,11 @@ otel_messages_tables <- function(messages, trajectory_id, latest, tool_spans) {
       turn_id = turn_id,
       index = index,
       role = role,
-      span = if (index == last_index) latest else NULL
+      span = if (!is.na(model_output_index) && index == model_output_index) {
+        latest
+      } else {
+        NULL
+      }
     )
   }
 
@@ -305,6 +330,7 @@ otel_message_role <- function(message) {
 }
 
 otel_turn_row <- function(trajectory_id, turn_id, index, role, span) {
+  failed <- !is.null(span) && otel_span_failed(span)
   tibble::tibble(
     trajectory_id = trajectory_id,
     turn_id = turn_id,
@@ -317,8 +343,8 @@ otel_turn_row <- function(trajectory_id, turn_id, index, role, span) {
     cost = NA_real_,
     duration = if (is.null(span)) NA_real_ else otel_span_duration(span),
     finish_reason = NA_character_,
-    status = "completed",
-    error = NA_character_,
+    status = if (failed) "failed" else "completed",
+    error = if (failed) otel_attribute(span, "error.type") else NA_character_,
     metadata = list(list())
   )
 }
@@ -392,7 +418,6 @@ otel_part_event <- function(
       row$value <- list(safe$value)
       loss <- safe$loss
     }
-    row <- otel_apply_tool_span(row, tool_index)
   } else {
     # `generic` parts name a provider class the semantic conventions do not
     # describe. Recording the class keeps the turn's shape honest, and the

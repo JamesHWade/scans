@@ -121,14 +121,24 @@ test_that("tool calls and results carry their identifiers", {
 test_that("an execute_tool span supplies timing and failure", {
   skip_if_not_installed("jsonlite")
   chat <- otel_chat_span(
-    input = list(list(
-      role = "assistant",
-      parts = list(list(
-        type = "tool_call",
-        id = "call-9",
-        name = "search"
-      ))
-    )),
+    input = list(
+      list(
+        role = "assistant",
+        parts = list(list(
+          type = "tool_call",
+          id = "call-9",
+          name = "search"
+        ))
+      ),
+      list(
+        role = "tool",
+        parts = list(list(
+          type = "tool_call_response",
+          id = "call-9",
+          response = "failed"
+        ))
+      )
+    ),
     output = list(list(role = "assistant", parts = text_part("Sorry")))
   )
   tool <- otel_test_span(
@@ -146,11 +156,52 @@ test_that("an execute_tool span supplies timing and failure", {
   bundle <- as_trajectory_otel(list(chat, tool))
   events <- trajectory_events(bundle)
   call <- events[events$event_type == "tool_call", ]
+  result <- events[events$event_type == "tool_result", ]
 
   expect_equal(call$status, "failed")
   expect_equal(call$error, "simpleError")
   expect_equal(call$duration, 2.5)
+  expect_identical(result$status, "completed")
+  expect_identical(result$error, NA_character_)
+  expect_identical(result$duration, NA_real_)
+  expect_identical(sum(events$status == "failed"), 1L)
   expect_equal(trajectory_info(bundle)$status, "failed")
+})
+
+test_that("failed chats do not assign model metrics to input turns", {
+  skip_if_not_installed("jsonlite")
+  span <- otel_chat_span(
+    input = list(list(role = "user", parts = text_part("Hello")))
+  )
+  span$attributes[["error.type"]] <- "provider_error"
+
+  bundle <- as_trajectory_otel(list(span))
+  turns <- trajectory_turns(bundle)
+
+  expect_identical(turns$role, "user")
+  expect_identical(turns$input_tokens, NA_real_)
+  expect_identical(turns$output_tokens, NA_real_)
+  expect_identical(turns$duration, NA_real_)
+  expect_identical(turns$status, "completed")
+  expect_identical(trajectory_info(bundle)$status, "failed")
+})
+
+test_that("failed model output carries its own metrics and status", {
+  skip_if_not_installed("jsonlite")
+  span <- otel_chat_span(
+    input = list(list(role = "user", parts = text_part("Hello"))),
+    output = list(list(role = "assistant", parts = text_part("Partial")))
+  )
+  span$attributes[["error.type"]] <- "provider_error"
+
+  bundle <- as_trajectory_otel(list(span))
+  turns <- trajectory_turns(bundle)
+  output <- turns[turns$role == "assistant", ]
+
+  expect_identical(output$input_tokens, 100)
+  expect_identical(output$output_tokens, 20)
+  expect_identical(output$status, "failed")
+  expect_identical(output$error, "provider_error")
 })
 
 test_that("parts with no readable content are recorded as losses", {
