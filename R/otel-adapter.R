@@ -134,7 +134,13 @@ otel_conversation_bundle <- function(
   )
 
   times <- otel_span_times(spans)
-  failed <- any(vapply(spans, otel_span_failed, logical(1)))
+  failed_spans <- Filter(otel_span_failed, spans)
+  failed <- length(failed_spans) > 0L
+  error <- if (failed) {
+    otel_span_error(otel_latest_span(failed_spans))
+  } else {
+    NA_character_
+  }
   ids <- trajectory_ids(trajectory_id)
   safe_source_uri <- trajectory_sanitize_uri(source_uri, "source_uri", ids)
   safe_metadata <- trajectory_sanitize_metadata(
@@ -158,7 +164,7 @@ otel_conversation_bundle <- function(
     started_at = times$started_at,
     completed_at = times$completed_at,
     status = if (failed) "failed" else "completed",
-    error = NA_character_,
+    error = error,
     metadata = list(safe_metadata$value)
   )
 
