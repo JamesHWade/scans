@@ -292,6 +292,28 @@ test_that("trajectory metadata is sanitized and losses are retained", {
   expect_setequal(losses$field, c("metadata$api_key", "metadata$live"))
 })
 
+test_that("source URI credentials and parameters are not retained", {
+  skip_if_not_installed("jsonlite")
+  span <- otel_chat_span(
+    input = list(list(role = "user", parts = text_part("Hello"))),
+    output = list(list(role = "assistant", parts = text_part("Hi")))
+  )
+  bundle <- as_trajectory_otel(
+    list(span),
+    source_uri = paste0(
+      "https://user:secret@example.com/traces",
+      "?access_token=secret#fragment"
+    )
+  )
+
+  expect_identical(
+    trajectory_info(bundle)$source_uri,
+    "https://example.com/traces"
+  )
+  expect_identical(trajectory_losses(bundle)$field, "source_uri")
+  expect_identical(trajectory_losses(bundle)$reason, "redacted")
+})
+
 test_that("an unfamiliar role is namespaced rather than dropped", {
   skip_if_not_installed("jsonlite")
   span <- otel_chat_span(

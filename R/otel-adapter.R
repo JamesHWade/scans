@@ -130,10 +130,12 @@ otel_conversation_bundle <- function(
 
   times <- otel_span_times(spans)
   failed <- any(vapply(spans, otel_span_failed, logical(1)))
+  ids <- trajectory_ids(trajectory_id)
+  safe_source_uri <- trajectory_sanitize_uri(source_uri, "source_uri", ids)
   safe_metadata <- trajectory_sanitize_metadata(
     otel_info_metadata(spans, chat_spans, metadata),
     "metadata",
-    trajectory_ids(trajectory_id)
+    ids
   )
   info <- tibble::tibble(
     trajectory_id = trajectory_id,
@@ -141,7 +143,7 @@ otel_conversation_bundle <- function(
     parent_trajectory_id = NA_character_,
     source_type = "otel",
     source_id = as.character(conversation_id),
-    source_uri = source_uri %||% NA_character_,
+    source_uri = safe_source_uri$value,
     task_id = NA_character_,
     sample_id = NA_character_,
     epoch = NA_integer_,
@@ -161,7 +163,10 @@ otel_conversation_bundle <- function(
     tables$events,
     losses = trajectory_bind_rows(list(
       tables$losses,
-      trajectory_loss_table(safe_metadata$losses)
+      trajectory_loss_table(c(
+        safe_source_uri$losses,
+        safe_metadata$losses
+      ))
     ))
   )
 }
