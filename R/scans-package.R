@@ -1,9 +1,13 @@
-#' scans: Analyze AI Agent Trajectories
+#' scans: Diagnose AI Agent Trajectories
 #'
-#' `scans` provides tools to import, inspect, scan, and validate trajectories
-#' produced by AI agents built with ellmer and related R packages. It
-#' complements outcome evaluation with post-run analysis of messages, tool
-#' calls, events, and multi-agent execution.
+#' An evaluation can show whether an AI agent succeeded. `scans` helps explain
+#' the path that produced that outcome. It normalizes completed runs from ellmer
+#' and related R packages, identifies evidence-linked tool and error patterns,
+#' summarizes execution and usage, and provides a read-only application for
+#' investigating the relevant turns and events.
+#'
+#' `scans` is post-run and read-only. It does not execute agents, replay tools,
+#' or score answer quality.
 #'
 #' @keywords internal
 "_PACKAGE"

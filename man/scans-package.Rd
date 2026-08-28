@@ -4,12 +4,17 @@
 \name{scans-package}
 \alias{scans}
 \alias{scans-package}
-\title{scans: Analyze AI Agent Trajectories}
+\title{scans: Diagnose AI Agent Trajectories}
 \description{
-\code{scans} provides tools to import, inspect, scan, and validate trajectories
-produced by AI agents built with ellmer and related R packages. It
-complements outcome evaluation with post-run analysis of messages, tool
-calls, events, and multi-agent execution.
+An evaluation can show whether an AI agent succeeded. \code{scans} helps explain
+the path that produced that outcome. It normalizes completed runs from ellmer
+and related R packages, identifies evidence-linked tool and error patterns,
+summarizes execution and usage, and provides a read-only application for
+investigating the relevant turns and events.
+}
+\details{
+\code{scans} is post-run and read-only. It does not execute agents, replay tools,
+or score answer quality.
 }
 \seealso{
 Useful links:

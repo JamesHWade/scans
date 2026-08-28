@@ -6,33 +6,92 @@
 [![jarl-check](https://github.com/JamesHWade/scans/actions/workflows/jarl-check.yaml/badge.svg)](https://github.com/JamesHWade/scans/actions/workflows/jarl-check.yaml)
 <!-- badges: end -->
 
-Trajectory diagnostics for AI agents in R.
+Understand how your R agent reached its result—and where it went wrong.
 
-{scans} complements [{vitals}](https://vitals.tidyverse.org/) by examining
-the trajectories that produce evaluation outcomes. Its design is inspired by
-Meridian Labs' [inspect_scout](https://meridianlabs-ai.github.io/inspect_scout/)
-and is intended for agents built with the ellmerverse and related R packages.
+An evaluation score tells you whether an agent produced the right outcome.
+{scans} helps explain the path that produced it. It turns completed agent runs
+into evidence-linked trajectories that you can search, compare, scan for common
+failure patterns, and inspect without calling the model or its tools again.
 
-The package is in early development. Its canonical trajectory contract is a
-validated S7 object whose analysis properties remain ordinary tibbles.
+Use {scans} when a pass/fail score is not enough: a tool failed somewhere in a
+long run, an agent repeated the same request, token or cost usage jumped, or a
+reviewer needs to see the exact events behind a finding.
 
-{scans} is independently maintained. It borrows development conventions and
-interface principles from tidyverse packages, but it is not part of the
-tidyverse organization.
+## From outcome to explanation
 
-## Ecosystem
+| Question | What {scans} provides |
+|---|---|
+| Which runs need attention? | One-row summaries of failures, tool activity, execution depth, usage, cost, and recorded data loss. |
+| What looks wrong? | Deterministic findings for repeated and unresolved tool calls, suspicious loops, failed events, and causal error chains. |
+| What exactly happened? | A read-only Shiny app that links each finding to relevant transcript events and displays evaluations alongside their trajectories. |
+| Can I do my own analysis? | Ordinary tibbles for trajectories, turns, events, evaluations, and adapter losses. |
+| Can I compare different agent systems? | Optional adapters that normalize their completed runs into the same validated structure. |
 
-{scans} is being designed around tidy, rectangular trajectory data and small,
-composable analysis functions. Integrations with
+[{vitals}](https://vitals.tidyverse.org/) answers, "Did the agent succeed?"
+{scans} answers, "What did it do, what deserves attention, and where is the
+evidence?" Use them together to connect an evaluation outcome to the behavior
+that produced it.
+
+## Installation
+
+Install the development version from GitHub:
+
+```r
+pak::pak("JamesHWade/scans")
+```
+
+## A thirty-second tour
+
+After an ellmer chat has run, snapshot it and work entirely from the completed
+record:
+
+```r
+library(scans)
+
+bundle <- as_trajectory(chat)
+
+summarize_trajectories(bundle)
+
+findings <- scan_trajectories(bundle)
+findings[, c("severity", "label", "explanation", "event_ids")]
+
+scans_app(bundle)
+```
+
+Every finding carries the trajectory and event identifiers that support it.
+Open the same bundle in `scans_app()` to move from a fleet-level summary to the
+relevant turn, tool call, result, error, evaluation, or adapter loss.
+
+Already evaluating with vitals? Read the persisted log and keep the outcomes
+and execution evidence joined by `trajectory_id`:
+
+```r
+samples <- vitals::vitals_log_read(log_path)
+bundle <- as_trajectory_vitals(samples, source_uri = log_path)
+```
+
+{scans} is post-run and read-only. It does not execute an agent, replay tools,
+or score answer quality.
+
+## Bring completed runs from your existing stack
+
+{scans} uses tidy, rectangular trajectory data and small, composable analysis
+functions. Current optional adapters support
 [{ellmer}](https://ellmer.tidyverse.org/),
 [{vitals}](https://vitals.tidyverse.org/),
 [{deputy}](https://github.com/JamesHWade/deputy),
 [{dsprrr}](https://github.com/JamesHWade/dsprrr),
 [{commons}](https://github.com/posit-dev/commons),
-[{tempest}](https://github.com/JamesHWade/tempest), and
-[{shinychat}](https://posit-dev.github.io/shinychat/r/) will remain optional so
-the core analysis layer can also inspect trajectories from other agent
-frameworks.
+and [{tempest}](https://github.com/JamesHWade/tempest). The core analysis layer
+does not require those packages, and `TrajectoryBundle()` accepts already
+rectangular data from other agent frameworks.
+
+The package is in early development. Its shared trajectory contract is a
+validated S7 object, while its analysis properties remain ordinary tibbles.
+{scans} is independently maintained. It borrows development conventions and
+interface principles from tidyverse packages, but it is not part of the
+tidyverse organization. Its design is inspired by Meridian Labs'
+[inspect_scout](https://meridianlabs-ai.github.io/inspect_scout/).
 
 ## Start with an ellmer trajectory
 
@@ -304,14 +363,6 @@ bundle <- TrajectoryBundle(
 )
 
 trajectory_info(bundle)
-```
-
-## Installation
-
-You can install the development version from GitHub with:
-
-```r
-pak::pak("JamesHWade/scans")
 ```
 
 ## Development
