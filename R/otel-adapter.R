@@ -35,6 +35,7 @@ as_trajectory_otel <- function(
   metadata = list()
 ) {
   call <- rlang::caller_env()
+  otel_check_jsonlite(call)
   if (!is.list(x)) {
     scans_abort(
       "{.arg x} must be a list of OpenTelemetry spans or conversations.",
@@ -344,7 +345,7 @@ otel_turn_row <- function(trajectory_id, turn_id, index, role, span) {
     duration = if (is.null(span)) NA_real_ else otel_span_duration(span),
     finish_reason = NA_character_,
     status = if (failed) "failed" else "completed",
-    error = if (failed) otel_attribute(span, "error.type") else NA_character_,
+    error = if (failed) otel_span_error(span) else NA_character_,
     metadata = list(list())
   )
 }
@@ -529,10 +530,9 @@ otel_apply_tool_span <- function(row, tool_index) {
   if (is.na(row$name[[1L]])) {
     row$name <- otel_attribute(span, "gen_ai.tool.name")
   }
-  error <- otel_attribute(span, "error.type")
-  if (!is.na(error)) {
+  if (otel_span_failed(span)) {
     row$status <- "failed"
-    row$error <- error
+    row$error <- otel_span_error(span)
   }
   row
 }
@@ -571,7 +571,27 @@ otel_is_tool_span <- function(span) {
 }
 
 otel_span_failed <- function(span) {
-  !is.na(otel_attribute(span, "error.type"))
+  !is.na(otel_attribute(span, "error.type")) || otel_status_failed(span$status)
+}
+
+otel_status_failed <- function(status) {
+  if (!is.list(status)) {
+    return(FALSE)
+  }
+  code <- otel_string(status$code)
+  !is.na(code) && toupper(code) %in% c("2", "ERROR", "STATUS_CODE_ERROR")
+}
+
+otel_span_error <- function(span) {
+  error <- otel_attribute(span, "error.type")
+  if (!is.na(error)) {
+    return(error)
+  }
+  message <- otel_string(span$status$message)
+  if (!is.na(message)) {
+    return(message)
+  }
+  if (otel_status_failed(span$status)) "OTLP status: ERROR" else NA_character_
 }
 
 otel_attribute <- function(span, key) {
