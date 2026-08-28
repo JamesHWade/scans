@@ -63,6 +63,18 @@ otel_chat_span <- function(
 
 text_part <- function(content) list(list(type = "text", content = content))
 
+otel_test_envelope <- function(span_ids) {
+  spans <- lapply(span_ids, function(span_id) list(spanId = span_id))
+  jsonlite::toJSON(
+    list(
+      resourceSpans = list(list(
+        scopeSpans = list(list(spans = spans))
+      ))
+    ),
+    auto_unbox = TRUE
+  )
+}
+
 test_that("OTEL conversion requires jsonlite", {
   testthat::local_mocked_bindings(
     otel_jsonlite_available = function() FALSE
@@ -213,6 +225,7 @@ test_that("standard OTLP status marks model and tool spans as failed", {
   expect_identical(call$status, "failed")
   expect_identical(call$error, "Tool timed out")
   expect_identical(trajectory_info(bundle)$status, "failed")
+  expect_identical(trajectory_info(bundle)$error, "Model failed")
 })
 
 test_that("OTLP parsing retains the standard span status", {
@@ -243,7 +256,9 @@ test_that("failed chats do not assign model metrics to input turns", {
   expect_identical(turns$output_tokens, NA_real_)
   expect_identical(turns$duration, NA_real_)
   expect_identical(turns$status, "completed")
-  expect_identical(trajectory_info(bundle)$status, "failed")
+  info <- trajectory_info(bundle)
+  expect_identical(info$status, "failed")
+  expect_identical(info$error, "provider_error")
 })
 
 test_that("failed model output carries its own metrics and status", {
@@ -671,6 +686,82 @@ test_that("per-job pagination never requests beyond max_spans", {
   expect_length(urls, 2L)
   expect_match(urls[[1L]], "limit=2", fixed = TRUE)
   expect_match(urls[[2L]], "limit=1", fixed = TRUE)
+})
+
+test_that("nested OTLP spans respect the aggregate span budget", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  requests <- 0L
+  batch <- otel_test_envelope(c("one", "two", "three"))
+  response <- httr2::response(
+    headers = list(`X-Total-Count` = "1"),
+    body = charToRaw(batch)
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      requests <<- requests + 1L
+      response
+    }
+  )
+
+  lines <- suppressWarnings(connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 2L,
+    n = NULL,
+    call = rlang::caller_env(),
+    page_size = 10L
+  ))
+  spans <- otel_parse_otlp_lines(lines, max_spans = 2L)
+
+  expect_identical(requests, 1L)
+  expect_identical(
+    vapply(spans, `[[`, character(1), "span_id"),
+    c("one", "two")
+  )
+})
+
+test_that("nested OTLP spans respect the per-job span budget", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  trace_requests <- 0L
+  jobs_response <- httr2::response(
+    headers = list(`content-type` = "application/json"),
+    body = charToRaw('[{"key":"job-1","start_time":"2026-01-01"}]')
+  )
+  trace_response <- httr2::response(
+    headers = list(`X-Total-Count` = "10"),
+    body = charToRaw(otel_test_envelope(c("one", "two", "three")))
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
+        return(jobs_response)
+      }
+      trace_requests <<- trace_requests + 1L
+      trace_response
+    }
+  )
+
+  lines <- connect_job_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 2L,
+    n = NULL,
+    call = rlang::caller_env(),
+    page_size = 10L
+  )
+  spans <- otel_parse_otlp_lines(lines, max_spans = 2L)
+
+  expect_identical(trace_requests, 1L)
+  expect_identical(
+    vapply(spans, `[[`, character(1), "span_id"),
+    c("one", "two")
+  )
 })
 
 test_that("oversized text is truncated and recorded as a loss", {
