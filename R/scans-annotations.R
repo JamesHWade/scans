@@ -152,6 +152,10 @@ annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
       ) {
         return(NULL)
       }
+      created_at <- annotations_parse_time(parsed$created_at)
+      if (scans_app_has_string(parsed$created_at) && is.na(created_at)) {
+        return(NULL)
+      }
       tibble::tibble(
         application = if (scans_app_has_string(parsed$application)) {
           as.character(parsed$application)
@@ -162,7 +166,7 @@ annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
         label = as.character(parsed$label %||% NA_character_),
         note = as.character(parsed$note %||% NA_character_),
         author = as.character(parsed$author %||% NA_character_),
-        created_at = annotations_parse_time(parsed$created_at),
+        created_at = created_at,
         .record_index = as.integer(record_index)
       )
     },
@@ -202,16 +206,20 @@ annotations_parse_time <- function(x) {
   if (!annotations_is_scalar_string(x) || is.null(x) || !nzchar(x)) {
     return(as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC"))
   }
-  parsed <- as.POSIXct(
-    as.character(x),
-    tz = "UTC",
-    tryFormats = c(
-      "%Y-%m-%dT%H:%M:%OSZ",
-      "%Y-%m-%dT%H:%M:%OS",
-      "%Y-%m-%d %H:%M:%OS"
-    )
+  tryCatch(
+    suppressWarnings(as.POSIXct(
+      as.character(x),
+      tz = "UTC",
+      tryFormats = c(
+        "%Y-%m-%dT%H:%M:%OSZ",
+        "%Y-%m-%dT%H:%M:%OS",
+        "%Y-%m-%d %H:%M:%OS"
+      )
+    )),
+    error = function(e) {
+      as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
+    }
   )
-  parsed
 }
 
 # One line, appended. A whole-file rewrite would lose a concurrent reviewer's

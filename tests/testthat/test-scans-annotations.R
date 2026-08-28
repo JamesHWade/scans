@@ -215,6 +215,31 @@ test_that("a malformed line does not hide the annotations around it", {
   expect_equal(nrow(records), 2L)
 })
 
+test_that("an invalid timestamp does not hide valid annotations", {
+  skip_if_not_installed("jsonlite")
+  path <- withr::local_tempfile(fileext = ".jsonl")
+  store <- scans_annotations(path = path)
+  store$append("Support", "valid-before", label = NULL, note = "Before")
+  invalid <- jsonlite::toJSON(
+    list(
+      application = "Support",
+      trajectory_id = "invalid-time",
+      label = "follow up",
+      note = "Malformed",
+      author = "reviewer",
+      created_at = "not-a-date"
+    ),
+    auto_unbox = TRUE
+  )
+  cat(paste0(invalid, "\n"), file = path, append = TRUE)
+  store$append("Support", "valid-after", label = NULL, note = "After")
+
+  expect_setequal(
+    store$read()$trajectory_id,
+    c("valid-before", "valid-after")
+  )
+})
+
 test_that("reading a store that does not exist yet returns no rows", {
   skip_if_not_installed("jsonlite")
   store <- scans_annotations(path = file.path(tempdir(), "absent.jsonl"))
