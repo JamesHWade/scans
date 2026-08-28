@@ -130,6 +130,11 @@ otel_conversation_bundle <- function(
 
   times <- otel_span_times(spans)
   failed <- any(vapply(spans, otel_span_failed, logical(1)))
+  safe_metadata <- trajectory_sanitize_metadata(
+    otel_info_metadata(spans, chat_spans, metadata),
+    "metadata",
+    trajectory_ids(trajectory_id)
+  )
   info <- tibble::tibble(
     trajectory_id = trajectory_id,
     run_id = as.character(conversation_id),
@@ -147,14 +152,17 @@ otel_conversation_bundle <- function(
     completed_at = times$completed_at,
     status = if (failed) "failed" else "completed",
     error = NA_character_,
-    metadata = list(otel_info_metadata(spans, chat_spans, metadata))
+    metadata = list(safe_metadata$value)
   )
 
   TrajectoryBundle(
     info,
     tables$turns,
     tables$events,
-    losses = tables$losses
+    losses = trajectory_bind_rows(list(
+      tables$losses,
+      trajectory_loss_table(safe_metadata$losses)
+    ))
   )
 }
 
@@ -172,7 +180,8 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
     model_calls = length(chat_spans),
     spans = length(spans)
   )
-  c(metadata, list(otel = usage))
+  metadata$otel <- usage
+  metadata
 }
 
 otel_sum_attribute <- function(spans, key) {

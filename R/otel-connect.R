@@ -11,11 +11,10 @@
 #'
 #' @section Trace endpoints:
 #' Connect exposes traces both for a content item as a whole and per job. The
-#' aggregate endpoint is tried first because it is one request, and the
-#' per-job endpoint is used when it fails. On some Connect versions the
-#' aggregate endpoint returns `500` for content with a long job history while
-#' every per-job request still succeeds, so the fallback covers a server
-#' error, not only a missing endpoint.
+#' current content-wide store and retained per-job stores are merged and
+#' de-duplicated because Connect did not migrate legacy traces into the current
+#' store. When the content-wide endpoint is missing or fails, the per-job store
+#' is used alone.
 #'
 #' @param source A Posit Connect content GUID, a content URL
 #'   (`.../content/<guid>/`), or a dashboard URL (`.../connect/#/apps/<guid>/`).
@@ -192,7 +191,7 @@ connect_trace_lines <- function(
       ))
     }
     page <- connect_trace_page(response)
-    lines <- c(lines, page)
+    lines <- unique(c(lines, page))
     total <- suppressWarnings(as.integer(
       httr2::resp_header(response, "X-Total-Count")
     ))
@@ -210,7 +209,17 @@ connect_trace_lines <- function(
       break
     }
   }
-  unique(lines)
+  connect_job_trace_lines(
+    client,
+    guid,
+    from,
+    to,
+    max_spans,
+    n,
+    call,
+    page_size,
+    lines = lines
+  )
 }
 
 # A missing or failing aggregate endpoint falls through to the per-job one.
@@ -250,7 +259,8 @@ connect_job_trace_lines <- function(
   max_spans,
   n,
   call,
-  page_size
+  page_size,
+  lines = character()
 ) {
   jobs <- connect_perform(
     connect_request(client, "content", guid, "jobs"),
@@ -269,7 +279,9 @@ connect_job_trace_lines <- function(
   starts <- vapply(jobs, function(job) job$start_time %||% "", character(1))
   keys <- keys[order(starts, decreasing = TRUE)]
 
-  lines <- character()
+  if (!is.null(n) && connect_conversation_count(lines, from, to) >= n) {
+    return(unique(lines))
+  }
   for (key in keys) {
     offset <- 0L
     repeat {
@@ -290,7 +302,8 @@ connect_job_trace_lines <- function(
         break
       }
       page <- connect_trace_page(response)
-      lines <- c(lines, page)
+      eligible <- connect_trace_lines_before(page, to)
+      lines <- unique(c(lines, eligible))
       total <- suppressWarnings(as.integer(
         httr2::resp_header(response, "X-Total-Count")
       ))
@@ -311,6 +324,33 @@ connect_job_trace_lines <- function(
     }
   }
   unique(lines)
+}
+
+# The legacy endpoint accepts a lower `since` bound but no upper bound. Drop
+# envelopes that contain only post-window spans before applying max_spans, or
+# a busy recent job can consume the entire budget for a historical query.
+# Keep malformed or undated envelopes here; the parser handles malformed
+# input later, and an undated span cannot safely be classified as post-window.
+connect_trace_lines_before <- function(lines, to) {
+  if (is.null(to)) {
+    return(lines)
+  }
+  keep <- vapply(
+    lines,
+    function(line) {
+      spans <- otel_parse_otlp_lines(line)
+      length(spans) == 0L ||
+        any(vapply(
+          spans,
+          otel_span_in_window,
+          logical(1),
+          from = NULL,
+          to = to
+        ))
+    },
+    logical(1)
+  )
+  lines[keep]
 }
 
 # The early stop groups properly rather than counting conversation ids

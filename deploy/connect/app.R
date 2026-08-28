@@ -2,7 +2,8 @@
 #
 # Serves the read-only scans explorer over the completed conversations of one
 # or more deployed applications, read lazily from Connect's trace store with
-# commons::trajectory_read(). Configure it entirely through Connect Vars:
+# scans' native OpenTelemetry reader. Configure it entirely through Connect
+# Vars:
 #
 #   CONNECT_SERVER          injected by Connect; configure only if disabled
 #   CONNECT_API_KEY         injected ephemeral deployment-owner key; the owner
@@ -17,7 +18,6 @@
 library(shiny)
 library(bslib)
 library(scans)
-library(commons)
 
 parse_sources <- function(spec) {
   entries <- trimws(strsplit(spec, ";", fixed = TRUE)[[1]])

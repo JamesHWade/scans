@@ -47,11 +47,10 @@ traces endpoint at editor level.
 \section{Trace endpoints}{
 
 Connect exposes traces both for a content item as a whole and per job. The
-aggregate endpoint is tried first because it is one request, and the
-per-job endpoint is used when it fails. On some Connect versions the
-aggregate endpoint returns \code{500} for content with a long job history while
-every per-job request still succeeds, so the fallback covers a server
-error, not only a missing endpoint.
+current content-wide store and retained per-job stores are merged and
+de-duplicated because Connect did not migrate legacy traces into the current
+store. When the content-wide endpoint is missing or fails, the per-job store
+is used alone.
 }
 
 \seealso{

@@ -268,6 +268,30 @@ test_that("only the most recent chat span rebuilds the transcript", {
   expect_equal(trajectory_info(bundle)$metadata[[1L]]$otel$input_tokens, 200)
 })
 
+test_that("trajectory metadata is sanitized and losses are retained", {
+  skip_if_not_installed("jsonlite")
+  span <- otel_chat_span(
+    input = list(list(role = "user", parts = text_part("Hello"))),
+    output = list(list(role = "assistant", parts = text_part("Hi")))
+  )
+  bundle <- as_trajectory_otel(
+    list(span),
+    metadata = list(
+      api_key = "secret",
+      live = globalenv(),
+      provider = "fixture"
+    )
+  )
+  metadata <- trajectory_info(bundle)$metadata[[1L]]
+  losses <- trajectory_losses(bundle)
+
+  expect_identical(metadata$api_key, "<redacted>")
+  expect_identical(metadata$live, "<unsupported>")
+  expect_identical(metadata$provider, "fixture")
+  expect_identical(metadata$otel$model_calls, 1L)
+  expect_setequal(losses$field, c("metadata$api_key", "metadata$live"))
+})
+
 test_that("an unfamiliar role is namespaced rather than dropped", {
   skip_if_not_installed("jsonlite")
   span <- otel_chat_span(
@@ -365,6 +389,113 @@ test_that("fallback conversation counts respect the requested time window", {
     ),
     1L
   )
+})
+
+test_that("content-wide and retained per-job traces are merged", {
+  skip_if_not_installed("httr2")
+  aggregate_response <- httr2::response(
+    headers = list(`X-Total-Count` = "1"),
+    body = charToRaw("aggregate\n")
+  )
+  jobs_response <- httr2::response(
+    headers = list(`content-type` = "application/json"),
+    body = charToRaw('[{"key":"job-1","start_time":"2026-01-01"}]')
+  )
+  legacy_response <- httr2::response(
+    headers = list(`X-Total-Count` = "2"),
+    body = charToRaw("aggregate\nlegacy\n")
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      path <- sub("\\?.*$", "", request$url)
+      if (endsWith(path, "/jobs")) {
+        return(jobs_response)
+      }
+      if (grepl("/jobs/[^/]+/traces$", path)) {
+        return(legacy_response)
+      }
+      aggregate_response
+    }
+  )
+
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 10L,
+    n = NULL,
+    call = rlang::caller_env(),
+    page_size = 10L
+  )
+
+  expect_identical(lines, c("aggregate", "legacy"))
+})
+
+test_that("post-window legacy spans do not consume max_spans", {
+  skip_if_not_installed("httr2")
+  urls <- character()
+  page_number <- 0L
+  jobs_response <- httr2::response(
+    headers = list(`content-type` = "application/json"),
+    body = charToRaw('[{"key":"job-1","start_time":"2026-01-01"}]')
+  )
+  trace_response <- httr2::response(
+    headers = list(`X-Total-Count` = "3")
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
+        return(jobs_response)
+      }
+      urls <<- c(urls, request$url)
+      page_number <<- page_number + 1L
+      trace_response
+    },
+    connect_trace_page = function(response) {
+      if (page_number == 1L) c("after-1", "after-2") else "inside"
+    },
+    connect_trace_lines_before = function(lines, to) {
+      if (identical(lines, c("after-1", "after-2"))) character() else lines
+    }
+  )
+
+  lines <- connect_job_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = as.POSIXct("2026-01-01", tz = "UTC"),
+    max_spans = 2L,
+    n = NULL,
+    call = rlang::caller_env(),
+    page_size = 2L
+  )
+
+  expect_identical(lines, "inside")
+  expect_length(urls, 2L)
+  expect_match(urls[[1L]], "limit=2", fixed = TRUE)
+  expect_match(urls[[2L]], "limit=2", fixed = TRUE)
+})
+
+test_that("legacy trace filtering keeps only relevant or unclassified lines", {
+  skip_if_not_installed("jsonlite")
+  before <- paste0(
+    '{"resourceSpans":[{"scopeSpans":[{"spans":[',
+    '{"spanId":"before","startTimeUnixNano":"1000000000"}',
+    "]}]}]}"
+  )
+  after <- paste0(
+    '{"resourceSpans":[{"scopeSpans":[{"spans":[',
+    '{"spanId":"after","startTimeUnixNano":"3000000000"}',
+    "]}]}]}"
+  )
+
+  lines <- connect_trace_lines_before(
+    c(before, after, "malformed"),
+    as.POSIXct(2, origin = "1970-01-01", tz = "UTC")
+  )
+
+  expect_identical(lines, c(before, "malformed"))
 })
 
 test_that("per-job pagination never requests beyond max_spans", {
