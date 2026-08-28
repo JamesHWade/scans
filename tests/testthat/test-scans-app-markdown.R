@@ -59,6 +59,25 @@ test_that("unknown containers keep their text", {
   expect_no_match(html, "wrapper", fixed = TRUE)
 })
 
+test_that("HTML comments remain visible as escaped source", {
+  skip_if_no_markdown()
+  html <- render("Before <!-- diagnostic detail --> after.")
+  expect_match(html, "&lt;!-- diagnostic detail --&gt;", fixed = TRUE)
+  expect_no_match(html, "<!-- diagnostic detail -->", fixed = TRUE)
+
+  html <- scans_app_sanitize_html(
+    "<p>Before</p><?review hidden?><p>After</p>"
+  )
+  expect_match(html, "&lt;!--?review hidden?--&gt;", fixed = TRUE)
+})
+
+test_that("empty unknown elements remain visible as escaped source", {
+  skip_if_no_markdown()
+  html <- render("Before <citation id=\"source-1\"></citation> after.")
+  expect_match(html, "&lt;citation id=\"source-1\"&gt;", fixed = TRUE)
+  expect_match(html, "&lt;/citation&gt;", fixed = TRUE)
+})
+
 test_that("raw closing tags cannot hide later model output", {
   skip_if_no_markdown()
   closing_tags <- c(

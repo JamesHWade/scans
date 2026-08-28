@@ -271,13 +271,26 @@ scans_app_event_ui <- function(event, row) {
 # Message text is the thing people came to read, so it renders as prose with
 # no card around it.
 scans_app_content_event_ui <- function(event, row) {
+  content <- htmltools::tagList(
+    scans_app_markdown(event$text[[1L]]),
+    scans_app_event_value_ui(event),
+    scans_app_event_error_ui(event)
+  )
+  content_type <- scans_app_first_string(event$content_type[[1L]], "text")
+  if (identical(content_type, "thinking")) {
+    return(htmltools::tags$details(
+      id = scans_app_event_dom_id(row),
+      tabindex = "-1",
+      class = "scans-app-event scans-app-event-thinking",
+      htmltools::tags$summary("Thinking"),
+      htmltools::div(class = "scans-app-event-thinking-body", content)
+    ))
+  }
   htmltools::tags$article(
     id = scans_app_event_dom_id(row),
     tabindex = "-1",
     class = "scans-app-event scans-app-event-content",
-    scans_app_markdown(event$text[[1L]]),
-    scans_app_event_value_ui(event),
-    scans_app_event_error_ui(event)
+    content
   )
 }
 

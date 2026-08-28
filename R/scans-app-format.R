@@ -282,6 +282,13 @@ scans_app_sanitize_html <- function(html) {
     ">"
   ))
   root <- xml2::xml_find_first(doc, paste0("//", root_name))
+  hidden <- xml2::xml_find_all(
+    root,
+    ".//comment() | .//processing-instruction()"
+  )
+  for (node in hidden) {
+    scans_app_escape_node(node)
+  }
   query <- paste0(
     ".//*[not(self::",
     paste(scans_app_allowed_tags, collapse = " or self::"),
@@ -295,7 +302,11 @@ scans_app_sanitize_html <- function(html) {
       break
     }
     for (node in bad) {
-      if (xml2::xml_name(node) %in% scans_app_opaque_tags) {
+      if (
+        xml2::xml_name(node) %in%
+          scans_app_opaque_tags ||
+          length(xml2::xml_contents(node)) == 0L
+      ) {
         scans_app_escape_node(node)
       } else {
         scans_app_unwrap_node(node)

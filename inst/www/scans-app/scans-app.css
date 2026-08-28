@@ -727,6 +727,19 @@
   outline-offset: 3px;
 }
 
+.scans-app-event-thinking > summary {
+  color: #5c6575;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.scans-app-event-thinking-body {
+  border-left: 2px solid var(--scans-app-line);
+  margin-top: 0.45rem;
+  padding-left: 0.9rem;
+}
+
 .scans-app-prose {
   overflow-wrap: anywhere;
 }

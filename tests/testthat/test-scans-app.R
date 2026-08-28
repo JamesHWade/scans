@@ -402,6 +402,29 @@ test_that("scans app title fallbacks ignore whitespace-only metadata", {
   )
 })
 
+test_that("thinking content is collapsed apart from visible assistant text", {
+  skip_if_not_installed("htmltools")
+  event <- tibble::tibble(
+    event_id = "thinking-event",
+    event_type = "content",
+    content_type = "thinking",
+    text = "Private reasoning",
+    value = list(NULL),
+    error = NA_character_
+  )
+
+  html <- as.character(
+    htmltools::renderTags(
+      scans_app_content_event_ui(event, 1L)
+    )$html
+  )
+
+  expect_match(html, "<details", fixed = TRUE)
+  expect_match(html, ">Thinking</summary>", fixed = TRUE)
+  expect_match(html, "Private reasoning", fixed = TRUE)
+  expect_no_match(html, " open", fixed = TRUE)
+})
+
 test_that("scans app records retain source identity and deterministic findings", {
   data <- scans_app_data(trajectory_fixture("tool_error"))
 
