@@ -23,7 +23,7 @@ reviewer needs to see the exact events behind a finding.
 |---|---|
 | Which runs need attention? | One-row summaries of failures, tool activity, execution depth, usage, cost, and recorded data loss. |
 | What looks wrong? | Deterministic findings for repeated and unresolved tool calls, suspicious loops, failed events, and causal error chains. |
-| What exactly happened? | A read-only Shiny app that links each finding and evaluation to the relevant transcript events. |
+| What exactly happened? | A read-only Shiny app that links each finding to relevant transcript events and displays evaluations alongside their trajectories. |
 | Can I do my own analysis? | Ordinary tibbles for trajectories, turns, events, evaluations, and adapter losses. |
 | Can I compare different agent systems? | Optional adapters that normalize their completed runs into the same validated structure. |
 
