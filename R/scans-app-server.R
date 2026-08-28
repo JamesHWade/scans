@@ -50,7 +50,12 @@ scans_app_server <- function(sources, annotations = NULL) {
             error = NULL
           ),
           error = function(cnd) {
-            list(bundle = NULL, data = NULL, error = conditionMessage(cnd))
+            scans_app_log_source_error(label, cnd)
+            list(
+              bundle = NULL,
+              data = NULL,
+              error = scans_app_safe_source_error()
+            )
           }
         )
       }
@@ -387,6 +392,19 @@ scans_app_server <- function(sources, annotations = NULL) {
       scans_app_evidence_ui(current, selected())
     })
   }
+}
+
+scans_app_safe_source_error <- function() {
+  "The trace source could not be read. Check the server logs for details."
+}
+
+scans_app_log_source_error <- function(label, cnd) {
+  details <- conditionMessage(cnd)
+  cli::cli_inform(c(
+    "!" = "Failed to load traces for {.val {label}}.",
+    "i" = "{details}"
+  ))
+  invisible(NULL)
 }
 
 

@@ -278,7 +278,21 @@ test_that("scans app contains application source failures", {
     expect_identical(output$scans_app_visible_count, "Traces unavailable")
     expect_match(entries, "Could not load traces", fixed = TRUE)
     expect_no_match(entries, "hunter2", fixed = TRUE)
+    load_error <- as.character(output$scans_app_load_error)[[1L]]
+    expect_match(load_error, "Check the server logs", fixed = TRUE)
+    expect_no_match(load_error, "hunter2", fixed = TRUE)
   })
+})
+
+test_that("scans app logs source failure details on the server", {
+  expect_message(
+    scans_app_log_source_error(
+      "Broken deployment",
+      simpleError("database password=hunter2")
+    ),
+    "hunter2",
+    fixed = TRUE
+  )
 })
 
 test_that("scans app requires an unambiguous application catalog", {
