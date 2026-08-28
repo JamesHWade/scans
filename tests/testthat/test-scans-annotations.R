@@ -103,10 +103,61 @@ test_that("annotation labels must belong to the store vocabulary", {
     error = TRUE,
     store$append("Support", "trajectory-1", label = "typo", note = NULL)
   )
+  expect_snapshot(
+    error = TRUE,
+    store$append(
+      "Support",
+      "trajectory-1",
+      label = "keep",
+      note = NULL,
+      author = c("alice", "bob")
+    )
+  )
   expect_false(file.exists(path))
 
   store$append("Support", "trajectory-1", label = NULL, note = "Needs review")
   expect_identical(store$read()$label, NA_character_)
+})
+
+test_that("annotation records with non-scalar fields are skipped", {
+  skip_if_not_installed("jsonlite")
+  path <- withr::local_tempfile(fileext = ".jsonl")
+  store <- scans_annotations(path = path)
+  store$append("Support", "valid-before", label = NULL, note = "Before")
+
+  fields <- c(
+    "application",
+    "trajectory_id",
+    "label",
+    "note",
+    "author",
+    "created_at"
+  )
+  malformed <- vapply(
+    fields,
+    function(field) {
+      record <- list(
+        application = "Support",
+        trajectory_id = paste0("invalid-", field),
+        label = "follow up",
+        note = "Malformed",
+        author = "reviewer",
+        created_at = "2026-08-28T10:00:00.000Z"
+      )
+      record[[field]] <- c("first", "second")
+      jsonlite::toJSON(record, auto_unbox = TRUE)
+    },
+    character(1)
+  )
+  cat(paste0(malformed, "\n"), file = path, append = TRUE)
+
+  store$append("Support", "valid-after", label = NULL, note = "After")
+  records <- store$read()
+
+  expect_setequal(
+    records$trajectory_id,
+    c("valid-before", "valid-after")
+  )
 })
 
 test_that("a malformed line does not hide the annotations around it", {

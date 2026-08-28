@@ -121,10 +121,29 @@ annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
   }
   records <- lapply(lines, function(line) {
     parsed <- tryCatch(
-      jsonlite::fromJSON(line, simplifyVector = TRUE),
+      jsonlite::fromJSON(line, simplifyVector = FALSE),
       error = function(e) NULL
     )
-    if (!is.list(parsed) || !scans_app_has_string(parsed$trajectory_id)) {
+    if (!is.list(parsed)) {
+      return(NULL)
+    }
+    scalar_fields <- c(
+      "application",
+      "trajectory_id",
+      "label",
+      "note",
+      "author",
+      "created_at"
+    )
+    valid_fields <- vapply(
+      scalar_fields,
+      function(field) annotations_is_scalar_string(parsed[[field]]),
+      logical(1)
+    )
+    if (
+      !all(valid_fields) ||
+        !scans_app_has_string(parsed$trajectory_id)
+    ) {
       return(NULL)
     }
     tibble::tibble(
@@ -154,8 +173,13 @@ annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
   out[out$trajectory_id %in% trajectory_id, , drop = FALSE]
 }
 
+annotations_is_scalar_string <- function(x) {
+  is.null(x) ||
+    (is.character(x) && length(x) == 1L && !is.na(x))
+}
+
 annotations_parse_time <- function(x) {
-  if (is.null(x) || is.na(x) || !nzchar(as.character(x))) {
+  if (!annotations_is_scalar_string(x) || is.null(x) || !nzchar(x)) {
     return(as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC"))
   }
   parsed <- as.POSIXct(
@@ -217,6 +241,13 @@ annotations_append <- function(
   if (is.na(label) && is.na(note)) {
     scans_abort(
       "An annotation needs a label, a note, or both.",
+      class = "scans_error_annotation_record",
+      call = call
+    )
+  }
+  if (!is.null(author) && !scans_app_has_string(author)) {
+    scans_abort(
+      "{.arg author} must be one non-empty string or {.code NULL}.",
       class = "scans_error_annotation_record",
       call = call
     )

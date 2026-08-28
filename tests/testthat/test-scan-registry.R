@@ -55,6 +55,23 @@ test_that("selecting no scans returns no findings", {
   expect_equal(nrow(scan_trajectories(bundle, scans = character())), 0L)
 })
 
+test_that("scan selection preserves positional threshold compatibility", {
+  bundle <- do.call(
+    TrajectoryBundle,
+    fixture_source(trajectory_fixture("tool_error"))
+  )
+
+  positional <- scan_trajectories(bundle, "positional", 4L, 5L)
+  named <- scan_trajectories(
+    bundle,
+    scan_id = "positional",
+    repeat_threshold = 4L,
+    loop_threshold = 5L
+  )
+
+  expect_identical(positional, named)
+})
+
 test_that("an unknown scan name is refused", {
   bundle <- do.call(
     TrajectoryBundle,

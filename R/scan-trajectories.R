@@ -12,15 +12,15 @@
 #'
 #' @param x A [TrajectoryBundle].
 #' @param scan_id A non-empty identifier for this diagnostic run.
-#' @param scans Which detectors to run, as a character vector of names from
-#'   [scan_registry()]. `NULL` (the default) runs all of them. Selecting a
-#'   subset narrows the findings without changing how any of them are
-#'   computed, so a finding is the same whether or not its neighbours ran.
 #' @param repeat_threshold The minimum number of calls with the same tool name
 #'   and arguments that produces a `repeated_tool_call` finding.
 #' @param loop_threshold The minimum consecutive calls with the same tool name
 #'   and arguments that produces a `suspicious_tool_loop` finding. Tool results
 #'   between calls do not break a call sequence.
+#' @param scans Which detectors to run, as a character vector of names from
+#'   [scan_registry()]. `NULL` (the default) runs all of them. Selecting a
+#'   subset narrows the findings without changing how any of them are
+#'   computed, so a finding is the same whether or not its neighbours ran.
 #'
 #' @returns A tibble with one row per finding and these columns:
 #'
@@ -51,9 +51,9 @@
 scan_trajectories <- function(
   x,
   scan_id = "scan-000001",
-  scans = NULL,
   repeat_threshold = 2L,
-  loop_threshold = 3L
+  loop_threshold = 3L,
+  scans = NULL
 ) {
   check_trajectory_bundle(x)
   call <- rlang::caller_env()

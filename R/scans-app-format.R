@@ -260,8 +260,24 @@ scans_app_allowed_attrs <- list(
 # text -- which is exactly what someone inspecting a trajectory needs to see
 # -- while never being live markup in the page.
 scans_app_sanitize_html <- function(html) {
-  doc <- xml2::read_html(paste0("<div id=\"scans-root\">", html, "</div>"))
-  root <- xml2::xml_find_first(doc, "//div[@id='scans-root']")
+  root_name <- "scans-sanitizer-root"
+  root_close <- paste0("(?i)</\\s*", root_name, "\\s*>")
+  html <- gsub(
+    root_close,
+    paste0("&lt;/", root_name, "&gt;"),
+    html,
+    perl = TRUE
+  )
+  doc <- xml2::read_html(paste0(
+    "<",
+    root_name,
+    ">",
+    html,
+    "</",
+    root_name,
+    ">"
+  ))
+  root <- xml2::xml_find_first(doc, paste0("//", root_name))
   query <- paste0(
     ".//*[not(self::",
     paste(scans_app_allowed_tags, collapse = " or self::"),

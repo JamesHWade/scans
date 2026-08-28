@@ -59,6 +59,16 @@ test_that("unknown containers keep their text", {
   expect_no_match(html, "wrapper", fixed = TRUE)
 })
 
+test_that("raw closing tags cannot hide later model output", {
+  skip_if_no_markdown()
+  html <- scans_app_sanitize_html(
+    "<p>Before</p></div><p>After</p>"
+  )
+
+  expect_match(html, "Before", fixed = TRUE)
+  expect_match(html, "After", fixed = TRUE)
+})
+
 test_that("empty and missing text render nothing", {
   skip_if_no_markdown()
   expect_null(scans_app_markdown(NA_character_))
