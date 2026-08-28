@@ -23,6 +23,8 @@
 #' @returns A `scans_annotations` object: a list of `read()`, `append()`, and
 #'   `labels` for the app to use. `append()` requires both an application
 #'   namespace and a trajectory identifier; `read()` can filter by either.
+#'   Labels outside the store's configured vocabulary are rejected; a missing
+#'   label remains valid for note-only annotations.
 #'
 #' @export
 #'
@@ -73,6 +75,7 @@ scans_annotations <- function(
         trajectory_id,
         label,
         note,
+        labels,
         author
       )
     }
@@ -176,6 +179,7 @@ annotations_append <- function(
   trajectory_id,
   label,
   note,
+  labels,
   author = NULL,
   max_note = 4000L
 ) {
@@ -195,6 +199,16 @@ annotations_append <- function(
     )
   }
   label <- if (scans_app_has_string(label)) label else NA_character_
+  if (!is.na(label) && !label %in% labels) {
+    scans_abort(
+      c(
+        "Label {.val {label}} is not configured for this annotation store.",
+        i = "Choose one of {.val {labels}} or leave the label blank."
+      ),
+      class = "scans_error_annotation_record",
+      call = call
+    )
+  }
   note <- if (scans_app_has_string(note)) {
     substr(note, 1L, max_note)
   } else {

@@ -21,6 +21,8 @@ the per-user default is not shared.}
 A \code{scans_annotations} object: a list of \code{read()}, \code{append()}, and
 \code{labels} for the app to use. \code{append()} requires both an application
 namespace and a trajectory identifier; \code{read()} can filter by either.
+Labels outside the store's configured vocabulary are rejected; a missing
+label remains valid for note-only annotations.
 }
 \description{
 \code{scans_annotations()} creates the annotation store the app writes to when a

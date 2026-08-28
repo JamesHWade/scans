@@ -94,6 +94,21 @@ test_that("a label or a note alone is enough", {
   expect_true(anyNA(records$label))
 })
 
+test_that("annotation labels must belong to the store vocabulary", {
+  skip_if_not_installed("jsonlite")
+  path <- withr::local_tempfile(fileext = ".jsonl")
+  store <- scans_annotations(path = path, labels = c("keep", "revise"))
+
+  expect_snapshot(
+    error = TRUE,
+    store$append("Support", "trajectory-1", label = "typo", note = NULL)
+  )
+  expect_false(file.exists(path))
+
+  store$append("Support", "trajectory-1", label = NULL, note = "Needs review")
+  expect_identical(store$read()$label, NA_character_)
+})
+
 test_that("a malformed line does not hide the annotations around it", {
   skip_if_not_installed("jsonlite")
   path <- withr::local_tempfile(fileext = ".jsonl")

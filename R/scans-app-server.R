@@ -394,7 +394,14 @@ scans_app_server <- function(sources, annotations = NULL) {
 # default rather than erroring: the panel should not be able to break the
 # view it controls.
 scans_app_threshold <- function(value, default) {
-  if (is.null(value) || length(value) != 1L || is.na(value) || value < 2) {
+  valid <- is.numeric(value) &&
+    length(value) == 1L &&
+    !is.na(value) &&
+    is.finite(value) &&
+    value == floor(value) &&
+    value >= 2 &&
+    value <= .Machine$integer.max
+  if (!valid) {
     return(default)
   }
   as.integer(value)

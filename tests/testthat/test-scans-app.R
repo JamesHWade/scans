@@ -913,3 +913,26 @@ test_that("scans app supports event-only and empty bundles", {
   expect_identical(nrow(empty$records), 0L)
   expect_identical(scans_app_filter_records(empty$records), integer())
 })
+
+test_that("scans app thresholds accept only bounded whole numbers", {
+  expect_identical(scans_app_threshold(4, 2L), 4L)
+
+  invalid <- list(
+    NULL,
+    numeric(),
+    c(2, 3),
+    NA_real_,
+    1,
+    2.5,
+    Inf,
+    .Machine$integer.max + 1,
+    "3"
+  )
+  actual <- vapply(
+    invalid,
+    scans_app_threshold,
+    integer(1),
+    default = 3L
+  )
+  expect_identical(actual, rep(3L, length(invalid)))
+})
