@@ -21,7 +21,8 @@
 #'   (`.../content/<guid>/`), or a dashboard URL (`.../connect/#/apps/<guid>/`).
 #' @param n Maximum number of recent conversations to keep. `NULL` keeps all.
 #' @param from,to Optional lower-inclusive and upper-exclusive bounds on span
-#'   start time. When both are omitted, the seven days ending now are read.
+#'   start time. `NULL` leaves that side open. When both are omitted, the seven
+#'   days ending now are read.
 #' @param server,api_key Connect server URL and API key. Default to
 #'   `CONNECT_SERVER` and `CONNECT_API_KEY`.
 #' @param max_spans Safety ceiling on how many spans are fetched. Shiny
@@ -44,19 +45,21 @@ read_connect_traces <- function(
   max_spans = 50000L
 ) {
   call <- rlang::caller_env()
+  use_default_window <- missing(from) && missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_number_whole(max_spans, min = 1)
   guid <- connect_source_guid(source, call)
   client <- connect_client(server, api_key, call)
 
-  now <- Sys.time()
-  from <- from %||% (now - 7 * 24 * 60 * 60)
-  to <- to %||% now
+  if (use_default_window) {
+    now <- Sys.time()
+    from <- now - 7 * 24 * 60 * 60
+    to <- now
+  }
 
   lines <- connect_trace_lines(client, guid, from, to, max_spans, n, call)
   spans <- otel_parse_otlp_lines(lines)
-  spans <- Filter(function(span) otel_span_in_window(span, from, to), spans)
-  conversations <- otel_group_conversations(spans)
+  conversations <- otel_group_conversations_in_window(spans, from, to)
 
   if (!is.null(n) && length(conversations) > n) {
     conversations <- utils::tail(conversations, n)
@@ -162,10 +165,14 @@ connect_trace_lines <- function(
   lines <- character()
   offset <- 0L
   repeat {
+    if (length(lines) >= max_spans) {
+      break
+    }
+    limit <- min(page_size, max_spans - length(lines))
     response <- connect_perform(
       connect_request(client, "content", guid, "traces") |>
         httr2::req_url_query(
-          limit = page_size,
+          limit = limit,
           offset = offset,
           from = connect_window_param(from, -3600),
           to = connect_window_param(to, 1)
@@ -177,6 +184,7 @@ connect_trace_lines <- function(
         client,
         guid,
         from,
+        to,
         max_spans,
         n,
         call,
@@ -189,14 +197,16 @@ connect_trace_lines <- function(
       httr2::resp_header(response, "X-Total-Count")
     ))
     offset <- offset + length(page)
-    if (length(page) == 0L || is.na(total) || offset >= total) {
+    if (length(lines) >= max_spans) {
+      if (is.na(total) || offset < total) {
+        cli::cli_warn(
+          "Stopped after {length(lines)} span{?s} of {total}; raise
+           {.arg max_spans} to read further back."
+        )
+      }
       break
     }
-    if (length(lines) >= max_spans) {
-      cli::cli_warn(
-        "Stopped after {length(lines)} span{?s} of {total}; raise
-         {.arg max_spans} to read further back."
-      )
+    if (length(page) == 0L || is.na(total) || offset >= total) {
       break
     }
   }
@@ -236,6 +246,7 @@ connect_job_trace_lines <- function(
   client,
   guid,
   from,
+  to,
   max_spans,
   n,
   call,
@@ -262,10 +273,14 @@ connect_job_trace_lines <- function(
   for (key in keys) {
     offset <- 0L
     repeat {
+      if (length(lines) >= max_spans) {
+        break
+      }
+      limit <- min(page_size, max_spans - length(lines))
       response <- connect_perform(
         connect_request(client, "content", guid, "jobs", key, "traces") |>
           httr2::req_url_query(
-            limit = page_size,
+            limit = limit,
             offset = offset,
             since = connect_window_param(from, -3600)
           ),
@@ -291,7 +306,7 @@ connect_job_trace_lines <- function(
     # been seen the older jobs cannot add any that would survive the `n` most
     # recent. Content with hundreds of jobs is otherwise minutes of requests
     # for pages that are discarded.
-    if (!is.null(n) && connect_conversation_count(lines) >= n) {
+    if (!is.null(n) && connect_conversation_count(lines, from, to) >= n) {
       break
     }
   }
@@ -303,8 +318,9 @@ connect_job_trace_lines <- function(
 # like separate conversations, the count runs ahead of the truth and the read
 # stops before `n` are actually available. Grouping re-parses what has been
 # fetched so far, which is cheap next to another round of HTTP.
-connect_conversation_count <- function(lines) {
-  length(otel_group_conversations(otel_parse_otlp_lines(lines)))
+connect_conversation_count <- function(lines, from, to) {
+  spans <- otel_parse_otlp_lines(lines)
+  length(otel_group_conversations_in_window(spans, from, to))
 }
 
 connect_trace_page <- function(response) {
@@ -397,4 +413,20 @@ otel_span_in_window <- function(span, from, to) {
   time <- start / 1e9
   (is.null(from) || time >= as.numeric(from)) &&
     (is.null(to) || time < as.numeric(to))
+}
+
+# Group with the padded ancestry still present, then apply the exact time
+# window within each group. Filtering first loses an earlier parent that may
+# carry the conversation id; keeping it afterwards would incorrectly expose a
+# span outside the requested window.
+otel_group_conversations_in_window <- function(spans, from, to) {
+  groups <- otel_group_conversations(spans)
+  groups <- lapply(groups, function(group) {
+    Filter(function(span) otel_span_in_window(span, from, to), group)
+  })
+  groups <- Filter(
+    function(group) any(vapply(group, otel_is_chat_span, logical(1))),
+    groups
+  )
+  otel_order_conversations(groups)
 }

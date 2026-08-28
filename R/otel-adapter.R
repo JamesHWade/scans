@@ -347,7 +347,13 @@ otel_part_event <- function(
     row$event_type <- "tool_call"
     row$name <- otel_string(part$name)
     row$call_id <- otel_string(part$id)
-    row$value <- list(otel_safe_value(part$arguments))
+    safe <- otel_safe_value(
+      part$arguments,
+      trajectory_ids(trajectory_id, turn_id, event_id),
+      "arguments"
+    )
+    row$value <- list(safe$value)
+    loss <- safe$loss
     row <- otel_apply_tool_span(row, tool_index)
   } else if (identical(type, "tool_call_response")) {
     row$event_type <- "tool_result"
@@ -364,7 +370,13 @@ otel_part_event <- function(
         "response"
       )
     } else {
-      row$value <- list(otel_safe_value(response))
+      safe <- otel_safe_value(
+        response,
+        trajectory_ids(trajectory_id, turn_id, event_id),
+        "response"
+      )
+      row$value <- list(safe$value)
+      loss <- safe$loss
     }
     row <- otel_apply_tool_span(row, tool_index)
   } else {
@@ -497,17 +509,16 @@ otel_tool_index <- function(tool_spans) {
   index
 }
 
-# Tool arguments and responses are provider-shaped JSON. The bundle only
-# accepts simple nested values, so anything else is rendered to text rather
-# than smuggled into a list column that would fail validation.
-otel_safe_value <- function(value) {
-  if (is.null(value)) {
-    return(NULL)
-  }
-  if (trajectory_value_is_safe(value)) {
-    return(value)
-  }
-  list(text = paste(utils::capture.output(utils::str(value)), collapse = "\n"))
+# Tool arguments and responses are provider-shaped JSON. Apply the same
+# bounded, serializable-value policy as every other adapter before placing a
+# value in the bundle. In particular, a structurally safe but oversized list
+# must become a recorded truncation instead of invalidating the conversation.
+otel_safe_value <- function(value, ids, field) {
+  sanitized <- trajectory_sanitize_value(value, field, ids)
+  list(
+    value = sanitized$value,
+    loss = trajectory_loss_table(sanitized$losses)
+  )
 }
 
 # ---- span helpers -----------------------------------------------------------

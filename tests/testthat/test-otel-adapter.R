@@ -204,6 +204,31 @@ test_that("spans group by conversation id, walking up to a parent", {
   expect_equal(nrow(trajectory_info(as_trajectory_otel(groups))), 2L)
 })
 
+test_that("time filtering retains padded ancestors for conversation grouping", {
+  parent <- otel_test_span(
+    "root",
+    list("gen_ai.conversation.id" = "conv-A"),
+    start = 1e9,
+    end = 2e9
+  )
+  child <- otel_chat_span(
+    span_id = "chat-A",
+    conversation = NULL,
+    parent = "root"
+  )
+  child$start_time <- as.character(3e9)
+  child$end_time <- as.character(4e9)
+
+  groups <- otel_group_conversations_in_window(
+    list(parent, child),
+    from = as.POSIXct(2, origin = "1970-01-01", tz = "UTC"),
+    to = as.POSIXct(5, origin = "1970-01-01", tz = "UTC")
+  )
+
+  expect_named(groups, "conv-A")
+  expect_equal(vapply(groups[[1L]], `[[`, character(1), "span_id"), "chat-A")
+})
+
 test_that("a conversation with no id falls back to its trace", {
   skip_if_not_installed("jsonlite")
   span <- otel_chat_span(
@@ -301,6 +326,89 @@ test_that("missing Connect credentials are reported before any request", {
   )
 })
 
+test_that("explicit NULL Connect bounds remain open", {
+  bounds <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    connect_client = function(...) list(server = "https://connect.example.com"),
+    connect_trace_lines = function(client, guid, from, to, ...) {
+      bounds$from <- from
+      bounds$to <- to
+      character()
+    }
+  )
+  guid <- "11111111-1111-4111-8111-111111111111"
+  historical <- as.POSIXct("2026-01-01", tz = "UTC")
+
+  read_connect_traces(guid, from = NULL, to = historical)
+  expect_null(bounds$from)
+  expect_identical(bounds$to, historical)
+
+  read_connect_traces(guid, from = historical, to = NULL)
+  expect_identical(bounds$from, historical)
+  expect_null(bounds$to)
+})
+
+test_that("fallback conversation counts respect the requested time window", {
+  inside <- otel_chat_span(span_id = "inside", conversation = "inside")
+  inside$start_time <- as.character(3e9)
+  after <- otel_chat_span(span_id = "after", conversation = "after")
+  after$start_time <- as.character(7e9)
+  testthat::local_mocked_bindings(
+    otel_parse_otlp_lines = function(lines) list(inside, after)
+  )
+
+  expect_equal(
+    connect_conversation_count(
+      "lines",
+      from = as.POSIXct(2, origin = "1970-01-01", tz = "UTC"),
+      to = as.POSIXct(5, origin = "1970-01-01", tz = "UTC")
+    ),
+    1L
+  )
+})
+
+test_that("per-job pagination never requests beyond max_spans", {
+  skip_if_not_installed("httr2")
+  urls <- character()
+  page_number <- 0L
+  jobs_response <- httr2::response(
+    headers = list(`content-type` = "application/json"),
+    body = charToRaw('[{"key":"job-1","start_time":"2026-01-01"}]')
+  )
+  trace_response <- httr2::response(
+    headers = list(`X-Total-Count` = "100")
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
+        return(jobs_response)
+      }
+      urls <<- c(urls, request$url)
+      page_number <<- page_number + 1L
+      trace_response
+    },
+    connect_trace_page = function(response) {
+      if (page_number == 1L) c("span-1", "span-2") else "span-3"
+    }
+  )
+
+  lines <- connect_job_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 3L,
+    n = NULL,
+    call = rlang::caller_env(),
+    page_size = 2L
+  )
+
+  expect_length(lines, 3L)
+  expect_length(urls, 2L)
+  expect_match(urls[[1L]], "limit=2", fixed = TRUE)
+  expect_match(urls[[2L]], "limit=1", fixed = TRUE)
+})
+
 test_that("oversized text is truncated and recorded as a loss", {
   skip_if_not_installed("jsonlite")
   big <- strrep("x", 70000L)
@@ -326,6 +434,46 @@ test_that("oversized text is truncated and recorded as a loss", {
   expect_equal(losses$field, "response")
   # The rest of the conversation survives the oversized part.
   expect_true("Summarised" %in% events$text)
+})
+
+test_that("oversized structured tool values are truncated with losses", {
+  skip_if_not_installed("jsonlite")
+  big <- list(document = strrep("x", 70000L))
+  span <- otel_chat_span(
+    input = list(
+      list(
+        role = "assistant",
+        parts = list(list(
+          type = "tool_call",
+          id = "call-1",
+          name = "search",
+          arguments = big
+        ))
+      ),
+      list(
+        role = "tool",
+        parts = list(list(
+          type = "tool_call_response",
+          id = "call-1",
+          response = big
+        ))
+      )
+    ),
+    output = list(list(role = "assistant", parts = text_part("Summarised")))
+  )
+
+  bundle <- as_trajectory_otel(list(span))
+  events <- trajectory_events(bundle)
+  losses <- trajectory_losses(bundle)
+
+  tool_values <- events$value[
+    events$event_type %in% c("tool_call", "tool_result")
+  ]
+  documents <- vapply(tool_values, `[[`, character(1), "document")
+  expect_true(all(nchar(documents, type = "bytes") < 65536L))
+  expect_true(all(endsWith(documents, "...")))
+  expect_equal(losses$reason, rep("truncated", 2L))
+  expect_setequal(losses$field, c("arguments$document", "response$document"))
 })
 
 test_that("truncation does not split a multibyte character", {
