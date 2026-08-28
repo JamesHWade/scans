@@ -261,6 +261,7 @@ scans_app_allowed_attrs <- list(
 # -- while never being live markup in the page.
 scans_app_sanitize_html <- function(html) {
   root_name <- "scans-sanitizer-root"
+  html <- scans_app_escape_html_declarations(html)
   root_close <- paste0(
     "(?i)<(/\\s*(?:html|body|",
     root_name,
@@ -330,6 +331,20 @@ scans_app_sanitize_html <- function(html) {
     vapply(xml2::xml_contents(root), as.character, character(1)),
     collapse = ""
   )
+}
+
+scans_app_escape_html_declarations <- function(html) {
+  locations <- gregexpr("(?i)<!DOCTYPE\\b[^>]*>", html, perl = TRUE)
+  declarations <- regmatches(html, locations)
+  escaped <- lapply(declarations, function(matches) {
+    vapply(
+      matches,
+      function(match) as.character(htmltools::htmlEscape(match)),
+      character(1)
+    )
+  })
+  regmatches(html, locations) <- escaped
+  html
 }
 
 # Rewrite a node as inline code holding its own serialized markup.

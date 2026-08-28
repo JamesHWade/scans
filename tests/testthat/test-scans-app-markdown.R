@@ -81,6 +81,15 @@ test_that("empty unknown elements remain visible as escaped source", {
   expect_match(html, "&lt;/citation&gt;", fixed = TRUE)
 })
 
+test_that("document declarations remain visible as escaped source", {
+  skip_if_no_markdown()
+  html <- render("Before\n\n<!DOCTYPE html>\n\nAfter")
+  expect_match(html, "&lt;!DOCTYPE html&gt;", fixed = TRUE)
+  expect_no_match(html, "<!DOCTYPE html>", fixed = TRUE)
+  expect_match(html, "Before", fixed = TRUE)
+  expect_match(html, "After", fixed = TRUE)
+})
+
 test_that("raw closing tags cannot hide later model output", {
   skip_if_no_markdown()
   closing_tags <- c(
