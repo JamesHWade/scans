@@ -63,6 +63,14 @@ otel_chat_span <- function(
 
 text_part <- function(content) list(list(type = "text", content = content))
 
+test_that("OTEL conversion requires jsonlite", {
+  testthat::local_mocked_bindings(
+    otel_jsonlite_available = function() FALSE
+  )
+
+  expect_snapshot(error = TRUE, as_trajectory_otel(list()))
+})
+
 test_that("a chat span becomes turns and events", {
   skip_if_not_installed("jsonlite")
   span <- otel_chat_span(
@@ -166,6 +174,58 @@ test_that("an execute_tool span supplies timing and failure", {
   expect_identical(result$duration, NA_real_)
   expect_identical(sum(events$status == "failed"), 1L)
   expect_equal(trajectory_info(bundle)$status, "failed")
+})
+
+test_that("standard OTLP status marks model and tool spans as failed", {
+  skip_if_not_installed("jsonlite")
+  chat <- otel_chat_span(
+    input = list(
+      list(
+        role = "assistant",
+        parts = list(list(
+          type = "tool_call",
+          id = "call-status",
+          name = "search"
+        ))
+      )
+    ),
+    output = list(list(role = "assistant", parts = text_part("Partial")))
+  )
+  chat$status <- list(code = "STATUS_CODE_ERROR", message = "Model failed")
+  tool <- otel_test_span(
+    "tool-status",
+    list(
+      "gen_ai.operation.name" = "execute_tool",
+      "gen_ai.tool.call.id" = "call-status",
+      "gen_ai.conversation.id" = "conv-1"
+    )
+  )
+  tool$status <- list(code = 2L, message = "Tool timed out")
+
+  bundle <- as_trajectory_otel(list(chat, tool))
+  output <- trajectory_turns(bundle)
+  output <- utils::tail(output[output$role == "assistant", ], 1L)
+  call <- trajectory_events(bundle)
+  call <- call[call$event_type == "tool_call", ]
+
+  expect_identical(output$status, "failed")
+  expect_identical(output$error, "Model failed")
+  expect_identical(call$status, "failed")
+  expect_identical(call$error, "Tool timed out")
+  expect_identical(trajectory_info(bundle)$status, "failed")
+})
+
+test_that("OTLP parsing retains the standard span status", {
+  span <- otel_span(list(
+    status = list(code = "ERROR", message = "Provider refused the request")
+  ))
+
+  expect_identical(
+    span$status,
+    list(code = "ERROR", message = "Provider refused the request")
+  )
+  expect_true(otel_span_failed(span))
+  expect_identical(otel_span_error(span), "Provider refused the request")
 })
 
 test_that("failed chats do not assign model metrics to input turns", {

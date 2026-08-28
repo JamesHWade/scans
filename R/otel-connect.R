@@ -102,6 +102,24 @@ otel_check_installed <- function(call = rlang::caller_env()) {
   )
 }
 
+otel_jsonlite_available <- function() {
+  requireNamespace("jsonlite", quietly = TRUE)
+}
+
+otel_check_jsonlite <- function(call = rlang::caller_env()) {
+  if (otel_jsonlite_available()) {
+    return(invisible(TRUE))
+  }
+  scans_abort(
+    c(
+      "Converting OpenTelemetry spans requires {.pkg jsonlite}.",
+      i = "Install {.pkg jsonlite} to enable it."
+    ),
+    class = "scans_error_otel_dependency",
+    call = call
+  )
+}
+
 connect_content_url <- function(client, guid) {
   paste0(client$server, "/content/", guid, "/")
 }
@@ -407,6 +425,7 @@ otel_span <- function(span, scope = NULL) {
     scope = scope$scope$name %||% NA_character_,
     start_time = as.character(span$startTimeUnixNano %||% NA),
     end_time = as.character(span$endTimeUnixNano %||% NA),
+    status = span$status %||% list(),
     attributes = otel_attributes(span$attributes)
   )
 }
