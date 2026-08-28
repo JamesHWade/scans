@@ -102,7 +102,10 @@ scans_app_transcript_ui <- function(data, index) {
   }
   blocks <- lapply(ordered_blocks, `[[`, "ui")
 
-  htmltools::div(class = "scans-app-path", htmltools::tagList(blocks))
+  htmltools::div(
+    class = "scans-app-path scans-app-chat",
+    htmltools::tagList(blocks)
+  )
 }
 
 scans_app_insert_eventless_turn <- function(blocks, block) {
@@ -131,62 +134,212 @@ scans_app_event_group_ui <- function(title, events, rows) {
   )
 }
 
+# A turn renders as a chat message rather than a titled card: user turns as a
+# trailing bubble, assistant turns against an avatar, and the system prompt --
+# which is long, identical across a conversation, and rarely what someone
+# opened the transcript for -- collapsed behind a disclosure. The diagnostic
+# facts a card used to spell out (turn index, tokens, duration, status) move
+# to a quiet footer, and a status badge is shown only when the status is worth
+# noticing; a green "Completed" on every turn is noise that hides the failures.
 scans_app_turn_ui <- function(turn, events, rows) {
   role <- scans_app_first_string(turn$role[[1L]], "unknown")
-  title <- paste0(
-    scans_app_title_case(role),
-    " \u00b7 Turn ",
-    turn$turn_index[[1L]]
-  )
-  if (!is.na(turn$round_index[[1L]])) {
-    title <- paste0(title, " \u00b7 Round ", turn$round_index[[1L]])
-  }
-  body <- if (length(rows) == 0L) {
-    scans_app_empty_ui("No events were recorded for this turn.", compact = TRUE)
-  } else {
-    htmltools::tagList(lapply(rows, function(row) {
-      scans_app_event_ui(events[row, , drop = FALSE], row)
-    }))
-  }
-
-  htmltools::tags$section(
-    class = paste0("scans-app-turn scans-app-turn-", scans_app_css_token(role)),
-    htmltools::div(
-      class = "scans-app-turn-header",
-      htmltools::tags$h2(title),
-      scans_app_status_badge(turn$status[[1L]])
-    ),
+  token <- scans_app_css_token(role)
+  # A turn whose events are all tool traffic is machinery, not speech. commons
+  # hands back tool results as user-role turns (ellmer carries a
+  # ContentToolResult on a UserTurn), and rendering those as a person's
+  # message puts "Returned add_citation" in a chat bubble on the user's side.
+  activity <- length(rows) > 0L &&
+    all(events$event_type[rows] %in% c("tool_call", "tool_result"))
+  body <- htmltools::tagList(
     if (scans_app_has_string(turn$error[[1L]])) {
       htmltools::div(class = "scans-app-turn-error", turn$error[[1L]])
     },
-    body
+    if (length(rows) == 0L) {
+      scans_app_empty_ui(
+        "No events were recorded for this turn.",
+        compact = TRUE
+      )
+    } else {
+      htmltools::tagList(lapply(rows, function(row) {
+        scans_app_event_ui(events[row, , drop = FALSE], row)
+      }))
+    }
   )
+  meta <- scans_app_turn_meta(turn)
+
+  content <- if (activity) {
+    htmltools::div(class = "scans-app-msg-body", body, meta)
+  } else if (identical(role, "system")) {
+    htmltools::tags$details(
+      class = "scans-app-msg-disclosure",
+      htmltools::tags$summary(
+        htmltools::tags$span(class = "scans-app-msg-role", "System prompt"),
+        scans_app_turn_position(turn)
+      ),
+      htmltools::div(class = "scans-app-msg-body", body, meta)
+    )
+  } else if (identical(role, "user")) {
+    htmltools::div(class = "scans-app-msg-bubble", body, meta)
+  } else {
+    htmltools::tagList(
+      htmltools::div(
+        class = "scans-app-msg-avatar",
+        `aria-hidden` = "true",
+        substr(toupper(role), 1L, 1L)
+      ),
+      htmltools::div(class = "scans-app-msg-body", body, meta)
+    )
+  }
+
+  htmltools::tags$section(
+    class = paste(
+      "scans-app-msg",
+      paste0("scans-app-msg-", token),
+      if (activity) "scans-app-msg-activity" else ""
+    ),
+    `data-role` = role,
+    content
+  )
+}
+
+# Turn index and round, as a quiet positional label.
+scans_app_turn_position <- function(turn) {
+  text <- paste0("Turn ", turn$turn_index[[1L]])
+  if (!is.na(turn$round_index[[1L]])) {
+    text <- paste0(text, " \u00b7 Round ", turn$round_index[[1L]])
+  }
+  htmltools::tags$span(class = "scans-app-msg-position", text)
+}
+
+scans_app_turn_meta <- function(turn) {
+  parts <- list(scans_app_turn_position(turn))
+  tokens <- c(turn$input_tokens[[1L]], turn$output_tokens[[1L]])
+  if (!all(is.na(tokens))) {
+    parts <- c(
+      parts,
+      list(htmltools::tags$span(sprintf(
+        "%s in / %s out",
+        scans_app_count(tokens[[1L]]),
+        scans_app_count(tokens[[2L]])
+      )))
+    )
+  }
+  if (!is.na(turn$duration[[1L]])) {
+    parts <- c(
+      parts,
+      list(htmltools::tags$span(sprintf("%.2f s", turn$duration[[1L]])))
+    )
+  }
+  if (scans_app_has_string(turn$finish_reason[[1L]])) {
+    parts <- c(parts, list(htmltools::tags$span(turn$finish_reason[[1L]])))
+  }
+  badge <- scans_app_notable_status_badge(turn$status[[1L]])
+  htmltools::div(
+    class = "scans-app-msg-meta",
+    htmltools::tagList(parts),
+    badge
+  )
+}
+
+scans_app_count <- function(x) {
+  if (is.na(x)) "\u2013" else format(x, big.mark = ",", trim = TRUE)
+}
+
+# Only statuses that deserve attention get a badge; a routine completion is
+# the absence of one.
+scans_app_notable_status_badge <- function(status) {
+  if (!scans_app_has_string(status)) {
+    return(NULL)
+  }
+  if (status %in% c("completed", "succeeded", "success", "passed")) {
+    return(NULL)
+  }
+  scans_app_status_badge(status)
 }
 
 scans_app_event_ui <- function(event, row) {
   type <- scans_app_first_string(event$event_type[[1L]], "event")
-  name <- event$name[[1L]]
-  heading <- switch(
-    type,
-    content = scans_app_title_case(
-      scans_app_first_string(event$content_type[[1L]], "content")
-    ),
-    tool_call = "Tool call",
-    tool_result = "Tool result",
-    error = "Error",
-    scans_app_title_case(gsub("[:_]", " ", type))
-  )
-  if (scans_app_has_string(name)) {
-    heading <- paste(heading, name, sep = " \u00b7 ")
+  if (type %in% c("tool_call", "tool_result")) {
+    return(scans_app_tool_event_ui(event, row, type))
   }
-  meta <- scans_app_event_meta(event)
-  value <- scans_app_value_text(event$value[[1L]])
+  if (identical(type, "content")) {
+    return(scans_app_content_event_ui(event, row))
+  }
+  scans_app_aside_event_ui(event, row, type)
+}
 
+# Message text is the thing people came to read, so it renders as prose with
+# no card around it.
+scans_app_content_event_ui <- function(event, row) {
+  content <- htmltools::tagList(
+    scans_app_markdown(event$text[[1L]]),
+    scans_app_event_value_ui(event),
+    scans_app_event_error_ui(event)
+  )
+  content_type <- scans_app_first_string(event$content_type[[1L]], "text")
+  if (identical(content_type, "thinking")) {
+    return(htmltools::tags$details(
+      id = scans_app_event_dom_id(row),
+      tabindex = "-1",
+      class = "scans-app-event scans-app-event-thinking",
+      htmltools::tags$summary("Thinking"),
+      htmltools::div(class = "scans-app-event-thinking-body", content)
+    ))
+  }
+  htmltools::tags$article(
+    id = scans_app_event_dom_id(row),
+    tabindex = "-1",
+    class = "scans-app-event scans-app-event-content",
+    content
+  )
+}
+
+# Tool activity is supporting detail: one compact, collapsed row per call,
+# with the tool name in monospace and the payload inside.
+scans_app_tool_event_ui <- function(event, row, type) {
+  name <- scans_app_first_string(event$name[[1L]], "tool")
+  label <- if (identical(type, "tool_call")) "Called" else "Returned"
+  failed <- scans_app_has_string(event$error[[1L]])
+  htmltools::tags$details(
+    id = scans_app_event_dom_id(row),
+    tabindex = "-1",
+    class = paste(
+      "scans-app-event scans-app-tool",
+      paste0("scans-app-tool-", scans_app_css_token(type)),
+      if (failed) "scans-app-tool-failed" else ""
+    ),
+    htmltools::tags$summary(
+      htmltools::tags$span(class = "scans-app-tool-label", label),
+      htmltools::tags$code(class = "scans-app-tool-name", name),
+      scans_app_notable_status_badge(event$status[[1L]])
+    ),
+    htmltools::div(
+      class = "scans-app-tool-body",
+      scans_app_event_meta_ui(event),
+      if (scans_app_has_string(event$text[[1L]])) {
+        htmltools::tags$pre(
+          class = "scans-app-event-value",
+          htmltools::tags$code(event$text[[1L]])
+        )
+      },
+      scans_app_event_value_ui(event),
+      scans_app_event_error_ui(event)
+    )
+  )
+}
+
+# Anything else (an error, a source-specific event such as commons
+# provenance) stays visible but quiet.
+scans_app_aside_event_ui <- function(event, row, type) {
+  heading <- scans_app_title_case(gsub("[:_]", " ", type))
+  if (scans_app_has_string(event$name[[1L]])) {
+    heading <- paste(heading, event$name[[1L]], sep = " \u00b7 ")
+  }
   htmltools::tags$article(
     id = scans_app_event_dom_id(row),
     tabindex = "-1",
     class = paste(
-      "scans-app-event",
+      "scans-app-event scans-app-aside",
       paste0("scans-app-event-", scans_app_css_token(type)),
       if (scans_app_has_string(event$error[[1L]])) {
         "scans-app-event-failed"
@@ -195,29 +348,43 @@ scans_app_event_ui <- function(event, row) {
       }
     ),
     htmltools::div(
-      class = "scans-app-event-header",
+      class = "scans-app-aside-header",
       htmltools::tags$strong(heading),
-      scans_app_status_badge(event$status[[1L]])
+      scans_app_notable_status_badge(event$status[[1L]])
     ),
-    if (length(meta) > 0L) {
-      htmltools::div(class = "scans-app-event-meta", meta)
-    },
+    scans_app_event_meta_ui(event),
     if (scans_app_has_string(event$text[[1L]])) {
       htmltools::div(class = "scans-app-event-text", event$text[[1L]])
     },
-    if (!is.null(value)) {
-      htmltools::tags$pre(
-        class = "scans-app-event-value",
-        htmltools::tags$code(value)
-      )
-    },
-    if (scans_app_has_string(event$error[[1L]])) {
-      htmltools::div(
-        class = "scans-app-event-error",
-        event$error[[1L]]
-      )
-    }
+    scans_app_event_value_ui(event),
+    scans_app_event_error_ui(event)
   )
+}
+
+scans_app_event_value_ui <- function(event) {
+  value <- scans_app_value_text(event$value[[1L]])
+  if (is.null(value)) {
+    return(NULL)
+  }
+  htmltools::tags$pre(
+    class = "scans-app-event-value",
+    htmltools::tags$code(value)
+  )
+}
+
+scans_app_event_error_ui <- function(event) {
+  if (!scans_app_has_string(event$error[[1L]])) {
+    return(NULL)
+  }
+  htmltools::div(class = "scans-app-event-error", event$error[[1L]])
+}
+
+scans_app_event_meta_ui <- function(event) {
+  meta <- scans_app_event_meta(event)
+  if (length(meta) == 0L) {
+    return(NULL)
+  }
+  htmltools::div(class = "scans-app-event-meta", meta)
 }
 
 scans_app_event_meta <- function(event) {

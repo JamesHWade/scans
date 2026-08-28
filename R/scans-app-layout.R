@@ -35,9 +35,26 @@ scans_app_reload_button <- function() {
   )
 }
 
-scans_app_ui <- function(sources) {
-  initial_data <- sources$sources[[1L]]$data
-  choices <- scans_app_filter_choices(initial_data)
+# Filter choices need source and status metadata at UI time. Reading only the
+# trajectory table avoids scanning, summarizing, and indexing an eager bundle
+# before the server derives that data for the session. A lazy source has no
+# metadata yet, so the server fills its choices after the first load.
+scans_app_initial_choices <- function(source) {
+  if (!is.null(source$data)) {
+    return(scans_app_filter_choices(source$data))
+  }
+  if (!is.null(source$bundle)) {
+    info <- trajectory_info(source$bundle)
+    return(scans_app_filter_choices_from_values(
+      info$source_type,
+      info$status
+    ))
+  }
+  scans_app_filter_choices()
+}
+
+scans_app_ui <- function(sources, annotations = NULL) {
+  choices <- scans_app_initial_choices(sources$sources[[1L]])
 
   page <- bslib::page_sidebar(
     title = htmltools::div(
@@ -83,6 +100,7 @@ scans_app_ui <- function(sources) {
         "scans_app_findings_only",
         "Only trajectories with findings"
       ),
+      scans_app_scanner_ui(),
       htmltools::div(
         class = "scans-app-browser-count",
         shiny::textOutput("scans_app_visible_count", inline = TRUE)
@@ -92,6 +110,8 @@ scans_app_ui <- function(sources) {
         shiny::uiOutput("scans_app_entries")
       )
     ),
+    shiny::uiOutput("scans_app_load_error"),
+    scans_app_annotation_ui(annotations),
     shiny::uiOutput("scans_app_overview"),
     bslib::card(
       fill = TRUE,
@@ -129,5 +149,105 @@ scans_app_attach_dependency <- function(page) {
     page,
     scans_app_dependency(),
     append = TRUE
+  )
+}
+
+
+# The scanner panel. Scans are cheap and run over the bundle already in
+# memory, so they re-run as the selection changes rather than behind a button:
+# a "Run" control would imply a cost that isn't there, and would let the
+# findings on screen disagree with the boxes that produced them.
+scans_app_scanner_ui <- function(registry = scan_registry()) {
+  choices <- stats::setNames(registry$scan, scans_app_scan_label(registry))
+  bslib::accordion(
+    open = FALSE,
+    class = "scans-app-scanners",
+    bslib::accordion_panel(
+      "Scans",
+      icon = NULL,
+      shiny::checkboxGroupInput(
+        "scans_app_scans",
+        label = NULL,
+        choices = choices,
+        selected = registry$scan,
+        width = "100%"
+      ),
+      bslib::layout_columns(
+        col_widths = c(6, 6),
+        shiny::numericInput(
+          "scans_app_repeat_threshold",
+          "Repeat at",
+          value = 2L,
+          min = 2L,
+          step = 1L,
+          width = "100%"
+        ),
+        shiny::numericInput(
+          "scans_app_loop_threshold",
+          "Loop at",
+          value = 3L,
+          min = 2L,
+          step = 1L,
+          width = "100%"
+        )
+      ),
+      htmltools::div(
+        class = "scans-app-scanner-note",
+        shiny::textOutput("scans_app_scan_summary", inline = TRUE)
+      )
+    )
+  )
+}
+
+# Severity rides along in the label so the panel says what a scan reports
+# without a second column of chrome.
+scans_app_scan_label <- function(registry) {
+  paste0(
+    gsub("_", " ", registry$scan),
+    " \u00b7 ",
+    registry$severity
+  )
+}
+
+
+# The annotation panel appears only when the app was given a store. An app
+# with nowhere to write should not offer a control that silently discards
+# what someone typed.
+scans_app_annotation_ui <- function(annotations) {
+  if (is.null(annotations)) {
+    return(NULL)
+  }
+  bslib::accordion(
+    open = FALSE,
+    class = "scans-app-annotations",
+    bslib::accordion_panel(
+      "Annotations",
+      htmltools::div(
+        class = "scans-app-annotation-form",
+        shiny::selectInput(
+          "scans_app_annotation_label",
+          "Label",
+          choices = c("(none)" = "", annotations$labels),
+          width = "100%"
+        ),
+        shiny::textAreaInput(
+          "scans_app_annotation_note",
+          "Note",
+          placeholder = "What did you notice about this trajectory?",
+          width = "100%",
+          rows = 3
+        ),
+        shiny::actionButton(
+          "scans_app_annotation_save",
+          "Save annotation",
+          class = "btn-sm btn-primary"
+        ),
+        htmltools::div(
+          class = "scans-app-annotation-status",
+          shiny::textOutput("scans_app_annotation_status", inline = TRUE)
+        )
+      ),
+      shiny::uiOutput("scans_app_annotation_log")
+    )
   )
 }

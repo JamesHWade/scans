@@ -8,7 +8,8 @@ scan_trajectories(
   x,
   scan_id = "scan-000001",
   repeat_threshold = 2L,
-  loop_threshold = 3L
+  loop_threshold = 3L,
+  scans = NULL
 )
 }
 \arguments{
@@ -22,6 +23,11 @@ and arguments that produces a \code{repeated_tool_call} finding.}
 \item{loop_threshold}{The minimum consecutive calls with the same tool name
 and arguments that produces a \code{suspicious_tool_loop} finding. Tool results
 between calls do not break a call sequence.}
+
+\item{scans}{Which detectors to run, as a character vector of names from
+\code{\link[=scan_registry]{scan_registry()}}. \code{NULL} (the default) runs all of them. Selecting a
+subset narrows the findings without changing how any of them are
+computed, so a finding is the same whether or not its neighbours ran.}
 }
 \value{
 A tibble with one row per finding and these columns:

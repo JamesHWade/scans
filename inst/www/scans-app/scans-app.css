@@ -549,3 +549,469 @@
     padding-inline: 0.8rem;
   }
 }
+
+
+/* ---------------------------------------------------------------------------
+   Chat transcript.
+
+   Approximates shinychat's reading experience: messages in a single column
+   separated by generous space, user turns as a trailing bubble, assistant
+   turns against an avatar, and tool activity as compact disclosure rows.
+   Message prose is rendered markdown, so it needs real typographic rules.
+   --------------------------------------------------------------------------- */
+
+.scans-app-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding-block: 0.25rem 2rem;
+}
+
+.scans-app-chat .scans-app-msg {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+  max-width: 100%;
+  overflow: visible;
+}
+
+/* Assistant and tool turns: avatar column, then the message body. */
+.scans-app-msg-assistant,
+.scans-app-msg-tool,
+.scans-app-msg-unknown {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.scans-app-msg-avatar {
+  align-items: center;
+  background: var(--scans-app-panel);
+  border: 1px solid var(--scans-app-line);
+  border-radius: 50%;
+  color: #5c6575;
+  display: grid;
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  height: 1.9rem;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  place-items: center;
+  width: 1.9rem;
+}
+
+.scans-app-msg-tool .scans-app-msg-avatar {
+  color: #9a7213;
+}
+
+.scans-app-msg-body {
+  min-width: 0;
+}
+
+/* Tool-only turns are machinery: no avatar, no bubble, indented to sit under
+   the assistant's text column whichever role commons attributed them to. */
+.scans-app-chat .scans-app-msg-activity {
+  align-self: stretch;
+  display: block;
+  margin-block: -0.9rem;
+  max-width: 100%;
+  padding-left: 2.75rem;
+}
+
+.scans-app-msg-activity .scans-app-msg-meta {
+  margin-top: 0.2rem;
+}
+
+/* User turns sit at the trailing edge in a bubble, as in shinychat. */
+.scans-app-msg-user {
+  align-self: flex-end;
+  max-width: min(46rem, 88%);
+}
+
+.scans-app-msg-bubble {
+  background: #eef0f6;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+}
+
+.scans-app-msg-bubble .scans-app-msg-meta {
+  justify-content: flex-end;
+}
+
+/* The system prompt is collapsed by default. */
+.scans-app-msg-disclosure > summary {
+  align-items: baseline;
+  border-radius: 0.5rem;
+  color: #5c6575;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.8rem;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0.3rem 0.5rem;
+}
+
+.scans-app-msg-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.scans-app-msg-disclosure > summary::before {
+  content: "\25b8";
+  display: inline-block;
+  font-size: 0.7em;
+  transition: transform 0.15s ease-in-out;
+}
+
+.scans-app-msg-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.scans-app-msg-disclosure > summary:hover,
+.scans-app-msg-disclosure > summary:focus-visible {
+  background: rgba(37, 43, 73, 0.045);
+}
+
+.scans-app-msg-role {
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.scans-app-msg-disclosure > .scans-app-msg-body {
+  border-left: 2px solid var(--scans-app-line);
+  margin-left: 0.55rem;
+  padding-left: 0.9rem;
+}
+
+/* Quiet per-turn diagnostics. */
+.scans-app-msg-meta {
+  align-items: center;
+  color: #78808f;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.72rem;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.scans-app-msg-meta > span + span::before {
+  color: #b8bec9;
+  content: "\00b7";
+  margin-right: 0.5rem;
+}
+
+.scans-app-msg-position {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Message prose: rendered markdown. */
+.scans-app-chat .scans-app-event {
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scans-app-chat .scans-app-event + .scans-app-event {
+  margin-top: 0.6rem;
+}
+
+.scans-app-chat .scans-app-event:target,
+.scans-app-chat .scans-app-event:focus {
+  background: var(--scans-app-accent-soft, rgba(83, 86, 201, 0.08));
+  border-radius: 0.5rem;
+  outline: 2px solid rgba(83, 86, 201, 0.35);
+  outline-offset: 3px;
+}
+
+.scans-app-event-thinking > summary {
+  color: #5c6575;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.scans-app-event-thinking-body {
+  border-left: 2px solid var(--scans-app-line);
+  margin-top: 0.45rem;
+  padding-left: 0.9rem;
+}
+
+.scans-app-prose {
+  overflow-wrap: anywhere;
+}
+
+.scans-app-prose > *:first-child {
+  margin-top: 0;
+}
+
+.scans-app-prose > *:last-child {
+  margin-bottom: 0;
+}
+
+.scans-app-prose p,
+.scans-app-prose ul,
+.scans-app-prose ol,
+.scans-app-prose blockquote,
+.scans-app-prose table {
+  margin: 0 0 0.7rem;
+}
+
+.scans-app-prose h1,
+.scans-app-prose h2,
+.scans-app-prose h3,
+.scans-app-prose h4,
+.scans-app-prose h5,
+.scans-app-prose h6 {
+  font-weight: 680;
+  line-height: 1.3;
+  margin: 1.1rem 0 0.5rem;
+  text-wrap: balance;
+}
+
+.scans-app-prose h1 { font-size: 1.12rem; }
+.scans-app-prose h2 { font-size: 1.04rem; }
+.scans-app-prose h3 { font-size: 0.97rem; }
+.scans-app-prose h4,
+.scans-app-prose h5,
+.scans-app-prose h6 { font-size: 0.92rem; }
+
+.scans-app-prose ul,
+.scans-app-prose ol {
+  padding-left: 1.3rem;
+}
+
+.scans-app-prose li + li {
+  margin-top: 0.2rem;
+}
+
+.scans-app-prose code {
+  background: #f1f3f7;
+  border-radius: 4px;
+  font-size: 0.88em;
+  padding: 0.08em 0.32em;
+}
+
+.scans-app-prose pre {
+  background: #f6f7fa;
+  border: 1px solid var(--scans-app-line);
+  border-radius: 0.5rem;
+  margin: 0 0 0.7rem;
+  overflow-x: auto;
+  padding: 0.7rem 0.85rem;
+}
+
+.scans-app-prose pre code {
+  background: none;
+  padding: 0;
+}
+
+.scans-app-prose blockquote {
+  border-left: 3px solid var(--scans-app-line);
+  color: #5c6575;
+  padding-left: 0.9rem;
+}
+
+.scans-app-prose table {
+  border-collapse: collapse;
+  display: block;
+  font-size: 0.9em;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.scans-app-prose th,
+.scans-app-prose td {
+  border-bottom: 1px solid var(--scans-app-line);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.scans-app-prose th {
+  font-size: 0.82em;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.scans-app-prose-plain {
+  white-space: pre-wrap;
+}
+
+/* Tool calls and results. */
+.scans-app-chat .scans-app-tool {
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.scans-app-chat .scans-app-tool[open] {
+  background: #fafbfc;
+  border-color: var(--scans-app-line);
+}
+
+.scans-app-tool > summary {
+  align-items: center;
+  border-radius: 0.5rem;
+  color: #5c6575;
+  cursor: pointer;
+  display: flex;
+  gap: 0.5rem;
+  list-style: none;
+  min-height: 2em;
+  padding: 0.25rem 0.45rem;
+}
+
+.scans-app-tool > summary::-webkit-details-marker {
+  display: none;
+}
+
+.scans-app-tool > summary::before {
+  content: "\25b8";
+  display: inline-block;
+  font-size: 0.75em;
+  transition: transform 0.15s ease-in-out;
+}
+
+.scans-app-tool[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.scans-app-tool > summary:hover,
+.scans-app-tool > summary:focus-visible {
+  background: rgba(37, 43, 73, 0.05);
+}
+
+.scans-app-tool-label {
+  color: #78808f;
+}
+
+.scans-app-tool-name {
+  background: none;
+  color: inherit;
+  font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.95em;
+  padding: 0;
+}
+
+.scans-app-tool-failed > summary {
+  color: var(--scans-app-danger, #b42318);
+}
+
+.scans-app-tool-body {
+  padding: 0.15rem 0.6rem 0.6rem 1.4rem;
+}
+
+.scans-app-tool-body .scans-app-event-value {
+  margin-bottom: 0;
+}
+
+/* Source-specific asides (e.g. commons provenance). */
+.scans-app-chat .scans-app-aside {
+  background: #fafbfc;
+  border: 1px solid var(--scans-app-line);
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.scans-app-aside-header {
+  align-items: center;
+  color: #5c6575;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+
+/* A source that failed to load says so, and says why. */
+.scans-app-load-error {
+  background: var(--scans-app-danger-soft, #fdeeec);
+  border: 1px solid rgba(180, 35, 24, 0.25);
+  border-radius: 0.6rem;
+  color: #7d2018;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.scans-app-load-error-detail {
+  font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.scans-app-load-error-hint {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* Scanner panel. */
+.scans-app-scanners .accordion-button {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.55rem 0.75rem;
+}
+
+.scans-app-scanners .form-check-label {
+  font-size: 0.82rem;
+}
+
+.scans-app-scanner-note {
+  color: #78808f;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+
+/* Annotations. */
+.scans-app-annotation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.scans-app-annotation-status {
+  color: #78808f;
+  font-size: 0.75rem;
+  min-height: 1rem;
+}
+
+.scans-app-annotation-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.scans-app-annotation {
+  background: var(--scans-app-panel);
+  border: 1px solid var(--scans-app-line);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.7rem;
+}
+
+.scans-app-annotation-header {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.scans-app-annotation-meta {
+  color: #78808f;
+  font-size: 0.72rem;
+}
+
+.scans-app-annotation-note {
+  font-size: 0.85rem;
+  margin-top: 0.35rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

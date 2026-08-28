@@ -4,12 +4,16 @@
 \alias{scans_app}
 \title{Explore trajectory diagnostics with the scans app}
 \usage{
-scans_app(x)
+scans_app(x, annotations = NULL)
 }
 \arguments{
 \item{x}{A \link{TrajectoryBundle}, or a named list of application sources. Each
 source must be a \code{TrajectoryBundle} or a zero-argument function that
 returns one. Source names are shown in the application switcher.}
+
+\item{annotations}{Optional \code{\link[=scans_annotations]{scans_annotations()}} store. When supplied, the
+app shows an annotation panel for the selected trajectory and appends what
+reviewers write to that store. Without one the app makes no writes at all.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console

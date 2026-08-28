@@ -2,7 +2,8 @@
 #
 # Serves the read-only scans explorer over the completed conversations of one
 # or more deployed applications, read lazily from Connect's trace store with
-# commons::trajectory_read(). Configure it entirely through Connect Vars:
+# scans' native OpenTelemetry reader. Configure it entirely through Connect
+# Vars:
 #
 #   CONNECT_SERVER          injected by Connect; configure only if disabled
 #   CONNECT_API_KEY         injected ephemeral deployment-owner key; the owner
@@ -12,8 +13,13 @@
 #   SCANS_CONNECT_N         optional; max recent conversations per app
 #                           (default 100, "all" for no limit)
 
+# These packages are Suggests of scans; attaching them here makes rsconnect /
+# Posit Publisher bundle the app and native trace-reader dependencies.
+library(shiny)
+library(bslib)
+library(httr2)
+library(jsonlite)
 library(scans)
-library(commons)
 
 parse_sources <- function(spec) {
   entries <- trimws(strsplit(spec, ";", fixed = TRUE)[[1]])

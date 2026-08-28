@@ -10,6 +10,33 @@ test_that("scans_app() creates a read-only Shiny app", {
   expect_identical(trajectory_events(bundle)$text, c("Hello", "Hi there"))
 })
 
+test_that("eager UI choices use metadata without deriving app data", {
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = c("one", "two"),
+      source_type = c("manual", "otel"),
+      status = c("completed", "failed")
+    ),
+    data.frame(),
+    data.frame()
+  )
+  source <- scans_app_sources(bundle)$sources[[1L]]
+  testthat::local_mocked_bindings(
+    scans_app_data = function(...) stop("must not derive app data")
+  )
+
+  choices <- scans_app_initial_choices(source)
+
+  expect_identical(
+    unname(choices$source),
+    c(choices$source_all, "manual", "otel")
+  )
+  expect_identical(
+    unname(choices$status),
+    c(choices$status_all, "completed", "failed")
+  )
+})
+
 test_that("scans app switches between named applications", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
@@ -251,7 +278,21 @@ test_that("scans app contains application source failures", {
     expect_identical(output$scans_app_visible_count, "Traces unavailable")
     expect_match(entries, "Could not load traces", fixed = TRUE)
     expect_no_match(entries, "hunter2", fixed = TRUE)
+    load_error <- as.character(output$scans_app_load_error)[[1L]]
+    expect_match(load_error, "Check the server logs", fixed = TRUE)
+    expect_no_match(load_error, "hunter2", fixed = TRUE)
   })
+})
+
+test_that("scans app logs source failure details on the server", {
+  expect_message(
+    scans_app_log_source_error(
+      "Broken deployment",
+      simpleError("database password=hunter2")
+    ),
+    "hunter2",
+    fixed = TRUE
+  )
 })
 
 test_that("scans app requires an unambiguous application catalog", {
@@ -359,6 +400,29 @@ test_that("scans app title fallbacks ignore whitespace-only metadata", {
     scans_app_first_string("  ", NA_character_, "trajectory-id"),
     "trajectory-id"
   )
+})
+
+test_that("thinking content is collapsed apart from visible assistant text", {
+  skip_if_not_installed("htmltools")
+  event <- tibble::tibble(
+    event_id = "thinking-event",
+    event_type = "content",
+    content_type = "thinking",
+    text = "Private reasoning",
+    value = list(NULL),
+    error = NA_character_
+  )
+
+  html <- as.character(
+    htmltools::renderTags(
+      scans_app_content_event_ui(event, 1L)
+    )$html
+  )
+
+  expect_match(html, "<details", fixed = TRUE)
+  expect_match(html, ">Thinking</summary>", fixed = TRUE)
+  expect_match(html, "Private reasoning", fixed = TRUE)
+  expect_no_match(html, " open", fixed = TRUE)
 })
 
 test_that("scans app records retain source identity and deterministic findings", {
@@ -606,6 +670,25 @@ test_that("scans app keeps selection and empty filter states reactive", {
       "No trajectories match these filters.",
       fixed = TRUE
     )
+  })
+})
+
+test_that("scans app preserves trajectory selection while rescanning", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(trajectory_fixture("delegated_agent"))
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    selected(2L)
+    session$flushReact()
+    expect_identical(selected(), 2L)
+
+    session$setInputs(scans_app_scans = character())
+    session$flushReact()
+
+    expect_identical(selected(), 2L)
   })
 })
 
@@ -893,4 +976,27 @@ test_that("scans app supports event-only and empty bundles", {
   ))
   expect_identical(nrow(empty$records), 0L)
   expect_identical(scans_app_filter_records(empty$records), integer())
+})
+
+test_that("scans app thresholds accept only bounded whole numbers", {
+  expect_identical(scans_app_threshold(4, 2L), 4L)
+
+  invalid <- list(
+    NULL,
+    numeric(),
+    c(2, 3),
+    NA_real_,
+    1,
+    2.5,
+    Inf,
+    .Machine$integer.max + 1,
+    "3"
+  )
+  actual <- vapply(
+    invalid,
+    scans_app_threshold,
+    integer(1),
+    default = 3L
+  )
+  expect_identical(actual, rep(3L, length(invalid)))
 })

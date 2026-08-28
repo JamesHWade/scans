@@ -12,6 +12,7 @@ reference:
   - as_trajectory_deputy
   - as_trajectory_dsprrr
   - as_trajectory_ellmer
+  - as_trajectory_otel
   - as_trajectory_tempest
   - as_trajectory_vitals
   - trajectory_accessors
@@ -20,5 +21,8 @@ reference:
   - filter_trajectory_events
   - summarize_trajectories
   - scan_trajectories
+  - scan_registry
+  - read_connect_traces
+  - scans_annotations
   - scans_app
   - scans_app_connect

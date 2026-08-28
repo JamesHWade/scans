@@ -21,27 +21,29 @@ Imports:
     tibble (>= 3.3.0)
 Suggests:
     bslib (>= 0.11.0),
+    commonmark,
     commons (>= 0.0.0.9002),
     deputy (>= 0.0.0.9000),
     dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.4.2),
     htmltools,
     httr2,
+    jsonlite,
     R6,
     shiny (>= 1.11.1),
     shinychat,
     tempest (>= 0.3.0.9000),
     testthat (>= 3.0.0),
     vitals (>= 0.3.0),
-    withr
+    withr,
+    xml2
 Remotes:
     posit-dev/commons/pkg-r,
     JamesHWade/deputy@89089c90ddeb668462422b14a4de7a8395eefdc8,
     JamesHWade/dsprrr@db28eae2235ab15c4f5c1c9794118d127eabbdd7,
     JamesHWade/tempest@87018b62fe2fdf632f33ef14b4d6fdf450d78253
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0
 Config/testthat/edition: 3
 Config/testthat/parallel: true
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 8.0.0

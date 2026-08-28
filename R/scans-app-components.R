@@ -5,12 +5,21 @@ scans_app_source_error_heading <- function(label) {
   )
 }
 
-scans_app_source_error_ui <- function(label) {
-  scans_app_empty_ui(paste(
-    "Could not load traces for",
-    paste0(label, "."),
-    "Reload traces to try again."
-  ))
+# The reason is shown, not just the failure. Without it the app looks like an
+# application with no conversations, and the actual cause -- an expired key, a
+# server error on the trace endpoint -- is invisible to whoever is looking.
+scans_app_source_error_ui <- function(label, message = NULL) {
+  htmltools::div(
+    class = "scans-app-load-error",
+    htmltools::tags$strong(paste0("Could not load traces for ", label, ".")),
+    if (scans_app_has_string(message)) {
+      htmltools::div(class = "scans-app-load-error-detail", message)
+    },
+    htmltools::div(
+      class = "scans-app-load-error-hint",
+      "Reload traces to try again."
+    )
+  )
 }
 
 scans_app_input_or <- function(value, default) {
@@ -126,5 +135,46 @@ scans_app_header_ui <- function(data, index) {
       scans_app_badge(info$source_type[[1L]], "source"),
       scans_app_status_badge(info$status[[1L]])
     )
+  )
+}
+
+
+# Annotations render newest-first as a short log rather than a single current
+# value: the store is append-only, and seeing that an earlier reviewer
+# disagreed is the point.
+scans_app_annotation_log_ui <- function(records) {
+  if (nrow(records) == 0L) {
+    return(scans_app_empty_ui(
+      "No annotations yet for this trajectory.",
+      compact = TRUE
+    ))
+  }
+  htmltools::div(
+    class = "scans-app-annotation-log",
+    htmltools::tagList(lapply(seq_len(nrow(records)), function(row) {
+      htmltools::div(
+        class = "scans-app-annotation",
+        htmltools::div(
+          class = "scans-app-annotation-header",
+          scans_app_badge(records$label[[row]], "source"),
+          htmltools::tags$span(
+            class = "scans-app-annotation-meta",
+            paste(
+              c(
+                records$author[[row]],
+                scans_app_time_string(records$created_at[[row]])
+              ),
+              collapse = " \u00b7 "
+            )
+          )
+        ),
+        if (scans_app_has_string(records$note[[row]])) {
+          htmltools::div(
+            class = "scans-app-annotation-note",
+            records$note[[row]]
+          )
+        }
+      )
+    }))
   )
 }
