@@ -16,3 +16,12 @@
       Error in `store$append()`:
       ! `author` must be one non-empty string or `NULL`.
 
+---
+
+    Code
+      store$append("Support", "trajectory-1", label = "keep", note = c("first",
+        "second"))
+    Condition
+      Error in `store$append()`:
+      ! `note` must be one string or `NULL`.
+

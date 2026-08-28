@@ -10,6 +10,33 @@ test_that("scans_app() creates a read-only Shiny app", {
   expect_identical(trajectory_events(bundle)$text, c("Hello", "Hi there"))
 })
 
+test_that("eager UI choices use metadata without deriving app data", {
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = c("one", "two"),
+      source_type = c("manual", "otel"),
+      status = c("completed", "failed")
+    ),
+    data.frame(),
+    data.frame()
+  )
+  source <- scans_app_sources(bundle)$sources[[1L]]
+  testthat::local_mocked_bindings(
+    scans_app_data = function(...) stop("must not derive app data")
+  )
+
+  choices <- scans_app_initial_choices(source)
+
+  expect_identical(
+    unname(choices$source),
+    c(choices$source_all, "manual", "otel")
+  )
+  expect_identical(
+    unname(choices$status),
+    c(choices$status_all, "completed", "failed")
+  )
+})
+
 test_that("scans app switches between named applications", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")

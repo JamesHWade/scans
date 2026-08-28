@@ -270,6 +270,10 @@ scans_app_filter_choices <- function(data = NULL) {
     source_values <- data$records$source_type
     status_values <- data$records$status
   }
+  scans_app_filter_choices_from_values(source_values, status_values)
+}
+
+scans_app_filter_choices_from_values <- function(source_values, status_values) {
   sources <- sort(unique(source_values))
   sources <- sources[!is.na(sources) & nzchar(sources)]
   statuses <- sort(unique(status_values))

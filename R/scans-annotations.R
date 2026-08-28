@@ -248,6 +248,13 @@ annotations_append <- function(
       call = call
     )
   }
+  if (!annotations_is_scalar_string(note)) {
+    scans_abort(
+      "{.arg note} must be one string or {.code NULL}.",
+      class = "scans_error_annotation_record",
+      call = call
+    )
+  }
   note <- if (scans_app_has_string(note)) {
     substr(note, 1L, max_note)
   } else {

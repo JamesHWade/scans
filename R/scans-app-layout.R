@@ -35,22 +35,26 @@ scans_app_reload_button <- function() {
   )
 }
 
-# Filter choices need a snapshot at UI time. An eagerly supplied bundle can
-# provide one; a lazy source cannot, and its choices are filled in by the
-# server once the first load completes.
-scans_app_initial_data <- function(source) {
+# Filter choices need source and status metadata at UI time. Reading only the
+# trajectory table avoids scanning, summarizing, and indexing an eager bundle
+# before the server derives that data for the session. A lazy source has no
+# metadata yet, so the server fills its choices after the first load.
+scans_app_initial_choices <- function(source) {
   if (!is.null(source$data)) {
-    return(source$data)
+    return(scans_app_filter_choices(source$data))
   }
   if (!is.null(source$bundle)) {
-    return(scans_app_data(source$bundle))
+    info <- trajectory_info(source$bundle)
+    return(scans_app_filter_choices_from_values(
+      info$source_type,
+      info$status
+    ))
   }
-  NULL
+  scans_app_filter_choices()
 }
 
 scans_app_ui <- function(sources, annotations = NULL) {
-  initial_data <- scans_app_initial_data(sources$sources[[1L]])
-  choices <- scans_app_filter_choices(initial_data)
+  choices <- scans_app_initial_choices(sources$sources[[1L]])
 
   page <- bslib::page_sidebar(
     title = htmltools::div(

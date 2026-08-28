@@ -137,6 +137,15 @@ test_that("annotation labels must belong to the store vocabulary", {
       author = c("alice", "bob")
     )
   )
+  expect_snapshot(
+    error = TRUE,
+    store$append(
+      "Support",
+      "trajectory-1",
+      label = "keep",
+      note = c("first", "second")
+    )
+  )
   expect_false(file.exists(path))
 
   store$append("Support", "trajectory-1", label = NULL, note = "Needs review")
