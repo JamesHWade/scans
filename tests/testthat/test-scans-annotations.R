@@ -243,6 +243,10 @@ test_that("labels are validated when the store is created", {
     scans_annotations(path = tempfile(), labels = character()),
     class = "scans_error_annotation_labels"
   )
+  expect_error(
+    scans_annotations(path = tempfile(), labels = c("keep", " \t")),
+    class = "scans_error_annotation_labels"
+  )
 })
 
 test_that("the app rejects an annotations argument that is not a store", {

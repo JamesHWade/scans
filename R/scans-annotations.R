@@ -52,7 +52,12 @@ scans_annotations <- function(
       call = call
     )
   }
-  if (!is.character(labels) || length(labels) == 0L || anyNA(labels)) {
+  if (
+    !is.character(labels) ||
+      length(labels) == 0L ||
+      anyNA(labels) ||
+      !all(nzchar(trimws(labels)))
+  ) {
     scans_abort(
       "{.arg labels} must be a non-empty character vector.",
       class = "scans_error_annotation_labels",
