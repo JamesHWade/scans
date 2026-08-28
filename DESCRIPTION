@@ -1,13 +1,15 @@
 Package: scans
-Title: Analyze AI Agent Trajectories
+Title: Diagnose AI Agent Trajectories
 Version: 0.0.0.9000
 Authors@R:
     person("James", "Wade", , "github@jameshwade.com", role = c("aut", "cre"))
-Description: Provides tools to import, inspect, scan, and validate
-    trajectories produced by artificial intelligence agents built with
-    'ellmer' and related R packages. Complements outcome evaluation with
-    post-run analysis of messages, tool calls, events, and multi-agent
-    execution.
+Description: Helps explain how completed artificial intelligence agent runs
+    produced their outcomes. Normalizes messages, tool calls, events,
+    evaluations, and multi-agent execution into validated trajectories;
+    detects evidence-linked problems such as repeated or unmatched tool
+    activity and causal error chains; summarizes execution and usage; and
+    provides a read-only application for investigation. Adapters support
+    'ellmer' and related R packages while keeping integrations optional.
 License: MIT + file LICENSE
 URL: https://jameshwade.github.io/scans/,
     https://github.com/JamesHWade/scans
