@@ -96,13 +96,40 @@ scans_app_server <- function(sources, annotations = NULL) {
     annotation_revision <- shiny::reactiveVal(0L)
     annotation_status <- shiny::reactiveVal("")
 
-    selected_trajectory_id <- shiny::reactive({
+    selected_annotation_target <- shiny::reactive({
       current <- data()
       index <- selected()
       if (is.null(current) || is.null(index)) {
         return(NULL)
       }
-      current$info$trajectory_id[[index]]
+      list(
+        application = application(),
+        trajectory_id = current$info$trajectory_id[[index]]
+      )
+    })
+
+    # A draft judgement belongs to the application and trajectory it was typed
+    # for. Clear the form only when that pair changes; an in-memory re-scan
+    # invalidates `data()` but leaves the target unchanged.
+    annotation_target <- shiny::reactiveVal(NULL)
+    shiny::observe({
+      target <- selected_annotation_target()
+      previous <- shiny::isolate(annotation_target())
+      if (identical(target, previous)) {
+        return()
+      }
+      annotation_target(target)
+      annotation_status("")
+      shiny::updateSelectInput(
+        session,
+        "scans_app_annotation_label",
+        selected = ""
+      )
+      shiny::updateTextAreaInput(
+        session,
+        "scans_app_annotation_note",
+        value = ""
+      )
     })
 
     shiny::observeEvent(
@@ -112,15 +139,16 @@ scans_app_server <- function(sources, annotations = NULL) {
         if (is.null(annotations)) {
           return()
         }
-        id <- selected_trajectory_id()
-        if (is.null(id)) {
+        target <- selected_annotation_target()
+        if (is.null(target)) {
           annotation_status("Select a trajectory first.")
           return()
         }
         written <- tryCatch(
           {
             annotations$append(
-              trajectory_id = id,
+              application = target$application,
+              trajectory_id = target$trajectory_id,
               label = input$scans_app_annotation_label,
               note = input$scans_app_annotation_note,
               author = annotations_default_author(session)
@@ -152,12 +180,15 @@ scans_app_server <- function(sources, annotations = NULL) {
         return(NULL)
       }
       annotation_revision()
-      id <- selected_trajectory_id()
-      if (is.null(id)) {
+      target <- selected_annotation_target()
+      if (is.null(target)) {
         return(scans_app_empty_ui("Select a trajectory to annotate it."))
       }
       records <- tryCatch(
-        annotations$read(id),
+        annotations$read(
+          application = target$application,
+          trajectory_id = target$trajectory_id
+        ),
         error = function(cnd) NULL
       )
       if (is.null(records)) {
@@ -197,11 +228,18 @@ scans_app_server <- function(sources, annotations = NULL) {
       }
     )
 
+    # Only a newly selected or reloaded application resets the browser. Scan
+    # settings merely derive new findings from the same cached bundle and must
+    # not move the reviewer away from the trajectory under inspection.
     shiny::observeEvent(
-      data(),
+      active(),
       ignoreNULL = TRUE,
       {
         current <- data()
+        if (is.null(current)) {
+          selected(NULL)
+          return()
+        }
         choices <- scans_app_filter_choices(current)
         shiny::updateSelectInput(
           session,

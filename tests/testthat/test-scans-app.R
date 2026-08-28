@@ -609,6 +609,25 @@ test_that("scans app keeps selection and empty filter states reactive", {
   })
 })
 
+test_that("scans app preserves trajectory selection while rescanning", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(trajectory_fixture("delegated_agent"))
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    selected(2L)
+    session$flushReact()
+    expect_identical(selected(), 2L)
+
+    session$setInputs(scans_app_scans = character())
+    session$flushReact()
+
+    expect_identical(selected(), 2L)
+  })
+})
+
 test_that("scans app renders canonical text as text and links finding evidence", {
   skip_if_not_installed("htmltools")
 

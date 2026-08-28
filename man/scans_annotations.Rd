@@ -19,7 +19,8 @@ the per-user default is not shared.}
 }
 \value{
 A \code{scans_annotations} object: a list of \code{read()}, \code{append()}, and
-\code{labels} for the app to use.
+\code{labels} for the app to use. \code{append()} requires both an application
+namespace and a trajectory identifier; \code{read()} can filter by either.
 }
 \description{
 \code{scans_annotations()} creates the annotation store the app writes to when a
@@ -28,13 +29,20 @@ reviewer labels or comments on a trajectory. Pass it to \code{\link[=scans_app]{
 app stays strictly read-only and shows no annotation controls.
 
 Annotations are an append-only log: saving never rewrites or deletes an
-earlier record, and a trajectory's annotations are every record written
-against it, newest first. A log rather than a mutable field means two
-reviewers working at once cannot overwrite each other, and that a
-judgement made about a trajectory remains visible after it is revised.
+earlier record, and an application's trajectory annotations are every record
+written against that pair, newest first. The application namespace matters
+because trajectory identifiers are unique only within one bundle. A log
+rather than a mutable field means two reviewers working at once cannot
+overwrite each other, and that a judgement made about a trajectory remains
+visible after it is revised.
 }
 \examples{
 store <- scans_annotations(path = tempfile(fileext = ".jsonl"))
-store$append("trajectory-1", label = "follow up", note = "Tool loop here.")
-store$read("trajectory-1")
+store$append(
+  "Support assistant",
+  "trajectory-1",
+  label = "follow up",
+  note = "Tool loop here."
+)
+store$read("Support assistant", "trajectory-1")
 }

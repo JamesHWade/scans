@@ -7,10 +7,12 @@
 #' app stays strictly read-only and shows no annotation controls.
 #'
 #' Annotations are an append-only log: saving never rewrites or deletes an
-#' earlier record, and a trajectory's annotations are every record written
-#' against it, newest first. A log rather than a mutable field means two
-#' reviewers working at once cannot overwrite each other, and that a
-#' judgement made about a trajectory remains visible after it is revised.
+#' earlier record, and an application's trajectory annotations are every record
+#' written against that pair, newest first. The application namespace matters
+#' because trajectory identifiers are unique only within one bundle. A log
+#' rather than a mutable field means two reviewers working at once cannot
+#' overwrite each other, and that a judgement made about a trajectory remains
+#' visible after it is revised.
 #'
 #' @param path Path to the log file. Each line is one JSON record. Defaults to
 #'   `annotations.jsonl` under `tools::R_user_dir("scans", "data")`. On Posit
@@ -19,14 +21,20 @@
 #' @param labels The labels a reviewer may apply, as a character vector.
 #'
 #' @returns A `scans_annotations` object: a list of `read()`, `append()`, and
-#'   `labels` for the app to use.
+#'   `labels` for the app to use. `append()` requires both an application
+#'   namespace and a trajectory identifier; `read()` can filter by either.
 #'
 #' @export
 #'
 #' @examples
 #' store <- scans_annotations(path = tempfile(fileext = ".jsonl"))
-#' store$append("trajectory-1", label = "follow up", note = "Tool loop here.")
-#' store$read("trajectory-1")
+#' store$append(
+#'   "Support assistant",
+#'   "trajectory-1",
+#'   label = "follow up",
+#'   note = "Tool loop here."
+#' )
+#' store$read("Support assistant", "trajectory-1")
 scans_annotations <- function(
   path = NULL,
   labels = c("looks right", "wrong answer", "tool failure", "follow up")
@@ -55,11 +63,18 @@ scans_annotations <- function(
   store <- list(
     path = path,
     labels = labels,
-    read = function(trajectory_id = NULL) {
-      annotations_read(path, trajectory_id)
+    read = function(application = NULL, trajectory_id = NULL) {
+      annotations_read(path, application, trajectory_id)
     },
-    append = function(trajectory_id, label, note, author = NULL) {
-      annotations_append(path, trajectory_id, label, note, author)
+    append = function(application, trajectory_id, label, note, author = NULL) {
+      annotations_append(
+        path,
+        application,
+        trajectory_id,
+        label,
+        note,
+        author
+      )
     }
   )
   structure(store, class = "scans_annotations")
@@ -77,6 +92,7 @@ print.scans_annotations <- function(x, ...) {
 
 annotations_columns <- function() {
   list(
+    application = character(),
     trajectory_id = character(),
     label = character(),
     note = character(),
@@ -91,7 +107,7 @@ annotations_empty <- function() {
 
 # A record that cannot be parsed is skipped rather than failing the read: one
 # malformed line, however it got there, must not hide every annotation.
-annotations_read <- function(path, trajectory_id = NULL) {
+annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
   if (!file.exists(path)) {
     return(annotations_empty())
   }
@@ -105,10 +121,15 @@ annotations_read <- function(path, trajectory_id = NULL) {
       jsonlite::fromJSON(line, simplifyVector = TRUE),
       error = function(e) NULL
     )
-    if (!is.list(parsed) || is.null(parsed$trajectory_id)) {
+    if (!is.list(parsed) || !scans_app_has_string(parsed$trajectory_id)) {
       return(NULL)
     }
     tibble::tibble(
+      application = if (scans_app_has_string(parsed$application)) {
+        as.character(parsed$application)
+      } else {
+        NA_character_
+      },
       trajectory_id = as.character(parsed$trajectory_id),
       label = as.character(parsed$label %||% NA_character_),
       note = as.character(parsed$note %||% NA_character_),
@@ -121,6 +142,9 @@ annotations_read <- function(path, trajectory_id = NULL) {
     return(annotations_empty())
   }
   out <- out[order(out$created_at, decreasing = TRUE), , drop = FALSE]
+  if (!is.null(application)) {
+    out <- out[out$application %in% application, , drop = FALSE]
+  }
   if (is.null(trajectory_id)) {
     return(out)
   }
@@ -148,6 +172,7 @@ annotations_parse_time <- function(x) {
 # capped rather than allowed to grow unbounded.
 annotations_append <- function(
   path,
+  application,
   trajectory_id,
   label,
   note,
@@ -155,6 +180,13 @@ annotations_append <- function(
   max_note = 4000L
 ) {
   call <- rlang::caller_env()
+  if (!scans_app_has_string(application)) {
+    scans_abort(
+      "{.arg application} must be one non-empty string.",
+      class = "scans_error_annotation_record",
+      call = call
+    )
+  }
   if (!scans_app_has_string(trajectory_id)) {
     scans_abort(
       "{.arg trajectory_id} must be one non-empty string.",
@@ -180,6 +212,7 @@ annotations_append <- function(
     dir.create(directory, recursive = TRUE, showWarnings = FALSE)
   }
   record <- list(
+    application = application,
     trajectory_id = trajectory_id,
     label = label,
     note = note,
