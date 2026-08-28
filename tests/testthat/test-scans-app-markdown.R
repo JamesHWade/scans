@@ -68,7 +68,10 @@ test_that("HTML comments remain visible as escaped source", {
   html <- scans_app_sanitize_html(
     "<p>Before</p><?review hidden?><p>After</p>"
   )
-  expect_match(html, "&lt;!--?review hidden?--&gt;", fixed = TRUE)
+  expect_match(html, "<code>&lt;", fixed = TRUE)
+  expect_match(html, "?review hidden?", fixed = TRUE)
+  expect_match(html, "&gt;</code>", fixed = TRUE)
+  expect_no_match(html, "<?review hidden?>", fixed = TRUE)
 })
 
 test_that("empty unknown elements remain visible as escaped source", {
