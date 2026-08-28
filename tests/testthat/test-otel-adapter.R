@@ -63,8 +63,18 @@ otel_chat_span <- function(
 
 text_part <- function(content) list(list(type = "text", content = content))
 
-otel_test_envelope <- function(span_ids) {
-  spans <- lapply(span_ids, function(span_id) list(spanId = span_id))
+otel_test_envelope <- function(span_ids, start_times = NULL) {
+  spans <- Map(
+    function(span_id, start_time) {
+      span <- list(spanId = span_id)
+      if (!is.na(start_time)) {
+        span$startTimeUnixNano <- as.character(start_time)
+      }
+      span
+    },
+    span_ids,
+    start_times %||% rep(NA_real_, length(span_ids))
+  )
   jsonlite::toJSON(
     list(
       resourceSpans = list(list(
@@ -520,25 +530,6 @@ test_that("explicit NULL Connect bounds remain open", {
   expect_null(bounds$to)
 })
 
-test_that("fallback conversation counts respect the requested time window", {
-  inside <- otel_chat_span(span_id = "inside", conversation = "inside")
-  inside$start_time <- as.character(3e9)
-  after <- otel_chat_span(span_id = "after", conversation = "after")
-  after$start_time <- as.character(7e9)
-  testthat::local_mocked_bindings(
-    otel_parse_otlp_lines = function(lines) list(inside, after)
-  )
-
-  expect_equal(
-    connect_conversation_count(
-      "lines",
-      from = as.POSIXct(2, origin = "1970-01-01", tz = "UTC"),
-      to = as.POSIXct(5, origin = "1970-01-01", tz = "UTC")
-    ),
-    1L
-  )
-})
-
 test_that("content-wide and retained per-job traces are merged", {
   skip_if_not_installed("httr2")
   aggregate_response <- httr2::response(
@@ -572,7 +563,6 @@ test_that("content-wide and retained per-job traces are merged", {
     from = NULL,
     to = NULL,
     max_spans = 10L,
-    n = NULL,
     call = rlang::caller_env(),
     page_size = 10L
   )
@@ -614,7 +604,6 @@ test_that("post-window legacy spans do not consume max_spans", {
     from = NULL,
     to = as.POSIXct("2026-01-01", tz = "UTC"),
     max_spans = 2L,
-    n = NULL,
     call = rlang::caller_env(),
     page_size = 2L
   )
@@ -677,7 +666,6 @@ test_that("per-job pagination never requests beyond max_spans", {
     from = NULL,
     to = NULL,
     max_spans = 3L,
-    n = NULL,
     call = rlang::caller_env(),
     page_size = 2L
   )
@@ -710,7 +698,6 @@ test_that("nested OTLP spans respect the aggregate span budget", {
     from = NULL,
     to = NULL,
     max_spans = 2L,
-    n = NULL,
     call = rlang::caller_env(),
     page_size = 10L
   ))
@@ -751,7 +738,6 @@ test_that("nested OTLP spans respect the per-job span budget", {
     from = NULL,
     to = NULL,
     max_spans = 2L,
-    n = NULL,
     call = rlang::caller_env(),
     page_size = 10L
   )
@@ -762,6 +748,60 @@ test_that("nested OTLP spans respect the per-job span budget", {
     vapply(spans, `[[`, character(1), "span_id"),
     c("one", "two")
   )
+})
+
+test_that("post-window nested spans do not consume the legacy span budget", {
+  skip_if_not_installed("jsonlite")
+  line <- otel_test_envelope(
+    c("after", "inside"),
+    c(3e9, 1e9)
+  )
+  to <- as.POSIXct(2, origin = "1970-01-01", tz = "UTC")
+
+  spans <- otel_parse_otlp_lines(line, max_spans = 1L, to = to)
+
+  expect_identical(connect_trace_span_count(line, to), 1L)
+  expect_identical(vapply(spans, `[[`, character(1), "span_id"), "inside")
+})
+
+test_that("legacy reader checks every overlapping job", {
+  skip_if_not_installed("httr2")
+  trace_requests <- character()
+  jobs_response <- httr2::response(
+    headers = list(`content-type` = "application/json"),
+    body = charToRaw(paste0(
+      '[{"key":"newer-start","start_time":"2026-02-01"},',
+      '{"key":"older-start","start_time":"2026-01-01"}]'
+    ))
+  )
+  trace_response <- httr2::response(
+    headers = list(`X-Total-Count` = "1")
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      path <- sub("\\?.*$", "", request$url)
+      if (endsWith(path, "/jobs")) {
+        return(jobs_response)
+      }
+      trace_requests <<- c(trace_requests, path)
+      trace_response
+    },
+    connect_trace_page = function(response) "one-conversation"
+  )
+
+  connect_job_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 10L,
+    call = rlang::caller_env(),
+    page_size = 10L
+  )
+
+  expect_length(trace_requests, 2L)
+  expect_match(trace_requests[[1L]], "newer-start", fixed = TRUE)
+  expect_match(trace_requests[[2L]], "older-start", fixed = TRUE)
 })
 
 test_that("oversized text is truncated and recorded as a loss", {
