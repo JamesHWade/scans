@@ -56,8 +56,8 @@ read_connect_traces <- function(
     to <- now
   }
 
-  lines <- connect_trace_lines(client, guid, from, to, max_spans, n, call)
-  spans <- otel_parse_otlp_lines(lines, max_spans = max_spans)
+  lines <- connect_trace_lines(client, guid, from, to, max_spans, call)
+  spans <- otel_parse_otlp_lines(lines, max_spans = max_spans, to = to)
   conversations <- otel_group_conversations_in_window(spans, from, to)
 
   if (!is.null(n) && length(conversations) > n) {
@@ -175,7 +175,6 @@ connect_trace_lines <- function(
   from,
   to,
   max_spans,
-  n,
   call,
   page_size = 1000L
 ) {
@@ -204,13 +203,12 @@ connect_trace_lines <- function(
         from,
         to,
         max_spans,
-        n,
         call,
         page_size
       ))
     }
     page <- connect_trace_page(response)
-    added <- connect_add_trace_lines(lines, page)
+    added <- connect_add_trace_lines(lines, page, to)
     lines <- added$lines
     span_count <- span_count + added$span_count
     total <- suppressWarnings(as.integer(
@@ -236,7 +234,6 @@ connect_trace_lines <- function(
     from,
     to,
     max_spans,
-    n,
     call,
     page_size,
     lines = lines
@@ -278,13 +275,12 @@ connect_job_trace_lines <- function(
   from,
   to,
   max_spans,
-  n,
   call,
   page_size,
   lines = character()
 ) {
   lines <- unique(lines)
-  span_count <- connect_trace_span_count(lines)
+  span_count <- connect_trace_span_count(lines, to)
   if (span_count >= max_spans) {
     return(lines)
   }
@@ -305,9 +301,6 @@ connect_job_trace_lines <- function(
   starts <- vapply(jobs, function(job) job$start_time %||% "", character(1))
   keys <- keys[order(starts, decreasing = TRUE)]
 
-  if (!is.null(n) && connect_conversation_count(lines, from, to) >= n) {
-    return(unique(lines))
-  }
   for (key in keys) {
     offset <- 0L
     repeat {
@@ -329,7 +322,7 @@ connect_job_trace_lines <- function(
       }
       page <- connect_trace_page(response)
       eligible <- connect_trace_lines_before(page, to)
-      added <- connect_add_trace_lines(lines, eligible)
+      added <- connect_add_trace_lines(lines, eligible, to)
       lines <- added$lines
       span_count <- span_count + added$span_count
       total <- suppressWarnings(as.integer(
@@ -343,30 +336,29 @@ connect_job_trace_lines <- function(
     if (span_count >= max_spans) {
       break
     }
-    # Jobs are walked newest-first, so once enough distinct conversations have
-    # been seen the older jobs cannot add any that would survive the `n` most
-    # recent. Content with hundreds of jobs is otherwise minutes of requests
-    # for pages that are discarded.
-    if (!is.null(n) && connect_conversation_count(lines, from, to) >= n) {
-      break
-    }
   }
   lines
 }
 
-connect_add_trace_lines <- function(lines, page) {
+connect_add_trace_lines <- function(lines, page, to = NULL) {
   page <- unique(page)
   page <- page[!page %in% lines]
   list(
     lines = c(lines, page),
-    span_count = connect_trace_span_count(page)
+    span_count = connect_trace_span_count(page, to)
   )
 }
 
-connect_trace_span_count <- function(lines) {
+connect_trace_span_count <- function(lines, to = NULL) {
   counts <- vapply(
     lines,
-    function(line) max(1L, length(otel_parse_otlp_lines(line))),
+    function(line) {
+      parsed <- otel_parse_otlp_lines(line)
+      if (length(parsed) == 0L) {
+        return(1L)
+      }
+      length(otel_parse_otlp_lines(line, to = to))
+    },
     integer(1)
   )
   sum(counts)
@@ -399,16 +391,6 @@ connect_trace_lines_before <- function(lines, to) {
   lines[keep]
 }
 
-# The early stop groups properly rather than counting conversation ids
-# directly: without walking ancestry, sibling spans of one conversation look
-# like separate conversations, the count runs ahead of the truth and the read
-# stops before `n` are actually available. Grouping re-parses what has been
-# fetched so far, which is cheap next to another round of HTTP.
-connect_conversation_count <- function(lines, from, to) {
-  spans <- otel_parse_otlp_lines(lines)
-  length(otel_group_conversations_in_window(spans, from, to))
-}
-
 connect_trace_page <- function(response) {
   body <- tryCatch(
     httr2::resp_body_string(response),
@@ -423,7 +405,7 @@ connect_trace_page <- function(response) {
 # Each line is one OTLP envelope: {"resourceSpans":[{"scopeSpans":[{"spans":
 # [...]}]}]}. A malformed line is skipped rather than failing the read; one
 # bad record should not cost the whole history.
-otel_parse_otlp_lines <- function(lines, max_spans = Inf) {
+otel_parse_otlp_lines <- function(lines, max_spans = Inf, to = NULL) {
   spans <- list()
   for (line in lines) {
     envelope <- tryCatch(
@@ -436,10 +418,14 @@ otel_parse_otlp_lines <- function(lines, max_spans = Inf) {
     for (resource in envelope$resourceSpans %||% list()) {
       for (scope in resource$scopeSpans %||% list()) {
         for (span in scope$spans %||% list()) {
+          parsed_span <- otel_span(span, scope)
+          if (!otel_span_in_window(parsed_span, from = NULL, to = to)) {
+            next
+          }
           if (length(spans) >= max_spans) {
             return(spans)
           }
-          spans[[length(spans) + 1L]] <- otel_span(span, scope)
+          spans[[length(spans) + 1L]] <- parsed_span
         }
       }
     }
