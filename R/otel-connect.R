@@ -276,6 +276,11 @@ connect_trace_lines <- function(
     call
   )
   if (is.null(response)) {
+    if (!jobs) {
+      lines <- character()
+      attr(lines, "spans") <- list()
+      return(lines)
+    }
     return(connect_job_trace_lines(
       client,
       guid,
@@ -293,7 +298,12 @@ connect_trace_lines <- function(
   span_count <- added$span_count
   total <- connect_total_count(response)
   offset <- length(page)
-  connect_progress(sprintf("Read %s spans", format(span_count, big.mark = ",")))
+  page_number <- 1L
+  connect_progress(sprintf(
+    "Read page %d (%s GenAI spans)",
+    page_number,
+    format(span_count, big.mark = ",")
+  ))
 
   while (
     span_count < max_spans &&
@@ -328,15 +338,19 @@ connect_trace_lines <- function(
       spans <- c(spans, added$spans)
       span_count <- span_count + added$span_count
       offset <- offset + length(page)
+      page_number <- page_number + 1L
+      connect_progress(sprintf(
+        "Read page %d (%s GenAI spans)",
+        page_number,
+        format(span_count, big.mark = ",")
+      ))
       if (length(page) == 0L) {
         break
       }
     }
-    connect_progress(sprintf(
-      "Read %s spans",
-      format(span_count, big.mark = ",")
-    ))
-    if (length(responses) == 0L || any(vapply(responses, is.null, logical(1)))) {
+    if (
+      length(responses) == 0L || any(vapply(responses, is.null, logical(1)))
+    ) {
       break
     }
   }
@@ -376,17 +390,32 @@ connect_total_count <- function(response) {
 connect_perform <- function(request, call) {
   tryCatch(
     httr2::req_perform(request),
-    httr2_http_401 = function(err) connect_access_abort(err, call),
-    httr2_http_403 = function(err) connect_access_abort(err, call),
-    httr2_http_404 = function(err) NULL,
-    httr2_http_500 = function(err) NULL,
-    httr2_http_502 = function(err) NULL,
-    httr2_http_503 = function(err) NULL
+    error = function(err) connect_response_result(err, call)
   )
 }
 
-# Several requests at once, with the same failure policy as connect_perform():
-# an access failure aborts, any other failure becomes NULL in that position.
+# Apply the same narrow recovery policy to sequential and parallel responses.
+# Only endpoint-missing and transient server errors fall back; request errors,
+# rate limits, timeouts, and other unexpected failures retain their condition.
+connect_response_result <- function(response, call) {
+  if (inherits(response, c("httr2_http_401", "httr2_http_403"))) {
+    connect_access_abort(response, call)
+  }
+  if (
+    inherits(
+      response,
+      c("httr2_http_404", "httr2_http_500", "httr2_http_502", "httr2_http_503")
+    )
+  ) {
+    return(NULL)
+  }
+  if (inherits(response, "error")) {
+    stop(response)
+  }
+  response
+}
+
+# Several requests at once, with the same failure policy as connect_perform().
 connect_perform_batch <- function(requests, call, max_active = 6L) {
   if (length(requests) == 0L) {
     return(list())
@@ -400,15 +429,7 @@ connect_perform_batch <- function(requests, call, max_active = 6L) {
     progress = FALSE,
     max_active = max_active
   )
-  lapply(responses, function(response) {
-    if (inherits(response, c("httr2_http_401", "httr2_http_403"))) {
-      connect_access_abort(response, call)
-    }
-    if (inherits(response, "error")) {
-      return(NULL)
-    }
-    response
-  })
+  lapply(responses, connect_response_result, call = call)
 }
 
 connect_access_abort <- function(err, call) {
@@ -432,7 +453,8 @@ connect_job_trace_lines <- function(
   max_spans,
   call,
   page_size,
-  lines = character()
+  lines = character(),
+  wave_size = 8L
 ) {
   truncated <- isTRUE(attr(lines, "truncated", exact = TRUE))
   spans <- attr(lines, "spans", exact = TRUE)
@@ -447,7 +469,7 @@ connect_job_trace_lines <- function(
     }
     lines
   }
-  if (span_count >= max_spans) {
+  if (span_count >= max_spans && truncated) {
     return(finish())
   }
   jobs <- connect_perform(
@@ -462,7 +484,7 @@ connect_job_trace_lines <- function(
     )
   }
   jobs <- httr2::resp_body_json(jobs)
-  keys <- connect_job_keys(jobs, from, before = parsed$earliest)
+  keys <- connect_job_keys(jobs, from, to, before = parsed$earliest)
   if (length(keys) > 0L) {
     connect_progress(sprintf(
       "Reading %d retained job trace store%s",
@@ -479,58 +501,87 @@ connect_job_trace_lines <- function(
         since = connect_window_param(from, -3600)
       )
   }
-  add_page <- function(response) {
+  add_page <- function(response, key, page_number) {
     page <- connect_trace_page(response)
-    eligible <- connect_trace_lines_before(page, to)
-    added <- connect_add_trace_lines(lines, eligible, to)
+    added <- connect_add_trace_lines(lines, page, to, drop_after = TRUE)
     lines <<- added$lines
     spans <<- c(spans, added$spans)
     span_count <<- span_count + added$span_count
+    connect_progress(sprintf(
+      "Read retained job %s page %d (%s GenAI spans)",
+      key,
+      page_number,
+      format(span_count, big.mark = ",")
+    ))
     list(
       n = length(page),
       total = connect_total_count(response)
     )
   }
 
-  # First pages are fetched several jobs at a time; a job with more than one
-  # page is paged out sequentially afterwards, which is rare.
-  first_pages <- connect_perform_batch(
-    lapply(keys, function(key) {
-      job_request(key, min(page_size, max_spans - span_count), 0L)
-    }),
-    call,
-    max_active = 8L
-  )
-  for (index in seq_along(keys)) {
-    if (span_count >= max_spans) {
-      truncated <- TRUE
-      break
-    }
-    response <- first_pages[[index]]
-    if (is.null(response)) {
-      next
-    }
-    page <- add_page(response)
-    offset <- page$n
-    while (
-      span_count < max_spans &&
-        page$n > 0L &&
-        !is.na(page$total) &&
-        offset < page$total
-    ) {
-      response <- connect_perform(
-        job_request(keys[[index]], min(page_size, max_spans - span_count), offset),
-        call
-      )
+  if (span_count >= max_spans) {
+    truncated <- length(keys) > 0L || span_count > max_spans
+    return(finish())
+  }
+  if (length(keys) == 0L) {
+    return(finish())
+  }
+
+  # Queue only a bounded wave of retained stores. Once the budget is reached,
+  # no later wave is downloaded merely to be discarded.
+  for (wave_start in seq.int(1L, length(keys), by = wave_size)) {
+    wave_indices <- seq.int(
+      wave_start,
+      min(length(keys), wave_start + wave_size - 1L)
+    )
+    request_limit <- min(page_size, max_spans - span_count)
+    first_pages <- connect_perform_batch(
+      lapply(
+        keys[wave_indices],
+        job_request,
+        limit = request_limit,
+        offset = 0L
+      ),
+      call,
+      max_active = wave_size
+    )
+    for (wave_position in seq_along(wave_indices)) {
+      index <- wave_indices[[wave_position]]
+      response <- first_pages[[wave_position]]
       if (is.null(response)) {
-        break
+        next
       }
-      page <- add_page(response)
-      offset <- offset + page$n
-    }
-    if (span_count >= max_spans) {
-      truncated <- TRUE
-      break
+      page_number <- 1L
+      page <- add_page(response, keys[[index]], page_number)
+      offset <- page$n
+      page_has_more <- if (is.na(page$total)) {
+        page$n >= request_limit
+      } else {
+        offset < page$total
+      }
+      while (span_count < max_spans && page$n > 0L && page_has_more) {
+        request_limit <- min(page_size, max_spans - span_count)
+        response <- connect_perform(
+          job_request(keys[[index]], request_limit, offset),
+          call
+        )
+        if (is.null(response)) {
+          break
+        }
+        page_number <- page_number + 1L
+        page <- add_page(response, keys[[index]], page_number)
+        offset <- offset + page$n
+        page_has_more <- if (is.na(page$total)) {
+          page$n >= request_limit
+        } else {
+          offset < page$total
+        }
+      }
+      if (span_count >= max_spans) {
+        later_keys <- index < length(keys)
+        truncated <- span_count > max_spans || page_has_more || later_keys
+        return(finish())
+      }
     }
   }
   finish()
@@ -542,12 +593,9 @@ connect_trace_lines_summary <- function(lines, to = NULL, spans = NULL) {
   if (is.null(spans)) {
     parsed <- otel_parse_otlp_lines_counted(lines)
     spans <- parsed$spans
-    dropped <- parsed$dropped
-  } else {
-    dropped <- 0L
   }
   earliest <- Inf
-  count <- dropped
+  count <- 0L
   for (span in spans) {
     start <- otel_nanos(span$start_time)
     if (is.finite(start)) {
@@ -574,7 +622,7 @@ connect_trace_lines_summary <- function(lines, to = NULL, spans = NULL) {
 # by that store -- per-job traces are only ever *older* than it, because
 # Connect did not migrate them when the content-wide store arrived. Jobs
 # without a parseable time are kept.
-connect_job_keys <- function(jobs, from, before = NULL) {
+connect_job_keys <- function(jobs, from, to = NULL, before = NULL) {
   keys <- vapply(jobs, function(job) job$key %||% "", character(1))
   starts <- vapply(jobs, function(job) job$start_time %||% "", character(1))
   ends <- vapply(jobs, function(job) job$end_time %||% "", character(1))
@@ -586,6 +634,10 @@ connect_job_keys <- function(jobs, from, before = NULL) {
   if (!is.null(before)) {
     started <- connect_parse_time(starts)
     keep <- keep & (is.na(started) | started < before)
+  }
+  if (!is.null(to)) {
+    started <- connect_parse_time(starts)
+    keep <- keep & (is.na(started) | started < as.numeric(to))
   }
   keys <- keys[keep]
   keys[order(starts[keep], decreasing = TRUE)]
@@ -605,24 +657,48 @@ connect_parse_time <- function(x) {
 
 # New lines are parsed here, once, and the spans travel with the lines so no
 # later step has to parse them again.
-connect_add_trace_lines <- function(lines, page, to = NULL) {
+connect_add_trace_lines <- function(
+  lines,
+  page,
+  to = NULL,
+  drop_after = FALSE
+) {
   page <- unique(page)
   page <- page[!page %in% lines]
-  summary <- connect_trace_lines_summary(page, to)
+  envelopes <- otel_parse_envelopes_each(page)
+  if (drop_after && !is.null(to)) {
+    keep <- vapply(
+      envelopes,
+      function(envelope) {
+        page_spans <- otel_envelope_spans(envelope)
+        length(page_spans) == 0L ||
+          any(vapply(
+            page_spans,
+            otel_span_in_window,
+            logical(1),
+            from = NULL,
+            to = to
+          ))
+      },
+      logical(1)
+    )
+    page <- page[keep]
+    envelopes <- envelopes[keep]
+  }
+  spans <- unlist(lapply(envelopes, otel_envelope_spans), recursive = FALSE)
+  span_count <- as.integer(sum(vapply(
+    spans,
+    function(span) {
+      otel_is_genai_span(span) &&
+        otel_span_in_window(span, from = NULL, to = to)
+    },
+    logical(1)
+  )))
   list(
     lines = c(lines, page),
-    spans = summary$spans,
-    span_count = summary$span_count
+    spans = spans,
+    span_count = span_count
   )
-}
-
-# Lines are parsed in one batch; the window is applied to the parsed spans
-# rather than by parsing again. Only GenAI spans count: a framework span
-# costs a little memory until grouping discards it, but must not cost
-# budget. A line that cannot be parsed still counts as one span so that
-# malformed input cannot stretch the budget.
-connect_trace_span_count <- function(lines, to = NULL) {
-  connect_trace_lines_summary(lines, to)$span_count
 }
 
 # The legacy endpoint accepts a lower `since` bound but no upper bound. Drop
@@ -819,12 +895,11 @@ otel_attribute_value <- function(value) {
   NA_character_
 }
 
-# A span with attributes but none from the GenAI conventions is framework
-# activity (a Shiny reactive, an HTTP handler). A span with no attributes at
-# all is unclassifiable and is treated as GenAI so it still counts.
+# A span without a GenAI semantic-convention attribute is framework activity
+# (a Shiny reactive, an HTTP handler) and does not consume the GenAI budget.
 otel_is_genai_span <- function(span) {
   keys <- names(span$attributes)
-  length(keys) == 0L || any(startsWith(keys, "gen_ai."))
+  any(startsWith(keys, "gen_ai."))
 }
 
 otel_span_in_window <- function(span, from, to) {

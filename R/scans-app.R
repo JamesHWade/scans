@@ -216,14 +216,30 @@ scans_app_runtime_sources <- function(x) {
   x
 }
 
-# Returns the bundle rather than the derived tables: the server caches this
-# per application and derives findings from it, so re-running a scan costs
-# no network.
+# A loader can carry source read details beside the typed bundle without
+# mutating the S7 object with an ad hoc attribute.
+scans_app_loaded_source <- function(bundle, read_info = NULL) {
+  structure(
+    list(bundle = bundle, read_info = read_info),
+    class = "scans_app_loaded_source"
+  )
+}
+
+# Returns the typed bundle and its source read details: the server caches both
+# per application and derives findings from the bundle, so re-running a scan
+# costs no network.
 scans_app_load_source <- function(source) {
   if (!is.null(source$bundle)) {
-    return(source$bundle)
+    return(list(bundle = source$bundle, read_info = NULL))
   }
-  bundle <- source$load()
+  loaded <- source$load()
+  if (inherits(loaded, "scans_app_loaded_source")) {
+    bundle <- loaded$bundle
+    read_info <- loaded$read_info
+  } else {
+    bundle <- loaded
+    read_info <- NULL
+  }
   if (!is_trajectory_bundle(bundle)) {
     label <- source$label
     scans_abort(
@@ -233,7 +249,7 @@ scans_app_load_source <- function(source) {
       .envir = environment()
     )
   }
-  bundle
+  list(bundle = bundle, read_info = read_info)
 }
 
 scans_app_check_packages <- function(

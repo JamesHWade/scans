@@ -101,11 +101,6 @@ otel_combine_tables <- function(tables) {
   )
 }
 
-otel_conversation_bundle <- function(...) {
-  tables <- otel_conversation_tables(...)
-  otel_combine_tables(list(tables))
-}
-
 # ---- conversation -> bundle -------------------------------------------------
 
 otel_conversation_tables <- function(
@@ -223,34 +218,30 @@ otel_extra_attributes <- function(spans, max_chars = 200L) {
     keys <- names(attributes)
     keep <- !startsWith(keys, "gen_ai.") & !keys %in% c("error.type")
     for (key in keys[keep]) {
-      if (!is.null(values[[key]])) {
-        next
-      }
       value <- otel_string(attributes[[key]])
       if (is.na(value)) {
         next
       }
-      values[[key]] <- otel_clip(value, max_chars)
+      values[[key]] <- unique(c(values[[key]], otel_clip(value, max_chars)))
     }
   }
   if (length(values) == 0L) NULL else values[order(names(values))]
 }
 
 otel_resource_attributes <- function(spans, max_chars = 200L) {
+  values <- list()
   for (span in spans) {
     resource <- span$resource
     if (is.list(resource) && length(resource) > 0L) {
-      values <- lapply(resource, function(value) {
-        value <- otel_string(value)
-        if (is.na(value)) NULL else otel_clip(value, max_chars)
-      })
-      values <- values[!vapply(values, is.null, logical(1))]
-      if (length(values) > 0L) {
-        return(values[order(names(values))])
+      for (key in names(resource)) {
+        value <- otel_string(resource[[key]])
+        if (!is.na(value)) {
+          values[[key]] <- unique(c(values[[key]], otel_clip(value, max_chars)))
+        }
       }
     }
   }
-  NULL
+  if (length(values) == 0L) NULL else values[order(names(values))]
 }
 
 otel_clip <- function(value, max_chars) {
@@ -278,9 +269,11 @@ otel_user_keys <- c(
 otel_user_id <- function(spans) {
   for (key in otel_user_keys) {
     for (span in spans) {
-      value <- otel_string(span$attributes[[key]])
-      if (!is.na(value)) {
-        return(value)
+      for (attributes in list(span$attributes, span$resource)) {
+        value <- otel_string(attributes[[key]])
+        if (!is.na(value)) {
+          return(value)
+        }
       }
     }
   }
@@ -404,8 +397,8 @@ otel_messages_tables <- function(
   }
 
   list(
-    turns = otel_rows_table(turns, otel_turn_columns),
-    events = otel_rows_table(events, otel_event_columns),
+    turns = otel_rows_table(turns, "turns"),
+    events = otel_rows_table(events, "events"),
     losses = trajectory_bind_rows(losses)
   )
 }
@@ -615,59 +608,28 @@ otel_event_row <- function(
   )
 }
 
-otel_event_columns <- list(
-  trajectory_id = "character",
-  event_id = "character",
-  event_index = "integer",
-  turn_id = "character",
-  content_index = "integer",
-  parent_event_id = "character",
-  event_type = "character",
-  content_type = "character",
-  name = "character",
-  call_id = "character",
-  text = "character",
-  value = "list",
-  timestamp = "time",
-  duration = "double",
-  status = "character",
-  error = "character",
-  metadata = "list"
-)
-
-otel_turn_columns <- list(
-  trajectory_id = "character",
-  turn_id = "character",
-  turn_index = "integer",
-  round_index = "integer",
-  role = "character",
-  input_tokens = "double",
-  output_tokens = "double",
-  cached_input_tokens = "double",
-  cost = "double",
-  duration = "double",
-  finish_reason = "character",
-  status = "character",
-  error = "character",
-  metadata = "list"
-)
-
-otel_rows_table <- function(rows, columns) {
+otel_rows_table <- function(rows, table) {
+  columns <- trajectory_table_schemas()[[table]]
   if (length(rows) == 0L) {
-    return(tibble::tibble())
+    return(otel_empty_table(table))
   }
   values <- Map(
-    function(column, type) {
+    function(column, prototype) {
       cells <- lapply(rows, function(row) row[[column]])
+      type <- trajectory_prototype_type(prototype)
       switch(
         type,
         list = lapply(cells, function(cell) cell),
-        time = as.POSIXct(
+        POSIXct = as.POSIXct(
           vapply(cells, function(cell) cell %||% NA_real_, numeric(1)),
           origin = "1970-01-01",
           tz = "UTC"
         ),
-        integer = vapply(cells, function(cell) cell %||% NA_integer_, integer(1)),
+        integer = vapply(
+          cells,
+          function(cell) cell %||% NA_integer_,
+          integer(1)
+        ),
         double = vapply(cells, function(cell) cell %||% NA_real_, numeric(1)),
         vapply(cells, function(cell) cell %||% NA_character_, character(1))
       )
@@ -839,6 +801,9 @@ otel_group_conversations <- function(spans) {
     function(group) any(vapply(group, otel_is_chat_span, logical(1))),
     groups
   )
+  groups <- lapply(groups, function(group) {
+    Filter(otel_is_genai_span, group)
+  })
   otel_order_conversations(groups)
 }
 

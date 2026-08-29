@@ -139,22 +139,17 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
   )
 }
 
-# The user a trajectory belongs to, when the source recorded one. The OTel
-# adapter stores it under `otel$user`; other adapters may carry any of the
-# same keys at the top level of the metadata.
+# The user a trajectory belongs to, when the OTel source recorded one. Source
+# identifiers remain namespaced until adapters share an explicit contract.
 scans_app_metadata_user <- function(metadata) {
   if (!is.list(metadata)) {
     return(NA_character_)
   }
-  candidates <- c(
-    list(metadata$otel$user),
-    metadata[c("user", "user_id", "enduser.id", "user.id", "user.name")]
-  )
-  for (value in candidates) {
-    if (is.character(value) && length(value) == 1L && !is.na(value) &&
-      nzchar(value)) {
-      return(value)
-    }
+  value <- metadata$otel$user
+  if (
+    is.character(value) && length(value) == 1L && !is.na(value) && nzchar(value)
+  ) {
+    return(value)
   }
   NA_character_
 }
@@ -184,10 +179,17 @@ scans_app_order_records <- function(records, indices, sort = "newest") {
       subset$index,
       method = "radix"
     ),
-    longest = order(-subset$n_events, -subset$n_turns, subset$index,
-      method = "radix"),
-    order(-ifelse(is.na(started), -Inf, started), subset$index,
-      method = "radix")
+    longest = order(
+      -subset$n_events,
+      -subset$n_turns,
+      subset$index,
+      method = "radix"
+    ),
+    order(
+      -ifelse(is.na(started), -Inf, started),
+      subset$index,
+      method = "radix"
+    )
   )
   indices[ordering]
 }

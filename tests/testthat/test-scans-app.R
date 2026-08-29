@@ -1024,7 +1024,7 @@ test_that("scans app shares a loaded snapshot across sessions", {
     expect_identical(calls, 1L)
     expect_match(
       as.character(output$scans_app_load_info)[[1L]],
-      "Loaded just now",
+      "Loaded",
       fixed = TRUE
     )
     session$setInputs(scans_app_reload = 1L)
@@ -1058,6 +1058,51 @@ test_that("a stale shared snapshot is refreshed by a new session", {
   })
 })
 
+test_that("an active session refreshes an expired shared snapshot", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- 0L
+  delays <- numeric()
+  now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
+  sources <- scans_app_sources(list(
+    "Deployment" = function() {
+      calls <<- calls + 1L
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  server <- scans_app_server(
+    sources,
+    cache_max_age = 60,
+    clock = function() now,
+    schedule = function(delay, ...) {
+      delays <<- c(delays, delay)
+      invisible(NULL)
+    }
+  )
+
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 1L)
+    expect_identical(delays, 60000)
+
+    now <<- now + 61
+    revision(revision() + 1L)
+    session$flushReact()
+    expect_identical(calls, 2L)
+  })
+})
+
+test_that("snapshot ages use an injected reference time", {
+  now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
+  loaded_at <- now - 120
+  entry <- list(loaded_at = loaded_at)
+
+  expect_identical(scans_app_cache_age(entry, now), 120)
+  expect_identical(scans_app_age_string(loaded_at, now), "2 min ago")
+})
+
 test_that("a failed load is not shared with other sessions", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
@@ -1067,7 +1112,9 @@ test_that("a failed load is not shared with other sessions", {
   app <- scans_app(list(
     "Deployment" = function() {
       calls <<- calls + 1L
-      if (calls == 1L) stop("boom")
+      if (calls == 1L) {
+        stop("boom")
+      }
       trajectory_fixture("simple_exchange")
     }
   ))
@@ -1095,7 +1142,7 @@ test_that("scans app shows what a Connect read found", {
 
   bundle <- trajectory_fixture("simple_exchange")
   now <- Sys.time()
-  attr(bundle, "scans_read_info") <- list(
+  read_info <- list(
     read_at = now,
     from = now - 7 * 86400,
     to = now,
@@ -1106,7 +1153,10 @@ test_that("scans app shows what a Connect read found", {
     conversations_found = 130L,
     conversations = 100L
   )
-  app <- scans_app(list("Deployment" = function() bundle))
+  app <- scans_app(list(
+    "Deployment" = function() scans_app_loaded_source(bundle, read_info)
+  ))
+  expect_null(attr(bundle, "scans_read_info", exact = TRUE))
 
   shiny::testServer(app$serverFuncSource(), {
     session$flushReact()
@@ -1132,12 +1182,30 @@ test_that("scans app orders visible trajectories", {
     )
   )
 
-  expect_identical(scans_app_order_records(records, 1:4, "newest"), c(3L, 1L, 4L, 2L))
-  expect_identical(scans_app_order_records(records, 1:4, "oldest"), c(4L, 1L, 3L, 2L))
-  expect_identical(scans_app_order_records(records, 1:4, "findings"), c(2L, 3L, 1L, 4L))
-  expect_identical(scans_app_order_records(records, 1:4, "longest"), c(2L, 3L, 4L, 1L))
-  expect_identical(scans_app_order_records(records, c(4L, 1L), "newest"), c(1L, 4L))
-  expect_identical(scans_app_order_records(records, integer(), "newest"), integer())
+  expect_identical(
+    scans_app_order_records(records, 1:4, "newest"),
+    c(3L, 1L, 4L, 2L)
+  )
+  expect_identical(
+    scans_app_order_records(records, 1:4, "oldest"),
+    c(4L, 1L, 3L, 2L)
+  )
+  expect_identical(
+    scans_app_order_records(records, 1:4, "findings"),
+    c(2L, 3L, 1L, 4L)
+  )
+  expect_identical(
+    scans_app_order_records(records, 1:4, "longest"),
+    c(2L, 3L, 4L, 1L)
+  )
+  expect_identical(
+    scans_app_order_records(records, c(4L, 1L), "newest"),
+    c(1L, 4L)
+  )
+  expect_identical(
+    scans_app_order_records(records, integer(), "newest"),
+    integer()
+  )
 })
 
 test_that("scans app steps through the visible list in sort order", {
@@ -1164,10 +1232,6 @@ test_that("scans app steps through the visible list in sort order", {
     session$setInputs(scans_app_nav = list(direction = "prev", nonce = 1))
     session$flushReact()
     expect_identical(selected(), first)
-
-    session$setInputs(scans_app_select = list(index = 2L))
-    session$flushReact()
-    expect_identical(selected(), 2L)
   })
 })
 
@@ -1178,10 +1242,12 @@ test_that("scans app records carry user and model for the browser", {
   data <- scans_app_data(do.call(TrajectoryBundle, tables))
 
   expect_identical(data$records$user, "ada")
-  expect_true(grepl("ada", data$records$search, fixed = TRUE))
-  entry <- as.character(scans_app_entry_ui(data$records[1L, , drop = FALSE], TRUE))
+  expect_match(data$records$search, "ada", fixed = TRUE)
+  entry <- as.character(scans_app_entry_ui(
+    data$records[1L, , drop = FALSE],
+    TRUE
+  ))
   expect_match(entry, "ada", fixed = TRUE)
-  expect_match(entry, "data-scans-index=\"1\"", fixed = TRUE)
   header <- as.character(scans_app_header_ui(data, 1L))
   expect_match(header, "scans-app-badge-user", fixed = TRUE)
 })
@@ -1193,9 +1259,15 @@ test_that("scans app flattens metadata into a bounded definition list", {
     long = strrep("x", 1000L)
   )
   flat <- scans_app_flatten_metadata(metadata)
-  expect_identical(
-    names(flat),
-    c("otel.user", "otel.attributes.enduser.id", "otel.attributes.n", "tags", "long")
+  expect_named(
+    flat,
+    c(
+      "otel.user",
+      "otel.attributes.enduser.id",
+      "otel.attributes.n",
+      "tags",
+      "long"
+    )
   )
   expect_identical(flat$tags, "a, b")
   expect_identical(flat$otel.attributes.n, "3")

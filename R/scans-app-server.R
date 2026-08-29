@@ -2,14 +2,15 @@
 # created once when the server function is built, so a second reviewer -- or
 # the same reviewer after a browser refresh -- sees the snapshot instantly
 # rather than paying for another Connect read. A snapshot older than
-# `cache_max_age` is refreshed the next time a session that has not yet
-# displayed it asks for it; a session keeps what it is looking at until it
-# reloads. A failed load is cached for the session that saw it fail, so the
-# failure is shown instead of an empty app, but is retried by any other.
+# `cache_max_age` is refreshed for active sessions as well as new ones. A
+# failed load is cached for the session that saw it fail, so the failure is
+# shown instead of an empty app, but is retried by any other.
 scans_app_server <- function(
   sources,
   annotations = NULL,
-  cache_max_age = 30 * 60
+  cache_max_age = 30 * 60,
+  clock = Sys.time,
+  schedule = shiny::invalidateLater
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -47,16 +48,35 @@ scans_app_server <- function(
       entry <- scans_app_cache_get(cache, label)
       if (!is.null(entry)) {
         displayed <- exists(label, envir = seen, inherits = FALSE)
-        fresh <- is.null(entry$error) &&
-          scans_app_cache_age(entry) < cache_max_age
-        if (displayed || fresh) {
+        age <- scans_app_cache_age(entry, now = clock())
+        fresh <- is.null(entry$error) && age < cache_max_age
+        if ((displayed && !is.null(entry$error)) || fresh) {
+          if (
+            fresh &&
+              cache_max_age > 0 &&
+              is.function(active_source()$load)
+          ) {
+            schedule(max(1, cache_max_age - age) * 1000, session)
+          }
           assign(label, TRUE, envir = seen)
           return(entry)
         }
       }
-      entry <- scans_app_load_entry(active_source(), label, session)
+      entry <- scans_app_load_entry(
+        active_source(),
+        label,
+        session,
+        clock = clock
+      )
       assign(label, entry, envir = cache)
       assign(label, TRUE, envir = seen)
+      if (
+        is.null(entry$error) &&
+          cache_max_age > 0 &&
+          is.function(active_source()$load)
+      ) {
+        schedule(cache_max_age * 1000, session)
+      }
       entry
     })
 
@@ -351,19 +371,6 @@ scans_app_server <- function(
         move_selection(-1L)
       }
     })
-    shiny::observeEvent(input$scans_app_select, ignoreInit = TRUE, {
-      index <- suppressWarnings(as.integer(input$scans_app_select$index))
-      current <- data()
-      if (
-        !is.null(current) &&
-          length(index) == 1L &&
-          !is.na(index) &&
-          index >= 1L &&
-          index <= nrow(current$records)
-      ) {
-        selected(index)
-      }
-    })
 
     # The selected entry is highlighted in the browser rather than by
     # re-rendering the whole list: with a hundred entries the re-render was
@@ -484,11 +491,11 @@ scans_app_cache_get <- function(cache, label) {
   }
 }
 
-scans_app_cache_age <- function(entry) {
+scans_app_cache_age <- function(entry, now = Sys.time()) {
   if (is.null(entry$loaded_at)) {
     return(Inf)
   }
-  as.numeric(Sys.time() - entry$loaded_at, units = "secs")
+  as.numeric(now - entry$loaded_at, units = "secs")
 }
 
 # One cache entry: the bundle (or already-derived tables), when it was
@@ -496,8 +503,13 @@ scans_app_cache_age <- function(entry) {
 # progress notification so a Connect read that takes a while is visibly
 # running rather than apparently hung; the reader reports pages through the
 # `scans.progress` option.
-scans_app_load_entry <- function(source, label, session = NULL) {
-  loaded_at <- Sys.time()
+scans_app_load_entry <- function(
+  source,
+  label,
+  session = NULL,
+  clock = Sys.time
+) {
+  loaded_at <- clock()
   if (!is.null(source$data)) {
     return(list(
       bundle = NULL,
@@ -513,19 +525,19 @@ scans_app_load_entry <- function(source, label, session = NULL) {
       data = NULL,
       error = NULL,
       loaded_at = loaded_at,
-      read_info = attr(source$bundle, "scans_read_info", exact = TRUE)
+      read_info = NULL
     ))
   }
   load <- function() {
     tryCatch(
       {
-        bundle <- scans_app_load_source(source)
+        loaded <- scans_app_load_source(source)
         list(
-          bundle = bundle,
+          bundle = loaded$bundle,
           data = NULL,
           error = NULL,
-          loaded_at = Sys.time(),
-          read_info = attr(bundle, "scans_read_info", exact = TRUE)
+          loaded_at = clock(),
+          read_info = loaded$read_info
         )
       },
       error = function(cnd) {
@@ -534,7 +546,7 @@ scans_app_load_entry <- function(source, label, session = NULL) {
           bundle = NULL,
           data = NULL,
           error = scans_app_safe_source_error(),
-          loaded_at = Sys.time(),
+          loaded_at = clock(),
           read_info = NULL
         )
       }

@@ -159,12 +159,10 @@ scans_app_connect_loaders <- function(
         # The app shows how the read went -- window, span budget, how many
         # conversations were kept -- so a reviewer can tell "quiet week"
         # from "the ceiling cut this short".
-        attr(bundle, "scans_read_info") <- attr(
-          conversations,
-          "read_info",
-          exact = TRUE
+        scans_app_loaded_source(
+          bundle,
+          read_info = attr(conversations, "read_info", exact = TRUE)
         )
-        bundle
       }
     },
     labels,

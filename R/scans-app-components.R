@@ -94,7 +94,6 @@ scans_app_entry_ui <- function(record, selected) {
       paste0("scans-app-entry-", tone),
       if (selected) "scans-app-entry-selected" else ""
     ),
-    `data-scans-index` = record$index[[1L]],
     `aria-current` = if (selected) "true" else NULL
   )
 }
@@ -138,11 +137,18 @@ scans_app_overview_ui <- function(data, index) {
     list(
       "Findings",
       scans_app_count(n_findings),
-      if (n_errors > 0L) "danger" else if (n_findings > 0L) "warning"
+      if (n_errors > 0L) {
+        "danger"
+      } else if (n_findings > 0L) {
+        "warning"
+      }
     ),
-    list("Evaluations", scans_app_count(sum(
-      data$evaluations$trajectory_id == id
-    ))),
+    list(
+      "Evaluations",
+      scans_app_count(sum(
+        data$evaluations$trajectory_id == id
+      ))
+    ),
     list("Losses", scans_app_count(sum(data$loss_trajectory_ids %in% id))),
     list(
       "Tokens",
@@ -304,8 +310,11 @@ scans_app_load_info_ui <- function(entry, reloadable = FALSE) {
         )
       )
     },
-    if (!is.null(info$n) && !is.null(info$conversations_found) &&
-      info$conversations_found > info$n) {
+    if (
+      !is.null(info$n) &&
+        !is.null(info$conversations_found) &&
+        info$conversations_found > info$n
+    ) {
       htmltools::div(
         class = "scans-app-load-warning",
         role = "status",
@@ -319,8 +328,8 @@ scans_app_load_info_ui <- function(entry, reloadable = FALSE) {
   )
 }
 
-scans_app_age_string <- function(time) {
-  seconds <- as.numeric(Sys.time() - time, units = "secs")
+scans_app_age_string <- function(time, now = Sys.time()) {
+  seconds <- as.numeric(now - time, units = "secs")
   if (!is.finite(seconds) || seconds < 45) {
     return("just now")
   }
@@ -341,7 +350,11 @@ scans_app_window_string <- function(from, to) {
     days <- as.numeric(to, units = "secs") - as.numeric(from, units = "secs")
     days <- days / 86400
     if (is.finite(days) && abs(days - round(days)) < 0.05 && days >= 1) {
-      return(sprintf("last %d day%s", round(days), if (round(days) == 1) "" else "s"))
+      return(sprintf(
+        "last %d day%s",
+        round(days),
+        if (round(days) == 1) "" else "s"
+      ))
     }
     return(sprintf(
       "%s \u2013 %s",
