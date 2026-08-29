@@ -785,7 +785,7 @@ otel_latest_span <- function(spans) {
 #' @export
 otel_group_conversations <- function(spans) {
   index <- otel_span_index(spans)
-  chat_spans <- Filter(otel_is_chat_span, spans)
+  chat_spans <- Filter(otel_is_selected_chat_span, spans)
   if (length(chat_spans) == 0L) {
     return(list())
   }
@@ -799,12 +799,14 @@ otel_group_conversations <- function(spans) {
   # A group with no chat span holds only tool or framework activity and has
   # no conversation to show.
   groups <- Filter(
-    function(group) any(vapply(group, otel_is_chat_span, logical(1))),
+    function(group) {
+      any(vapply(group, otel_is_selected_chat_span, logical(1)))
+    },
     groups
   )
   groups <- lapply(groups, function(group) {
     context_spans <- otel_group_context_spans(group, index)
-    group <- Filter(otel_is_genai_span, context_spans)
+    group <- Filter(otel_is_selected_genai_span, context_spans)
     attr(group, "otel_context") <- list(
       user = otel_user_id(context_spans),
       attributes = otel_extra_attributes(context_spans),

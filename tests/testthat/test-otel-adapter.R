@@ -1215,6 +1215,41 @@ test_that("framework spans do not consume the GenAI span budget", {
   expect_identical(ids, c(paste0("shiny-", 1:5), "chat-1"))
 })
 
+test_that("span budget retains late ancestors as grouping context", {
+  child <- otel_chat_span(
+    span_id = "chat-A",
+    conversation = NULL,
+    parent = "root"
+  )
+  extra <- otel_chat_span(span_id = "chat-B", conversation = "conv-B")
+  parent <- otel_test_span(
+    "root",
+    list(
+      "gen_ai.conversation.id" = "conv-A",
+      "enduser.id" = "ada"
+    ),
+    name = "wrapper"
+  )
+
+  spans <- otel_limit_spans(list(child, extra, parent), max_spans = 1L)
+  groups <- otel_group_conversations(spans)
+
+  expect_identical(
+    vapply(spans, `[[`, character(1), "span_id"),
+    c("chat-A", "root")
+  )
+  expect_identical(
+    sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
+    1L
+  )
+  expect_named(groups, "conv-A")
+  expect_identical(
+    vapply(groups[[1L]], `[[`, character(1), "span_id"),
+    "chat-A"
+  )
+  expect_identical(attr(groups[[1L]], "otel_context")$user, "ada")
+})
+
 test_that("jobs already covered by the content-wide store are not read", {
   from <- as.POSIXct("2026-03-01", tz = "UTC")
   earliest <- as.numeric(as.POSIXct("2026-03-10", tz = "UTC"))

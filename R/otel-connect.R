@@ -104,7 +104,7 @@ read_connect_traces <- function(
     from = from,
     to = to,
     n = n,
-    spans = sum(vapply(spans, otel_is_genai_span, logical(1))),
+    spans = sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
     spans_total = length(spans),
     max_spans = max_spans,
     truncated = isTRUE(attr(lines, "truncated", exact = TRUE)),
@@ -116,23 +116,55 @@ read_connect_traces <- function(
 
 # The span budget and upper window bound, applied to already-parsed spans.
 otel_limit_spans <- function(spans, max_spans = Inf, to = NULL) {
-  kept <- vector("list", length(spans))
-  n <- 0L
+  spans <- Filter(
+    \(span) otel_span_in_window(span, from = NULL, to = to),
+    spans
+  )
+  selected <- vapply(spans, otel_is_selected_genai_span, logical(1))
   genai <- 0L
-  for (span in spans) {
-    if (!otel_span_in_window(span, from = NULL, to = to)) {
-      next
-    }
-    if (otel_is_genai_span(span)) {
+  cutoff <- NULL
+  for (index in seq_along(spans)) {
+    if (selected[[index]]) {
       if (genai >= max_spans) {
+        cutoff <- index
         break
       }
       genai <- genai + 1L
     }
-    n <- n + 1L
-    kept[[n]] <- span
   }
-  kept[seq_len(n)]
+  if (is.null(cutoff)) {
+    return(spans)
+  }
+
+  keep <- seq_along(spans) < cutoff
+  # A later parent can supply the selected child's conversation id and wrapper
+  # metadata. Retain that ancestry for grouping, but do not expose or count an
+  # ancestor that fell beyond the GenAI ceiling.
+  positions <- new.env(parent = emptyenv())
+  for (index in seq_along(spans)) {
+    span <- spans[[index]]
+    assign(paste(span$trace_id, span$span_id), index, envir = positions)
+  }
+  for (index in which(keep & selected)) {
+    current <- spans[[index]]
+    for (step in seq_len(64L)) {
+      parent <- current$parent_span_id
+      if (is.null(parent) || is.na(parent) || !nzchar(parent)) {
+        break
+      }
+      key <- paste(current$trace_id, parent)
+      if (!exists(key, envir = positions, inherits = FALSE)) {
+        break
+      }
+      parent_index <- get(key, envir = positions, inherits = FALSE)
+      if (!keep[[parent_index]]) {
+        keep[[parent_index]] <- TRUE
+        attr(spans[[parent_index]], "otel_context_only") <- TRUE
+      }
+      current <- spans[[parent_index]]
+    }
+  }
+  spans[keep]
 }
 
 connect_progress <- function(message) {
@@ -913,6 +945,16 @@ otel_attribute_value <- function(value) {
 otel_is_genai_span <- function(span) {
   keys <- names(span$attributes)
   any(startsWith(keys, "gen_ai."))
+}
+
+otel_is_selected_genai_span <- function(span) {
+  otel_is_genai_span(span) &&
+    !isTRUE(attr(span, "otel_context_only", exact = TRUE))
+}
+
+otel_is_selected_chat_span <- function(span) {
+  otel_is_chat_span(span) &&
+    !isTRUE(attr(span, "otel_context_only", exact = TRUE))
 }
 
 otel_span_in_window <- function(span, from, to) {
