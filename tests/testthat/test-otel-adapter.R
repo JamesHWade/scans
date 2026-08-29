@@ -1094,6 +1094,13 @@ test_that("read_connect_traces reports how the read went", {
   expect_s3_class(info$read_at, "POSIXct")
 })
 
+test_that("read_connect_traces preserves the positional max_spans slot", {
+  expect_identical(
+    names(formals(read_connect_traces))[7:8],
+    c("max_spans", "jobs")
+  )
+})
+
 test_that("non-GenAI span and resource attributes are kept as metadata", {
   skip_if_not_installed("jsonlite")
   envelope <- jsonlite::toJSON(

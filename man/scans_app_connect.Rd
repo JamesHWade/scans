@@ -10,8 +10,8 @@ scans_app_connect(
   from = NULL,
   to = NULL,
   reader = c("otel", "commons"),
-  jobs = TRUE,
-  annotations = NULL
+  annotations = NULL,
+  jobs = TRUE
 )
 }
 \arguments{
@@ -30,12 +30,12 @@ explicitly to leave that side of the window open.}
 \item{reader}{Which trace reader to use: \code{"otel"} (the default) for this
 package's native reader, or \code{"commons"} for \code{commons::trajectory_read()}.}
 
+\item{annotations}{Optional \code{\link[=scans_annotations]{scans_annotations()}} store, forwarded to
+\code{\link[=scans_app]{scans_app()}}.}
+
 \item{jobs}{Passed to \code{\link[=read_connect_traces]{read_connect_traces()}}: whether to also read the
 retained per-job trace stores. \code{FALSE} makes loads noticeably faster on
 deployments with many past jobs. Ignored by the \code{"commons"} reader.}
-
-\item{annotations}{Optional \code{\link[=scans_annotations]{scans_annotations()}} store, forwarded to
-\code{\link[=scans_app]{scans_app()}}.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.

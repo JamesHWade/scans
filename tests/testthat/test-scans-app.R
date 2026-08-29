@@ -260,6 +260,13 @@ test_that("scans_app_connect requires named scalar content references", {
   )
 })
 
+test_that("scans_app_connect preserves the positional annotations slot", {
+  expect_identical(
+    names(formals(scans_app_connect))[6:7],
+    c("annotations", "jobs")
+  )
+})
+
 test_that("scans app contains application source failures", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
@@ -1263,6 +1270,24 @@ test_that("scans app overview tolerates an atomic OTel metadata namespace", {
   data <- scans_app_data(do.call(TrajectoryBundle, tables))
 
   expect_no_error(scans_app_overview_ui(data, 1L))
+})
+
+test_that("scans app overview falls back from invalid OTel token counts", {
+  bundle <- trajectory_fixture("simple_exchange")
+  tables <- fixture_source(bundle)
+  tables$trajectories$metadata <- list(list(
+    otel = list(
+      input_tokens = c(1, 2),
+      output_tokens = "unknown"
+    )
+  ))
+  tables$turns$input_tokens <- c(5, 6)
+  tables$turns$output_tokens <- c(2, 3)
+  data <- scans_app_data(do.call(TrajectoryBundle, tables))
+
+  overview <- as.character(scans_app_overview_ui(data, 1L))
+
+  expect_match(overview, "11 in / 5 out", fixed = TRUE)
 })
 
 test_that("scans app flattens metadata into a bounded definition list", {

@@ -52,8 +52,8 @@ scans_app_connect <- function(
   from = NULL,
   to = NULL,
   reader = c("otel", "commons"),
-  jobs = TRUE,
-  annotations = NULL
+  annotations = NULL,
+  jobs = TRUE
 ) {
   default_from <- missing(from)
   default_to <- missing(to)

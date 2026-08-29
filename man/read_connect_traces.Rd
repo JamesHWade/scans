@@ -11,8 +11,8 @@ read_connect_traces(
   to = NULL,
   server = NULL,
   api_key = NULL,
-  jobs = TRUE,
-  max_spans = 50000L
+  max_spans = 50000L,
+  jobs = TRUE
 )
 }
 \arguments{
@@ -28,18 +28,18 @@ days ending now are read.}
 \item{server, api_key}{Connect server URL and API key. Default to
 \code{CONNECT_SERVER} and \code{CONNECT_API_KEY}.}
 
-\item{jobs}{Whether to also read the retained per-job trace stores that
-predate the content-wide store (see \emph{Trace endpoints}). The default,
-\code{TRUE}, is complete; \code{FALSE} skips those requests, which on a
-deployment with many past jobs is most of the read time, and is safe
-once the content-wide store is known to hold everything of interest.}
-
 \item{max_spans}{Ceiling on how many GenAI spans are read. Only spans
 carrying \verb{gen_ai.*} attributes count towards it: Shiny applications emit
 thousands of reactive spans per session, and those are read past rather
 than allowed to exhaust the budget before the conversations are reached.
 Framework spans are kept only as long as grouping needs them to link a
 model call to its conversation, and are dropped afterwards.}
+
+\item{jobs}{Whether to also read the retained per-job trace stores that
+predate the content-wide store (see \emph{Trace endpoints}). The default,
+\code{TRUE}, is complete; \code{FALSE} skips those requests, which on a
+deployment with many past jobs is most of the read time, and is safe
+once the content-wide store is known to hold everything of interest.}
 }
 \value{
 A named list of conversations, each a list of spans, oldest-first.

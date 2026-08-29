@@ -122,10 +122,14 @@ scans_app_overview_ui <- function(data, index) {
   } else {
     list()
   }
-  tokens_in <- usage$input_tokens %||%
+  tokens_in <- scans_app_token_count(
+    usage$input_tokens,
     scans_app_sum(data$turns$input_tokens[turn_rows])
-  tokens_out <- usage$output_tokens %||%
+  )
+  tokens_out <- scans_app_token_count(
+    usage$output_tokens,
     scans_app_sum(data$turns$output_tokens[turn_rows])
+  )
   duration <- scans_app_elapsed(
     info$started_at[[1L]],
     info$completed_at[[1L]]
@@ -198,6 +202,19 @@ scans_app_sum <- function(values) {
     return(NA_real_)
   }
   sum(values, na.rm = TRUE)
+}
+
+scans_app_token_count <- function(value, fallback) {
+  if (
+    length(value) != 1L ||
+      !is.numeric(value) ||
+      is.na(value) ||
+      !is.finite(value) ||
+      value < 0
+  ) {
+    return(fallback)
+  }
+  value
 }
 
 scans_app_elapsed <- function(start, end) {
