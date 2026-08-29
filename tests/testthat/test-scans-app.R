@@ -1256,6 +1256,15 @@ test_that("scans app records carry user and model for the browser", {
   )
 })
 
+test_that("scans app overview tolerates an atomic OTel metadata namespace", {
+  bundle <- trajectory_fixture("simple_exchange")
+  tables <- fixture_source(bundle)
+  tables$trajectories$metadata <- list(list(otel = "legacy"))
+  data <- scans_app_data(do.call(TrajectoryBundle, tables))
+
+  expect_no_error(scans_app_overview_ui(data, 1L))
+})
+
 test_that("scans app flattens metadata into a bounded definition list", {
   metadata <- list(
     otel = list(user = "ada", attributes = list(`enduser.id` = "ada", n = 3L)),

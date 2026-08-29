@@ -117,7 +117,11 @@ scans_app_overview_ui <- function(data, index) {
   summary <- data$summaries[index, , drop = FALSE]
   turn_rows <- which(data$turns$trajectory_id == id)
   metadata <- info$metadata[[1L]]
-  usage <- if (is.list(metadata)) metadata$otel else NULL
+  usage <- if (is.list(metadata) && is.list(metadata$otel)) {
+    metadata$otel
+  } else {
+    list()
+  }
   tokens_in <- usage$input_tokens %||%
     scans_app_sum(data$turns$input_tokens[turn_rows])
   tokens_out <- usage$output_tokens %||%
