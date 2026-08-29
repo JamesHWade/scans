@@ -562,6 +562,16 @@ connect_job_trace_lines <- function(
       total = connect_total_count(response)
     )
   }
+  abort_failed_page <- function(key) {
+    scans_abort(
+      c(
+        "Couldn't finish reading this content's traces from Posit Connect.",
+        i = "A retained trace page for job {.val {key}} failed."
+      ),
+      class = "scans_error_connect_traces",
+      call = call
+    )
+  }
 
   if (span_count >= max_spans) {
     truncated <- length(keys) > 0L || span_count > max_spans
@@ -593,7 +603,7 @@ connect_job_trace_lines <- function(
       index <- wave_indices[[wave_position]]
       response <- first_pages[[wave_position]]
       if (is.null(response)) {
-        next
+        abort_failed_page(keys[[index]])
       }
       page_number <- 1L
       page <- add_page(response, keys[[index]], page_number)
@@ -610,7 +620,7 @@ connect_job_trace_lines <- function(
           call
         )
         if (is.null(response)) {
-          break
+          abort_failed_page(keys[[index]])
         }
         page_number <- page_number + 1L
         page <- add_page(response, keys[[index]], page_number)

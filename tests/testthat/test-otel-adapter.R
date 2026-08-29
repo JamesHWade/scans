@@ -1458,6 +1458,70 @@ test_that("parallel requests preserve unexpected HTTP failures", {
   expect_null(connect_response_result(unavailable, rlang::caller_env()))
 })
 
+test_that("a failed first retained-job page aborts the read", {
+  skip_if_not_installed("httr2")
+  jobs_response <- httr2::response_json(
+    body = list(list(
+      key = "job-1",
+      start_time = "2026-01-01T00:00:00Z"
+    ))
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) jobs_response,
+    connect_perform_batch = function(requests, call, ...) list(NULL)
+  )
+
+  expect_error(
+    connect_job_trace_lines(
+      client = list(server = "https://connect.example.com", api_key = "secret"),
+      guid = "11111111-1111-4111-8111-111111111111",
+      from = NULL,
+      to = NULL,
+      max_spans = 10L,
+      call = rlang::caller_env(),
+      page_size = 1L
+    ),
+    class = "scans_error_connect_traces"
+  )
+})
+
+test_that("a failed later retained-job page aborts the read", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  jobs_response <- httr2::response_json(
+    body = list(list(
+      key = "job-1",
+      start_time = "2026-01-01T00:00:00Z"
+    ))
+  )
+  trace_response <- httr2::response(
+    headers = list(`X-Total-Count` = "2"),
+    body = charToRaw(otel_test_envelope("one"))
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
+        return(jobs_response)
+      }
+      NULL
+    },
+    connect_perform_batch = function(requests, call, ...) list(trace_response)
+  )
+
+  expect_error(
+    connect_job_trace_lines(
+      client = list(server = "https://connect.example.com", api_key = "secret"),
+      guid = "11111111-1111-4111-8111-111111111111",
+      from = NULL,
+      to = NULL,
+      max_spans = 10L,
+      call = rlang::caller_env(),
+      page_size = 1L
+    ),
+    class = "scans_error_connect_traces"
+  )
+})
+
 test_that("retained jobs are requested in bounded waves", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
