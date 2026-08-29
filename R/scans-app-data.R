@@ -72,7 +72,10 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
       n_turns = integer(),
       n_events = integer(),
       n_findings = integer(),
-      n_errors = integer()
+      n_errors = integer(),
+      started_at = as.POSIXct(character(), tz = "UTC"),
+      user = character(),
+      model = character()
     ))
   }
 
@@ -100,6 +103,7 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
     finding_groups[findings$severity %in% "error"],
     nbins = length(ids)
   )
+  users <- vapply(info$metadata, scans_app_metadata_user, character(1))
   search <- vapply(
     seq_along(ids),
     function(index) {
@@ -110,6 +114,7 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
         info$source_id[[index]],
         info$agent[[index]],
         info$model[[index]],
+        users[[index]],
         titles[[index]],
         transcripts[[index]]
       )
@@ -127,8 +132,64 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
     n_turns = summaries$n_turns,
     n_events = summaries$n_events,
     n_findings = n_findings,
-    n_errors = n_errors
+    n_errors = n_errors,
+    started_at = info$started_at,
+    user = users,
+    model = info$model
   )
+}
+
+# The user a trajectory belongs to, when the source recorded one. The OTel
+# adapter stores it under `otel$user`; other adapters may carry any of the
+# same keys at the top level of the metadata.
+scans_app_metadata_user <- function(metadata) {
+  if (!is.list(metadata)) {
+    return(NA_character_)
+  }
+  candidates <- c(
+    list(metadata$otel$user),
+    metadata[c("user", "user_id", "enduser.id", "user.id", "user.name")]
+  )
+  for (value in candidates) {
+    if (is.character(value) && length(value) == 1L && !is.na(value) &&
+      nzchar(value)) {
+      return(value)
+    }
+  }
+  NA_character_
+}
+
+scans_app_sort_choices <- c(
+  "Newest first" = "newest",
+  "Oldest first" = "oldest",
+  "Most findings" = "findings",
+  "Longest" = "longest"
+)
+
+# Ordering is applied to the visible indices, never to the records: the
+# index is the trajectory's identity in the browser and in the selection.
+scans_app_order_records <- function(records, indices, sort = "newest") {
+  if (length(indices) < 2L) {
+    return(indices)
+  }
+  subset <- records[indices, , drop = FALSE]
+  started <- as.numeric(subset$started_at)
+  ordering <- switch(
+    sort %||% "newest",
+    oldest = order(started, subset$index, na.last = TRUE, method = "radix"),
+    findings = order(
+      -subset$n_errors,
+      -subset$n_findings,
+      -ifelse(is.na(started), -Inf, started),
+      subset$index,
+      method = "radix"
+    ),
+    longest = order(-subset$n_events, -subset$n_turns, subset$index,
+      method = "radix"),
+    order(-ifelse(is.na(started), -Inf, started), subset$index,
+      method = "radix")
+  )
+  indices[ordering]
 }
 
 scans_app_search_string <- function(...) {

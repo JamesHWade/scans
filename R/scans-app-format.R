@@ -38,15 +38,84 @@ scans_app_context_ui <- function(info) {
     )),
     if (has_metadata) {
       htmltools::tagList(
-        htmltools::tags$dt("Metadata"),
+        htmltools::tags$dt(class = "scans-app-context-section", "Metadata"),
         htmltools::tags$dd(
-          htmltools::tags$pre(
-            htmltools::tags$code(scans_app_value_text(metadata))
-          )
+          class = "scans-app-context-metadata",
+          scans_app_metadata_ui(metadata)
         )
       )
     }
   )
+}
+
+# Metadata is flattened to dotted keys and shown as a definition list, so
+# `otel.attributes.enduser.id` reads as a fact rather than as a line of
+# `str()` output. Values are bounded per entry.
+scans_app_metadata_ui <- function(metadata, max_chars = 300L) {
+  entries <- scans_app_flatten_metadata(metadata)
+  if (length(entries) == 0L) {
+    return(scans_app_empty_ui("No metadata recorded.", compact = TRUE))
+  }
+  htmltools::tags$dl(
+    class = "scans-app-metadata",
+    htmltools::tagList(Map(
+      function(key, value) {
+        htmltools::tagList(
+          htmltools::tags$dt(key),
+          htmltools::tags$dd(scans_app_truncate(value, max_chars))
+        )
+      },
+      names(entries),
+      entries
+    ))
+  )
+}
+
+scans_app_flatten_metadata <- function(value, prefix = "", depth = 0L) {
+  if (depth > 6L) {
+    return(stats::setNames(list(scans_app_value_text(value)), prefix))
+  }
+  if (is.list(value)) {
+    if (length(value) == 0L) {
+      return(list())
+    }
+    keys <- names(value)
+    if (is.null(keys)) {
+      keys <- as.character(seq_along(value))
+    }
+    blank <- is.na(keys) | !nzchar(keys)
+    keys[blank] <- as.character(which(blank))
+    entries <- Map(
+      function(key, item) {
+        scans_app_flatten_metadata(
+          item,
+          prefix = if (nzchar(prefix)) paste(prefix, key, sep = ".") else key,
+          depth = depth + 1L
+        )
+      },
+      keys,
+      value
+    )
+    return(do.call(c, unname(entries)))
+  }
+  if (is.null(value) || length(value) == 0L) {
+    return(list())
+  }
+  if (is.atomic(value) && length(value) == 1L && is.na(value)) {
+    return(list())
+  }
+  text <- if (is.atomic(value) && length(value) == 1L) {
+    if (is.numeric(value)) {
+      format(value, big.mark = ",", scientific = FALSE, trim = TRUE)
+    } else {
+      as.character(value)
+    }
+  } else if (is.atomic(value)) {
+    paste(as.character(value), collapse = ", ")
+  } else {
+    scans_app_value_text(value)
+  }
+  stats::setNames(list(text), prefix)
 }
 
 scans_app_labeled_value <- function(label, value) {
@@ -159,7 +228,8 @@ scans_app_dependency <- function(package_version = utils::packageVersion) {
     src = c(
       file = system.file("www", "scans-app", package = "scans")
     ),
-    stylesheet = "scans-app.css"
+    stylesheet = "scans-app.css",
+    script = "scans-app.js"
   )
 }
 

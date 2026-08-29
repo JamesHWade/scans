@@ -1015,3 +1015,355 @@
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
+/* ---- browser: application, load summary, ordering ----------------------- */
+
+.scans-app-application {
+  border-bottom: 1px solid var(--scans-app-line);
+  display: grid;
+  gap: 0.5rem;
+  padding-bottom: 0.7rem;
+}
+
+.scans-app-application .scans-app-application-control {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.scans-app-load-summary {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.scans-app-load-facts {
+  color: var(--scans-app-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  gap: 0.2rem 0.45rem;
+}
+
+.scans-app-load-facts > span + span::before {
+  content: "\00b7";
+  margin-right: 0.45rem;
+}
+
+.scans-app-load-warning {
+  background: var(--scans-app-warning-soft);
+  border-radius: 0.5rem;
+  color: var(--scans-app-warning);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+  padding: 0.4rem 0.55rem;
+}
+
+.scans-app-browser-order {
+  align-items: end;
+}
+
+.scans-app-browser-order .form-check.form-switch {
+  margin-bottom: 0.45rem;
+}
+
+.scans-app-browser-order .form-check-label {
+  font-size: 0.85rem;
+}
+
+.scans-app-browser-count {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
+.scans-app-browser-hint {
+  color: #99a1b0;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ---- browser: entries --------------------------------------------------- */
+
+.scans-app-entry.action-link {
+  border-left: 3px solid transparent;
+  padding: 0.6rem 0.7rem 0.6rem 0.65rem;
+}
+
+.scans-app-entry-warning.action-link {
+  border-left-color: #e2b23a;
+}
+
+.scans-app-entry-danger.action-link {
+  border-left-color: #d9534f;
+}
+
+.scans-app-entry-selected.action-link,
+.scans-app-entry-selected.action-link:hover {
+  border-left-color: var(--scans-app-primary);
+}
+
+.scans-app-entry-facts {
+  color: #4a5262;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  gap: 0.2rem 0.45rem;
+  margin-top: 0.3rem;
+}
+
+.scans-app-entry-facts > span + span::before {
+  color: #a3aab8;
+  content: "\00b7";
+  margin-right: 0.45rem;
+}
+
+.scans-app-entry-meta {
+  margin-top: 0.45rem;
+}
+
+.scans-app-entry-meta .scans-app-entry-id {
+  flex: 1 1 100%;
+  margin-top: 0.15rem;
+}
+
+/* ---- workspace header --------------------------------------------------- */
+
+.scans-app-workspace-header {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.scans-app-heading-main {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.scans-app-heading-main strong {
+  font-size: 1.02rem;
+}
+
+.scans-app-heading-badges .scans-app-heading-id {
+  margin-top: 0;
+}
+
+.scans-app-badge-user {
+  background: #e7f3ff;
+  color: #1f5a96;
+}
+
+.scans-app-heading-nav {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.6rem;
+}
+
+.scans-app-heading-position {
+  color: var(--scans-app-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scans-app-heading-nav .btn {
+  line-height: 1;
+  padding: 0.3rem 0.5rem;
+}
+
+.scans-app-overview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.4rem;
+  margin: 0;
+}
+
+.scans-app-stat {
+  display: grid;
+  gap: 0.05rem;
+}
+
+.scans-app-stat-label {
+  color: var(--scans-app-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.scans-app-stat-value {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.scans-app-stat-warning .scans-app-stat-value {
+  color: var(--scans-app-warning);
+}
+
+.scans-app-stat-danger .scans-app-stat-value {
+  color: var(--scans-app-danger);
+}
+
+/* ---- transcript toolbar ------------------------------------------------- */
+
+.scans-app-transcript-toolbar {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+  margin: -0.5rem auto 0.25rem;
+  max-width: 58rem;
+}
+
+.scans-app-toolbar-button {
+  color: var(--scans-app-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.2rem 0.4rem;
+  text-decoration: none;
+}
+
+.scans-app-toolbar-button:hover {
+  color: var(--scans-app-primary);
+}
+
+/* ---- evidence: annotations and metadata --------------------------------- */
+
+.scans-app-evidence .scans-app-annotations {
+  margin-bottom: 0.6rem;
+}
+
+.scans-app-annotation-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.scans-app-context-section {
+  margin-top: 0.5rem;
+}
+
+.scans-app-metadata {
+  display: grid;
+  gap: 0.15rem 0.6rem;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  margin: 0;
+}
+
+.scans-app-metadata dt {
+  color: var(--scans-app-muted);
+  font-family: var(--bs-font-monospace);
+  font-size: 0.68rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.scans-app-metadata dd {
+  font-size: 0.76rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.scans-app-workspace > .card-header.scans-app-workspace-header {
+  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.scans-app-workspace-header > .shiny-html-output {
+  width: 100%;
+}
+
+.scans-app-evidence .sidebar-content {
+  gap: 0.5rem;
+}
+
+.scans-app-evidence .accordion {
+  --bs-accordion-border-color: transparent;
+}
+
+.scans-app-evidence .accordion-item {
+  border-radius: 0.6rem;
+  overflow: hidden;
+}
+
+/* ---- toolbars ----------------------------------------------------------- */
+
+.scans-app-browser.sidebar {
+  overflow: hidden;
+}
+
+.scans-app-browser .sidebar-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.scans-app-browser-entries {
+  flex: 1 1 0;
+  min-height: 8rem;
+}
+
+.scans-app-application-control {
+  align-items: center;
+}
+
+.scans-app-reload-toolbar {
+  margin-bottom: 0;
+}
+
+.scans-app-filters {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.scans-app-filters .bslib-toolbar-input-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.scans-app-browser-count .form-check.form-switch {
+  margin: 0;
+  min-height: 0;
+}
+
+.scans-app-browser-count .form-check-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.scans-app-workspace-bar {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.scans-app-workspace-bar > .shiny-html-output {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.scans-app-workspace-toolbar {
+  flex-shrink: 0;
+}
+
+.scans-app-heading {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.scans-app-browser-count {
+  gap: 0.6rem;
+}
+
+.scans-app-browser-count > .shiny-text-output {
+  flex: 1 1 auto;
+  white-space: nowrap;
+}

@@ -1000,3 +1000,207 @@ test_that("scans app thresholds accept only bounded whole numbers", {
   )
   expect_identical(actual, rep(3L, length(invalid)))
 })
+
+test_that("scans app shares a loaded snapshot across sessions", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- 0L
+  app <- scans_app(list(
+    "Deployment" = function() {
+      calls <<- calls + 1L
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  server <- app$serverFuncSource()
+
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 1L)
+  })
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 1L)
+    expect_match(
+      as.character(output$scans_app_load_info)[[1L]],
+      "Loaded just now",
+      fixed = TRUE
+    )
+    session$setInputs(scans_app_reload = 1L)
+    session$flushReact()
+    expect_identical(calls, 2L)
+  })
+})
+
+test_that("a stale shared snapshot is refreshed by a new session", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- 0L
+  sources <- scans_app_sources(list(
+    "Deployment" = function() {
+      calls <<- calls + 1L
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  server <- scans_app_server(sources, cache_max_age = 0)
+
+  shiny::testServer(server, {
+    session$flushReact()
+    session$flushReact()
+    expect_identical(calls, 1L)
+  })
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 2L)
+  })
+})
+
+test_that("a failed load is not shared with other sessions", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- 0L
+  app <- scans_app(list(
+    "Deployment" = function() {
+      calls <<- calls + 1L
+      if (calls == 1L) stop("boom")
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  server <- app$serverFuncSource()
+
+  suppressMessages(shiny::testServer(server, {
+    session$flushReact()
+    expect_match(
+      as.character(output$scans_app_load_error)[[1L]],
+      "Could not load traces",
+      fixed = TRUE
+    )
+  }))
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 2L)
+    expect_null(output$scans_app_load_error)
+  })
+})
+
+test_that("scans app shows what a Connect read found", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- trajectory_fixture("simple_exchange")
+  now <- Sys.time()
+  attr(bundle, "scans_read_info") <- list(
+    read_at = now,
+    from = now - 7 * 86400,
+    to = now,
+    n = 100L,
+    spans = 12345L,
+    max_spans = 50000L,
+    truncated = TRUE,
+    conversations_found = 130L,
+    conversations = 100L
+  )
+  app <- scans_app(list("Deployment" = function() bundle))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    info <- as.character(output$scans_app_load_info)[[1L]]
+    expect_match(info, "100 of 130 conversations", fixed = TRUE)
+    expect_match(info, "12,345 GenAI spans", fixed = TRUE)
+    expect_match(info, "last 7 days", fixed = TRUE)
+    expect_match(info, "GenAI span ceiling of 50,000 reached", fixed = TRUE)
+    expect_match(info, "100 most recent of 130", fixed = TRUE)
+  })
+})
+
+test_that("scans app orders visible trajectories", {
+  records <- tibble::tibble(
+    index = 1:4,
+    n_turns = c(1L, 5L, 2L, 2L),
+    n_events = c(1L, 9L, 3L, 3L),
+    n_findings = c(0L, 2L, 3L, 0L),
+    n_errors = c(0L, 1L, 0L, 0L),
+    started_at = as.POSIXct(
+      c("2026-01-02", NA, "2026-01-03", "2026-01-01"),
+      tz = "UTC"
+    )
+  )
+
+  expect_identical(scans_app_order_records(records, 1:4, "newest"), c(3L, 1L, 4L, 2L))
+  expect_identical(scans_app_order_records(records, 1:4, "oldest"), c(4L, 1L, 3L, 2L))
+  expect_identical(scans_app_order_records(records, 1:4, "findings"), c(2L, 3L, 1L, 4L))
+  expect_identical(scans_app_order_records(records, 1:4, "longest"), c(2L, 3L, 4L, 1L))
+  expect_identical(scans_app_order_records(records, c(4L, 1L), "newest"), c(1L, 4L))
+  expect_identical(scans_app_order_records(records, integer(), "newest"), integer())
+})
+
+test_that("scans app steps through the visible list in sort order", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  app <- scans_app(trajectory_fixture("delegated_agent"))
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_sort = "oldest")
+    session$flushReact()
+    first <- selected()
+    expect_identical(output$scans_app_position, "1 of 2")
+
+    session$setInputs(scans_app_next = 1L)
+    session$flushReact()
+    expect_false(identical(selected(), first))
+    expect_identical(output$scans_app_position, "2 of 2")
+
+    session$setInputs(scans_app_next = 2L)
+    session$flushReact()
+    expect_identical(output$scans_app_position, "2 of 2")
+
+    session$setInputs(scans_app_nav = list(direction = "prev", nonce = 1))
+    session$flushReact()
+    expect_identical(selected(), first)
+
+    session$setInputs(scans_app_select = list(index = 2L))
+    session$flushReact()
+    expect_identical(selected(), 2L)
+  })
+})
+
+test_that("scans app records carry user and model for the browser", {
+  bundle <- trajectory_fixture("simple_exchange")
+  tables <- fixture_source(bundle)
+  tables$trajectories$metadata <- list(list(otel = list(user = "ada")))
+  data <- scans_app_data(do.call(TrajectoryBundle, tables))
+
+  expect_identical(data$records$user, "ada")
+  expect_true(grepl("ada", data$records$search, fixed = TRUE))
+  entry <- as.character(scans_app_entry_ui(data$records[1L, , drop = FALSE], TRUE))
+  expect_match(entry, "ada", fixed = TRUE)
+  expect_match(entry, "data-scans-index=\"1\"", fixed = TRUE)
+  header <- as.character(scans_app_header_ui(data, 1L))
+  expect_match(header, "scans-app-badge-user", fixed = TRUE)
+})
+
+test_that("scans app flattens metadata into a bounded definition list", {
+  metadata <- list(
+    otel = list(user = "ada", attributes = list(`enduser.id` = "ada", n = 3L)),
+    tags = c("a", "b"),
+    long = strrep("x", 1000L)
+  )
+  flat <- scans_app_flatten_metadata(metadata)
+  expect_identical(
+    names(flat),
+    c("otel.user", "otel.attributes.enduser.id", "otel.attributes.n", "tags", "long")
+  )
+  expect_identical(flat$tags, "a, b")
+  expect_identical(flat$otel.attributes.n, "3")
+
+  html <- as.character(scans_app_metadata_ui(metadata))
+  expect_match(html, "otel.attributes.enduser.id", fixed = TRUE)
+  expect_lt(nchar(html), 1500L)
+})

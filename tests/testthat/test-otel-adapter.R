@@ -567,7 +567,7 @@ test_that("content-wide and retained per-job traces are merged", {
     page_size = 10L
   )
 
-  expect_identical(lines, c("aggregate", "legacy"))
+  expect_identical(as.vector(lines), c("aggregate", "legacy"))
 })
 
 test_that("post-window legacy spans do not consume max_spans", {
@@ -608,7 +608,7 @@ test_that("post-window legacy spans do not consume max_spans", {
     page_size = 2L
   )
 
-  expect_identical(lines, "inside")
+  expect_identical(as.vector(lines), "inside")
   expect_length(urls, 2L)
   expect_match(urls[[1L]], "limit=2", fixed = TRUE)
   expect_match(urls[[2L]], "limit=2", fixed = TRUE)
@@ -786,6 +786,9 @@ test_that("legacy reader checks every overlapping job", {
       trace_requests <<- c(trace_requests, path)
       trace_response
     },
+    connect_perform_batch = function(requests, call, ...) {
+      lapply(requests, connect_perform, call = call)
+    },
     connect_trace_page = function(response) "one-conversation"
   )
 
@@ -881,4 +884,314 @@ test_that("truncation does not split a multibyte character", {
   text <- trajectory_events(bundle)$text[[1L]]
   expect_lte(nchar(text, type = "bytes"), 65536L)
   expect_false(anyNA(utf8ToInt(substr(text, 1L, nchar(text) - 1L))))
+})
+
+test_that("aggregate trace pages after the first are fetched in batches", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  urls <- character()
+  page_lines <- function(offset, limit) {
+    ids <- paste0("span-", seq.int(offset + 1L, length.out = limit))
+    paste(vapply(ids, otel_test_envelope, character(1)), collapse = "\n")
+  }
+  httr2::local_mocked_responses(function(req) {
+    urls <<- c(urls, req$url)
+    query <- httr2::url_parse(req$url)$query
+    offset <- as.integer(query$offset)
+    limit <- as.integer(query$limit)
+    if (grepl("/jobs$", sub("\\?.*$", "", req$url))) {
+      return(httr2::response_json(body = list()))
+    }
+    httr2::response(
+      headers = list(`X-Total-Count` = "7"),
+      body = charToRaw(page_lines(offset, min(limit, 7L - offset)))
+    )
+  })
+
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 100L,
+    call = rlang::caller_env(),
+    page_size = 2L
+  )
+
+  expect_length(lines, 7L)
+  trace_urls <- urls[grepl("/traces", urls, fixed = TRUE)]
+  expect_length(trace_urls, 4L)
+  offsets <- vapply(
+    trace_urls,
+    function(url) httr2::url_parse(url)$query$offset,
+    character(1),
+    USE.NAMES = FALSE
+  )
+  expect_identical(offsets, c("0", "2", "4", "6"))
+  expect_null(attr(lines, "truncated", exact = TRUE))
+})
+
+test_that("a read that hits the span ceiling is marked truncated", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  batch <- otel_test_envelope(c("one", "two", "three"))
+  response <- httr2::response(
+    headers = list(`X-Total-Count` = "1"),
+    body = charToRaw(batch)
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) response
+  )
+
+  lines <- suppressWarnings(connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 2L,
+    call = rlang::caller_env(),
+    page_size = 10L
+  ))
+
+  expect_true(attr(lines, "truncated", exact = TRUE))
+})
+
+test_that("jobs that ended before the window are not read", {
+  from <- as.POSIXct("2026-03-10 00:00:00", tz = "UTC")
+  jobs <- list(
+    list(key = "old", start_time = "2026-03-01T00:00:00Z",
+      end_time = "2026-03-02T00:00:00Z"),
+    list(key = "edge", start_time = "2026-03-09T00:00:00Z",
+      end_time = "2026-03-09T23:30:00Z"),
+    list(key = "running", start_time = "2026-03-08T00:00:00Z"),
+    list(key = "recent", start_time = "2026-03-11T00:00:00.123456Z",
+      end_time = "2026-03-11T02:00:00.5Z"),
+    list(start_time = "2026-03-12T00:00:00Z")
+  )
+
+  expect_identical(connect_job_keys(jobs, from), c("recent", "edge", "running"))
+  expect_identical(
+    connect_job_keys(jobs, NULL),
+    c("recent", "edge", "running", "old")
+  )
+})
+
+test_that("span counting parses all lines in one batch and respects the window", {
+  skip_if_not_installed("jsonlite")
+  parses <- 0L
+  original <- otel_parse_envelopes
+  testthat::local_mocked_bindings(
+    otel_parse_envelopes = function(...) {
+      parses <<- parses + 1L
+      original(...)
+    }
+  )
+  line <- otel_test_envelope(c("a", "b", "c"), c(1e9, 2e9, 3e9))
+  to <- as.POSIXct(2.5, origin = "1970-01-01", tz = "UTC")
+
+  expect_identical(connect_trace_span_count(c(line, "malformed"), to), 3L)
+  expect_identical(parses, 1L)
+})
+
+test_that("spans parsed while paging are reused rather than parsed again", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  historical <- as.POSIXct("2026-01-01", tz = "UTC")
+  parses <- 0L
+  original <- otel_parse_envelopes
+  testthat::local_mocked_bindings(
+    otel_parse_envelopes = function(...) {
+      parses <<- parses + 1L
+      original(...)
+    },
+    connect_client = function(...) list(server = "https://connect.example.com"),
+    connect_perform = function(request, call) {
+      path <- sub("\\?.*$", "", request$url)
+      if (endsWith(path, "/jobs")) {
+        return(httr2::response_json(body = list()))
+      }
+      httr2::response(
+        headers = list(`X-Total-Count` = "1"),
+        body = charToRaw(otel_test_envelope(
+          c("chat", "later"),
+          c((as.numeric(historical) - 60) * 1e9, (as.numeric(historical) + 60) * 1e9)
+        ))
+      )
+    }
+  )
+
+  conversations <- read_connect_traces(
+    "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = historical
+  )
+
+  expect_identical(parses, 1L)
+  expect_identical(attr(conversations, "read_info")$spans_total, 1L)
+})
+
+test_that("read_connect_traces reports how the read went", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  historical <- as.POSIXct("2026-01-01", tz = "UTC")
+  testthat::local_mocked_bindings(
+    connect_client = function(...) list(server = "https://connect.example.com"),
+    connect_trace_lines = function(client, guid, from, to, ...) {
+      lines <- otel_test_envelope("chat", (as.numeric(historical) - 60) * 1e9)
+      attr(lines, "truncated") <- TRUE
+      lines
+    },
+    otel_group_conversations_in_window = function(spans, from, to) {
+      list(a = spans, b = spans, c = spans)
+    }
+  )
+
+  conversations <- suppressWarnings(read_connect_traces(
+    "11111111-1111-4111-8111-111111111111",
+    n = 2L,
+    from = NULL,
+    to = historical
+  ))
+  info <- attr(conversations, "read_info", exact = TRUE)
+
+  expect_length(conversations, 2L)
+  expect_true(info$truncated)
+  expect_identical(info$conversations_found, 3L)
+  expect_identical(info$conversations, 2L)
+  expect_identical(info$spans, 1L)
+  expect_identical(info$n, 2L)
+  expect_null(info$from)
+  expect_identical(info$to, historical)
+  expect_s3_class(info$read_at, "POSIXct")
+})
+
+test_that("non-GenAI span and resource attributes are kept as metadata", {
+  skip_if_not_installed("jsonlite")
+  envelope <- jsonlite::toJSON(
+    list(resourceSpans = list(list(
+      resource = list(attributes = list(
+        list(key = "service.name", value = list(stringValue = "assistant"))
+      )),
+      scopeSpans = list(list(spans = list(
+        list(
+          traceId = "t1",
+          spanId = "parent",
+          name = "session",
+          startTimeUnixNano = "1000000000",
+          endTimeUnixNano = "3000000000",
+          attributes = list(
+            list(key = "enduser.id", value = list(stringValue = "ada")),
+            list(key = "gen_ai.conversation.id", value = list(stringValue = "c1")),
+            list(key = "shiny.session", value = list(stringValue = "abc"))
+          )
+        ),
+        list(
+          traceId = "t1",
+          spanId = "chat",
+          parentSpanId = "parent",
+          name = "chat",
+          startTimeUnixNano = "2000000000",
+          endTimeUnixNano = "2500000000",
+          attributes = list(
+            list(key = "gen_ai.operation.name", value = list(stringValue = "chat")),
+            list(key = "gen_ai.request.model", value = list(stringValue = "m")),
+            list(
+              key = "gen_ai.input.messages",
+              value = list(stringValue = jsonlite::toJSON(
+                list(list(role = "user", parts = list(list(type = "text", content = "hi")))),
+                auto_unbox = TRUE
+              ))
+            )
+          )
+        )
+      )))
+    ))),
+    auto_unbox = TRUE
+  )
+
+  spans <- otel_parse_otlp_lines(envelope)
+  bundle <- as_trajectory_otel(spans)
+  otel <- trajectory_info(bundle)$metadata[[1L]]$otel
+
+  expect_identical(otel$user, "ada")
+  expect_identical(otel$attributes$enduser.id, "ada")
+  expect_identical(otel$attributes$shiny.session, "abc")
+  expect_false("gen_ai.input.messages" %in% names(otel$attributes))
+  expect_identical(otel$resource$service.name, "assistant")
+  expect_identical(
+    scans_app_metadata_user(trajectory_info(bundle)$metadata[[1L]]),
+    "ada"
+  )
+})
+
+test_that("framework spans do not consume the GenAI span budget", {
+  skip_if_not_installed("jsonlite")
+  span <- function(id, attributes) {
+    list(spanId = id, startTimeUnixNano = "1000000000", attributes = attributes)
+  }
+  reactive <- lapply(1:5, function(i) {
+    span(paste0("shiny-", i), list(list(key = "shiny.reactive", value = list(stringValue = "x"))))
+  })
+  chats <- lapply(1:2, function(i) {
+    span(paste0("chat-", i), list(list(key = "gen_ai.operation.name", value = list(stringValue = "chat"))))
+  })
+  line <- jsonlite::toJSON(
+    list(resourceSpans = list(list(scopeSpans = list(list(spans = c(reactive, chats)))))),
+    auto_unbox = TRUE
+  )
+
+  expect_identical(connect_trace_span_count(line), 2L)
+  spans <- otel_parse_otlp_lines(line, max_spans = 1L)
+  ids <- vapply(spans, `[[`, character(1), "span_id")
+  expect_identical(ids, c(paste0("shiny-", 1:5), "chat-1"))
+})
+
+test_that("jobs already covered by the content-wide store are not read", {
+  from <- as.POSIXct("2026-03-01", tz = "UTC")
+  earliest <- as.numeric(as.POSIXct("2026-03-10", tz = "UTC"))
+  jobs <- list(
+    list(key = "legacy", start_time = "2026-03-05T00:00:00Z"),
+    list(key = "covered", start_time = "2026-03-12T00:00:00Z"),
+    list(key = "undated")
+  )
+  expect_identical(connect_job_keys(jobs, from, before = earliest), c("legacy", "undated"))
+  expect_identical(connect_job_keys(jobs, from), c("covered", "legacy", "undated"))
+})
+
+test_that("a line summary reports GenAI count and earliest start", {
+  skip_if_not_installed("jsonlite")
+  line <- otel_test_envelope(c("a", "b"), c(5e9, 2e9))
+  summary <- connect_trace_lines_summary(c(line, "malformed"))
+  expect_identical(summary$span_count, 3L)
+  expect_identical(summary$earliest, 2)
+  expect_null(connect_trace_lines_summary(character())$earliest)
+})
+
+test_that("jobs = FALSE skips the retained job stores", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  urls <- character()
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      urls <<- c(urls, request$url)
+      httr2::response(
+        headers = list(`X-Total-Count` = "1"),
+        body = charToRaw(otel_test_envelope("one"))
+      )
+    }
+  )
+
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 10L,
+    call = rlang::caller_env(),
+    jobs = FALSE
+  )
+
+  expect_length(urls, 1L)
+  expect_false(any(grepl("/jobs", urls, fixed = TRUE)))
+  expect_length(attr(lines, "spans", exact = TRUE), 1L)
 })
