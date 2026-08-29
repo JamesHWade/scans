@@ -11,7 +11,8 @@ read_connect_traces(
   to = NULL,
   server = NULL,
   api_key = NULL,
-  max_spans = 50000L
+  max_spans = 50000L,
+  jobs = TRUE
 )
 }
 \arguments{
@@ -27,13 +28,24 @@ days ending now are read.}
 \item{server, api_key}{Connect server URL and API key. Default to
 \code{CONNECT_SERVER} and \code{CONNECT_API_KEY}.}
 
-\item{max_spans}{Safety ceiling on how many spans are fetched. Shiny
-applications emit thousands of reactive spans per session, so a busy
-application's trace store is mostly not GenAI activity.}
+\item{max_spans}{Ceiling on how many GenAI spans are read. Only spans
+carrying \verb{gen_ai.*} attributes count towards it: Shiny applications emit
+thousands of reactive spans per session, and those are read past rather
+than allowed to exhaust the budget before the conversations are reached.
+Framework spans are kept only as long as grouping needs them to link a
+model call to its conversation, and are dropped afterwards.}
+
+\item{jobs}{Whether to also read the retained per-job trace stores that
+predate the content-wide store (see \emph{Trace endpoints}). The default,
+\code{TRUE}, is complete; \code{FALSE} skips those requests, which on a
+deployment with many past jobs is most of the read time, and is safe
+once the content-wide store is known to hold everything of interest.}
 }
 \value{
 A named list of conversations, each a list of spans, oldest-first.
-The names are conversation identifiers.
+The names are conversation identifiers. The \code{"read_info"} attribute
+records how the read went: the window, how many spans and conversations
+were found, and whether the \code{max_spans} ceiling cut the read short.
 }
 \description{
 \code{read_connect_traces()} fetches a deployed application's GenAI spans from
@@ -49,8 +61,17 @@ traces endpoint at editor level.
 Connect exposes traces both for a content item as a whole and per job. The
 current content-wide store and retained per-job stores are merged and
 de-duplicated because Connect did not migrate legacy traces into the current
-store. When the content-wide endpoint is missing or fails, the per-job store
-is used alone.
+store. Only jobs that started before the content-wide store's earliest span
+(and that overlap the window) are read, since later jobs are already in it.
+When the content-wide endpoint is missing or fails, the per-job store is
+used alone.
+}
+
+\section{Progress}{
+
+Set \code{options(scans.progress = function(message) ...)} to be told about
+each page and job as it is read; \code{\link[=scans_app_connect]{scans_app_connect()}} uses this to show
+progress while a load runs.
 }
 
 \seealso{

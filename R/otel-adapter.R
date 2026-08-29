@@ -63,9 +63,9 @@ as_trajectory_otel <- function(
     )
   }
 
-  bundles <- Map(
+  tables <- Map(
     function(spans, id) {
-      otel_conversation_bundle(
+      otel_conversation_tables(
         spans,
         conversation_id = id,
         trajectory_id = trajectory_id,
@@ -76,7 +76,7 @@ as_trajectory_otel <- function(
     conversations,
     names(conversations) %||% seq_along(conversations)
   )
-  otel_combine_bundles(bundles)
+  otel_combine_tables(tables)
 }
 
 otel_is_span_list <- function(x) {
@@ -89,18 +89,21 @@ otel_empty_table <- function(table) {
   tibble::as_tibble(trajectory_table_schemas()[[table]])
 }
 
-otel_combine_bundles <- function(bundles) {
+# Conversations are combined before validation: validating one bundle per
+# conversation and then the combined one again roughly doubled the cost of
+# reading a busy application.
+otel_combine_tables <- function(tables) {
   TrajectoryBundle(
-    trajectory_bind_rows(lapply(bundles, trajectory_info)),
-    trajectory_bind_rows(lapply(bundles, trajectory_turns)),
-    trajectory_bind_rows(lapply(bundles, trajectory_events)),
-    losses = trajectory_bind_rows(lapply(bundles, trajectory_losses))
+    trajectory_bind_rows(lapply(tables, `[[`, "info")),
+    trajectory_bind_rows(lapply(tables, `[[`, "turns")),
+    trajectory_bind_rows(lapply(tables, `[[`, "events")),
+    losses = trajectory_bind_rows(lapply(tables, `[[`, "losses"))
   )
 }
 
 # ---- conversation -> bundle -------------------------------------------------
 
-otel_conversation_bundle <- function(
+otel_conversation_tables <- function(
   spans,
   conversation_id,
   trajectory_id,
@@ -168,10 +171,10 @@ otel_conversation_bundle <- function(
     metadata = list(safe_metadata$value)
   )
 
-  TrajectoryBundle(
-    info,
-    tables$turns,
-    tables$events,
+  list(
+    info = info,
+    turns = tables$turns,
+    events = tables$events,
     losses = trajectory_bind_rows(list(
       tables$losses,
       trajectory_loss_table(c(
@@ -187,6 +190,7 @@ otel_conversation_bundle <- function(
 # cost of all its calls, and reporting only the last would understate a long
 # tool-using exchange by an order of magnitude.
 otel_info_metadata <- function(spans, chat_spans, metadata) {
+  context <- attr(spans, "otel_context", exact = TRUE) %||% list()
   usage <- list(
     input_tokens = otel_sum_attribute(chat_spans, "gen_ai.usage.input_tokens"),
     output_tokens = otel_sum_attribute(
@@ -196,8 +200,85 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
     model_calls = length(chat_spans),
     spans = length(spans)
   )
-  metadata$otel <- usage
+  usage$user <- context$user %||% otel_user_id(spans)
+  usage$attributes <- context$attributes %||% otel_extra_attributes(spans)
+  usage$resource <- context$resource %||% otel_resource_attributes(spans)
+  metadata$otel <- usage[!vapply(usage, is.null, logical(1))]
   metadata
+}
+
+# Whatever the instrumentation recorded beyond the GenAI payloads is kept:
+# a framework wrapper or Connect itself may tag spans with the visiting user,
+# a session id, or deployment facts, and those are the first thing a
+# reviewer asks for when a conversation looks odd. Values are bounded so an
+# oversized attribute cannot blow up the metadata field.
+otel_extra_attributes <- function(spans, max_chars = 200L) {
+  values <- list()
+  for (span in spans) {
+    attributes <- span$attributes
+    keys <- names(attributes)
+    keep <- !startsWith(keys, "gen_ai.") & !keys %in% c("error.type")
+    for (key in keys[keep]) {
+      value <- otel_string(attributes[[key]])
+      if (is.na(value)) {
+        next
+      }
+      values[[key]] <- unique(c(values[[key]], otel_clip(value, max_chars)))
+    }
+  }
+  if (length(values) == 0L) NULL else values[order(names(values))]
+}
+
+otel_resource_attributes <- function(spans, max_chars = 200L) {
+  values <- list()
+  for (span in spans) {
+    resource <- span$resource
+    if (is.list(resource) && length(resource) > 0L) {
+      for (key in names(resource)) {
+        value <- otel_string(resource[[key]])
+        if (!is.na(value)) {
+          values[[key]] <- unique(c(values[[key]], otel_clip(value, max_chars)))
+        }
+      }
+    }
+  }
+  if (length(values) == 0L) NULL else values[order(names(values))]
+}
+
+otel_clip <- function(value, max_chars) {
+  if (nchar(value) <= max_chars) {
+    return(value)
+  }
+  paste0(substr(value, 1L, max_chars - 1L), "\u2026")
+}
+
+# The user behind a conversation, when any span names one. The semantic
+# conventions say `enduser.id`; older and framework-specific keys are tried
+# after it.
+otel_user_keys <- c(
+  "enduser.id",
+  "user.id",
+  "user.name",
+  "user.email",
+  "user.full_name",
+  "session.user",
+  "shiny.user",
+  "connect.user",
+  "rsconnect.user"
+)
+
+otel_user_id <- function(spans) {
+  for (key in otel_user_keys) {
+    for (span in spans) {
+      for (attributes in list(span$attributes, span$resource)) {
+        value <- otel_string(attributes[[key]])
+        if (!is.na(value)) {
+          return(value)
+        }
+      }
+    }
+  }
+  NULL
 }
 
 otel_sum_attribute <- function(spans, key) {
@@ -317,8 +398,8 @@ otel_messages_tables <- function(
   }
 
   list(
-    turns = trajectory_bind_rows(turns),
-    events = trajectory_bind_rows(events),
+    turns = otel_rows_table(turns, "turns"),
+    events = otel_rows_table(events, "events"),
     losses = trajectory_bind_rows(losses)
   )
 }
@@ -338,7 +419,7 @@ otel_message_role <- function(message) {
 
 otel_turn_row <- function(trajectory_id, turn_id, index, role, span) {
   failed <- !is.null(span) && otel_span_failed(span)
-  tibble::tibble(
+  list(
     trajectory_id = trajectory_id,
     turn_id = turn_id,
     turn_index = as.integer(index),
@@ -352,7 +433,7 @@ otel_turn_row <- function(trajectory_id, turn_id, index, role, span) {
     finish_reason = NA_character_,
     status = if (failed) "failed" else "completed",
     error = if (failed) otel_span_error(span) else NA_character_,
-    metadata = list(list())
+    metadata = list()
   )
 }
 
@@ -399,7 +480,7 @@ otel_part_event <- function(
       trajectory_ids(trajectory_id, turn_id, event_id),
       "arguments"
     )
-    row$value <- list(safe$value)
+    row$value <- safe$value
     loss <- safe$loss
     row <- otel_apply_tool_span(row, tool_index)
   } else if (identical(type, "tool_call_response")) {
@@ -422,7 +503,7 @@ otel_part_event <- function(
         trajectory_ids(trajectory_id, turn_id, event_id),
         "response"
       )
-      row$value <- list(safe$value)
+      row$value <- safe$value
       loss <- safe$loss
     }
   } else {
@@ -497,6 +578,9 @@ otel_truncation_loss <- function(
   )
 }
 
+# Rows are plain lists while a conversation is being assembled and become
+# one tibble per table at the end: a tibble per event was most of the cost
+# of reading a busy application.
 otel_event_row <- function(
   trajectory_id,
   turn_id,
@@ -504,7 +588,7 @@ otel_event_row <- function(
   event_index,
   content_index
 ) {
-  tibble::tibble(
+  list(
     trajectory_id = trajectory_id,
     event_id = event_id,
     event_index = as.integer(event_index),
@@ -516,13 +600,45 @@ otel_event_row <- function(
     name = NA_character_,
     call_id = NA_character_,
     text = NA_character_,
-    value = list(NULL),
-    timestamp = as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC"),
+    value = NULL,
+    timestamp = NA_real_,
     duration = NA_real_,
     status = "completed",
     error = NA_character_,
-    metadata = list(list())
+    metadata = list()
   )
+}
+
+otel_rows_table <- function(rows, table) {
+  columns <- trajectory_table_schemas()[[table]]
+  if (length(rows) == 0L) {
+    return(otel_empty_table(table))
+  }
+  values <- Map(
+    function(column, prototype) {
+      cells <- lapply(rows, function(row) row[[column]])
+      type <- trajectory_prototype_type(prototype)
+      switch(
+        type,
+        list = lapply(cells, function(cell) cell),
+        POSIXct = as.POSIXct(
+          vapply(cells, function(cell) cell %||% NA_real_, numeric(1)),
+          origin = "1970-01-01",
+          tz = "UTC"
+        ),
+        integer = vapply(
+          cells,
+          function(cell) cell %||% NA_integer_,
+          integer(1)
+        ),
+        double = vapply(cells, function(cell) cell %||% NA_real_, numeric(1)),
+        vapply(cells, function(cell) cell %||% NA_character_, character(1))
+      )
+    },
+    names(columns),
+    columns
+  )
+  tibble::new_tibble(values, nrow = length(rows))
 }
 
 otel_apply_tool_span <- function(row, tool_index) {
@@ -531,7 +647,7 @@ otel_apply_tool_span <- function(row, tool_index) {
     return(row)
   }
   span <- tool_index[[call_id]]
-  row$timestamp <- otel_posixct(otel_nanos(span$start_time))
+  row$timestamp <- otel_nanos(span$start_time) / 1e9
   row$duration <- otel_span_duration(span)
   if (is.na(row$name[[1L]])) {
     row$name <- otel_attribute(span, "gen_ai.tool.name")
@@ -669,7 +785,7 @@ otel_latest_span <- function(spans) {
 #' @export
 otel_group_conversations <- function(spans) {
   index <- otel_span_index(spans)
-  chat_spans <- Filter(otel_is_chat_span, spans)
+  chat_spans <- Filter(otel_is_selected_chat_span, spans)
   if (length(chat_spans) == 0L) {
     return(list())
   }
@@ -683,10 +799,52 @@ otel_group_conversations <- function(spans) {
   # A group with no chat span holds only tool or framework activity and has
   # no conversation to show.
   groups <- Filter(
-    function(group) any(vapply(group, otel_is_chat_span, logical(1))),
+    function(group) {
+      any(vapply(group, otel_is_selected_chat_span, logical(1)))
+    },
     groups
   )
+  groups <- lapply(groups, function(group) {
+    context_spans <- otel_group_context_spans(group, index)
+    group <- Filter(otel_is_selected_genai_span, context_spans)
+    attr(group, "otel_context") <- list(
+      user = otel_user_id(context_spans),
+      attributes = otel_extra_attributes(context_spans),
+      resource = otel_resource_attributes(context_spans)
+    )
+    group
+  })
   otel_order_conversations(groups)
+}
+
+# Include ancestors while extracting conversation context, even when a wrapper
+# has no GenAI attributes of its own. The returned conversation later exposes
+# only GenAI spans, while its bounded context summary retains wrapper metadata.
+otel_group_context_spans <- function(group, index) {
+  context_spans <- group
+  included <- new.env(parent = emptyenv())
+  for (span in group) {
+    assign(paste(span$trace_id, span$span_id), TRUE, envir = included)
+  }
+  for (span in group) {
+    current <- span
+    for (step in seq_len(64L)) {
+      parent <- current$parent_span_id
+      if (is.null(parent) || is.na(parent) || !nzchar(parent)) {
+        break
+      }
+      key <- paste(current$trace_id, parent)
+      if (!exists(key, envir = index, inherits = FALSE)) {
+        break
+      }
+      current <- get(key, envir = index, inherits = FALSE)
+      if (!exists(key, envir = included, inherits = FALSE)) {
+        context_spans[[length(context_spans) + 1L]] <- current
+        assign(key, TRUE, envir = included)
+      }
+    }
+  }
+  context_spans
 }
 
 otel_order_conversations <- function(groups) {

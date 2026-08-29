@@ -28,6 +28,9 @@
 #'   [scans_app()].
 #' @param reader Which trace reader to use: `"otel"` (the default) for this
 #'   package's native reader, or `"commons"` for `commons::trajectory_read()`.
+#' @param jobs Passed to [read_connect_traces()]: whether to also read the
+#'   retained per-job trace stores. `FALSE` makes loads noticeably faster on
+#'   deployments with many past jobs. Ignored by the `"commons"` reader.
 #' @param from,to Optional lower-inclusive and upper-exclusive activity bounds
 #'   passed to the reader. When both are omitted, each load
 #'   reads the seven days ending at load time. Supply either bound as `NULL`
@@ -49,11 +52,13 @@ scans_app_connect <- function(
   from = NULL,
   to = NULL,
   reader = c("otel", "commons"),
-  annotations = NULL
+  annotations = NULL,
+  jobs = TRUE
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
+  rlang::check_bool(jobs)
   reader <- rlang::arg_match(reader)
   if (identical(reader, "commons")) {
     scans_app_connect_check_package()
@@ -67,7 +72,8 @@ scans_app_connect <- function(
       to,
       default_from,
       default_to,
-      reader = reader
+      reader = reader,
+      jobs = jobs
     )
   )
 }
@@ -80,6 +86,7 @@ scans_app_connect_loaders <- function(
   default_from,
   default_to,
   reader = "otel",
+  jobs = TRUE,
   call = rlang::caller_env()
 ) {
   if (is.character(x)) {
@@ -141,12 +148,20 @@ scans_app_connect_loaders <- function(
           source,
           n = n,
           from = read_from,
-          to = read_to
+          to = read_to,
+          jobs = jobs
         )
-        as_trajectory_otel(
+        bundle <- as_trajectory_otel(
           conversations,
           source_uri = attr(conversations, "source_uri", exact = TRUE),
           metadata = list(application = label)
+        )
+        # The app shows how the read went -- window, span budget, how many
+        # conversations were kept -- so a reviewer can tell "quiet week"
+        # from "the ceiling cut this short".
+        scans_app_loaded_source(
+          bundle,
+          read_info = attr(conversations, "read_info", exact = TRUE)
         )
       }
     },

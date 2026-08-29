@@ -13,8 +13,10 @@
 #' Connect exposes traces both for a content item as a whole and per job. The
 #' current content-wide store and retained per-job stores are merged and
 #' de-duplicated because Connect did not migrate legacy traces into the current
-#' store. When the content-wide endpoint is missing or fails, the per-job store
-#' is used alone.
+#' store. Only jobs that started before the content-wide store's earliest span
+#' (and that overlap the window) are read, since later jobs are already in it.
+#' When the content-wide endpoint is missing or fails, the per-job store is
+#' used alone.
 #'
 #' @param source A Posit Connect content GUID, a content URL
 #'   (`.../content/<guid>/`), or a dashboard URL (`.../connect/#/apps/<guid>/`).
@@ -24,12 +26,27 @@
 #'   days ending now are read.
 #' @param server,api_key Connect server URL and API key. Default to
 #'   `CONNECT_SERVER` and `CONNECT_API_KEY`.
-#' @param max_spans Safety ceiling on how many spans are fetched. Shiny
-#'   applications emit thousands of reactive spans per session, so a busy
-#'   application's trace store is mostly not GenAI activity.
+#' @param max_spans Ceiling on how many GenAI spans are read. Only spans
+#'   carrying `gen_ai.*` attributes count towards it: Shiny applications emit
+#'   thousands of reactive spans per session, and those are read past rather
+#'   than allowed to exhaust the budget before the conversations are reached.
+#'   Framework spans are kept only as long as grouping needs them to link a
+#'   model call to its conversation, and are dropped afterwards.
+#' @param jobs Whether to also read the retained per-job trace stores that
+#'   predate the content-wide store (see *Trace endpoints*). The default,
+#'   `TRUE`, is complete; `FALSE` skips those requests, which on a
+#'   deployment with many past jobs is most of the read time, and is safe
+#'   once the content-wide store is known to hold everything of interest.
 #'
 #' @returns A named list of conversations, each a list of spans, oldest-first.
-#'   The names are conversation identifiers.
+#'   The names are conversation identifiers. The `"read_info"` attribute
+#'   records how the read went: the window, how many spans and conversations
+#'   were found, and whether the `max_spans` ceiling cut the read short.
+#'
+#' @section Progress:
+#' Set `options(scans.progress = function(message) ...)` to be told about
+#' each page and job as it is read; [scans_app_connect()] uses this to show
+#' progress while a load runs.
 #'
 #' @seealso [as_trajectory_otel()] to convert the result, and
 #'   [scans_app_connect()] to review it.
@@ -41,9 +58,11 @@ read_connect_traces <- function(
   to = NULL,
   server = NULL,
   api_key = NULL,
-  max_spans = 50000L
+  max_spans = 50000L,
+  jobs = TRUE
 ) {
   call <- rlang::caller_env()
+  rlang::check_bool(jobs)
   use_default_window <- missing(from) && missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_number_whole(max_spans, min = 1)
@@ -56,15 +75,104 @@ read_connect_traces <- function(
     to <- now
   }
 
-  lines <- connect_trace_lines(client, guid, from, to, max_spans, call)
-  spans <- otel_parse_otlp_lines(lines, max_spans = max_spans, to = to)
+  read_at <- Sys.time()
+  lines <- connect_trace_lines(
+    client,
+    guid,
+    from,
+    to,
+    max_spans,
+    call,
+    jobs = jobs
+  )
+  spans <- attr(lines, "spans", exact = TRUE)
+  if (is.null(spans)) {
+    connect_progress("Parsing spans")
+    spans <- otel_parse_otlp_lines(lines)
+  }
+  spans <- otel_limit_spans(spans, max_spans = max_spans, to = to)
+  connect_progress("Grouping conversations")
   conversations <- otel_group_conversations_in_window(spans, from, to)
+  found <- length(conversations)
 
-  if (!is.null(n) && length(conversations) > n) {
+  if (!is.null(n) && found > n) {
     conversations <- utils::tail(conversations, n)
   }
   attr(conversations, "source_uri") <- connect_content_url(client, guid)
+  attr(conversations, "read_info") <- list(
+    read_at = read_at,
+    from = from,
+    to = to,
+    n = n,
+    spans = sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
+    spans_total = length(spans),
+    max_spans = max_spans,
+    truncated = isTRUE(attr(lines, "truncated", exact = TRUE)),
+    conversations_found = found,
+    conversations = length(conversations)
+  )
   conversations
+}
+
+# The span budget and upper window bound, applied to already-parsed spans.
+otel_limit_spans <- function(spans, max_spans = Inf, to = NULL) {
+  spans <- Filter(
+    \(span) otel_span_in_window(span, from = NULL, to = to),
+    spans
+  )
+  selected <- vapply(spans, otel_is_selected_genai_span, logical(1))
+  genai <- 0L
+  cutoff <- NULL
+  for (index in seq_along(spans)) {
+    if (selected[[index]]) {
+      if (genai >= max_spans) {
+        cutoff <- index
+        break
+      }
+      genai <- genai + 1L
+    }
+  }
+  if (is.null(cutoff)) {
+    return(spans)
+  }
+
+  keep <- seq_along(spans) < cutoff
+  # A later parent can supply the selected child's conversation id and wrapper
+  # metadata. Retain that ancestry for grouping, but do not expose or count an
+  # ancestor that fell beyond the GenAI ceiling.
+  positions <- new.env(parent = emptyenv())
+  for (index in seq_along(spans)) {
+    span <- spans[[index]]
+    assign(paste(span$trace_id, span$span_id), index, envir = positions)
+  }
+  for (index in which(keep & selected)) {
+    current <- spans[[index]]
+    for (step in seq_len(64L)) {
+      parent <- current$parent_span_id
+      if (is.null(parent) || is.na(parent) || !nzchar(parent)) {
+        break
+      }
+      key <- paste(current$trace_id, parent)
+      if (!exists(key, envir = positions, inherits = FALSE)) {
+        break
+      }
+      parent_index <- get(key, envir = positions, inherits = FALSE)
+      if (!keep[[parent_index]]) {
+        keep[[parent_index]] <- TRUE
+        attr(spans[[parent_index]], "otel_context_only") <- TRUE
+      }
+      current <- spans[[parent_index]]
+    }
+  }
+  spans[keep]
+}
+
+connect_progress <- function(message) {
+  hook <- getOption("scans.progress")
+  if (is.function(hook)) {
+    hook(message)
+  }
+  invisible(NULL)
 }
 
 connect_client <- function(server, api_key, call = rlang::caller_env()) {
@@ -169,6 +277,20 @@ connect_window_param <- function(time, pad) {
   format(time + pad, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 }
 
+connect_trace_request <- function(client, guid, from, to, limit, offset) {
+  connect_request(client, "content", guid, "traces") |>
+    httr2::req_url_query(
+      limit = limit,
+      offset = offset,
+      from = connect_window_param(from, -3600),
+      to = connect_window_param(to, 1)
+    )
+}
+
+# Pages after the first are fetched several at a time. Transport pages stay
+# large even when `max_spans` is small because framework-only lines do not
+# consume that GenAI budget. Bounded waves limit speculative downloads once
+# parsing reaches the ceiling.
 connect_trace_lines <- function(
   client,
   guid,
@@ -176,27 +298,75 @@ connect_trace_lines <- function(
   to,
   max_spans,
   call,
-  page_size = 1000L
+  page_size = 5000L,
+  wave_size = 8L,
+  jobs = TRUE
 ) {
-  lines <- character()
-  span_count <- 0L
-  offset <- 0L
-  repeat {
-    if (span_count >= max_spans) {
+  limit <- page_size
+  response <- connect_perform(
+    connect_trace_request(client, guid, from, to, limit, 0L),
+    call
+  )
+  if (is.null(response)) {
+    if (!jobs) {
+      lines <- character()
+      attr(lines, "spans") <- list()
+      return(lines)
+    }
+    return(connect_job_trace_lines(
+      client,
+      guid,
+      from,
+      to,
+      max_spans,
+      call,
+      page_size
+    ))
+  }
+  page <- connect_trace_page(response)
+  added <- connect_add_trace_lines(character(), page, to)
+  lines <- added$lines
+  spans <- added$spans
+  span_count <- added$span_count
+  total <- connect_total_count(response)
+  offset <- length(page)
+  page_number <- 1L
+  connect_progress(sprintf(
+    "Read page %d (%s GenAI spans)",
+    page_number,
+    format(span_count, big.mark = ",")
+  ))
+
+  while (
+    span_count < max_spans &&
+      length(page) > 0L &&
+      !is.na(total) &&
+      offset < total
+  ) {
+    offsets <- seq.int(offset, by = page_size, length.out = wave_size)
+    offsets <- offsets[offsets < total]
+    if (length(offsets) == 0L) {
       break
     }
-    limit <- min(page_size, max_spans - span_count)
-    response <- connect_perform(
-      connect_request(client, "content", guid, "traces") |>
-        httr2::req_url_query(
-          limit = limit,
-          offset = offset,
-          from = connect_window_param(from, -3600),
-          to = connect_window_param(to, 1)
-        ),
-      call
-    )
-    if (is.null(response)) {
+    requests <- lapply(offsets, function(page_offset) {
+      connect_trace_request(
+        client,
+        guid,
+        from,
+        to,
+        min(page_size, total - page_offset),
+        page_offset
+      )
+    })
+    responses <- connect_perform_batch(requests, call)
+    if (any(vapply(responses, is.null, logical(1)))) {
+      if (!jobs) {
+        scans_abort(
+          "Couldn't finish reading this content's traces from Posit Connect.",
+          class = "scans_error_connect_traces",
+          call = call
+        )
+      }
       return(connect_job_trace_lines(
         client,
         guid,
@@ -207,26 +377,39 @@ connect_trace_lines <- function(
         page_size
       ))
     }
-    page <- connect_trace_page(response)
-    added <- connect_add_trace_lines(lines, page, to)
-    lines <- added$lines
-    span_count <- span_count + added$span_count
-    total <- suppressWarnings(as.integer(
-      httr2::resp_header(response, "X-Total-Count")
-    ))
-    offset <- offset + length(page)
-    if (span_count >= max_spans) {
-      if (span_count > max_spans || is.na(total) || offset < total) {
-        cli::cli_warn(
-          "Stopped after {max_spans} span{?s}; raise
-           {.arg max_spans} to read further back."
-        )
+    for (response in responses) {
+      page <- connect_trace_page(response)
+      added <- connect_add_trace_lines(lines, page, to)
+      lines <- added$lines
+      spans <- c(spans, added$spans)
+      span_count <- span_count + added$span_count
+      offset <- offset + length(page)
+      page_number <- page_number + 1L
+      connect_progress(sprintf(
+        "Read page %d (%s GenAI spans)",
+        page_number,
+        format(span_count, big.mark = ",")
+      ))
+      if (length(page) == 0L) {
+        break
       }
+    }
+    if (length(responses) == 0L) {
       break
     }
-    if (length(page) == 0L || is.na(total) || offset >= total) {
-      break
+  }
+  if (span_count >= max_spans) {
+    if (span_count > max_spans || is.na(total) || offset < total) {
+      cli::cli_warn(
+        "Stopped after {max_spans} span{?s}; raise
+         {.arg max_spans} to read further back."
+      )
+      attr(lines, "truncated") <- TRUE
     }
+  }
+  attr(lines, "spans") <- spans
+  if (!jobs) {
+    return(lines)
   }
   connect_job_trace_lines(
     client,
@@ -240,6 +423,10 @@ connect_trace_lines <- function(
   )
 }
 
+connect_total_count <- function(response) {
+  suppressWarnings(as.integer(httr2::resp_header(response, "X-Total-Count")))
+}
+
 # A missing or failing aggregate endpoint falls through to the per-job one.
 # Authentication and permission failures are reported rather than retried:
 # every job request would fail the same way, and the cause is the key, not
@@ -247,13 +434,46 @@ connect_trace_lines <- function(
 connect_perform <- function(request, call) {
   tryCatch(
     httr2::req_perform(request),
-    httr2_http_401 = function(err) connect_access_abort(err, call),
-    httr2_http_403 = function(err) connect_access_abort(err, call),
-    httr2_http_404 = function(err) NULL,
-    httr2_http_500 = function(err) NULL,
-    httr2_http_502 = function(err) NULL,
-    httr2_http_503 = function(err) NULL
+    error = function(err) connect_response_result(err, call)
   )
+}
+
+# Apply the same narrow recovery policy to sequential and parallel responses.
+# Only endpoint-missing and transient server errors fall back; request errors,
+# rate limits, timeouts, and other unexpected failures retain their condition.
+connect_response_result <- function(response, call) {
+  if (inherits(response, c("httr2_http_401", "httr2_http_403"))) {
+    connect_access_abort(response, call)
+  }
+  if (
+    inherits(
+      response,
+      c("httr2_http_404", "httr2_http_500", "httr2_http_502", "httr2_http_503")
+    )
+  ) {
+    return(NULL)
+  }
+  if (inherits(response, "error")) {
+    stop(response)
+  }
+  response
+}
+
+# Several requests at once, with the same failure policy as connect_perform().
+connect_perform_batch <- function(requests, call, max_active = 6L) {
+  if (length(requests) == 0L) {
+    return(list())
+  }
+  if (length(requests) == 1L) {
+    return(list(connect_perform(requests[[1L]], call)))
+  }
+  responses <- httr2::req_perform_parallel(
+    requests,
+    on_error = "continue",
+    progress = FALSE,
+    max_active = max_active
+  )
+  lapply(responses, connect_response_result, call = call)
 }
 
 connect_access_abort <- function(err, call) {
@@ -277,12 +497,24 @@ connect_job_trace_lines <- function(
   max_spans,
   call,
   page_size,
-  lines = character()
+  lines = character(),
+  wave_size = 8L
 ) {
+  truncated <- isTRUE(attr(lines, "truncated", exact = TRUE))
+  spans <- attr(lines, "spans", exact = TRUE)
   lines <- unique(lines)
-  span_count <- connect_trace_span_count(lines, to)
-  if (span_count >= max_spans) {
-    return(lines)
+  parsed <- connect_trace_lines_summary(lines, to, spans = spans)
+  spans <- parsed$spans
+  span_count <- parsed$span_count
+  finish <- function() {
+    attr(lines, "spans") <- spans
+    if (truncated) {
+      attr(lines, "truncated") <- TRUE
+    }
+    lines
+  }
+  if (span_count >= max_spans && truncated) {
+    return(finish())
   }
   jobs <- connect_perform(
     connect_request(client, "content", guid, "jobs"),
@@ -296,72 +528,229 @@ connect_job_trace_lines <- function(
     )
   }
   jobs <- httr2::resp_body_json(jobs)
-  keys <- vapply(jobs, function(job) job$key %||% "", character(1))
-  keys <- keys[nzchar(keys)]
-  starts <- vapply(jobs, function(job) job$start_time %||% "", character(1))
-  keys <- keys[order(starts, decreasing = TRUE)]
+  keys <- connect_job_keys(jobs, from, to, before = parsed$earliest)
+  if (length(keys) > 0L) {
+    connect_progress(sprintf(
+      "Reading %d retained job trace store%s",
+      length(keys),
+      if (length(keys) == 1L) "" else "s"
+    ))
+  }
 
-  for (key in keys) {
-    offset <- 0L
-    repeat {
-      if (span_count >= max_spans) {
-        break
-      }
-      limit <- min(page_size, max_spans - span_count)
-      response <- connect_perform(
-        connect_request(client, "content", guid, "jobs", key, "traces") |>
-          httr2::req_url_query(
-            limit = limit,
-            offset = offset,
-            since = connect_window_param(from, -3600)
-          ),
-        call
+  job_request <- function(key, limit, offset) {
+    connect_request(client, "content", guid, "jobs", key, "traces") |>
+      httr2::req_url_query(
+        limit = limit,
+        offset = offset,
+        since = connect_window_param(from, -3600)
       )
+  }
+  add_page <- function(response, key, page_number) {
+    page <- connect_trace_page(response)
+    added <- connect_add_trace_lines(lines, page, to, drop_after = TRUE)
+    lines <<- added$lines
+    spans <<- c(spans, added$spans)
+    span_count <<- span_count + added$span_count
+    connect_progress(sprintf(
+      "Read retained job %s page %d (%s GenAI spans)",
+      key,
+      page_number,
+      format(span_count, big.mark = ",")
+    ))
+    list(
+      n = length(page),
+      total = connect_total_count(response)
+    )
+  }
+  abort_failed_page <- function(key) {
+    scans_abort(
+      c(
+        "Couldn't finish reading this content's traces from Posit Connect.",
+        i = "A retained trace page for job {.val {key}} failed."
+      ),
+      class = "scans_error_connect_traces",
+      call = call
+    )
+  }
+
+  if (span_count >= max_spans) {
+    truncated <- length(keys) > 0L || span_count > max_spans
+    return(finish())
+  }
+  if (length(keys) == 0L) {
+    return(finish())
+  }
+
+  # Queue only a bounded wave of retained stores. Once the budget is reached,
+  # no later wave is downloaded merely to be discarded.
+  for (wave_start in seq.int(1L, length(keys), by = wave_size)) {
+    wave_indices <- seq.int(
+      wave_start,
+      min(length(keys), wave_start + wave_size - 1L)
+    )
+    request_limit <- page_size
+    first_pages <- connect_perform_batch(
+      lapply(
+        keys[wave_indices],
+        job_request,
+        limit = request_limit,
+        offset = 0L
+      ),
+      call,
+      max_active = wave_size
+    )
+    for (wave_position in seq_along(wave_indices)) {
+      index <- wave_indices[[wave_position]]
+      response <- first_pages[[wave_position]]
       if (is.null(response)) {
-        break
+        abort_failed_page(keys[[index]])
       }
-      page <- connect_trace_page(response)
-      eligible <- connect_trace_lines_before(page, to)
-      added <- connect_add_trace_lines(lines, eligible, to)
-      lines <- added$lines
-      span_count <- span_count + added$span_count
-      total <- suppressWarnings(as.integer(
-        httr2::resp_header(response, "X-Total-Count")
-      ))
-      offset <- offset + length(page)
-      if (length(page) == 0L || is.na(total) || offset >= total) {
-        break
+      page_number <- 1L
+      page <- add_page(response, keys[[index]], page_number)
+      offset <- page$n
+      page_has_more <- if (is.na(page$total)) {
+        page$n >= request_limit
+      } else {
+        offset < page$total
       }
-    }
-    if (span_count >= max_spans) {
-      break
+      while (span_count < max_spans && page$n > 0L && page_has_more) {
+        request_limit <- page_size
+        response <- connect_perform(
+          job_request(keys[[index]], request_limit, offset),
+          call
+        )
+        if (is.null(response)) {
+          abort_failed_page(keys[[index]])
+        }
+        page_number <- page_number + 1L
+        page <- add_page(response, keys[[index]], page_number)
+        offset <- offset + page$n
+        page_has_more <- if (is.na(page$total)) {
+          page$n >= request_limit
+        } else {
+          offset < page$total
+        }
+      }
+      if (span_count >= max_spans) {
+        later_keys <- index < length(keys)
+        truncated <- span_count > max_spans || page_has_more || later_keys
+        return(finish())
+      }
     }
   }
-  lines
+  finish()
 }
 
-connect_add_trace_lines <- function(lines, page, to = NULL) {
+# The GenAI span count and the earliest span start of a set of lines, from
+# one parse.
+connect_trace_lines_summary <- function(lines, to = NULL, spans = NULL) {
+  if (is.null(spans)) {
+    parsed <- otel_parse_otlp_lines_counted(lines)
+    spans <- parsed$spans
+  }
+  earliest <- Inf
+  count <- 0L
+  for (span in spans) {
+    start <- otel_nanos(span$start_time)
+    if (is.finite(start)) {
+      earliest <- min(earliest, start / 1e9)
+    }
+    if (
+      otel_is_genai_span(span) &&
+        otel_span_in_window(span, from = NULL, to = to)
+    ) {
+      count <- count + 1L
+    }
+  }
+  list(
+    spans = spans,
+    span_count = count,
+    earliest = if (is.finite(earliest)) earliest else NULL
+  )
+}
+
+# Jobs are read newest-first. Two filters keep a long-lived deployment with
+# hundreds of past jobs from costing a request each: a job that finished
+# before the window opened cannot hold a span inside it, and a job that
+# started after the content-wide store's earliest span is already covered
+# by that store -- per-job traces are only ever *older* than it, because
+# Connect did not migrate them when the content-wide store arrived. Jobs
+# without a parseable time are kept.
+connect_job_keys <- function(jobs, from, to = NULL, before = NULL) {
+  keys <- vapply(jobs, function(job) job$key %||% "", character(1))
+  starts <- vapply(jobs, function(job) job$start_time %||% "", character(1))
+  ends <- vapply(jobs, function(job) job$end_time %||% "", character(1))
+  started <- connect_parse_time(starts)
+  keep <- nzchar(keys)
+  if (!is.null(from)) {
+    ended <- connect_parse_time(ends)
+    keep <- keep & (is.na(ended) | ended >= as.numeric(from) - 3600)
+  }
+  if (!is.null(before)) {
+    keep <- keep & (is.na(started) | started < before)
+  }
+  if (!is.null(to)) {
+    keep <- keep & (is.na(started) | started < as.numeric(to))
+  }
+  keys <- keys[keep]
+  keys[order(started[keep], decreasing = TRUE, na.last = TRUE)]
+}
+
+connect_parse_time <- function(x) {
+  x <- sub("Z$", "+0000", x)
+  x <- sub("([+-][0-9]{2}):([0-9]{2})$", "\\1\\2", x)
+  parsed <- suppressWarnings(as.POSIXct(
+    x,
+    format = "%Y-%m-%dT%H:%M:%OS%z",
+    tz = "UTC"
+  ))
+  as.numeric(parsed)
+}
+
+# New lines are parsed here, once, and the spans travel with the lines so no
+# later step has to parse them again.
+connect_add_trace_lines <- function(
+  lines,
+  page,
+  to = NULL,
+  drop_after = FALSE
+) {
   page <- unique(page)
   page <- page[!page %in% lines]
+  envelopes <- otel_parse_envelopes_each(page)
+  if (drop_after && !is.null(to)) {
+    keep <- vapply(
+      envelopes,
+      function(envelope) {
+        page_spans <- otel_envelope_spans(envelope)
+        length(page_spans) == 0L ||
+          any(vapply(
+            page_spans,
+            otel_span_in_window,
+            logical(1),
+            from = NULL,
+            to = to
+          ))
+      },
+      logical(1)
+    )
+    page <- page[keep]
+    envelopes <- envelopes[keep]
+  }
+  spans <- unlist(lapply(envelopes, otel_envelope_spans), recursive = FALSE)
+  span_count <- as.integer(sum(vapply(
+    spans,
+    function(span) {
+      otel_is_genai_span(span) &&
+        otel_span_in_window(span, from = NULL, to = to)
+    },
+    logical(1)
+  )))
   list(
     lines = c(lines, page),
-    span_count = connect_trace_span_count(page, to)
+    spans = spans,
+    span_count = span_count
   )
-}
-
-connect_trace_span_count <- function(lines, to = NULL) {
-  counts <- vapply(
-    lines,
-    function(line) {
-      parsed <- otel_parse_otlp_lines(line)
-      if (length(parsed) == 0L) {
-        return(1L)
-      }
-      length(otel_parse_otlp_lines(line, to = to))
-    },
-    integer(1)
-  )
-  sum(counts)
 }
 
 # The legacy endpoint accepts a lower `since` bound but no upper bound. Drop
@@ -370,13 +759,13 @@ connect_trace_span_count <- function(lines, to = NULL) {
 # Keep malformed or undated envelopes here; the parser handles malformed
 # input later, and an undated span cannot safely be classified as post-window.
 connect_trace_lines_before <- function(lines, to) {
-  if (is.null(to)) {
+  if (is.null(to) || length(lines) == 0L) {
     return(lines)
   }
   keep <- vapply(
-    lines,
-    function(line) {
-      spans <- otel_parse_otlp_lines(line)
+    otel_parse_envelopes_each(lines),
+    function(envelope) {
+      spans <- otel_envelope_spans(envelope)
       length(spans) == 0L ||
         any(vapply(
           spans,
@@ -389,6 +778,39 @@ connect_trace_lines_before <- function(lines, to) {
     logical(1)
   )
   lines[keep]
+}
+
+# One envelope per line, NULL where a line is malformed (so positions line
+# up with the input).
+otel_parse_envelopes_each <- function(lines) {
+  batch <- tryCatch(
+    jsonlite::fromJSON(
+      paste0("[", paste(lines, collapse = ","), "]"),
+      simplifyVector = FALSE
+    ),
+    error = function(e) NULL
+  )
+  if (is.list(batch) && length(batch) == length(lines)) {
+    return(batch)
+  }
+  lapply(lines, function(line) {
+    tryCatch(
+      jsonlite::fromJSON(line, simplifyVector = FALSE),
+      error = function(e) NULL
+    )
+  })
+}
+
+otel_envelope_spans <- function(envelope) {
+  spans <- list()
+  for (resource in envelope$resourceSpans %||% list()) {
+    for (scope in resource$scopeSpans %||% list()) {
+      for (span in scope$spans %||% list()) {
+        spans[[length(spans) + 1L]] <- otel_span(span, scope, resource)
+      }
+    }
+  }
+  spans
 }
 
 connect_trace_page <- function(response) {
@@ -407,23 +829,20 @@ connect_trace_page <- function(response) {
 # bad record should not cost the whole history.
 otel_parse_otlp_lines <- function(lines, max_spans = Inf, to = NULL) {
   spans <- list()
-  for (line in lines) {
-    envelope <- tryCatch(
-      jsonlite::fromJSON(line, simplifyVector = FALSE),
-      error = function(e) NULL
-    )
-    if (is.null(envelope)) {
-      next
-    }
+  genai <- 0L
+  for (envelope in otel_parse_envelopes(lines)) {
     for (resource in envelope$resourceSpans %||% list()) {
       for (scope in resource$scopeSpans %||% list()) {
         for (span in scope$spans %||% list()) {
-          parsed_span <- otel_span(span, scope)
+          parsed_span <- otel_span(span, scope, resource)
           if (!otel_span_in_window(parsed_span, from = NULL, to = to)) {
             next
           }
-          if (length(spans) >= max_spans) {
-            return(spans)
+          if (otel_is_genai_span(parsed_span)) {
+            if (genai >= max_spans) {
+              return(spans)
+            }
+            genai <- genai + 1L
           }
           spans[[length(spans) + 1L]] <- parsed_span
         }
@@ -433,7 +852,53 @@ otel_parse_otlp_lines <- function(lines, max_spans = Inf, to = NULL) {
   spans
 }
 
-otel_span <- function(span, scope = NULL) {
+# Lines are parsed as one JSON array: a call per line spent most of a
+# store's read time in jsonlite's setup. If any line is malformed the array
+# fails to parse and the lines are parsed one by one, skipping the bad ones.
+otel_parse_envelopes <- function(lines) {
+  lines <- lines[nzchar(lines)]
+  if (length(lines) == 0L) {
+    return(list())
+  }
+  batch <- tryCatch(
+    jsonlite::fromJSON(
+      paste0("[", paste(lines, collapse = ","), "]"),
+      simplifyVector = FALSE
+    ),
+    error = function(e) NULL
+  )
+  if (is.list(batch) && length(batch) == length(lines)) {
+    attr(batch, "dropped") <- 0L
+    return(batch)
+  }
+  envelopes <- lapply(lines, function(line) {
+    tryCatch(
+      jsonlite::fromJSON(line, simplifyVector = FALSE),
+      error = function(e) NULL
+    )
+  })
+  kept <- envelopes[!vapply(envelopes, is.null, logical(1))]
+  attr(kept, "dropped") <- length(lines) - length(kept)
+  kept
+}
+
+# Spans from a set of lines, plus how many lines could not be parsed at all.
+otel_parse_otlp_lines_counted <- function(lines, to = NULL) {
+  envelopes <- otel_parse_envelopes(lines)
+  spans <- list()
+  for (envelope in envelopes) {
+    for (resource in envelope$resourceSpans %||% list()) {
+      for (scope in resource$scopeSpans %||% list()) {
+        for (span in scope$spans %||% list()) {
+          spans[[length(spans) + 1L]] <- otel_span(span, scope, resource)
+        }
+      }
+    }
+  }
+  list(spans = spans, dropped = attr(envelopes, "dropped") %||% 0L)
+}
+
+otel_span <- function(span, scope = NULL, resource = NULL) {
   list(
     trace_id = span$traceId %||% "",
     span_id = span$spanId %||% "",
@@ -443,7 +908,8 @@ otel_span <- function(span, scope = NULL) {
     start_time = as.character(span$startTimeUnixNano %||% NA),
     end_time = as.character(span$endTimeUnixNano %||% NA),
     status = span$status %||% list(),
-    attributes = otel_attributes(span$attributes)
+    attributes = otel_attributes(span$attributes),
+    resource = otel_attributes(resource$resource$attributes)
   )
 }
 
@@ -481,6 +947,23 @@ otel_attribute_value <- function(value) {
   NA_character_
 }
 
+# A span without a GenAI semantic-convention attribute is framework activity
+# (a Shiny reactive, an HTTP handler) and does not consume the GenAI budget.
+otel_is_genai_span <- function(span) {
+  keys <- names(span$attributes)
+  any(startsWith(keys, "gen_ai."))
+}
+
+otel_is_selected_genai_span <- function(span) {
+  otel_is_genai_span(span) &&
+    !isTRUE(attr(span, "otel_context_only", exact = TRUE))
+}
+
+otel_is_selected_chat_span <- function(span) {
+  otel_is_chat_span(span) &&
+    !isTRUE(attr(span, "otel_context_only", exact = TRUE))
+}
+
 otel_span_in_window <- function(span, from, to) {
   start <- otel_nanos(span$start_time)
   if (!is.finite(start)) {
@@ -498,7 +981,10 @@ otel_span_in_window <- function(span, from, to) {
 otel_group_conversations_in_window <- function(spans, from, to) {
   groups <- otel_group_conversations(spans)
   groups <- lapply(groups, function(group) {
-    Filter(function(span) otel_span_in_window(span, from, to), group)
+    context <- attr(group, "otel_context", exact = TRUE)
+    group <- Filter(function(span) otel_span_in_window(span, from, to), group)
+    attr(group, "otel_context") <- context
+    group
   })
   groups <- Filter(
     function(group) any(vapply(group, otel_is_chat_span, logical(1))),

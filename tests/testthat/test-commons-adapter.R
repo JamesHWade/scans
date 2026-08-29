@@ -11,6 +11,7 @@ test_that("already-read commons conversations become canonical trajectories", {
   skip_if_not_installed("ellmer", "0.4.2")
 
   source <- commons_trajectory_fixture()
+  source_id <- names(source)[[1L]]
   bundle <- as_trajectory_commons(source)
   info <- trajectory_info(bundle)
   turns <- trajectory_turns(bundle)
@@ -18,10 +19,13 @@ test_that("already-read commons conversations become canonical trajectories", {
   provenance <- events[events$event_type == "commons:provenance", ]
 
   expect_s7_class(bundle, TrajectoryBundle)
-  expect_identical(info$trajectory_id, "commons/conversation-001")
+  expect_identical(
+    info$trajectory_id,
+    paste0("commons/", utils::URLencode(source_id, reserved = TRUE))
+  )
   expect_identical(info$source_type, "commons")
-  expect_identical(info$run_id, "conversation-001")
-  expect_identical(info$source_id, "conversation-001")
+  expect_identical(info$run_id, source_id)
+  expect_identical(info$source_id, source_id)
   expect_identical(
     info$completed_at,
     as.POSIXct("2026-08-25 12:00:01", tz = "UTC")
@@ -82,6 +86,7 @@ test_that("multiple commons conversations retain stable identities", {
   skip_if_not_installed("ellmer", "0.4.2")
 
   source <- commons_trajectory_fixture()
+  source_id <- names(source)[[1L]]
   source[["conversation-002"]] <- source[[1L]]
 
   bundle <- as_trajectory_commons(source)
@@ -89,11 +94,14 @@ test_that("multiple commons conversations retain stable identities", {
 
   expect_identical(
     info$trajectory_id,
-    c("commons/conversation-001", "commons/conversation-002")
+    paste0(
+      "commons/",
+      utils::URLencode(c(source_id, "conversation-002"), reserved = TRUE)
+    )
   )
   expect_identical(
     info$run_id,
-    c("conversation-001", "conversation-002")
+    c(source_id, "conversation-002")
   )
   expect_identical(
     unique(trajectory_turns(bundle)$trajectory_id),

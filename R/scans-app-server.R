@@ -1,8 +1,22 @@
-scans_app_server <- function(sources, annotations = NULL) {
+# Loaded snapshots are cached per app object, not per session: the cache is
+# created once when the server function is built, so a second reviewer -- or
+# the same reviewer after a browser refresh -- sees the snapshot instantly
+# rather than paying for another Connect read. A snapshot older than
+# `cache_max_age` is refreshed for active sessions as well as new ones. A
+# failed load is cached for the session that saw it fail, so the failure is
+# shown instead of an empty app, but is retried by any other.
+scans_app_server <- function(
+  sources,
+  annotations = NULL,
+  cache_max_age = 30 * 60,
+  clock = Sys.time,
+  schedule = shiny::invalidateLater
+) {
   sources <- scans_app_runtime_sources(sources)
+  cache <- new.env(parent = emptyenv())
 
   function(input, output, session) {
-    cache <- new.env(parent = emptyenv())
+    seen <- new.env(parent = emptyenv())
     revision <- shiny::reactiveVal(0L)
     selected <- shiny::reactiveVal(NULL)
 
@@ -28,39 +42,42 @@ scans_app_server <- function(sources, annotations = NULL) {
       scans_app_reload_button()
     })
 
-    # A failed load is kept, not discarded. Swallowing it renders an empty app
-    # with nothing in the log, which reads as "this application has no
-    # conversations" when the truth is that reading them failed.
     active <- shiny::reactive({
       revision()
       label <- application()
-      if (exists(label, envir = cache, inherits = FALSE)) {
-        return(get(label, envir = cache, inherits = FALSE))
-      }
-      source <- active_source()
-      result <- if (!is.null(source$data)) {
-        # Already-derived tables, as supplied internally; there is no bundle
-        # to re-scan, so the scan selection does not apply to this source.
-        list(bundle = NULL, data = source$data, error = NULL)
-      } else {
-        tryCatch(
-          list(
-            bundle = scans_app_load_source(source),
-            data = NULL,
-            error = NULL
-          ),
-          error = function(cnd) {
-            scans_app_log_source_error(label, cnd)
-            list(
-              bundle = NULL,
-              data = NULL,
-              error = scans_app_safe_source_error()
-            )
+      entry <- scans_app_cache_get(cache, label)
+      if (!is.null(entry)) {
+        displayed <- exists(label, envir = seen, inherits = FALSE)
+        age <- scans_app_cache_age(entry, now = clock())
+        fresh <- is.null(entry$error) && age < cache_max_age
+        if ((displayed && !is.null(entry$error)) || fresh) {
+          if (
+            fresh &&
+              cache_max_age > 0 &&
+              is.function(active_source()$load)
+          ) {
+            schedule(max(1, cache_max_age - age) * 1000, session)
           }
-        )
+          assign(label, TRUE, envir = seen)
+          return(entry)
+        }
       }
-      assign(label, result, envir = cache)
-      result
+      entry <- scans_app_load_entry(
+        active_source(),
+        label,
+        session,
+        clock = clock
+      )
+      assign(label, entry, envir = cache)
+      assign(label, TRUE, envir = seen)
+      if (
+        is.null(entry$error) &&
+          cache_max_age > 0 &&
+          is.function(active_source()$load)
+      ) {
+        schedule(cache_max_age * 1000, session)
+      }
+      entry
     })
 
     scan_config <- shiny::reactive({
@@ -96,6 +113,15 @@ scans_app_server <- function(sources, annotations = NULL) {
         return(NULL)
       }
       scans_app_source_error_ui(application(), message)
+    })
+
+    output$scans_app_load_info <- shiny::renderUI({
+      shiny::invalidateLater(60 * 1000)
+      current <- active()
+      if (!is.null(current$error)) {
+        return(NULL)
+      }
+      scans_app_load_info_ui(current, is.function(active_source()$load))
     })
 
     annotation_revision <- shiny::reactiveVal(0L)
@@ -218,6 +244,7 @@ scans_app_server <- function(sources, annotations = NULL) {
         if (findings == 1L) "" else "s"
       )
     })
+
     shiny::observeEvent(
       input$scans_app_reload,
       ignoreInit = TRUE,
@@ -226,8 +253,10 @@ scans_app_server <- function(sources, annotations = NULL) {
           return()
         }
         label <- application()
-        if (exists(label, envir = cache, inherits = FALSE)) {
-          rm(list = label, envir = cache)
+        for (store in list(cache, seen)) {
+          if (exists(label, envir = store, inherits = FALSE)) {
+            rm(list = label, envir = store)
+          }
         }
         revision(revision() + 1L)
       }
@@ -239,6 +268,7 @@ scans_app_server <- function(sources, annotations = NULL) {
     shiny::observeEvent(
       active(),
       ignoreNULL = TRUE,
+      priority = 10L,
       {
         current <- data()
         if (is.null(current)) {
@@ -246,19 +276,19 @@ scans_app_server <- function(sources, annotations = NULL) {
           return()
         }
         choices <- scans_app_filter_choices(current)
-        shiny::updateSelectInput(
-          session,
+        bslib::update_toolbar_input_select(
           "scans_app_source",
           choices = choices$source,
-          selected = choices$source_all
+          selected = choices$source_all,
+          session = session
         )
-        shiny::updateSelectInput(
-          session,
+        bslib::update_toolbar_input_select(
           "scans_app_status",
           choices = choices$status,
-          selected = choices$status_all
+          selected = choices$status_all,
+          session = session
         )
-        selected(if (nrow(current$records) == 0L) NULL else 1L)
+        selected(NULL)
       }
     )
 
@@ -282,12 +312,17 @@ scans_app_server <- function(sources, annotations = NULL) {
       if (!status %in% unname(choices$status)) {
         status <- choices$status_all
       }
-      scans_app_filter_records(
+      indices <- scans_app_filter_records(
         current$records,
         source = source,
         status = status,
         query = scans_app_input_or(input$scans_app_query, ""),
         findings_only = isTRUE(input$scans_app_findings_only)
+      )
+      scans_app_order_records(
+        current$records,
+        indices,
+        scans_app_input_or(input$scans_app_sort, "newest")
       )
     })
 
@@ -303,6 +338,50 @@ scans_app_server <- function(sources, annotations = NULL) {
         }
       }
     )
+
+    # Stepping through the visible list, from the header buttons or the
+    # keyboard. The list order is the sort order, so "next" means the next
+    # entry the reviewer can see.
+    move_selection <- function(step) {
+      indices <- visible()
+      if (length(indices) == 0L) {
+        return()
+      }
+      position <- match(selected(), indices)
+      if (is.na(position)) {
+        selected(indices[[1L]])
+        return()
+      }
+      target <- position + step
+      if (target >= 1L && target <= length(indices)) {
+        selected(indices[[target]])
+      }
+    }
+    shiny::observeEvent(input$scans_app_next, ignoreInit = TRUE, {
+      move_selection(1L)
+    })
+    shiny::observeEvent(input$scans_app_prev, ignoreInit = TRUE, {
+      move_selection(-1L)
+    })
+    shiny::observeEvent(input$scans_app_nav, ignoreInit = TRUE, {
+      direction <- input$scans_app_nav$direction
+      if (identical(direction, "next")) {
+        move_selection(1L)
+      } else if (identical(direction, "prev")) {
+        move_selection(-1L)
+      }
+    })
+
+    # The selected entry is highlighted in the browser rather than by
+    # re-rendering the whole list: with a hundred entries the re-render was
+    # the slowest part of clicking.
+    shiny::observe({
+      index <- selected()
+      session$sendCustomMessage(
+        "scans-app-select",
+        list(id = if (is.null(index)) NULL else scans_app_entry_id(index))
+      )
+    })
 
     entry_observers <- new.env(parent = emptyenv())
     shiny::observe({
@@ -340,6 +419,15 @@ scans_app_server <- function(sources, annotations = NULL) {
       )
     })
 
+    output$scans_app_position <- shiny::renderText({
+      indices <- visible()
+      position <- match(selected(), indices)
+      if (length(indices) == 0L || is.na(position)) {
+        return("")
+      }
+      sprintf("%d of %d", position, length(indices))
+    })
+
     output$scans_app_entries <- shiny::renderUI({
       current <- data()
       if (is.null(current)) {
@@ -355,10 +443,11 @@ scans_app_server <- function(sources, annotations = NULL) {
           }
         ))
       }
+      chosen <- shiny::isolate(selected())
       htmltools::tagList(lapply(indices, function(index) {
         scans_app_entry_ui(
           current$records[index, , drop = FALSE],
-          selected = identical(selected(), index)
+          selected = identical(chosen, index)
         )
       }))
     })
@@ -392,6 +481,95 @@ scans_app_server <- function(sources, annotations = NULL) {
       scans_app_evidence_ui(current, selected())
     })
   }
+}
+
+scans_app_cache_get <- function(cache, label) {
+  if (exists(label, envir = cache, inherits = FALSE)) {
+    get(label, envir = cache, inherits = FALSE)
+  } else {
+    NULL
+  }
+}
+
+scans_app_cache_age <- function(entry, now = Sys.time()) {
+  if (is.null(entry$loaded_at)) {
+    return(Inf)
+  }
+  as.numeric(now - entry$loaded_at, units = "secs")
+}
+
+# One cache entry: the bundle (or already-derived tables), when it was
+# loaded, and what the reader said about the read. The load runs under a
+# progress notification so a Connect read that takes a while is visibly
+# running rather than apparently hung; the reader reports pages through the
+# `scans.progress` option.
+scans_app_load_entry <- function(
+  source,
+  label,
+  session = NULL,
+  clock = Sys.time
+) {
+  loaded_at <- clock()
+  if (!is.null(source$data)) {
+    return(list(
+      bundle = NULL,
+      data = source$data,
+      error = NULL,
+      loaded_at = loaded_at,
+      read_info = NULL
+    ))
+  }
+  if (!is.null(source$bundle)) {
+    return(list(
+      bundle = source$bundle,
+      data = NULL,
+      error = NULL,
+      loaded_at = loaded_at,
+      read_info = NULL
+    ))
+  }
+  load <- function() {
+    tryCatch(
+      {
+        loaded <- scans_app_load_source(source)
+        list(
+          bundle = loaded$bundle,
+          data = NULL,
+          error = NULL,
+          loaded_at = clock(),
+          read_info = loaded$read_info
+        )
+      },
+      error = function(cnd) {
+        scans_app_log_source_error(label, cnd)
+        list(
+          bundle = NULL,
+          data = NULL,
+          error = scans_app_safe_source_error(),
+          loaded_at = clock(),
+          read_info = NULL
+        )
+      }
+    )
+  }
+  if (is.null(session)) {
+    return(load())
+  }
+  shiny::withProgress(
+    session = session,
+    message = paste("Reading traces for", label),
+    detail = "Connecting",
+    value = NULL,
+    {
+      old <- options(
+        scans.progress = function(detail) {
+          shiny::setProgress(detail = detail, session = session)
+        }
+      )
+      on.exit(options(old), add = TRUE)
+      load()
+    }
+  )
 }
 
 scans_app_safe_source_error <- function() {

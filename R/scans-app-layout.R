@@ -1,8 +1,5 @@
 scans_app_application_ui <- function(sources) {
   multiple <- length(sources$labels) > 1L
-  if (!multiple && !sources$reloadable) {
-    return(NULL)
-  }
   selector <- if (multiple) {
     shiny::selectInput(
       "scans_app_application",
@@ -19,19 +16,28 @@ scans_app_application_ui <- function(sources) {
   }
 
   htmltools::div(
-    class = "scans-app-application-control",
-    selector,
-    if (sources$reloadable) {
-      shiny::uiOutput("scans_app_reload_control")
-    }
+    class = "scans-app-application",
+    htmltools::div(
+      class = "scans-app-application-control",
+      selector,
+      if (sources$reloadable) {
+        shiny::uiOutput("scans_app_reload_control")
+      }
+    ),
+    shiny::uiOutput("scans_app_load_info", class = "scans-app-load-info")
   )
 }
 
 scans_app_reload_button <- function() {
-  shiny::actionButton(
-    "scans_app_reload",
-    "Reload traces",
-    class = "btn-sm btn-outline-secondary"
+  bslib::toolbar(
+    align = "right",
+    class = "scans-app-reload-toolbar",
+    bslib::toolbar_input_button(
+      "scans_app_reload",
+      "Reload traces",
+      icon = shiny::icon("rotate-right"),
+      border = TRUE
+    )
   )
 }
 
@@ -71,39 +77,25 @@ scans_app_ui <- function(sources, annotations = NULL) {
     fillable = TRUE,
     class = "bslib-page-dashboard scans-app",
     sidebar = bslib::sidebar(
-      title = "Trajectories",
-      width = 370,
+      title = NULL,
+      width = 380,
       class = "scans-app-browser",
       scans_app_application_ui(sources),
       shiny::textInput(
         "scans_app_query",
-        "Search",
-        placeholder = "ID, source, agent, or transcript",
+        label = NULL,
+        placeholder = "Search ID, user, model, or transcript",
         width = "100%"
       ),
-      bslib::layout_columns(
-        col_widths = c(6, 6),
-        shiny::selectInput(
-          "scans_app_source",
-          "Source",
-          choices = choices$source,
-          width = "100%"
-        ),
-        shiny::selectInput(
-          "scans_app_status",
-          "Status",
-          choices = choices$status,
-          width = "100%"
-        )
-      ),
-      bslib::input_switch(
-        "scans_app_findings_only",
-        "Only trajectories with findings"
-      ),
+      scans_app_filter_toolbar(choices),
       scans_app_scanner_ui(),
       htmltools::div(
         class = "scans-app-browser-count",
-        shiny::textOutput("scans_app_visible_count", inline = TRUE)
+        shiny::textOutput("scans_app_visible_count", inline = TRUE),
+        bslib::input_switch(
+          "scans_app_findings_only",
+          "With findings"
+        )
       ),
       htmltools::div(
         class = "scans-app-browser-entries",
@@ -111,15 +103,18 @@ scans_app_ui <- function(sources, annotations = NULL) {
       )
     ),
     shiny::uiOutput("scans_app_load_error"),
-    scans_app_annotation_ui(annotations),
-    shiny::uiOutput("scans_app_overview"),
     bslib::card(
       fill = TRUE,
       full_screen = TRUE,
       class = "scans-app-workspace",
       bslib::card_header(
         class = "scans-app-workspace-header",
-        shiny::uiOutput("scans_app_header")
+        htmltools::div(
+          class = "scans-app-workspace-bar",
+          shiny::uiOutput("scans_app_header"),
+          scans_app_workspace_toolbar()
+        ),
+        shiny::uiOutput("scans_app_overview")
       ),
       bslib::layout_sidebar(
         fillable = TRUE,
@@ -128,10 +123,11 @@ scans_app_ui <- function(sources, annotations = NULL) {
         padding = 0,
         gap = 0,
         sidebar = bslib::sidebar(
-          title = "Evidence",
+          title = NULL,
           position = "right",
-          width = 350,
+          width = 340,
           class = "scans-app-evidence",
+          scans_app_annotation_ui(annotations),
           shiny::uiOutput("scans_app_evidence")
         ),
         htmltools::tags$main(
@@ -142,6 +138,70 @@ scans_app_ui <- function(sources, annotations = NULL) {
     )
   )
   scans_app_attach_dependency(page)
+}
+
+# Filters live in one compact toolbar row rather than a stack of labelled
+# selects: the sidebar's vertical space belongs to the trajectory list.
+scans_app_filter_toolbar <- function(choices) {
+  bslib::toolbar(
+    align = "left",
+    width = "100%",
+    class = "scans-app-filters",
+    bslib::toolbar_input_select(
+      "scans_app_source",
+      "Source",
+      choices = choices$source,
+      icon = shiny::icon("database")
+    ),
+    bslib::toolbar_input_select(
+      "scans_app_status",
+      "Status",
+      choices = choices$status,
+      icon = shiny::icon("circle-check")
+    ),
+    bslib::toolbar_input_select(
+      "scans_app_sort",
+      "Order",
+      choices = scans_app_sort_choices,
+      icon = shiny::icon("arrow-down-wide-short")
+    )
+  )
+}
+
+# Stepping and tool-disclosure controls sit in the card header. Tool
+# traffic renders collapsed; a reviewer chasing a loop wants it all open at
+# once, and a reviewer reading the conversation wants it all shut. Those two
+# buttons are handled in the browser alone.
+scans_app_workspace_toolbar <- function() {
+  bslib::toolbar(
+    align = "right",
+    class = "scans-app-workspace-toolbar",
+    htmltools::tags$span(
+      class = "scans-app-heading-position",
+      shiny::textOutput("scans_app_position", inline = TRUE)
+    ),
+    bslib::toolbar_input_button(
+      "scans_app_prev",
+      "Previous trajectory (K or \u2191)",
+      icon = shiny::icon("chevron-up")
+    ),
+    bslib::toolbar_input_button(
+      "scans_app_next",
+      "Next trajectory (J or \u2193)",
+      icon = shiny::icon("chevron-down")
+    ),
+    bslib::toolbar_divider(),
+    bslib::toolbar_input_button(
+      "scans_app_tools_open",
+      "Expand all tool calls",
+      icon = shiny::icon("angles-down")
+    ),
+    bslib::toolbar_input_button(
+      "scans_app_tools_close",
+      "Collapse all tool calls",
+      icon = shiny::icon("angles-up")
+    )
+  )
 }
 
 scans_app_attach_dependency <- function(page) {
@@ -212,16 +272,18 @@ scans_app_scan_label <- function(registry) {
 
 # The annotation panel appears only when the app was given a store. An app
 # with nowhere to write should not offer a control that silently discards
-# what someone typed.
+# what someone typed. It sits with the evidence, beside the findings the
+# judgement is about, rather than above the transcript.
 scans_app_annotation_ui <- function(annotations) {
   if (is.null(annotations)) {
     return(NULL)
   }
   bslib::accordion(
-    open = FALSE,
+    open = TRUE,
     class = "scans-app-annotations",
     bslib::accordion_panel(
-      "Annotations",
+      "Annotate",
+      value = "annotate",
       htmltools::div(
         class = "scans-app-annotation-form",
         shiny::selectInput(
@@ -237,14 +299,17 @@ scans_app_annotation_ui <- function(annotations) {
           width = "100%",
           rows = 3
         ),
-        shiny::actionButton(
-          "scans_app_annotation_save",
-          "Save annotation",
-          class = "btn-sm btn-primary"
-        ),
         htmltools::div(
-          class = "scans-app-annotation-status",
-          shiny::textOutput("scans_app_annotation_status", inline = TRUE)
+          class = "scans-app-annotation-actions",
+          shiny::actionButton(
+            "scans_app_annotation_save",
+            "Save annotation",
+            class = "btn-sm btn-primary"
+          ),
+          htmltools::div(
+            class = "scans-app-annotation-status",
+            shiny::textOutput("scans_app_annotation_status", inline = TRUE)
+          )
         )
       ),
       shiny::uiOutput("scans_app_annotation_log")
