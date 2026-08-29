@@ -1455,3 +1455,91 @@ test_that("OTel metadata keeps distinct values and resource users", {
   expect_identical(otel_resource_attributes(spans)$service, c("one", "two"))
   expect_identical(otel_user_id(spans), "ada")
 })
+
+test_that("a failed later aggregate page never returns a partial snapshot", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  fallback_lines <- NULL
+  aggregate_response <- httr2::response(
+    headers = list(`X-Total-Count` = "2"),
+    body = charToRaw(otel_test_envelope("first"))
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) aggregate_response,
+    connect_perform_batch = function(requests, call, ...) list(NULL),
+    connect_job_trace_lines = function(
+      client,
+      guid,
+      from,
+      to,
+      max_spans,
+      call,
+      page_size,
+      lines = character(),
+      ...
+    ) {
+      fallback_lines <<- lines
+      result <- "fallback"
+      attr(result, "spans") <- list()
+      result
+    }
+  )
+
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 10L,
+    call = rlang::caller_env(),
+    page_size = 1L,
+    wave_size = 1L
+  )
+
+  expect_identical(as.vector(lines), "fallback")
+  expect_length(fallback_lines, 0L)
+  expect_error(
+    connect_trace_lines(
+      client = list(server = "https://connect.example.com", api_key = "secret"),
+      guid = "11111111-1111-4111-8111-111111111111",
+      from = NULL,
+      to = NULL,
+      max_spans = 10L,
+      call = rlang::caller_env(),
+      page_size = 1L,
+      wave_size = 1L,
+      jobs = FALSE
+    ),
+    class = "scans_error_connect_traces"
+  )
+})
+
+test_that("framework-wrapper metadata survives GenAI span filtering", {
+  skip_if_not_installed("jsonlite")
+  parent <- otel_test_span(
+    "root",
+    list("enduser.id" = "ada", "shiny.session" = "abc")
+  )
+  parent$resource <- list("service.name" = "assistant")
+  child <- otel_chat_span(
+    parent = "root",
+    input = list(list(role = "user", parts = text_part("Hello"))),
+    output = list(list(role = "assistant", parts = text_part("Hi")))
+  )
+
+  groups <- otel_group_conversations_in_window(
+    list(parent, child),
+    from = NULL,
+    to = NULL
+  )
+  bundle <- as_trajectory_otel(groups)
+  metadata <- trajectory_info(bundle)$metadata[[1L]]$otel
+
+  expect_identical(
+    vapply(groups[[1L]], `[[`, character(1), "span_id"),
+    child$span_id
+  )
+  expect_identical(metadata$user, "ada")
+  expect_identical(metadata$attributes$shiny.session, "abc")
+  expect_identical(metadata$resource$service.name, "assistant")
+})

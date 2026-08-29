@@ -1250,6 +1250,10 @@ test_that("scans app records carry user and model for the browser", {
   expect_match(entry, "ada", fixed = TRUE)
   header <- as.character(scans_app_header_ui(data, 1L))
   expect_match(header, "scans-app-badge-user", fixed = TRUE)
+  expect_identical(
+    scans_app_metadata_user(list(otel = "legacy")),
+    NA_character_
+  )
 })
 
 test_that("scans app flattens metadata into a bounded definition list", {

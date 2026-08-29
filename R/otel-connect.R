@@ -328,10 +328,25 @@ connect_trace_lines <- function(
       )
     })
     responses <- connect_perform_batch(requests, call)
-    for (response in responses) {
-      if (is.null(response)) {
-        break
+    if (any(vapply(responses, is.null, logical(1)))) {
+      if (!jobs) {
+        scans_abort(
+          "Couldn't finish reading this content's traces from Posit Connect.",
+          class = "scans_error_connect_traces",
+          call = call
+        )
       }
+      return(connect_job_trace_lines(
+        client,
+        guid,
+        from,
+        to,
+        max_spans,
+        call,
+        page_size
+      ))
+    }
+    for (response in responses) {
       page <- connect_trace_page(response)
       added <- connect_add_trace_lines(lines, page, to)
       lines <- added$lines
@@ -348,9 +363,7 @@ connect_trace_lines <- function(
         break
       }
     }
-    if (
-      length(responses) == 0L || any(vapply(responses, is.null, logical(1)))
-    ) {
+    if (length(responses) == 0L) {
       break
     }
   }
@@ -919,7 +932,10 @@ otel_span_in_window <- function(span, from, to) {
 otel_group_conversations_in_window <- function(spans, from, to) {
   groups <- otel_group_conversations(spans)
   groups <- lapply(groups, function(group) {
-    Filter(function(span) otel_span_in_window(span, from, to), group)
+    context <- attr(group, "otel_context", exact = TRUE)
+    group <- Filter(function(span) otel_span_in_window(span, from, to), group)
+    attr(group, "otel_context") <- context
+    group
   })
   groups <- Filter(
     function(group) any(vapply(group, otel_is_chat_span, logical(1))),

@@ -145,6 +145,9 @@ scans_app_metadata_user <- function(metadata) {
   if (!is.list(metadata)) {
     return(NA_character_)
   }
+  if (!is.list(metadata$otel)) {
+    return(NA_character_)
+  }
   value <- metadata$otel$user
   if (
     is.character(value) && length(value) == 1L && !is.na(value) && nzchar(value)

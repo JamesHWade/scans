@@ -190,6 +190,7 @@ otel_conversation_tables <- function(
 # cost of all its calls, and reporting only the last would understate a long
 # tool-using exchange by an order of magnitude.
 otel_info_metadata <- function(spans, chat_spans, metadata) {
+  context <- attr(spans, "otel_context", exact = TRUE) %||% list()
   usage <- list(
     input_tokens = otel_sum_attribute(chat_spans, "gen_ai.usage.input_tokens"),
     output_tokens = otel_sum_attribute(
@@ -199,9 +200,9 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
     model_calls = length(chat_spans),
     spans = length(spans)
   )
-  usage$user <- otel_user_id(spans)
-  usage$attributes <- otel_extra_attributes(spans)
-  usage$resource <- otel_resource_attributes(spans)
+  usage$user <- context$user %||% otel_user_id(spans)
+  usage$attributes <- context$attributes %||% otel_extra_attributes(spans)
+  usage$resource <- context$resource %||% otel_resource_attributes(spans)
   metadata$otel <- usage[!vapply(usage, is.null, logical(1))]
   metadata
 }
@@ -802,9 +803,46 @@ otel_group_conversations <- function(spans) {
     groups
   )
   groups <- lapply(groups, function(group) {
-    Filter(otel_is_genai_span, group)
+    context_spans <- otel_group_context_spans(group, index)
+    group <- Filter(otel_is_genai_span, context_spans)
+    attr(group, "otel_context") <- list(
+      user = otel_user_id(context_spans),
+      attributes = otel_extra_attributes(context_spans),
+      resource = otel_resource_attributes(context_spans)
+    )
+    group
   })
   otel_order_conversations(groups)
+}
+
+# Include ancestors while extracting conversation context, even when a wrapper
+# has no GenAI attributes of its own. The returned conversation later exposes
+# only GenAI spans, while its bounded context summary retains wrapper metadata.
+otel_group_context_spans <- function(group, index) {
+  context_spans <- group
+  included <- new.env(parent = emptyenv())
+  for (span in group) {
+    assign(paste(span$trace_id, span$span_id), TRUE, envir = included)
+  }
+  for (span in group) {
+    current <- span
+    for (step in seq_len(64L)) {
+      parent <- current$parent_span_id
+      if (is.null(parent) || is.na(parent) || !nzchar(parent)) {
+        break
+      }
+      key <- paste(current$trace_id, parent)
+      if (!exists(key, envir = index, inherits = FALSE)) {
+        break
+      }
+      current <- get(key, envir = index, inherits = FALSE)
+      if (!exists(key, envir = included, inherits = FALSE)) {
+        context_spans[[length(context_spans) + 1L]] <- current
+        assign(key, TRUE, envir = included)
+      }
+    }
+  }
+  context_spans
 }
 
 otel_order_conversations <- function(groups) {
