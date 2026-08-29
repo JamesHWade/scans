@@ -29,7 +29,7 @@ Suggests:
     dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.4.2),
     htmltools,
-    httr2,
+    httr2 (>= 1.1.1),
     jsonlite,
     R6,
     shiny (>= 1.11.1),
