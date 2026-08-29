@@ -91,6 +91,25 @@ otel_test_envelope <- function(span_ids, start_times = NULL) {
   )
 }
 
+otel_test_framework_envelope <- function(span_id) {
+  jsonlite::toJSON(
+    list(
+      resourceSpans = list(list(
+        scopeSpans = list(list(
+          spans = list(list(
+            spanId = span_id,
+            attributes = list(list(
+              key = "shiny.reactive",
+              value = list(stringValue = "x")
+            ))
+          ))
+        ))
+      ))
+    ),
+    auto_unbox = TRUE
+  )
+}
+
 test_that("OTEL conversion requires jsonlite", {
   testthat::local_mocked_bindings(
     otel_jsonlite_available = function() FALSE
@@ -644,7 +663,7 @@ test_that("legacy trace filtering keeps only relevant or unclassified lines", {
   expect_identical(lines, c(before, "malformed"))
 })
 
-test_that("per-job pagination never requests beyond max_spans", {
+test_that("per-job pagination uses full transport pages", {
   skip_if_not_installed("httr2")
   urls <- character()
   page_number <- 0L
@@ -687,7 +706,7 @@ test_that("per-job pagination never requests beyond max_spans", {
   expect_length(attr(lines, "spans", exact = TRUE), 3L)
   expect_length(urls, 2L)
   expect_match(urls[[1L]], "limit=2", fixed = TRUE)
-  expect_match(urls[[2L]], "limit=1", fixed = TRUE)
+  expect_match(urls[[2L]], "limit=2", fixed = TRUE)
 })
 
 test_that("nested OTLP spans respect the aggregate span budget", {
@@ -943,6 +962,54 @@ test_that("aggregate trace pages after the first are fetched in batches", {
   )
   expect_identical(offsets, c("0", "2", "4", "6"))
   expect_null(attr(lines, "truncated", exact = TRUE))
+})
+
+test_that("aggregate transport pages are independent of the GenAI budget", {
+  skip_if_not_installed("httr2")
+  skip_if_not_installed("jsonlite")
+  urls <- character()
+  httr2::local_mocked_responses(function(req) {
+    urls <<- c(urls, req$url)
+    query <- httr2::url_parse(req$url)$query
+    offset <- as.integer(query$offset)
+    limit <- min(as.integer(query$limit), 6L - offset)
+    indices <- seq.int(offset + 1L, length.out = limit)
+    body <- vapply(
+      indices,
+      function(index) {
+        if (index == 6L) {
+          otel_test_envelope("chat")
+        } else {
+          otel_test_framework_envelope(paste0("framework-", index))
+        }
+      },
+      character(1)
+    )
+    httr2::response(
+      headers = list(`X-Total-Count` = "6"),
+      body = charToRaw(paste(body, collapse = "\n"))
+    )
+  })
+
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 1L,
+    call = rlang::caller_env(),
+    page_size = 3L,
+    jobs = FALSE
+  )
+
+  limits <- vapply(
+    urls,
+    \(url) httr2::url_parse(url)$query$limit,
+    character(1),
+    USE.NAMES = FALSE
+  )
+  expect_identical(limits, c("3", "3"))
+  expect_length(lines, 6L)
 })
 
 test_that("a read that hits the span ceiling is marked truncated", {
@@ -1352,6 +1419,7 @@ test_that("retained jobs are requested in bounded waves", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
   batch_sizes <- integer()
+  request_limits <- character()
   jobs <- lapply(5:1, function(index) {
     list(
       key = paste0("job-", index),
@@ -1367,6 +1435,14 @@ test_that("retained jobs are requested in bounded waves", {
     connect_perform = function(request, call) jobs_response,
     connect_perform_batch = function(requests, call, ...) {
       batch_sizes <<- c(batch_sizes, length(requests))
+      request_limits <<- c(
+        request_limits,
+        vapply(
+          requests,
+          \(request) httr2::url_parse(request$url)$query$limit,
+          character(1)
+        )
+      )
       rep(list(trace_response), length(requests))
     }
   )
@@ -1383,6 +1459,7 @@ test_that("retained jobs are requested in bounded waves", {
   )
 
   expect_identical(batch_sizes, 2L)
+  expect_identical(request_limits, c("10", "10"))
   expect_true(attr(lines, "truncated", exact = TRUE))
 })
 

@@ -287,10 +287,10 @@ connect_trace_request <- function(client, guid, from, to, limit, offset) {
     )
 }
 
-# Pages after the first are fetched several at a time: the first response
-# says how many lines the store holds, and every line carries at least one
-# span, so at most `max_spans` lines are ever needed. Fetching in waves keeps
-# a store of many-span lines from being read further than the budget allows.
+# Pages after the first are fetched several at a time. Transport pages stay
+# large even when `max_spans` is small because framework-only lines do not
+# consume that GenAI budget. Bounded waves limit speculative downloads once
+# parsing reaches the ceiling.
 connect_trace_lines <- function(
   client,
   guid,
@@ -302,7 +302,7 @@ connect_trace_lines <- function(
   wave_size = 8L,
   jobs = TRUE
 ) {
-  limit <- min(page_size, max_spans)
+  limit <- page_size
   response <- connect_perform(
     connect_trace_request(client, guid, from, to, limit, 0L),
     call
@@ -343,9 +343,8 @@ connect_trace_lines <- function(
       !is.na(total) &&
       offset < total
   ) {
-    remaining_lines <- min(total, offset + (max_spans - span_count)) - offset
     offsets <- seq.int(offset, by = page_size, length.out = wave_size)
-    offsets <- offsets[offsets < offset + remaining_lines]
+    offsets <- offsets[offsets < total]
     if (length(offsets) == 0L) {
       break
     }
@@ -355,7 +354,7 @@ connect_trace_lines <- function(
         guid,
         from,
         to,
-        min(page_size, offset + remaining_lines - page_offset),
+        min(page_size, total - page_offset),
         page_offset
       )
     })
@@ -579,7 +578,7 @@ connect_job_trace_lines <- function(
       wave_start,
       min(length(keys), wave_start + wave_size - 1L)
     )
-    request_limit <- min(page_size, max_spans - span_count)
+    request_limit <- page_size
     first_pages <- connect_perform_batch(
       lapply(
         keys[wave_indices],
@@ -605,7 +604,7 @@ connect_job_trace_lines <- function(
         offset < page$total
       }
       while (span_count < max_spans && page$n > 0L && page_has_more) {
-        request_limit <- min(page_size, max_spans - span_count)
+        request_limit <- page_size
         response <- connect_perform(
           job_request(keys[[index]], request_limit, offset),
           call
