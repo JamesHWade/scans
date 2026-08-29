@@ -1066,6 +1066,49 @@ test_that("jobs that ended before the window are not read", {
   )
 })
 
+test_that("job timestamps preserve numeric timezone offsets", {
+  midnight <- as.numeric(as.POSIXct("2026-03-10 00:00:00", tz = "UTC"))
+  expect_equal(
+    connect_parse_time(c(
+      "2026-03-10T00:00:00Z",
+      "2026-03-10T01:00:00+01:00",
+      "2026-03-09T19:00:00-05:00"
+    )),
+    rep(midnight, 3L)
+  )
+
+  jobs <- list(
+    list(key = "newest", start_time = "2026-03-09T20:00:00-05:00"),
+    list(key = "middle", start_time = "2026-03-10T00:30:00Z"),
+    list(key = "oldest", start_time = "2026-03-10T01:00:00+01:00")
+  )
+  expect_identical(
+    connect_job_keys(jobs, NULL),
+    c("newest", "middle", "oldest")
+  )
+  expect_identical(
+    connect_job_keys(
+      jobs,
+      NULL,
+      to = as.POSIXct("2026-03-10 00:15:00", tz = "UTC")
+    ),
+    "oldest"
+  )
+
+  overlap <- list(list(
+    key = "overlap",
+    start_time = "2026-03-09T17:00:00-05:00",
+    end_time = "2026-03-09T18:30:00-05:00"
+  ))
+  expect_identical(
+    connect_job_keys(
+      overlap,
+      as.POSIXct("2026-03-10 00:00:00", tz = "UTC")
+    ),
+    "overlap"
+  )
+})
+
 test_that("span counting parses all lines in one batch and respects the window", {
   skip_if_not_installed("jsonlite")
   parses <- 0L

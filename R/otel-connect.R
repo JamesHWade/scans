@@ -670,30 +670,28 @@ connect_job_keys <- function(jobs, from, to = NULL, before = NULL) {
   keys <- vapply(jobs, function(job) job$key %||% "", character(1))
   starts <- vapply(jobs, function(job) job$start_time %||% "", character(1))
   ends <- vapply(jobs, function(job) job$end_time %||% "", character(1))
+  started <- connect_parse_time(starts)
   keep <- nzchar(keys)
   if (!is.null(from)) {
     ended <- connect_parse_time(ends)
     keep <- keep & (is.na(ended) | ended >= as.numeric(from) - 3600)
   }
   if (!is.null(before)) {
-    started <- connect_parse_time(starts)
     keep <- keep & (is.na(started) | started < before)
   }
   if (!is.null(to)) {
-    started <- connect_parse_time(starts)
     keep <- keep & (is.na(started) | started < as.numeric(to))
   }
   keys <- keys[keep]
-  keys[order(starts[keep], decreasing = TRUE)]
+  keys[order(started[keep], decreasing = TRUE, na.last = TRUE)]
 }
 
 connect_parse_time <- function(x) {
-  x <- sub("\\.[0-9]+", "", x)
-  x <- sub("Z$", "", x)
-  x <- sub("[+-][0-9]{2}:[0-9]{2}$", "", x)
+  x <- sub("Z$", "+0000", x)
+  x <- sub("([+-][0-9]{2}):([0-9]{2})$", "\\1\\2", x)
   parsed <- suppressWarnings(as.POSIXct(
     x,
-    format = "%Y-%m-%dT%H:%M:%S",
+    format = "%Y-%m-%dT%H:%M:%OS%z",
     tz = "UTC"
   ))
   as.numeric(parsed)
