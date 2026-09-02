@@ -4,7 +4,7 @@
 #   rsconnect::connectApiUser("<username>", server = "connect",
 #                             apiKey = Sys.getenv("CONNECT_API_KEY"))
 # Install the dependencies locally first so rsconnect can record their sources:
-#   pak::pak(c("JamesHWade/scans", "posit-dev/commons/pkg-r"))
+#   pak::pak("JamesHWade/scans")
 rsconnect::deployApp(
   appDir = "deploy/connect",
   appName = "scans-connect-monitor",

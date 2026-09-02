@@ -43,8 +43,9 @@ A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.
 \description{
 \code{scans_app_connect()} creates a \code{\link[=scans_app]{scans_app()}} whose application switcher
 reads completed conversations from Posit Connect's content observability
-store. Each application is loaded lazily; switching back to one uses the
-session cache, and \strong{Reload traces} fetches its current trace snapshot.
+store. Each application is read when it is first selected in any session,
+and the snapshot is then shared by every session of the deployment until it
+is thirty minutes old or \strong{Reload traces} fetches it again.
 }
 \details{
 Two readers are available. The default, \code{"otel"}, uses this package's own
@@ -62,7 +63,7 @@ with its own Connect API key, deploy it only to viewers who may inspect all
 configured applications and their potentially sensitive conversations.
 }
 \examples{
-if (interactive() && rlang::is_installed("commons")) {
+if (interactive()) {
   scans_app_connect(c(
     "Support assistant" = "11111111-1111-4111-8111-111111111111",
     "Research assistant" = "22222222-2222-4222-8222-222222222222"
