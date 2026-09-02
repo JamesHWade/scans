@@ -194,7 +194,7 @@ trajectory_cast_column <- function(
           is.na(x) |
             (is.finite(x) &
               x == floor(x) &
-              x >= -.Machine$integer.max - 1 &
+              x >= -.Machine$integer.max &
               x <= .Machine$integer.max)
         )
       if (valid) as.integer(x) else x
@@ -650,21 +650,39 @@ trajectory_loss_reference_problems <- function(losses, turns, events) {
   problems
 }
 
+# Linear-time cycle detection: each node is walked once, and a cycle is a
+# node met again while it is still on the current path. A parent that names
+# no known id ends the chain (references are validated separately).
 trajectory_reference_has_cycle <- function(ids, parents) {
-  if (length(ids) == 0L || anyDuplicated(ids)) {
+  size <- length(ids)
+  if (size == 0L || anyDuplicated(ids)) {
     return(FALSE)
   }
-  parent_map <- stats::setNames(parents, ids)
+  parent_index <- match(parents, ids)
+  # 0 = unvisited, 1 = on the current path, 2 = finished
+  state <- integer(size)
+  path <- integer(size)
 
-  for (id in ids) {
-    seen <- id
-    parent <- parent_map[[id]]
-    while (!is.null(parent) && !is.na(parent)) {
-      if (parent %in% seen) {
+  for (start in seq_len(size)) {
+    if (state[[start]] != 0L) {
+      next
+    }
+    path_size <- 0L
+    current <- start
+    while (!is.na(current)) {
+      if (state[[current]] == 1L) {
         return(TRUE)
       }
-      seen <- c(seen, parent)
-      parent <- parent_map[[parent]]
+      if (state[[current]] == 2L) {
+        break
+      }
+      state[[current]] <- 1L
+      path_size <- path_size + 1L
+      path[[path_size]] <- current
+      current <- parent_index[[current]]
+    }
+    if (path_size > 0L) {
+      state[path[seq_len(path_size)]] <- 2L
     }
   }
   FALSE

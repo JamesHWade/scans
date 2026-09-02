@@ -28,9 +28,12 @@
 #'   caller-supplied diagnostic-run identifier.
 #' - `scan`: one of `ambiguous_tool_correlation`, `unresolved_tool_call`,
 #'   `unmatched_tool_result`, `repeated_tool_call`, `suspicious_tool_loop`,
-#'   `event_error`, or `error_chain`; `scan_version`: detector version.
+#'   `event_error`, `error_chain`, `turn_error`, or `trajectory_error`;
+#'   `scan_version`: detector version.
 #' - `trajectory_id`, `turn_id`, and `event_id`: primary evidence identities;
-#'   `event_ids`: character vector of every supporting event identifier.
+#'   `event_ids`: character vector of every supporting event identifier. A
+#'   `trajectory_error` finding has no turn or event, and a `turn_error`
+#'   finding no event, because the failure is recorded on the record itself.
 #' - `severity`: `warning` for tool-pattern findings or `error` for failures;
 #'   `label` and `explanation`: concise human-readable descriptions.
 #' - `value`: scan-specific structured details; `metadata`: a named extension
@@ -71,11 +74,21 @@ scan_trajectories <- function(
   )
 
   info <- trajectory_info(x)
+  turns <- trajectory_turns(x)
   events <- trajectory_events(x)
   event_groups <- scan_split_trajectory_rows(events, info$trajectory_id)
+  turn_groups <- scan_split_trajectory_rows(turns, info$trajectory_id)
   findings <- list()
 
   for (index in seq_len(nrow(info))) {
+    findings <- c(
+      findings,
+      scan_record_findings(
+        info[index, , drop = FALSE],
+        turn_groups[[index]],
+        scan_id
+      )
+    )
     trajectory_events <- event_groups[[index]]
     trajectory_events <- trajectory_events[
       order(
@@ -129,7 +142,9 @@ scan_registry <- function() {
       "repeated_tool_call",
       "suspicious_tool_loop",
       "event_error",
-      "error_chain"
+      "error_chain",
+      "turn_error",
+      "trajectory_error"
     ),
     severity = c(
       "warning",
@@ -137,6 +152,8 @@ scan_registry <- function() {
       "warning",
       "warning",
       "warning",
+      "error",
+      "error",
       "error",
       "error"
     ),
@@ -147,7 +164,9 @@ scan_registry <- function() {
       "The same tool was called with the same arguments repeatedly.",
       "Consecutive identical tool calls suggest the agent is looping.",
       "An event recorded a failure.",
-      "A failure followed an earlier one within the same trajectory."
+      "A failure followed an earlier one within the same trajectory.",
+      "A turn ended with a failed status.",
+      "The trajectory ended with a failed status or an error."
     )
   )
 }

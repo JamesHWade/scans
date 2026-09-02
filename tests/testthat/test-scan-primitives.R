@@ -173,18 +173,90 @@ test_that("scan thresholds control repeated and loop findings", {
   expect_identical(repeated$value[[1L]]$count, 2L)
 })
 
-test_that("non-tool content breaks a suspicious tool loop", {
+test_that("narration between identical calls does not hide a tool loop", {
   tables <- fixture_source(scan_loop_fixture())
   tables$events$event_type[[4L]] <- "content"
   bundle <- do.call(TrajectoryBundle, tables)
 
   findings <- scan_trajectories(bundle)
 
-  expect_identical(
-    findings$scan[findings$scan == "suspicious_tool_loop"],
-    character()
-  )
+  expect_in("suspicious_tool_loop", findings$scan)
   expect_in("repeated_tool_call", findings$scan)
+})
+
+test_that("a lifecycle event between identical calls breaks a tool loop", {
+  tables <- fixture_source(scan_loop_fixture())
+  tables$events$event_type[[4L]] <- "custom"
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  findings <- scan_trajectories(bundle)
+
+  expect_false("suspicious_tool_loop" %in% findings$scan)
+  expect_in("repeated_tool_call", findings$scan)
+})
+
+test_that("failed trajectories and turns produce findings without events", {
+  bundle <- TrajectoryBundle(
+    data.frame(
+      trajectory_id = "run-1",
+      source_type = "manual",
+      status = "failed",
+      error = "boom"
+    ),
+    data.frame(
+      trajectory_id = "run-1",
+      turn_id = c("turn-1", "turn-2"),
+      turn_index = 1:2,
+      role = c("user", "assistant"),
+      status = c("completed", "failed"),
+      finish_reason = c(NA, "length")
+    ),
+    data.frame()
+  )
+  findings <- scan_trajectories(bundle)
+  expect_identical(findings$scan, c("trajectory_error", "turn_error"))
+  expect_identical(findings$severity, c("error", "error"))
+  expect_identical(findings$turn_id, c(NA, "turn-2"))
+  expect_true(all(is.na(findings$event_id)))
+  expect_identical(findings$event_ids[[1L]], character())
+  expect_identical(findings$value[[1L]]$error, "boom")
+  expect_identical(findings$value[[2L]]$finish_reason, "length")
+
+  only_turns <- scan_trajectories(bundle, scans = "turn_error")
+  expect_identical(only_turns$finding_id, findings$finding_id[[2L]])
+})
+
+test_that("tool correlation and cycle checks scale linearly", {
+  size <- 20000L
+  ids <- sprintf("event-%06d", seq_len(size))
+  events <- tibble::tibble(
+    trajectory_id = "run-1",
+    turn_id = "turn-1",
+    event_id = ids,
+    event_index = seq_len(size),
+    event_type = rep(c("tool_call", "tool_result"), size / 2L),
+    name = "search",
+    call_id = rep(sprintf("call-%06d", seq_len(size / 2L)), each = 2L),
+    parent_event_id = c(NA_character_, ids[-size])
+  )
+  elapsed <- system.time({
+    bundle <- TrajectoryBundle(
+      data.frame(trajectory_id = "run-1", source_type = "manual"),
+      data.frame(
+        trajectory_id = "run-1",
+        turn_id = "turn-1",
+        turn_index = 1L,
+        role = "assistant"
+      ),
+      events
+    )
+    summary <- summarize_trajectories(bundle)
+  })[["elapsed"]]
+  expect_identical(summary$n_unresolved_tool_calls, 0L)
+  expect_lt(elapsed, 20)
+
+  expect_true(trajectory_reference_has_cycle(c("a", "b"), c("b", "a")))
+  expect_false(trajectory_reference_has_cycle(c("a", "b"), c(NA, "a")))
 })
 
 test_that("scan_trajectories() preserves unresolved correlation evidence", {
@@ -280,6 +352,11 @@ test_that("scan_trajectories() canonicalizes named tool arguments", {
 
 test_that("scan_trajectories() finds event errors and causal chains", {
   findings <- scan_trajectories(scan_error_chain_fixture())
+  # The fixture's failed trajectory and turns are reported first.
+  expect_in(c("trajectory_error", "turn_error"), findings$scan)
+  findings <- findings[
+    !findings$scan %in% c("trajectory_error", "turn_error"),
+  ]
 
   expect_identical(
     findings$scan,
@@ -307,6 +384,13 @@ test_that("scan primitives return typed empty results", {
       "parent_trajectory_id",
       "source_type",
       "status",
+      "model",
+      "agent",
+      "task_id",
+      "sample_id",
+      "epoch",
+      "started_at",
+      "completed_at",
       "trajectory_depth",
       "max_event_depth",
       "n_turns",
@@ -331,7 +415,9 @@ test_that("scan primitives return typed empty results", {
   expect_identical(
     unname(vapply(summary, typeof, character(1))),
     c(
-      rep("character", 5L),
+      rep("character", 9L),
+      "integer",
+      rep("double", 2L),
       rep("integer", 13L),
       rep("double", 6L)
     )

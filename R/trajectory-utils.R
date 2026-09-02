@@ -3,7 +3,7 @@ trajectory_bind_rows <- function(rows) {
   if (length(rows) == 0L) {
     return(tibble::tibble())
   }
-  tibble::as_tibble(do.call(rbind, rows))
+  tibble::as_tibble(vctrs::vec_rbind(!!!rows))
 }
 
 trajectory_ids <- function(

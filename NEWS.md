@@ -19,6 +19,9 @@
 
 ## Trajectory contract and adapters
 
+* `scan_trajectories()` gains `trajectory_error` and `turn_error`, so a run that died with a failed status, or a turn cut off at a token limit, produces a finding even when no event recorded the failure. Such findings carry no `event_id`. `suspicious_tool_loop` now tolerates model narration between identical calls, which is how real retry loops look; only a non-content event breaks a run.
+* `summarize_trajectories()` carries `model`, `agent`, `task_id`, `sample_id`, `epoch`, `started_at`, and `completed_at`, so grouped summaries no longer need a join back to `trajectory_info()`.
+* Bundle validation, tool correlation, and row binding are linear in the number of events. Constructing a bundle with a 3,000-event parent chain took minutes and scanning 60,000 events took ten seconds; both now take seconds at most.
 * Initial package scaffold.
 * Tool results now resolve only calls that precede them in canonical event order, and causal mismatch findings distinguish missing preceding calls from missing subsequent results. Deputy lifecycle boundaries retain their causal position, and source-wide dsprrr and Commons provenance events no longer claim an unsupported turn association.
 * Optional R6 adapters now accept valid upstream subclasses and method overrides through their public class contracts.
