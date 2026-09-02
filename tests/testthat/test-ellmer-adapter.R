@@ -412,3 +412,36 @@ test_that("unknown content locations are scrubbed like remote images", {
   expect_no_match(as.character(event$value[[1L]]), "SECRET", fixed = TRUE)
   expect_in("redacted", trajectory_losses(bundle)$reason)
 })
+
+test_that("tool results link to their calls in one indexed pass", {
+  events <- tibble::tibble(
+    event_id = paste0("e", 1:7),
+    event_index = 1:7,
+    event_type = c(
+      "tool_call",
+      "tool_result",
+      "tool_call",
+      "tool_call",
+      "tool_result",
+      "tool_result",
+      "tool_call"
+    ),
+    call_id = c("a", "a", "dup", "dup", "dup", "late", "late"),
+    parent_event_id = NA_character_
+  )
+  linked <- ellmer_link_tool_results(events)
+  # Unambiguous pair links; duplicated ids and a result before its call do not.
+  expect_identical(linked$parent_event_id[[2L]], "e1")
+  expect_true(all(is.na(linked$parent_event_id[-2L])))
+
+  size <- 20000L
+  large <- tibble::tibble(
+    event_id = sprintf("e%06d", seq_len(size)),
+    event_index = seq_len(size),
+    event_type = rep(c("tool_call", "tool_result"), size / 2L),
+    call_id = rep(sprintf("c%06d", seq_len(size / 2L)), each = 2L),
+    parent_event_id = NA_character_
+  )
+  linked <- ellmer_link_tool_results(large)
+  expect_identical(sum(!is.na(linked$parent_event_id)), size %/% 2L)
+})

@@ -334,6 +334,13 @@ scans_app_load_info_ui <- function(entry, reloadable = FALSE) {
         )
       )
     },
+    if (isTRUE(info$incomplete)) {
+      htmltools::div(
+        class = "scans-app-load-warning",
+        role = "status",
+        "A page of traces could not be read from Connect \u2014 this snapshot may be incomplete. Reload traces to try again."
+      )
+    },
     if (
       !is.null(info$n) &&
         !is.null(info$conversations_found) &&

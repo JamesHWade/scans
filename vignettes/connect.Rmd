@@ -71,9 +71,15 @@ scan_trajectories(bundle)
 
 ### Windows and limits
 
-- `from` and `to` bound span start time. `from` is inclusive, `to` exclusive.
-  When both are omitted the reader takes the seven days ending now. Pass
-  `NULL` explicitly to leave one side open.
+- `from` and `to` select conversations: a conversation is kept when one of
+  its model calls started in `[from, to)`. A kept conversation then retains
+  its earlier spans as far back as the read reached, which is an hour before
+  `from`, so token totals, tool failures, and the start time describe the
+  conversation, not just the window. Spans at or after `to` are dropped.
+  Widen `from` if you need the timing and usage of calls made earlier than
+  that hour. When both are omitted the reader takes the seven days ending
+  now. Pass `NULL` explicitly to leave one side open. Bounds may be POSIXct,
+  Date, or ISO 8601 strings; a string without a zone is read as UTC.
 - `n` keeps the most recent conversations; `NULL` keeps all of them.
 - `max_spans` caps how many GenAI spans are read. Only spans with `gen_ai.*`
   attributes count, so a Shiny application's reactive spans do not exhaust the
@@ -85,9 +91,9 @@ scan_trajectories(bundle)
   holds everything you care about.
 
 The `read_info` attribute records the window, how many spans and conversations
-were found, and whether the span ceiling or `n` left conversations out. The
-review app shows the same information so a reviewer can tell a quiet week from
-a truncated read.
+were found, whether the span ceiling or `n` left conversations out, and whether
+a page failed to load. The review app shows the same information so a reviewer
+can tell a quiet week from a truncated or incomplete read.
 
 ### How a conversation is reconstructed
 

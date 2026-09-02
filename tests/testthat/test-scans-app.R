@@ -1377,6 +1377,7 @@ test_that("scans app shows what a Connect read found", {
     spans = 12345L,
     max_spans = 50000L,
     truncated = TRUE,
+    incomplete = TRUE,
     conversations_found = 130L,
     conversations = 100L
   )
@@ -1392,6 +1393,7 @@ test_that("scans app shows what a Connect read found", {
     expect_match(info, "12,345 GenAI spans", fixed = TRUE)
     expect_match(info, "last 7 days", fixed = TRUE)
     expect_match(info, "GenAI span ceiling of 50,000 reached", fixed = TRUE)
+    expect_match(info, "could not be read from Connect", fixed = TRUE)
     expect_match(info, "100 most recent of 130", fixed = TRUE)
   })
 })

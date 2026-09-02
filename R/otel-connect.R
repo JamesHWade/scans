@@ -45,7 +45,8 @@
 #' @returns A named list of conversations, each a list of spans, oldest-first.
 #'   The names are conversation identifiers. The `"read_info"` attribute
 #'   records how the read went: the window, how many spans and conversations
-#'   were found, and whether the `max_spans` ceiling cut the read short.
+#'   were found, whether the `max_spans` ceiling cut the read short
+#'   (`truncated`), and whether a page failed to load (`incomplete`).
 #'
 #' @section Progress:
 #' Set `options(scans.progress = function(message) ...)` to be told about
@@ -114,6 +115,7 @@ read_connect_traces <- function(
     spans_total = length(spans),
     max_spans = max_spans,
     truncated = isTRUE(attr(lines, "truncated", exact = TRUE)),
+    incomplete = isTRUE(attr(lines, "incomplete", exact = TRUE)),
     conversations_found = found,
     conversations = length(conversations)
   )
@@ -439,7 +441,10 @@ connect_trace_lines <- function(
         "A page of this content's traces could not be read from Posit Connect.",
         "i" = "The result holds the pages read so far plus retained per-job traces and may be incomplete."
       ))
-      attr(lines, "truncated") <- TRUE
+      # Distinct from `truncated`: nothing about the span budget was reached,
+      # a page simply failed, and the app must say that rather than blame the
+      # ceiling.
+      attr(lines, "incomplete") <- TRUE
       attr(lines, "spans") <- spans
       return(connect_job_trace_lines(
         client,
@@ -579,6 +584,7 @@ connect_job_trace_lines <- function(
   wave_size = 8L
 ) {
   truncated <- isTRUE(attr(lines, "truncated", exact = TRUE))
+  incomplete <- isTRUE(attr(lines, "incomplete", exact = TRUE))
   spans <- attr(lines, "spans", exact = TRUE)
   lines <- unique(lines)
   parsed <- connect_trace_lines_summary(lines, to, spans = spans)
@@ -588,6 +594,9 @@ connect_job_trace_lines <- function(
     attr(lines, "spans") <- spans
     if (truncated) {
       attr(lines, "truncated") <- TRUE
+    }
+    if (incomplete) {
+      attr(lines, "incomplete") <- TRUE
     }
     lines
   }

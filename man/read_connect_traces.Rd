@@ -49,7 +49,8 @@ once the content-wide store is known to hold everything of interest.}
 A named list of conversations, each a list of spans, oldest-first.
 The names are conversation identifiers. The \code{"read_info"} attribute
 records how the read went: the window, how many spans and conversations
-were found, and whether the \code{max_spans} ceiling cut the read short.
+were found, whether the \code{max_spans} ceiling cut the read short
+(\code{truncated}), and whether a page failed to load (\code{incomplete}).
 }
 \description{
 \code{read_connect_traces()} fetches a deployed application's GenAI spans from

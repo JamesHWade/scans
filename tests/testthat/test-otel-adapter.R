@@ -1889,7 +1889,8 @@ test_that("a failed later aggregate page keeps what was read and warns", {
   expect_identical(as.vector(lines), "fallback")
   # The page already read travels to the per-job fallback.
   expect_length(fallback_lines, 1L)
-  expect_true(attr(fallback_lines, "truncated"))
+  expect_true(attr(fallback_lines, "incomplete"))
+  expect_false(isTRUE(attr(fallback_lines, "truncated")))
   expect_error(
     connect_trace_lines(
       client = list(server = "https://connect.example.com", api_key = "secret"),

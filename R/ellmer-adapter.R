@@ -313,28 +313,39 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
   )
 }
 
+# A result is linked to its call when the pair is unambiguous: exactly one
+# call and one result share the id and the call comes first. One indexed pass
+# over the events, so a conversation with thousands of tool exchanges stays
+# linear.
 ellmer_link_tool_results <- function(events) {
   if (nrow(events) == 0L) {
     return(events)
   }
-  calls <- which(events$event_type == "tool_call" & !is.na(events$call_id))
-  results <- which(events$event_type == "tool_result" & !is.na(events$call_id))
-  if (length(calls) == 0L || length(results) == 0L) {
+  is_call <- events$event_type == "tool_call" & !is.na(events$call_id)
+  is_result <- events$event_type == "tool_result" & !is.na(events$call_id)
+  if (!any(is_call) || !any(is_result)) {
     return(events)
   }
 
-  for (result in results) {
-    call_id <- events$call_id[[result]]
-    matching_calls <- calls[events$call_id[calls] == call_id]
-    matching_results <- results[events$call_id[results] == call_id]
-    if (
-      length(matching_calls) == 1L &&
-        length(matching_results) == 1L &&
-        events$event_index[[matching_calls]] < events$event_index[[result]]
-    ) {
-      events$parent_event_id[[result]] <- events$event_id[[matching_calls]]
-    }
+  ids <- unique(events$call_id[is_call | is_result])
+  keys <- match(events$call_id, ids)
+  n_calls <- tabulate(keys[is_call], nbins = length(ids))
+  n_results <- tabulate(keys[is_result], nbins = length(ids))
+  unique_pair <- n_calls == 1L & n_results == 1L
+
+  call_rows <- which(is_call)
+  call_row_by_id <- integer(length(ids))
+  call_row_by_id[keys[call_rows]] <- call_rows
+
+  result_rows <- which(is_result)
+  result_rows <- result_rows[unique_pair[keys[result_rows]]]
+  if (length(result_rows) == 0L) {
+    return(events)
   }
+  matched_calls <- call_row_by_id[keys[result_rows]]
+  ordered <- events$event_index[matched_calls] < events$event_index[result_rows]
+  events$parent_event_id[result_rows[ordered]] <-
+    events$event_id[matched_calls[ordered]]
   events
 }
 
