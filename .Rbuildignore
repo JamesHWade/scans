@@ -8,3 +8,4 @@
 ^\.vscode$
 ^jarl\.toml$
 ^deploy$
+^pkgdown$

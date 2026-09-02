@@ -54,7 +54,7 @@ n <- if (identical(tolower(n), "all")) NULL else as.integer(n)
 
 annotations_dir <- Sys.getenv("SCANS_ANNOTATIONS_DIR", "")
 annotations <- if (nzchar(annotations_dir)) {
-  scans_annotations(annotations_dir)
+  scans_annotations(file.path(annotations_dir, "annotations.jsonl"))
 } else {
   NULL
 }

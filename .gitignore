@@ -4,3 +4,6 @@
 .Rproj.user
 *.Rproj
 deploy/local/
+
+# pkgdown site output (docs/ holds design notes, not the site)
+pkgdown/
