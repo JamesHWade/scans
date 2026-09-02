@@ -146,10 +146,9 @@ test_that("Tempest authority, identities, and findings remain distinct", {
       "publication_blocked"
     )
   )
-  expect_identical(
-    finding$status[[match("support_unverified", finding$name)]],
-    "warning"
-  )
+  unverified <- match("support_unverified", finding$name)
+  expect_identical(finding$status[[unverified]], "completed")
+  expect_identical(finding$value[[unverified]]$severity, "warning")
   expect_true(all(finding$parent_event_id %in% stages$event_id))
 })
 

@@ -262,7 +262,7 @@ ellmer_turn_tables <- function(turns, trajectory_id, call) {
         list(trajectory_new_loss(
           ids,
           paste0("turns[[", turn_index, "]]$json"),
-          "redacted",
+          "unsupported",
           "Provider response JSON is excluded by default"
         ))
       )

@@ -19,6 +19,7 @@
 
 ## Trajectory contract and adapters
 
+* Adapters share one trajectory status vocabulary (`completed`, `failed`, `interrupted`, `cancelled`), so a Deputy run that hit a budget limit is classified the same way whether it arrived through Deputy or Tempest. A dsprrr trace exported without turns is `completed` rather than `interrupted`; Tempest finding severities live in the event value instead of the event status; the ellmer adapter records the omitted provider JSON as `unsupported` rather than `redacted`.
 * `scan_trajectories()` gains `trajectory_error` and `turn_error`, so a run that died with a failed status, or a turn cut off at a token limit, produces a finding even when no event recorded the failure. Such findings carry no `event_id`. `suspicious_tool_loop` now tolerates model narration between identical calls, which is how real retry loops look; only a non-content event breaks a run.
 * `summarize_trajectories()` carries `model`, `agent`, `task_id`, `sample_id`, `epoch`, `started_at`, and `completed_at`, so grouped summaries no longer need a join back to `trajectory_info()`.
 * Bundle validation, tool correlation, and row binding are linear in the number of events. Constructing a bundle with a 3,000-event parent chain took minutes and scanning 60,000 events took ten seconds; both now take seconds at most.

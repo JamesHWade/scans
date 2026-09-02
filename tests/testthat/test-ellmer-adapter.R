@@ -141,7 +141,8 @@ test_that("ellmer metadata and tool payload secrets are redacted", {
     trajectory_info(bundle)$metadata[[1L]]$password,
     "<redacted>"
   )
-  expect_setequal(unique(losses$reason), "redacted")
+  expect_in("redacted", losses$reason)
+  expect_false("truncated" %in% losses$reason)
   expect_no_match(
     rendered,
     "argument-secret|metadata-secret|provider-secret|trajectory-secret"

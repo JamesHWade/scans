@@ -362,9 +362,11 @@ vitals_check_optional_string <- function(
 ) {
   rlang::check_string(x, allow_null = TRUE, arg = arg, call = call)
   if (!is.null(x) && nchar(x, type = "bytes") > trajectory_payload_max_bytes) {
-    rlang::abort(
-      sprintf("`%s` must not exceed 65,536 bytes.", arg),
-      call = call
+    scans_abort(
+      "{.arg {arg}} must not exceed 65,536 bytes.",
+      class = "scans_error_vitals_argument",
+      call = call,
+      .envir = environment()
     )
   }
   x
