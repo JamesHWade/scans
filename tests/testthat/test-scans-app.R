@@ -1191,6 +1191,54 @@ test_that("annotation store failures are not echoed to the browser", {
   expect_match(scans_app_annotation_error(record), "Label must be one of")
 })
 
+test_that("values are formatted for reading rather than as str() output", {
+  expect_identical(scans_app_value_text(0.5), "0.5")
+  expect_identical(scans_app_value_text("C"), "C")
+  expect_identical(scans_app_value_text(TRUE), "TRUE")
+  expect_identical(scans_app_value_text(c(1L, 2L, 3L)), "1, 2, 3")
+  expect_identical(
+    scans_app_value_text(list(city = "Detroit", days = 3L)),
+    "city: Detroit\ndays: 3"
+  )
+  skip_if_not_installed("jsonlite")
+  nested <- scans_app_value_text(list(a = list(b = 1:2), c = "x"))
+  expect_match(nested, "\"b\": [1, 2]", fixed = TRUE)
+  expect_match(nested, "\"c\": \"x\"", fixed = TRUE)
+})
+
+test_that("oversized payload text is bounded with a visible marker", {
+  text <- strrep("x", 25000L)
+  bounded <- scans_app_bounded_text(text)
+  expect_lt(nchar(bounded), 20100L)
+  expect_match(bounded, "truncated: 5,000 more characters", fixed = TRUE)
+  expect_identical(scans_app_bounded_text("short"), "short")
+})
+
+test_that("list snippets drop markdown markers", {
+  expect_identical(
+    scans_app_strip_markdown("Please **summarize** the `report` in a *table*"),
+    "Please summarize the report in a table"
+  )
+  expect_identical(
+    scans_app_strip_markdown("## Heading\n- item [link](https://x.y)"),
+    "Heading\nitem link"
+  )
+})
+
+test_that("a string tool result is not shown twice", {
+  skip_if_not_installed("htmltools")
+  events <- trajectory_events(trajectory_fixture("multiple_tools"))
+  event <- events[
+    which(events$event_type == "tool_result")[[1L]],
+    ,
+    drop = FALSE
+  ]
+  event$text <- "Cloudy"
+  event$value <- list("Cloudy")
+  html <- as.character(scans_app_tool_event_ui(event, 1L, "tool_result"))
+  expect_identical(lengths(regmatches(html, gregexpr("Cloudy", html))), 1L)
+})
+
 test_that("snapshot ages use an injected reference time", {
   now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
   loaded_at <- now - 120

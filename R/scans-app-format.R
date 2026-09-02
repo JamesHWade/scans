@@ -167,11 +167,63 @@ scans_app_empty_ui <- function(text, compact = FALSE) {
   )
 }
 
+# Values are shown the way a reviewer reads them, not the way R stores them:
+# a scalar as itself, a flat named list as `key: value` lines, and anything
+# nested as JSON. `str()` remains the fallback for objects JSON cannot express.
 scans_app_value_text <- function(value, max_chars = 4000L) {
   if (is.null(value) || length(value) == 0L) {
     return(NULL)
   }
-  text <- paste(
+  text <- scans_app_format_value(value)
+  scans_app_truncate(text, max_chars)
+}
+
+scans_app_format_value <- function(value) {
+  if (is.atomic(value) && is.null(names(value))) {
+    if (length(value) == 1L) {
+      return(scans_app_format_scalar(value))
+    }
+    if (length(value) <= 20L) {
+      return(paste(
+        vapply(value, scans_app_format_scalar, character(1)),
+        collapse = ", "
+      ))
+    }
+  }
+  is_flat <- (is.list(value) || is.atomic(value)) &&
+    !is.null(names(value)) &&
+    all(nzchar(names(value))) &&
+    all(vapply(
+      value,
+      function(x) is.atomic(x) && length(x) == 1L,
+      logical(1)
+    ))
+  if (is_flat) {
+    return(paste(
+      names(value),
+      vapply(value, scans_app_format_scalar, character(1)),
+      sep = ": ",
+      collapse = "\n"
+    ))
+  }
+  if (rlang::is_installed("jsonlite")) {
+    json <- tryCatch(
+      jsonlite::toJSON(
+        value,
+        auto_unbox = TRUE,
+        pretty = TRUE,
+        null = "null",
+        na = "null",
+        force = TRUE,
+        digits = NA
+      ),
+      error = function(cnd) NULL
+    )
+    if (!is.null(json)) {
+      return(as.character(json))
+    }
+  }
+  paste(
     utils::capture.output(
       utils::str(
         value,
@@ -183,7 +235,47 @@ scans_app_value_text <- function(value, max_chars = 4000L) {
     ),
     collapse = "\n"
   )
-  scans_app_truncate(text, max_chars)
+}
+
+scans_app_format_scalar <- function(x) {
+  if (is.na(x)) {
+    return("NA")
+  }
+  if (is.character(x)) {
+    return(x)
+  }
+  format(x, scientific = FALSE, trim = TRUE)
+}
+
+# Payload text in the transcript is bounded so one oversized tool result
+# cannot stall the browser; the marker says how much was left out.
+scans_app_text_limit <- 20000L
+
+scans_app_bounded_text <- function(text, max_chars = scans_app_text_limit) {
+  if (is.na(text) || nchar(text) <= max_chars) {
+    return(text)
+  }
+  omitted <- nchar(text) - max_chars
+  paste0(
+    substr(text, 1L, max_chars),
+    "\n\u2026 [truncated: ",
+    format(omitted, big.mark = ","),
+    " more characters]"
+  )
+}
+
+# Titles and list snippets come from user text that is often markdown; the
+# structure is noise at that size, so the markers are removed.
+scans_app_strip_markdown <- function(text) {
+  text <- gsub("```[^`]*```", " ", text)
+  text <- gsub("`([^`]*)`", "\\1", text)
+  text <- gsub("!\\[([^]]*)\\]\\([^)]*\\)", "\\1", text)
+  text <- gsub("\\[([^]]*)\\]\\([^)]*\\)", "\\1", text)
+  text <- gsub("(^|\\s)#{1,6}\\s+", "\\1", text)
+  text <- gsub("(\\*\\*|__)(.+?)\\1", "\\2", text)
+  text <- gsub("(^|[^*\\w])[*_]([^*_]+)[*_]", "\\1\\2", text)
+  text <- gsub("(^|\\n)\\s*(>|[-*+]|\\d+\\.)\\s+", "\\1", text)
+  text
 }
 
 scans_app_truncate <- function(text, max_chars) {

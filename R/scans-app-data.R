@@ -263,10 +263,8 @@ scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
       if (length(user_rows) > 0L) {
         rows <- user_rows
       }
-      scans_app_truncate(
-        gsub("\\s+", " ", trimws(events$text[[rows[[1L]]]])),
-        90L
-      )
+      text <- scans_app_strip_markdown(events$text[[rows[[1L]]]])
+      scans_app_truncate(gsub("\\s+", " ", trimws(text)), 90L)
     },
     character(1)
   )
