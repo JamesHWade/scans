@@ -288,19 +288,30 @@ scan_tool_relation_indices <- function(event_type, call_id) {
     for (id in names(groups)) {
       group <- groups[[id]]
       is_call <- event_type[group] == "tool_call"
-      pending <- integer()
+      # A queue over the group's calls: `head` is the next call a result
+      # resolves, so popping is an index bump rather than a vector copy.
+      queue <- group[is_call]
+      head <- 1L
       unmatched <- integer()
       for (offset in seq_along(group)) {
-        position <- group[[offset]]
         if (is_call[[offset]]) {
-          pending[[length(pending) + 1L]] <- position
-        } else if (length(pending) == 0L) {
-          unmatched[[length(unmatched) + 1L]] <- position
+          next
+        }
+        if (head > length(queue)) {
+          unmatched[[length(unmatched) + 1L]] <- group[[offset]]
+        } else if (queue[[head]] < group[[offset]]) {
+          head <- head + 1L
         } else {
-          pending <- pending[-1L]
+          # A result that precedes every pending call resolves none of them.
+          unmatched[[length(unmatched) + 1L]] <- group[[offset]]
         }
       }
-      unresolved_calls <- c(unresolved_calls, pending)
+      if (head <= length(queue)) {
+        unresolved_calls <- c(
+          unresolved_calls,
+          queue[seq.int(head, length(queue))]
+        )
+      }
       unmatched_results <- c(unmatched_results, unmatched)
       n_calls <- sum(is_call)
       n_results <- length(group) - n_calls

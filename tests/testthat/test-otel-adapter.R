@@ -1991,6 +1991,18 @@ test_that("Date and string window bounds become UTC times", {
   expect_identical(bounds$from, as.POSIXct("2026-08-20", tz = "UTC"))
   expect_identical(bounds$to, as.POSIXct("2026-08-27 10:30:00", tz = "UTC"))
 
+  read_connect_traces(
+    guid,
+    from = "2026-08-27T10:30:00-04:00",
+    to = "2026-08-28T00:00:00Z"
+  )
+  expect_identical(bounds$from, as.POSIXct("2026-08-27 14:30:00", tz = "UTC"))
+  expect_identical(bounds$to, as.POSIXct("2026-08-28", tz = "UTC"))
+  expect_identical(
+    connect_parse_bound_string("2026-08-27 10:30:15.5+01:00"),
+    as.POSIXct("2026-08-27 09:30:15.5", tz = "UTC")
+  )
+
   expect_error(
     read_connect_traces(guid, from = "yesterday"),
     class = "scans_error_connect_window"

@@ -272,7 +272,7 @@ scans_app_strip_markdown <- function(text) {
   text <- gsub("!\\[([^]]*)\\]\\([^)]*\\)", "\\1", text)
   text <- gsub("\\[([^]]*)\\]\\([^)]*\\)", "\\1", text)
   text <- gsub("(^|\\s)#{1,6}\\s+", "\\1", text)
-  text <- gsub("(\\*\\*|__)(.+?)\\1", "\\2", text)
+  text <- gsub("(\\*\\*|__)(.+?)\\1", "\\2", text, perl = TRUE)
   text <- gsub("(^|[^*\\w])[*_]([^*_]+)[*_]", "\\1\\2", text)
   text <- gsub("(^|\\n)\\s*(>|[-*+]|\\d+\\.)\\s+", "\\1", text)
   text

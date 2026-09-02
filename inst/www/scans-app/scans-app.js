@@ -55,7 +55,11 @@
       // Keep the URL pointing at the selected trajectory so it can be shared.
       var hash = message && message.hash ? "#" + message.hash : "";
       if (hash !== window.location.hash && window.history.replaceState) {
-        window.history.replaceState(null, "", hash || window.location.pathname);
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search + hash
+        );
       }
     });
 

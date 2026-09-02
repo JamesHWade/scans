@@ -21,9 +21,13 @@
 #' @param source A Posit Connect content GUID, a content URL
 #'   (`.../content/<guid>/`), or a dashboard URL (`.../connect/#/apps/<guid>/`).
 #' @param n Maximum number of recent conversations to keep. `NULL` keeps all.
-#' @param from,to Optional lower-inclusive and upper-exclusive bounds on span
-#'   start time. `NULL` leaves that side open. When both are omitted, the seven
-#'   days ending now are read.
+#' @param from,to Optional lower-inclusive and upper-exclusive bounds on the
+#'   start time of a conversation's model calls: a conversation is kept when
+#'   one of its model calls started in the window, and its earlier spans are
+#'   kept with it as far back as the read reached (an hour before `from`).
+#'   Accepts POSIXct, Date, or ISO 8601 strings; a string without a zone is
+#'   read as UTC. `NULL` leaves that side open. When both are omitted, the
+#'   seven days ending now are read.
 #' @param server,api_key Connect server URL and API key. Default to
 #'   `CONNECT_SERVER` and `CONNECT_API_KEY`.
 #' @param max_spans Ceiling on how many GenAI spans are read. Only spans
@@ -257,21 +261,8 @@ connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
     return(as.POSIXct(format(x), tz = "UTC"))
   }
   if (is.character(x) && length(x) == 1L && !is.na(x)) {
-    parsed <- tryCatch(
-      suppressWarnings(as.POSIXct(
-        x,
-        tz = "UTC",
-        tryFormats = c(
-          "%Y-%m-%dT%H:%M:%OS",
-          "%Y-%m-%d %H:%M:%OS",
-          "%Y-%m-%dT%H:%M",
-          "%Y-%m-%d %H:%M",
-          "%Y-%m-%d"
-        )
-      )),
-      error = function(cnd) NA
-    )
-    if (length(parsed) == 1L && !is.na(parsed)) {
+    parsed <- connect_parse_bound_string(x)
+    if (!is.na(parsed)) {
       return(parsed)
     }
   }
@@ -283,6 +274,36 @@ connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
     class = "scans_error_connect_window",
     call = call
   )
+}
+
+# ISO 8601 with an optional time, fractional seconds, and a zone: "Z" or a
+# numeric offset is honoured, and a string without a zone is read as UTC.
+connect_parse_bound_string <- function(x) {
+  x <- trimws(x)
+  if (grepl("^\\d{4}-\\d{2}-\\d{2}$", x)) {
+    x <- paste0(x, "T00:00:00")
+  }
+  x <- sub("^(\\d{4}-\\d{2}-\\d{2}) ", "\\1T", x)
+  x <- sub(
+    "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2})(?![:\\d])",
+    "\\1:00",
+    x,
+    perl = TRUE
+  )
+  x <- sub("Z$", "+0000", x)
+  x <- sub("([+-]\\d{2}):(\\d{2})$", "\\1\\2", x)
+  if (!grepl("[+-]\\d{4}$", x)) {
+    x <- paste0(x, "+0000")
+  }
+  parsed <- tryCatch(
+    suppressWarnings(as.POSIXct(
+      x,
+      format = "%Y-%m-%dT%H:%M:%OS%z",
+      tz = "UTC"
+    )),
+    error = function(cnd) NA
+  )
+  if (length(parsed) != 1L) NA else parsed
 }
 
 connect_source_guid <- function(source, call = rlang::caller_env()) {
@@ -1037,6 +1058,10 @@ otel_span_in_window <- function(span, from, to) {
 # because the latest model call carries the whole history anyway and an
 # earlier tool failure or token total is part of the conversation being
 # reviewed. Spans at or after `to` are dropped so the read is "as of `to`".
+# Only spans the read fetched can be kept: Connect is asked from an hour
+# before `from`, so a conversation that began earlier still keeps its full
+# transcript (the latest model call carries it) but not the timing or usage
+# of calls before that hour. Widen `from` to recover them.
 otel_group_conversations_in_window <- function(spans, from, to) {
   groups <- otel_group_conversations(spans)
   groups <- Filter(

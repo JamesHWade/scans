@@ -21,9 +21,13 @@ read_connect_traces(
 
 \item{n}{Maximum number of recent conversations to keep. \code{NULL} keeps all.}
 
-\item{from, to}{Optional lower-inclusive and upper-exclusive bounds on span
-start time. \code{NULL} leaves that side open. When both are omitted, the seven
-days ending now are read.}
+\item{from, to}{Optional lower-inclusive and upper-exclusive bounds on the
+start time of a conversation's model calls: a conversation is kept when
+one of its model calls started in the window, and its earlier spans are
+kept with it as far back as the read reached (an hour before \code{from}).
+Accepts POSIXct, Date, or ISO 8601 strings; a string without a zone is
+read as UTC. \code{NULL} leaves that side open. When both are omitted, the
+seven days ending now are read.}
 
 \item{server, api_key}{Connect server URL and API key. Default to
 \code{CONNECT_SERVER} and \code{CONNECT_API_KEY}.}

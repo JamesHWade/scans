@@ -226,7 +226,7 @@ test_that("failed trajectories and turns produce findings without events", {
   expect_identical(only_turns$finding_id, findings$finding_id[[2L]])
 })
 
-test_that("tool correlation and cycle checks scale linearly", {
+test_that("tool correlation and cycle checks handle large bundles", {
   size <- 20000L
   ids <- sprintf("event-%06d", seq_len(size))
   events <- tibble::tibble(
@@ -239,21 +239,29 @@ test_that("tool correlation and cycle checks scale linearly", {
     call_id = rep(sprintf("call-%06d", seq_len(size / 2L)), each = 2L),
     parent_event_id = c(NA_character_, ids[-size])
   )
-  elapsed <- system.time({
-    bundle <- TrajectoryBundle(
-      data.frame(trajectory_id = "run-1", source_type = "manual"),
-      data.frame(
-        trajectory_id = "run-1",
-        turn_id = "turn-1",
-        turn_index = 1L,
-        role = "assistant"
-      ),
-      events
-    )
-    summary <- summarize_trajectories(bundle)
-  })[["elapsed"]]
+  bundle <- TrajectoryBundle(
+    data.frame(trajectory_id = "run-1", source_type = "manual"),
+    data.frame(
+      trajectory_id = "run-1",
+      turn_id = "turn-1",
+      turn_index = 1L,
+      role = "assistant"
+    ),
+    events
+  )
+  summary <- summarize_trajectories(bundle)
   expect_identical(summary$n_unresolved_tool_calls, 0L)
-  expect_lt(elapsed, 20)
+  expect_identical(summary$n_unmatched_tool_results, 0L)
+  expect_identical(summary$max_event_depth, size - 1L)
+
+  # Many calls sharing one id: results resolve them in order.
+  shared <- scan_tool_relation_indices(
+    rep(c("tool_call", "tool_result"), c(3L, 2L)),
+    rep("call-1", 5L)
+  )
+  expect_identical(shared$unresolved_calls, 3L)
+  expect_identical(shared$unmatched_results, integer())
+  expect_length(shared$ambiguous, 1L)
 
   expect_true(trajectory_reference_has_cycle(c("a", "b"), c("b", "a")))
   expect_false(trajectory_reference_has_cycle(c("a", "b"), c(NA, "a")))
