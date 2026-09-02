@@ -111,6 +111,41 @@ test_that("raw closing tags cannot hide later model output", {
   }
 })
 
+test_that("raw-text elements cannot smuggle live markup", {
+  skip_if_no_markdown()
+  payload <- "<img src=x onerror=alert(1)>"
+  tags <- c(
+    "plaintext",
+    "xmp",
+    "listing",
+    "noframes",
+    "noembed",
+    "noscript",
+    "textarea",
+    "title"
+  )
+  for (tag in tags) {
+    html <- render(sprintf("hello <%s>%s</%s> tail", tag, payload, tag))
+    doc <- xml2::read_html(html)
+    nodes <- xml2::xml_find_all(doc, "//*")
+    attrs <- unlist(lapply(nodes, function(node) names(xml2::xml_attrs(node))))
+    expect_false(any(xml2::xml_name(nodes) == "img"), info = tag)
+    expect_false(any(grepl("^on", attrs)), info = tag)
+    # The payload stays visible as source text for whoever is diagnosing.
+    expect_match(xml2::xml_text(doc), "onerror", fixed = TRUE, info = tag)
+    expect_match(html, "hello", fixed = TRUE, info = tag)
+    expect_no_match(html, "scans-sanitizer-root", fixed = TRUE, info = tag)
+  }
+})
+
+test_that("unwrapped text with angle brackets stays escaped", {
+  skip_if_no_markdown()
+  html <- render("<font>1 &lt; 2 &amp; <b>bold</b></font>")
+  expect_match(html, "1 &lt; 2 &amp; ", fixed = TRUE)
+  expect_match(html, "bold", fixed = TRUE)
+  expect_no_match(html, "<b>", fixed = TRUE)
+})
+
 test_that("empty and missing text render nothing", {
   skip_if_no_markdown()
   expect_null(scans_app_markdown(NA_character_))

@@ -314,7 +314,18 @@ scans_app_opaque_tags <- c(
   "form",
   "video",
   "audio",
-  "source"
+  "source",
+  # libxml2 parses the content of these as raw text and flags those text
+  # nodes as not-to-be-encoded, so an unwrapped payload would serialize
+  # back out as live markup.
+  "plaintext",
+  "xmp",
+  "listing",
+  "noframes",
+  "noembed",
+  "noscript",
+  "textarea",
+  "title"
 )
 
 scans_app_allowed_attrs <- list(
@@ -332,6 +343,9 @@ scans_app_allowed_attrs <- list(
 scans_app_sanitize_html <- function(html) {
   root_name <- "scans-sanitizer-root"
   html <- scans_app_escape_html_declarations(html)
+  # `<plaintext>` swallows the rest of the document, including the wrapper's
+  # closing tag, so it is neutralised before parsing rather than as a node.
+  html <- gsub("(?i)<(/?plaintext\\b)", "&lt;\\1", html, perl = TRUE)
   root_close <- paste0(
     "(?i)<(/\\s*(?:html|body|",
     root_name,
@@ -433,9 +447,30 @@ scans_app_escape_node <- function(node) {
   invisible(NULL)
 }
 
+# Text children are rebuilt rather than moved: libxml2 marks the text inside
+# raw-text elements (script, xmp, noframes, ...) as not-to-be-encoded, and a
+# moved node keeps that flag and serializes its `<` unescaped.
 scans_app_unwrap_node <- function(node) {
   for (child in rev(xml2::xml_contents(node))) {
+    if (identical(xml2::xml_type(child), "text")) {
+      child <- scans_app_text_node(xml2::xml_text(child))
+      if (is.null(child)) {
+        next
+      }
+    }
     xml2::xml_add_sibling(node, child, .where = "after")
   }
   xml2::xml_remove(node)
+}
+
+scans_app_text_node <- function(text) {
+  if (!nzchar(text)) {
+    return(NULL)
+  }
+  fragment <- xml2::read_html(paste0(
+    "<div>",
+    htmltools::htmlEscape(text),
+    "</div>"
+  ))
+  xml2::xml_contents(xml2::xml_find_first(fragment, "//div"))[[1]]
 }
