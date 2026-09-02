@@ -32,7 +32,9 @@ Suggests:
     htmltools,
     httr2 (>= 1.1.1),
     jsonlite,
+    knitr,
     R6,
+    rmarkdown,
     shiny (>= 1.11.1),
     shinychat,
     tempest (>= 0.3.0.9000),
@@ -45,6 +47,7 @@ Remotes:
     JamesHWade/deputy@89089c90ddeb668462422b14a4de7a8395eefdc8,
     JamesHWade/dsprrr@db28eae2235ab15c4f5c1c9794118d127eabbdd7,
     JamesHWade/tempest@87018b62fe2fdf632f33ef14b4d6fdf450d78253
+VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.1.0
 Config/testthat/edition: 3

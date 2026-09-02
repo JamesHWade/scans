@@ -1,0 +1,194 @@
+---
+title: "Get started with scans"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Get started with scans}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = requireNamespace("ellmer", quietly = TRUE)
+)
+```
+
+scans works on the record an agent leaves behind. It never calls a model or
+runs a tool. This article introduces the trajectory model, the tour from a
+completed run to a finding, and what each built-in scan means.
+
+## The trajectory model
+
+A **trajectory** is one agent run: a chat, a Deputy result, a Connect
+conversation. A **bundle** holds one or more trajectories and is the unit every
+scans function accepts.
+
+Inside a trajectory:
+
+- **Turns** are the conversational units, each with a role such as `user`,
+  `assistant`, or `system`.
+- **Events** are what happened within turns: text content, tool calls, tool
+  results, thinking, errors, and source-specific records. Every event has an
+  identifier, a position in canonical order, and optional timing, usage, and
+  status.
+- **Evaluations** are outcome judgements joined to a trajectory, for example a
+  vitals score.
+- **Losses** record what an adapter could not carry over from its source. A
+  loss is explicit so a reviewer knows what is missing rather than guessing.
+
+A **finding** is the output of a scan: a deterministic statement about a
+trajectory that names the events supporting it.
+
+## From a completed run to a finding
+
+```{r}
+library(scans)
+
+first_request <- ellmer::ContentToolRequest(
+  "call-weather-1",
+  "weather",
+  list(city = "Detroit")
+)
+second_request <- ellmer::ContentToolRequest(
+  "call-weather-2",
+  "weather",
+  list(city = "Detroit")
+)
+
+turns <- list(
+  ellmer::UserTurn("What's the weather in Detroit?"),
+  ellmer::AssistantTurn(list(first_request)),
+  ellmer::UserTurn(list(ellmer::ContentToolResult(
+    "Cloudy",
+    request = first_request
+  ))),
+  ellmer::AssistantTurn(list(second_request))
+)
+
+bundle <- as_trajectory(turns)
+bundle
+```
+
+`as_trajectory()` dispatches on the input's class. An ellmer `Chat` works the
+same way, as do the classed results of the other supported frameworks.
+
+### Look at the tables
+
+Every accessor returns an ordinary tibble:
+
+```{r}
+trajectory_info(bundle)
+trajectory_turns(bundle)[, c("turn_id", "role", "turn_index")]
+trajectory_events(bundle)[, c("event_id", "event_type", "name", "status")]
+```
+
+`filter_trajectory_events()` selects events by trajectory, role, type, tool,
+status, or metadata and adds the containing turn's context in dot-prefixed
+columns:
+
+```{r}
+filter_trajectory_events(bundle, event_type = "tool_call")[
+  ,
+  c("event_id", "name", ".turn_role")
+]
+```
+
+### Summarize
+
+`summarize_trajectories()` returns one row per trajectory with counts of turns,
+events, tool activity, unresolved calls, failures, token usage, and duration,
+so a fleet of runs can be sorted and filtered before anyone opens a transcript:
+
+```{r}
+summarize_trajectories(bundle)[
+  ,
+  c("trajectory_id", "n_tool_calls", "n_unresolved_tool_calls")
+]
+```
+
+### Scan
+
+`scan_trajectories()` runs the built-in detectors and returns one finding per
+problem:
+
+```{r}
+findings <- scan_trajectories(bundle)
+findings[, c("severity", "label", "explanation")]
+findings$event_ids
+```
+
+Each finding carries `trajectory_id` and `event_ids`, so joining findings back
+to events is a plain merge. Finding identifiers are stable across runs of the
+same bundle.
+
+## What the built-in scans mean
+
+```{r}
+scan_registry()
+```
+
+| Scan | It fires when |
+|---|---|
+| `unresolved_tool_call` | A tool was called and no result came back. |
+| `unmatched_tool_result` | A result arrived with no preceding call to match it. |
+| `ambiguous_tool_correlation` | A call identifier matches more than one call or result, so the pairing cannot be trusted. |
+| `repeated_tool_call` | The same tool was called with the same arguments at least `repeat_threshold` times (default 2). Argument order does not matter. |
+| `suspicious_tool_loop` | At least `loop_threshold` consecutive identical calls (default 3) suggest the agent is stuck. |
+| `event_error` | An event recorded a failure. |
+| `error_chain` | A failure followed an earlier one in the same trajectory, which often means the agent did not recover. |
+
+Run a subset with `scans =`, and adjust the thresholds for agents whose normal
+behaviour includes retries:
+
+```{r}
+scan_trajectories(
+  bundle,
+  scans = c("repeated_tool_call", "event_error"),
+  repeat_threshold = 3L
+)
+```
+
+## Open the review app
+
+`scans_app()` renders the same bundle as a read-only Shiny app: a trajectory
+list you can search, filter, and sort; a transcript rendered as chat with tool
+activity collapsed into rows; and an evidence rail that links each finding to
+the events behind it.
+
+```{r, eval = FALSE}
+scans_app(bundle)
+```
+
+Pass a named list to review more than one application. Entries may be bundles
+or zero-argument functions that load one when the application is first
+selected:
+
+```{r, eval = FALSE}
+scans_app(list(
+  "Support assistant" = support_bundle,
+  "Research assistant" = function() load_research_bundle()
+))
+```
+
+To let reviewers record labels and notes, pass a `scans_annotations()` store.
+Records append to a JSON-lines log and are never rewritten, so two reviewers
+cannot overwrite each other and a revised judgement keeps the one before it:
+
+```{r, eval = FALSE}
+store <- scans_annotations(
+  "reviews/annotations.jsonl",
+  labels = c("looks right", "wrong answer", "tool failure", "follow up")
+)
+scans_app(bundle, annotations = store)
+
+store$read()
+```
+
+## Where to next
+
+- `vignette("connect")` covers reading traces from Posit Connect and deploying
+  the review app there.
+- `vignette("adapters")` describes what each adapter preserves and how to
+  build a bundle from another framework.
