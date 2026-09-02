@@ -437,9 +437,17 @@ test_that("scans app records retain source identity and deterministic findings",
 
   expect_identical(data$records$trajectory_id, "trajectory-error")
   expect_identical(data$records$title, "Find the record")
-  expect_identical(data$records$n_findings, 2L)
-  expect_identical(data$records$n_errors, 2L)
-  expect_setequal(data$findings$event_id, c("error-event-3", "error-event-4"))
+  # Two event errors plus the failed turn and the failed trajectory.
+  expect_identical(data$records$n_findings, 4L)
+  expect_identical(data$records$n_errors, 4L)
+  expect_setequal(
+    data$findings$event_id[!is.na(data$findings$event_id)],
+    c("error-event-3", "error-event-4")
+  )
+  expect_setequal(
+    data$findings$scan[is.na(data$findings$event_id)],
+    c("trajectory_error", "turn_error")
+  )
 })
 
 test_that("scans app titles use canonical event order", {
