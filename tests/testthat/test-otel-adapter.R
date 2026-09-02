@@ -220,7 +220,113 @@ test_that("an execute_tool span supplies timing and failure", {
   expect_identical(result$error, NA_character_)
   expect_identical(result$duration, NA_real_)
   expect_identical(sum(events$status == "failed"), 1L)
-  expect_equal(trajectory_info(bundle)$status, "failed")
+  # The model answered after the tool failed, so the conversation completed;
+  # the failure is on the tool event and counted in the metadata.
+  expect_equal(trajectory_info(bundle)$status, "completed")
+  expect_identical(
+    trajectory_info(bundle)$metadata[[1L]]$otel$failed_spans,
+    1L
+  )
+  expect_identical(result$parent_event_id, call$event_id)
+})
+
+test_that("a tool span without a conversation id joins its trace's conversation", {
+  skip_if_not_installed("jsonlite")
+  chat <- otel_chat_span(
+    parent = "agent",
+    input = list(
+      list(
+        role = "assistant",
+        parts = list(list(type = "tool_call", id = "call-9", name = "search"))
+      ),
+      list(
+        role = "tool",
+        parts = list(list(
+          type = "tool_call_response",
+          id = "call-9",
+          response = "ok"
+        ))
+      )
+    ),
+    output = list(list(role = "assistant", parts = text_part("Done")))
+  )
+  # ellmer's execute_tool span is a sibling of the chat span under the agent
+  # span and carries no conversation id of its own.
+  tool <- otel_test_span(
+    "tool-1",
+    list(
+      "gen_ai.operation.name" = "execute_tool",
+      "gen_ai.tool.name" = "search",
+      "gen_ai.tool.call.id" = "call-9"
+    ),
+    parent = "agent",
+    start = 1e9,
+    end = 3e9
+  )
+  groups <- otel_group_conversations(list(chat, tool))
+  expect_named(groups, "conv-1")
+  expect_length(groups[[1L]], 2L)
+
+  events <- trajectory_events(as_trajectory_otel(list(chat, tool)))
+  expect_equal(events$duration[events$event_type == "tool_call"], 2)
+})
+
+test_that("duplicate spans are counted once", {
+  skip_if_not_installed("jsonlite")
+  chat <- otel_chat_span(
+    output = list(list(role = "assistant", parts = text_part("Hi")))
+  )
+  bundle <- as_trajectory_otel(list(chat, chat, chat))
+  otel <- trajectory_info(bundle)$metadata[[1L]]$otel
+  expect_identical(otel$model_calls, 1L)
+  expect_equal(otel$input_tokens, 100)
+})
+
+test_that("conversation status follows the latest model call", {
+  skip_if_not_installed("jsonlite")
+  first <- otel_chat_span(
+    span_id = "chat-1",
+    output = list(list(role = "assistant", parts = text_part("x"))),
+    extra = list("error.type" = "rate_limit")
+  )
+  second <- otel_chat_span(
+    span_id = "chat-2",
+    output = list(list(role = "assistant", parts = text_part("Hello")))
+  )
+  second$start_time <- as.character(5e9)
+  second$end_time <- as.character(6e9)
+  info <- trajectory_info(as_trajectory_otel(list(first, second)))
+  expect_identical(info$status, "completed")
+  expect_identical(info$error, NA_character_)
+  expect_identical(info$metadata[[1L]]$otel$failed_spans, 1L)
+})
+
+test_that("transport attributes and URL secrets stay out of metadata", {
+  skip_if_not_installed("jsonlite")
+  chat <- otel_chat_span(
+    output = list(list(role = "assistant", parts = text_part("Hi"))),
+    extra = list(
+      "url.full" = "https://api.example.com/v1?key=SECRET",
+      "http.request.method" = "POST",
+      "user_agent.original" = "httr2",
+      "custom.link" = "https://user:pw@files.example.com/p?tok=SECRET",
+      "shiny.session" = "s-1"
+    )
+  )
+  attributes <- trajectory_info(as_trajectory_otel(list(chat)))$metadata[[
+    1L
+  ]]$otel$attributes
+  expect_false(any(
+    c("url.full", "http.request.method", "user_agent.original") %in%
+      names(attributes)
+  ))
+  expect_identical(attributes$custom.link, "https://files.example.com/p")
+  expect_identical(attributes$shiny.session, "s-1")
+  expect_no_match(
+    paste(unlist(attributes), collapse = " "),
+    "SECRET",
+    fixed = TRUE
+  )
 })
 
 test_that("standard OTLP status marks model and tool spans as failed", {
@@ -387,7 +493,62 @@ test_that("time filtering retains padded ancestors for conversation grouping", {
   )
 
   expect_named(groups, "conv-A")
-  expect_equal(vapply(groups[[1L]], `[[`, character(1), "span_id"), "chat-A")
+  # The window selects the conversation through its model call; the earlier
+  # parent stays as context because it precedes `to`.
+  expect_setequal(
+    vapply(groups[[1L]], `[[`, character(1), "span_id"),
+    c("root", "chat-A")
+  )
+})
+
+test_that("the window selects conversations but keeps their earlier history", {
+  skip_if_not_installed("jsonlite")
+  early <- otel_chat_span(
+    span_id = "chat-early",
+    output = list(list(role = "assistant", parts = text_part("first")))
+  )
+  tool <- otel_test_span(
+    "tool-1",
+    list(
+      "gen_ai.operation.name" = "execute_tool",
+      "gen_ai.tool.name" = "search",
+      "gen_ai.tool.call.id" = "call-1",
+      "gen_ai.conversation.id" = "conv-1",
+      "error.type" = "simpleError"
+    ),
+    start = 1.5e9,
+    end = 2e9
+  )
+  late <- otel_chat_span(
+    span_id = "chat-late",
+    output = list(list(role = "assistant", parts = text_part("second")))
+  )
+  late$start_time <- as.character(6e9)
+  late$end_time <- as.character(7e9)
+  after <- otel_chat_span(
+    span_id = "chat-after",
+    output = list(list(role = "assistant", parts = text_part("third")))
+  )
+  after$start_time <- as.character(9e9)
+  after$end_time <- as.character(9.5e9)
+
+  groups <- otel_group_conversations_in_window(
+    list(early, tool, late, after),
+    from = as.POSIXct(5, origin = "1970-01-01", tz = "UTC"),
+    to = as.POSIXct(8, origin = "1970-01-01", tz = "UTC")
+  )
+  ids <- vapply(groups[[1L]], `[[`, character(1), "span_id")
+  expect_setequal(ids, c("chat-early", "tool-1", "chat-late"))
+
+  # No model call inside the window: the conversation is not selected.
+  expect_length(
+    otel_group_conversations_in_window(
+      list(early, tool),
+      from = as.POSIXct(5, origin = "1970-01-01", tz = "UTC"),
+      to = as.POSIXct(8, origin = "1970-01-01", tz = "UTC")
+    ),
+    0L
+  )
 })
 
 test_that("a conversation with no id falls back to its trace", {
@@ -1682,7 +1843,7 @@ test_that("OTel metadata keeps distinct values and resource users", {
   expect_identical(otel_user_id(spans), "ada")
 })
 
-test_that("a failed later aggregate page never returns a partial snapshot", {
+test_that("a failed later aggregate page keeps what was read and warns", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
   fallback_lines <- NULL
@@ -1711,19 +1872,24 @@ test_that("a failed later aggregate page never returns a partial snapshot", {
     }
   )
 
-  lines <- connect_trace_lines(
-    client = list(server = "https://connect.example.com", api_key = "secret"),
-    guid = "11111111-1111-4111-8111-111111111111",
-    from = NULL,
-    to = NULL,
-    max_spans = 10L,
-    call = rlang::caller_env(),
-    page_size = 1L,
-    wave_size = 1L
+  expect_warning(
+    lines <- connect_trace_lines(
+      client = list(server = "https://connect.example.com", api_key = "secret"),
+      guid = "11111111-1111-4111-8111-111111111111",
+      from = NULL,
+      to = NULL,
+      max_spans = 10L,
+      call = rlang::caller_env(),
+      page_size = 1L,
+      wave_size = 1L
+    ),
+    "could not be read"
   )
 
   expect_identical(as.vector(lines), "fallback")
-  expect_length(fallback_lines, 0L)
+  # The page already read travels to the per-job fallback.
+  expect_length(fallback_lines, 1L)
+  expect_true(attr(fallback_lines, "truncated"))
   expect_error(
     connect_trace_lines(
       client = list(server = "https://connect.example.com", api_key = "secret"),
@@ -1768,4 +1934,69 @@ test_that("framework-wrapper metadata survives GenAI span filtering", {
   expect_identical(metadata$user, "ada")
   expect_identical(metadata$attributes$shiny.session, "abc")
   expect_identical(metadata$resource$service.name, "assistant")
+})
+
+test_that("a missing X-Total-Count header pages until a short page", {
+  skip_if_not_installed("httr2")
+  expect_identical(connect_total_count(httr2::response()), NA_integer_)
+
+  pages <- list(
+    otel_test_envelope("a"),
+    otel_test_envelope("b"),
+    ""
+  )
+  served <- 0L
+  serve <- function(request, ...) {
+    served <<- served + 1L
+    body <- if (served <= length(pages)) pages[[served]] else ""
+    httr2::response(body = charToRaw(body))
+  }
+  testthat::local_mocked_bindings(
+    connect_perform = serve,
+    connect_perform_batch = function(requests, call, ...) {
+      lapply(requests, serve)
+    }
+  )
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 10L,
+    call = rlang::caller_env(),
+    page_size = 1L,
+    wave_size = 1L,
+    jobs = FALSE
+  )
+  expect_length(as.vector(lines), 2L)
+  expect_false(isTRUE(attr(lines, "truncated")))
+})
+
+test_that("Date and string window bounds become UTC times", {
+  bounds <- new.env(parent = emptyenv())
+  testthat::local_mocked_bindings(
+    connect_client = function(...) list(server = "https://connect.example.com"),
+    connect_trace_lines = function(client, guid, from, to, ...) {
+      bounds$from <- from
+      bounds$to <- to
+      character()
+    }
+  )
+  guid <- "11111111-1111-4111-8111-111111111111"
+  read_connect_traces(
+    guid,
+    from = as.Date("2026-08-20"),
+    to = "2026-08-27T10:30:00"
+  )
+  expect_identical(bounds$from, as.POSIXct("2026-08-20", tz = "UTC"))
+  expect_identical(bounds$to, as.POSIXct("2026-08-27 10:30:00", tz = "UTC"))
+
+  expect_error(
+    read_connect_traces(guid, from = "yesterday"),
+    class = "scans_error_connect_window"
+  )
+  expect_error(
+    scans_app_connect(c(App = guid), to = 12345),
+    class = "scans_error_connect_window"
+  )
 })

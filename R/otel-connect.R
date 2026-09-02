@@ -64,6 +64,8 @@ read_connect_traces <- function(
   call <- rlang::caller_env()
   rlang::check_bool(jobs)
   use_default_window <- missing(from) && missing(to)
+  from <- connect_check_bound(from, "from", call)
+  to <- connect_check_bound(to, "to", call)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_number_whole(max_spans, min = 1)
   guid <- connect_source_guid(source, call)
@@ -242,6 +244,47 @@ connect_request <- function(client, ...) {
     httr2::req_user_agent("scans")
 }
 
+# Bounds are compared as seconds, so a Date (days) or a string must become a
+# POSIXct first; silently mis-scaling a Date would shift the window by years.
+connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+  if (inherits(x, "POSIXct") && length(x) == 1L && !is.na(x)) {
+    return(x)
+  }
+  if (inherits(x, "Date") && length(x) == 1L && !is.na(x)) {
+    return(as.POSIXct(format(x), tz = "UTC"))
+  }
+  if (is.character(x) && length(x) == 1L && !is.na(x)) {
+    parsed <- tryCatch(
+      suppressWarnings(as.POSIXct(
+        x,
+        tz = "UTC",
+        tryFormats = c(
+          "%Y-%m-%dT%H:%M:%OS",
+          "%Y-%m-%d %H:%M:%OS",
+          "%Y-%m-%dT%H:%M",
+          "%Y-%m-%d %H:%M",
+          "%Y-%m-%d"
+        )
+      )),
+      error = function(cnd) NA
+    )
+    if (length(parsed) == 1L && !is.na(parsed)) {
+      return(parsed)
+    }
+  }
+  scans_abort(
+    c(
+      "{.arg {arg}} must be a single POSIXct, Date, or ISO 8601 string, or {.code NULL}.",
+      "i" = "Times without a zone are read as UTC."
+    ),
+    class = "scans_error_connect_window",
+    call = call
+  )
+}
+
 connect_source_guid <- function(source, call = rlang::caller_env()) {
   if (!is.character(source) || length(source) != 1L || is.na(source)) {
     scans_abort(
@@ -340,11 +383,12 @@ connect_trace_lines <- function(
   while (
     span_count < max_spans &&
       length(page) > 0L &&
-      !is.na(total) &&
-      offset < total
+      (is.na(total) || offset < total)
   ) {
     offsets <- seq.int(offset, by = page_size, length.out = wave_size)
-    offsets <- offsets[offsets < total]
+    if (!is.na(total)) {
+      offsets <- offsets[offsets < total]
+    }
     if (length(offsets) == 0L) {
       break
     }
@@ -354,7 +398,7 @@ connect_trace_lines <- function(
         guid,
         from,
         to,
-        min(page_size, total - page_offset),
+        if (is.na(total)) page_size else min(page_size, total - page_offset),
         page_offset
       )
     })
@@ -367,6 +411,15 @@ connect_trace_lines <- function(
           call = call
         )
       }
+      # Pages already read are kept: the per-job stores hold nothing recorded
+      # after Connect's content-wide store began, so dropping them would turn
+      # one failed page into an empty, silently incomplete result.
+      cli::cli_warn(c(
+        "A page of this content's traces could not be read from Posit Connect.",
+        "i" = "The result holds the pages read so far plus retained per-job traces and may be incomplete."
+      ))
+      attr(lines, "truncated") <- TRUE
+      attr(lines, "spans") <- spans
       return(connect_job_trace_lines(
         client,
         guid,
@@ -374,7 +427,8 @@ connect_trace_lines <- function(
         to,
         max_spans,
         call,
-        page_size
+        page_size,
+        lines = lines
       ))
     }
     for (response in responses) {
@@ -423,8 +477,11 @@ connect_trace_lines <- function(
   )
 }
 
+# A missing or unparseable X-Total-Count is NA, and callers then page until a
+# short or empty page rather than trusting a count they do not have.
 connect_total_count <- function(response) {
-  suppressWarnings(as.integer(httr2::resp_header(response, "X-Total-Count")))
+  header <- httr2::resp_header(response, "X-Total-Count") %||% NA_character_
+  suppressWarnings(as.integer(header))
 }
 
 # A missing or failing aggregate endpoint falls through to the per-job one.
@@ -974,21 +1031,34 @@ otel_span_in_window <- function(span, from, to) {
     (is.null(to) || time < as.numeric(to))
 }
 
-# Group with the padded ancestry still present, then apply the exact time
-# window within each group. Filtering first loses an earlier parent that may
-# carry the conversation id; keeping it afterwards would incorrectly expose a
-# span outside the requested window.
+# Group with the padded ancestry still present, then apply the time window.
+# The window selects conversations: one is kept when a model call started
+# inside [from, to). Within a kept conversation every span before `to` stays,
+# because the latest model call carries the whole history anyway and an
+# earlier tool failure or token total is part of the conversation being
+# reviewed. Spans at or after `to` are dropped so the read is "as of `to`".
 otel_group_conversations_in_window <- function(spans, from, to) {
   groups <- otel_group_conversations(spans)
+  groups <- Filter(
+    function(group) {
+      any(vapply(
+        group,
+        function(span) {
+          otel_is_chat_span(span) && otel_span_in_window(span, from, to)
+        },
+        logical(1)
+      ))
+    },
+    groups
+  )
   groups <- lapply(groups, function(group) {
     context <- attr(group, "otel_context", exact = TRUE)
-    group <- Filter(function(span) otel_span_in_window(span, from, to), group)
+    group <- Filter(
+      function(span) otel_span_in_window(span, from = NULL, to = to),
+      group
+    )
     attr(group, "otel_context") <- context
     group
   })
-  groups <- Filter(
-    function(group) any(vapply(group, otel_is_chat_span, logical(1))),
-    groups
-  )
   otel_order_conversations(groups)
 }

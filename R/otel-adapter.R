@@ -137,13 +137,13 @@ otel_conversation_tables <- function(
   )
 
   times <- otel_span_times(spans)
+  # The conversation's status is that of its latest model call: an early
+  # rate-limited call that was retried successfully is a failed event, not a
+  # failed conversation. Earlier failures stay countable in the metadata.
   failed_spans <- Filter(otel_span_failed, spans)
-  failed <- length(failed_spans) > 0L
-  error <- if (failed) {
-    otel_span_error(otel_latest_span(failed_spans))
-  } else {
-    NA_character_
-  }
+  failed <- otel_span_failed(latest)
+  error <- if (failed) otel_span_error(latest) else NA_character_
+  metadata$otel_failed_spans <- length(failed_spans)
   ids <- trajectory_ids(trajectory_id)
   safe_source_uri <- trajectory_sanitize_uri(source_uri, "source_uri", ids)
   safe_metadata <- trajectory_sanitize_metadata(
@@ -203,6 +203,8 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
   usage$user <- context$user %||% otel_user_id(spans)
   usage$attributes <- context$attributes %||% otel_extra_attributes(spans)
   usage$resource <- context$resource %||% otel_resource_attributes(spans)
+  usage$failed_spans <- metadata$otel_failed_spans
+  metadata$otel_failed_spans <- NULL
   metadata$otel <- usage[!vapply(usage, is.null, logical(1))]
   metadata
 }
@@ -217,16 +219,54 @@ otel_extra_attributes <- function(spans, max_chars = 200L) {
   for (span in spans) {
     attributes <- span$attributes
     keys <- names(attributes)
-    keep <- !startsWith(keys, "gen_ai.") & !keys %in% c("error.type")
+    keep <- !startsWith(keys, "gen_ai.") &
+      !keys %in% c("error.type") &
+      !otel_transport_attribute(keys)
     for (key in keys[keep]) {
       value <- otel_string(attributes[[key]])
       if (is.na(value)) {
         next
       }
+      value <- otel_scrub_attribute_value(value)
       values[[key]] <- unique(c(values[[key]], otel_clip(value, max_chars)))
     }
   }
   if (length(values) == 0L) NULL else values[order(names(values))]
+}
+
+# HTTP client spans under a model call describe the provider request, not the
+# conversation, and their URLs can carry credentials in the query string.
+otel_transport_attribute <- function(keys) {
+  prefixes <- c(
+    "http.",
+    "url.",
+    "user_agent.",
+    "server.",
+    "client.",
+    "network.",
+    "net.",
+    "peer.",
+    "rpc."
+  )
+  Reduce(
+    `|`,
+    lapply(prefixes, function(prefix) startsWith(keys, prefix)),
+    rep(FALSE, length(keys))
+  )
+}
+
+# A URL-shaped value keeps only its scheme, host, and path.
+otel_scrub_attribute_value <- function(value) {
+  if (!grepl("^[A-Za-z][A-Za-z0-9+.-]*://", value)) {
+    return(value)
+  }
+  value <- sub(
+    "^([A-Za-z][A-Za-z0-9+.-]*://)[^/@[:space:]]+@",
+    "\\1",
+    value,
+    perl = TRUE
+  )
+  sub("[?#].*$", "", value)
 }
 
 otel_resource_attributes <- function(spans, max_chars = 200L) {
@@ -399,7 +439,7 @@ otel_messages_tables <- function(
 
   list(
     turns = otel_rows_table(turns, "turns"),
-    events = otel_rows_table(events, "events"),
+    events = ellmer_link_tool_results(otel_rows_table(events, "events")),
     losses = trajectory_bind_rows(losses)
   )
 }
@@ -784,6 +824,7 @@ otel_latest_span <- function(spans) {
 #' @param spans A flat list of parsed spans.
 #' @export
 otel_group_conversations <- function(spans) {
+  spans <- otel_unique_spans(spans)
   index <- otel_span_index(spans)
   chat_spans <- Filter(otel_is_selected_chat_span, spans)
   if (length(chat_spans) == 0L) {
@@ -794,6 +835,7 @@ otel_group_conversations <- function(spans) {
     function(span) otel_conversation_id(span, index),
     character(1)
   )
+  ids <- otel_infer_trace_conversations(spans, ids)
   keep <- !is.na(ids)
   groups <- split(spans[keep], ids[keep])
   # A group with no chat span holds only tool or framework activity and has
@@ -872,9 +914,24 @@ otel_span_index <- function(spans) {
   index
 }
 
+# The same span can arrive twice: in the content-wide store and a retained
+# per-job store, or on two offset pages after new spans shifted the paging.
+# Counting it twice doubles token totals, so identity is trace id + span id.
+otel_unique_spans <- function(spans) {
+  if (length(spans) == 0L) {
+    return(spans)
+  }
+  keys <- vapply(
+    spans,
+    function(span) paste(span$trace_id, span$span_id),
+    character(1)
+  )
+  spans[!duplicated(keys)]
+}
+
 # Walk up the ancestry for a conversation id, as commons does: ellmer records
 # it on the spans it owns, and a framework wrapper may set it on a parent.
-# Without one anywhere, the trace id groups a single model call.
+# `NA` says no ancestor carries one.
 otel_conversation_id <- function(span, index) {
   current <- span
   for (step in seq_len(64L)) {
@@ -892,7 +949,32 @@ otel_conversation_id <- function(span, index) {
     }
     current <- get(key, envir = index, inherits = FALSE)
   }
-  span$trace_id
+  NA_character_
+}
+
+# ellmer stamps the conversation id on its chat spans only; a tool span is a
+# sibling, not a child, so its own ancestry has none. A span without an id
+# joins the one conversation its trace belongs to, when the trace has exactly
+# one. Without any, the trace id groups a single model call.
+otel_infer_trace_conversations <- function(spans, ids) {
+  traces <- vapply(spans, function(span) span$trace_id, character(1))
+  missing <- is.na(ids)
+  if (any(missing) && any(!missing)) {
+    known <- split(ids[!missing], traces[!missing])
+    unique_ids <- vapply(
+      known,
+      function(x) {
+        x <- unique(x)
+        if (length(x) == 1L) x else NA_character_
+      },
+      character(1)
+    )
+    inferred <- unname(unique_ids[traces[missing]])
+    ids[missing] <- inferred
+    missing <- is.na(ids)
+  }
+  ids[missing] <- traces[missing]
+  ids
 }
 
 `%|na|%` <- function(x, y) {

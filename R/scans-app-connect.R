@@ -60,6 +60,8 @@ scans_app_connect <- function(
   default_to <- missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_bool(jobs)
+  from <- connect_check_bound(from, "from")
+  to <- connect_check_bound(to, "to")
   reader <- rlang::arg_match(reader)
   if (identical(reader, "commons")) {
     scans_app_connect_check_package()
