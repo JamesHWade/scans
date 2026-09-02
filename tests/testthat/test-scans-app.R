@@ -1274,7 +1274,7 @@ test_that("annotated trajectories are badged and filterable", {
     expect_match(html, ">bad<", fixed = TRUE)
     expect_match(html, ">Note<", fixed = TRUE)
 
-    expect_identical(length(visible()), 4L)
+    expect_length(visible(), 4L)
     session$setInputs(scans_app_annotated_only = TRUE)
     expect_setequal(ids[visible()], ids[2:3])
   })

@@ -959,7 +959,7 @@ otel_conversation_id <- function(span, index) {
 otel_infer_trace_conversations <- function(spans, ids) {
   traces <- vapply(spans, function(span) span$trace_id, character(1))
   missing <- is.na(ids)
-  if (any(missing) && any(!missing)) {
+  if (any(missing) && !all(missing)) {
     known <- split(ids[!missing], traces[!missing])
     unique_ids <- vapply(
       known,
