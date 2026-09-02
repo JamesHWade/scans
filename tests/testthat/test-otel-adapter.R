@@ -2036,3 +2036,47 @@ test_that("Date and string window bounds become UTC times", {
     class = "scans_error_connect_window"
   )
 })
+
+test_that("a span seen twice does not count towards the span ceiling", {
+  skip_if_not_installed("httr2")
+  # The same span twice with different text (a shifted page or a second
+  # store re-serialises it), then a second conversation.
+  pages <- list(
+    otel_test_envelope("a", start_times = "1000000000"),
+    otel_test_envelope("a", start_times = "1000000001"),
+    otel_test_envelope("b"),
+    ""
+  )
+  served <- 0L
+  serve <- function(request, ...) {
+    served <<- served + 1L
+    body <- if (served <= length(pages)) pages[[served]] else ""
+    httr2::response(body = charToRaw(body))
+  }
+  testthat::local_mocked_bindings(
+    connect_perform = serve,
+    connect_perform_batch = function(requests, call, ...) {
+      lapply(requests, serve)
+    }
+  )
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 2L,
+    call = rlang::caller_env(),
+    page_size = 1L,
+    wave_size = 1L,
+    jobs = FALSE
+  )
+  spans <- attr(lines, "spans")
+  expect_setequal(vapply(spans, `[[`, character(1), "span_id"), c("a", "b"))
+
+  seen <- connect_seen_spans()
+  first <- connect_add_trace_lines(character(), pages[[1L]], seen = seen)
+  second <- connect_add_trace_lines(first$lines, pages[[2L]], seen = seen)
+  expect_identical(first$span_count, 1L)
+  expect_identical(second$span_count, 0L)
+  expect_length(second$spans, 0L)
+})

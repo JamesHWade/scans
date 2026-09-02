@@ -97,6 +97,7 @@ read_connect_traces <- function(
     connect_progress("Parsing spans")
     spans <- otel_parse_otlp_lines(lines)
   }
+  spans <- otel_unique_spans(spans)
   spans <- otel_limit_spans(spans, max_spans = max_spans, to = to)
   connect_progress("Grouping conversations")
   conversations <- otel_group_conversations_in_window(spans, from, to)
@@ -390,7 +391,8 @@ connect_trace_lines <- function(
     ))
   }
   page <- connect_trace_page(response)
-  added <- connect_add_trace_lines(character(), page, to)
+  seen <- connect_seen_spans()
+  added <- connect_add_trace_lines(character(), page, to, seen = seen)
   lines <- added$lines
   spans <- added$spans
   span_count <- added$span_count
@@ -466,7 +468,7 @@ connect_trace_lines <- function(
     }
     for (response in responses) {
       page <- connect_trace_page(response)
-      added <- connect_add_trace_lines(lines, page, to)
+      added <- connect_add_trace_lines(lines, page, to, seen = seen)
       lines <- added$lines
       spans <- c(spans, added$spans)
       span_count <- span_count + added$span_count
@@ -598,6 +600,7 @@ connect_job_trace_lines <- function(
   parsed <- connect_trace_lines_summary(lines, to, spans = spans)
   spans <- parsed$spans
   span_count <- parsed$span_count
+  seen <- connect_seen_spans(spans)
   finish <- function() {
     attr(lines, "spans") <- spans
     if (truncated) {
@@ -642,7 +645,13 @@ connect_job_trace_lines <- function(
   }
   add_page <- function(response, key, page_number) {
     page <- connect_trace_page(response)
-    added <- connect_add_trace_lines(lines, page, to, drop_after = TRUE)
+    added <- connect_add_trace_lines(
+      lines,
+      page,
+      to,
+      drop_after = TRUE,
+      seen = seen
+    )
     lines <<- added$lines
     spans <<- c(spans, added$spans)
     span_count <<- span_count + added$span_count
@@ -804,11 +813,16 @@ connect_parse_time <- function(x) {
 
 # New lines are parsed here, once, and the spans travel with the lines so no
 # later step has to parse them again.
+# `seen` is an environment of "trace span" keys already accumulated: a span
+# that arrives again, in another store or on a shifted page, is not added and
+# does not count towards the ceiling, so a duplicate cannot displace a real
+# conversation at the budget.
 connect_add_trace_lines <- function(
   lines,
   page,
   to = NULL,
-  drop_after = FALSE
+  drop_after = FALSE,
+  seen = NULL
 ) {
   page <- unique(page)
   page <- page[!page %in% lines]
@@ -833,6 +847,7 @@ connect_add_trace_lines <- function(
     envelopes <- envelopes[keep]
   }
   spans <- unlist(lapply(envelopes, otel_envelope_spans), recursive = FALSE)
+  spans <- connect_new_spans(spans, seen)
   span_count <- as.integer(sum(vapply(
     spans,
     function(span) {
@@ -846,6 +861,33 @@ connect_add_trace_lines <- function(
     spans = spans,
     span_count = span_count
   )
+}
+
+connect_span_key <- function(span) {
+  paste(span$trace_id, span$span_id)
+}
+
+connect_seen_spans <- function(spans = list()) {
+  seen <- new.env(parent = emptyenv())
+  for (span in spans) {
+    assign(connect_span_key(span), TRUE, envir = seen)
+  }
+  seen
+}
+
+connect_new_spans <- function(spans, seen) {
+  if (is.null(seen) || length(spans) == 0L) {
+    return(spans)
+  }
+  keep <- logical(length(spans))
+  for (index in seq_along(spans)) {
+    key <- connect_span_key(spans[[index]])
+    if (!exists(key, envir = seen, inherits = FALSE)) {
+      assign(key, TRUE, envir = seen)
+      keep[[index]] <- TRUE
+    }
+  }
+  spans[keep]
 }
 
 # The legacy endpoint accepts a lower `since` bound but no upper bound. Drop
