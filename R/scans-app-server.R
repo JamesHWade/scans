@@ -47,7 +47,13 @@ scans_app_server <- function(
       label <- application()
       entry <- scans_app_cache_get(cache, label)
       if (!is.null(entry)) {
-        displayed <- exists(label, envir = seen, inherits = FALSE)
+        # `seen` records which entry this session displayed, so a failure
+        # that replaced the shared entry after this session last looked is
+        # retried here rather than shown as this session's own failure.
+        displayed <- identical(
+          scans_app_cache_get(seen, label),
+          entry$loaded_at
+        )
         age <- scans_app_cache_age(entry, now = clock())
         fresh <- is.null(entry$error) && age < cache_max_age
         if ((displayed && !is.null(entry$error)) || fresh) {
@@ -58,7 +64,7 @@ scans_app_server <- function(
           ) {
             schedule(max(1, cache_max_age - age) * 1000, session)
           }
-          assign(label, TRUE, envir = seen)
+          assign(label, entry$loaded_at, envir = seen)
           return(entry)
         }
       }
@@ -69,7 +75,7 @@ scans_app_server <- function(
         clock = clock
       )
       assign(label, entry, envir = cache)
-      assign(label, TRUE, envir = seen)
+      assign(label, entry$loaded_at, envir = seen)
       if (
         is.null(entry$error) &&
           cache_max_age > 0 &&
@@ -187,7 +193,7 @@ scans_app_server <- function(
             TRUE
           },
           error = function(cnd) {
-            annotation_status(conditionMessage(cnd))
+            annotation_status(scans_app_annotation_error(cnd))
             FALSE
           }
         )
@@ -263,13 +269,23 @@ scans_app_server <- function(
     )
 
     # Only a newly selected or reloaded application resets the browser. Scan
-    # settings merely derive new findings from the same cached bundle and must
-    # not move the reviewer away from the trajectory under inspection.
+    # settings merely derive new findings from the same cached bundle, and the
+    # cache timer re-evaluates `active()` without changing the snapshot; neither
+    # may move the reviewer away from the trajectory under inspection.
+    reset_key <- shiny::reactiveVal(NULL)
     shiny::observeEvent(
       active(),
       ignoreNULL = TRUE,
       priority = 10L,
       {
+        key <- list(
+          application = application(),
+          loaded_at = active()$loaded_at
+        )
+        if (identical(key, reset_key())) {
+          return()
+        }
+        reset_key(key)
         current <- data()
         if (is.null(current)) {
           selected(NULL)
@@ -574,6 +590,21 @@ scans_app_load_entry <- function(
 
 scans_app_safe_source_error <- function() {
   "The trace source could not be read. Check the server logs for details."
+}
+
+# Validation failures from the store name what the reviewer must change and
+# are shown as written. Anything else (an unwritable path, a full disk) is
+# logged on the server and replaced, so the browser never learns the store's
+# location.
+scans_app_annotation_error <- function(cnd) {
+  if (inherits(cnd, "scans_error_annotation_record")) {
+    return(conditionMessage(cnd))
+  }
+  cli::cli_inform(c(
+    "!" = "Failed to save an annotation.",
+    "i" = "{conditionMessage(cnd)}"
+  ))
+  "The annotation could not be saved. Check the server logs for details."
 }
 
 scans_app_log_source_error <- function(label, cnd) {

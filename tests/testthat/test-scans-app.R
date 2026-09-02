@@ -1101,6 +1101,96 @@ test_that("an active session refreshes an expired shared snapshot", {
   })
 })
 
+test_that("a cache timer tick keeps the reviewer's selection and filters", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
+  sources <- scans_app_sources(list(
+    "Deployment" = function() trajectory_fixture("ellmerverse_correlation")
+  ))
+  server <- scans_app_server(
+    sources,
+    cache_max_age = 60,
+    clock = function() now,
+    schedule = function(delay, ...) invisible(NULL)
+  )
+
+  shiny::testServer(server, {
+    session$flushReact()
+    initial <- selected()
+    chosen <- setdiff(seq_len(4L), initial)[[1L]]
+    selected(chosen)
+    now <<- now + 10
+    # Simulate the timer: re-evaluate active() with a still-fresh entry.
+    revision(revision() + 1L)
+    session$flushReact()
+    expect_identical(selected(), chosen)
+
+    # A reload replaces the snapshot and does reset the browser.
+    session$setInputs(scans_app_reload = 1L)
+    session$flushReact()
+    expect_identical(selected(), initial)
+  })
+})
+
+test_that("another session's failed reload is retried, not inherited", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- 0L
+  sources <- scans_app_sources(list(
+    "Deployment" = function() {
+      calls <<- calls + 1L
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  server <- scans_app_server(sources, cache_max_age = 3600)
+  cache <- environment(server)$cache
+
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 1L)
+    expect_null(active()$error)
+
+    # Another session's reload failed and replaced the shared entry.
+    assign(
+      "Deployment",
+      list(
+        bundle = NULL,
+        data = NULL,
+        error = "failed elsewhere",
+        loaded_at = Sys.time() + 1,
+        read_info = NULL
+      ),
+      envir = cache
+    )
+
+    # This session comes back to the application and retries the load.
+    revision(revision() + 1L)
+    session$flushReact()
+    expect_identical(calls, 2L)
+    expect_null(active()$error)
+  })
+})
+
+test_that("annotation store failures are not echoed to the browser", {
+  cnd <- simpleError("cannot open file '/srv/secret/annotations.jsonl'")
+  message <- suppressMessages(scans_app_annotation_error(cnd))
+  expect_no_match(message, "/srv/secret", fixed = TRUE)
+  expect_message(scans_app_annotation_error(cnd), "/srv/secret")
+
+  record <- rlang::catch_cnd(
+    scans_abort(
+      "Label must be one of {.val good}.",
+      class = "scans_error_annotation_record"
+    )
+  )
+  expect_match(scans_app_annotation_error(record), "Label must be one of")
+})
+
 test_that("snapshot ages use an injected reference time", {
   now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
   loaded_at <- now - 120
