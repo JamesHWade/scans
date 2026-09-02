@@ -99,13 +99,18 @@ scan_trajectories <- function(
       ,
       drop = FALSE
     ]
+    trajectory_turns <- turn_groups[[index]]
+    roles <- trajectory_turns$role[
+      match(trajectory_events$turn_id, trajectory_turns$turn_id)
+    ]
     findings <- c(
       findings,
       scan_tool_findings(
         trajectory_events,
         scan_id,
         repeat_threshold,
-        loop_threshold
+        loop_threshold,
+        roles = roles
       ),
       scan_error_findings(trajectory_events, scan_id)
     )

@@ -1971,6 +1971,29 @@ test_that("a missing X-Total-Count header pages until a short page", {
   )
   expect_length(as.vector(lines), 2L)
   expect_false(isTRUE(attr(lines, "truncated")))
+  # Two full pages, then the empty page that ends the read.
+  expect_identical(served, 3L)
+
+  # A first page shorter than requested is the last page: no further request.
+  served <- 0L
+  pages <- list(paste(
+    otel_test_envelope("a"),
+    otel_test_envelope("b"),
+    sep = "\n"
+  ))
+  lines <- connect_trace_lines(
+    client = list(server = "https://connect.example.com", api_key = "secret"),
+    guid = "11111111-1111-4111-8111-111111111111",
+    from = NULL,
+    to = NULL,
+    max_spans = 10L,
+    call = rlang::caller_env(),
+    page_size = 10L,
+    wave_size = 8L,
+    jobs = FALSE
+  )
+  expect_length(as.vector(lines), 2L)
+  expect_identical(served, 1L)
 })
 
 test_that("Date and string window bounds become UTC times", {

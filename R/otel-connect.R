@@ -397,6 +397,9 @@ connect_trace_lines <- function(
   total <- connect_total_count(response)
   offset <- length(page)
   page_number <- 1L
+  # Without a total, a page shorter than requested is the last one, and pages
+  # are read one at a time so no wave is spent past the end.
+  last_full <- length(page) >= page_size
   connect_progress(sprintf(
     "Read page %d (%s GenAI spans)",
     page_number,
@@ -406,9 +409,13 @@ connect_trace_lines <- function(
   while (
     span_count < max_spans &&
       length(page) > 0L &&
-      (is.na(total) || offset < total)
+      (if (is.na(total)) last_full else offset < total)
   ) {
-    offsets <- seq.int(offset, by = page_size, length.out = wave_size)
+    offsets <- seq.int(
+      offset,
+      by = page_size,
+      length.out = if (is.na(total)) 1L else wave_size
+    )
     if (!is.na(total)) {
       offsets <- offsets[offsets < total]
     }
@@ -464,6 +471,7 @@ connect_trace_lines <- function(
       spans <- c(spans, added$spans)
       span_count <- span_count + added$span_count
       offset <- offset + length(page)
+      last_full <- length(page) >= page_size
       page_number <- page_number + 1L
       connect_progress(sprintf(
         "Read page %d (%s GenAI spans)",

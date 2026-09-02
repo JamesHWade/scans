@@ -368,7 +368,8 @@ scan_tool_findings <- function(
   events,
   scan_id,
   repeat_threshold,
-  loop_threshold
+  loop_threshold,
+  roles = rep(NA_character_, nrow(events))
 ) {
   relations <- scan_tool_relations(events)
   findings <- list()
@@ -458,7 +459,7 @@ scan_tool_findings <- function(
     }
   }
 
-  run_groups <- scan_tool_run_groups(events, calls, signatures)
+  run_groups <- scan_tool_run_groups(events, calls, signatures, roles)
   for (positions in run_groups) {
     if (length(positions) < loop_threshold) {
       next
@@ -484,7 +485,7 @@ scan_tool_findings <- function(
   findings
 }
 
-scan_tool_run_groups <- function(events, calls, signatures) {
+scan_tool_run_groups <- function(events, calls, signatures, roles) {
   groups <- integer(length(calls))
   groups[[1L]] <- 1L
   if (length(calls) == 1L) {
@@ -499,10 +500,17 @@ scan_tool_run_groups <- function(events, calls, signatures) {
     } else {
       integer()
     }
-    # Results and narration ("Let me try that again") between two identical
-    # calls are how a real loop looks; anything else ends the run.
+    # Results and the assistant's own narration ("Let me try that again")
+    # between two identical calls are how a real loop looks. Content from
+    # the user is a deliberate new request, so it ends the run, as does any
+    # other event.
+    between_types <- events$event_type[between]
+    between_roles <- roles[between]
     allowed_between <- length(between) == 0L ||
-      all(events$event_type[between] %in% c("tool_result", "content"))
+      all(
+        between_types == "tool_result" |
+          (between_types == "content" & between_roles %in% "assistant")
+      )
     same_signature <- signatures[[index]] == signatures[[index - 1L]]
     groups[[index]] <- groups[[index - 1L]] +
       as.integer(!allowed_between || !same_signature)

@@ -173,14 +173,27 @@ test_that("scan thresholds control repeated and loop findings", {
   expect_identical(repeated$value[[1L]]$count, 2L)
 })
 
-test_that("narration between identical calls does not hide a tool loop", {
+test_that("assistant narration between identical calls does not hide a loop", {
   tables <- fixture_source(scan_loop_fixture())
   tables$events$event_type[[4L]] <- "content"
+  tables$turns$role[[4L]] <- "assistant"
   bundle <- do.call(TrajectoryBundle, tables)
 
   findings <- scan_trajectories(bundle)
 
   expect_in("suspicious_tool_loop", findings$scan)
+  expect_in("repeated_tool_call", findings$scan)
+})
+
+test_that("a user's repeated request is not a tool loop", {
+  tables <- fixture_source(scan_loop_fixture())
+  tables$events$event_type[[4L]] <- "content"
+  tables$turns$role[[4L]] <- "user"
+  bundle <- do.call(TrajectoryBundle, tables)
+
+  findings <- scan_trajectories(bundle)
+
+  expect_false("suspicious_tool_loop" %in% findings$scan)
   expect_in("repeated_tool_call", findings$scan)
 })
 
