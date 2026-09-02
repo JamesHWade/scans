@@ -682,8 +682,23 @@ ellmer_unknown_content_event <- function(content, ids) {
     kind <- paste0("content_", kind)
   }
 
+  props <- S7::props(content)
+  losses <- list()
+  # Any location-like property (ContentUploaded@uri, for one) is scrubbed of
+  # credentials and query strings the way ContentImageRemote@url already is.
+  for (name in intersect(names(props), c("uri", "url", "href"))) {
+    if (is.character(props[[name]]) && length(props[[name]]) == 1L) {
+      uri <- trajectory_sanitize_uri(
+        props[[name]],
+        paste0("contents$", name),
+        ids
+      )
+      props[[name]] <- uri$value
+      losses <- c(losses, uri$losses)
+    }
+  }
   properties <- trajectory_sanitize_value(
-    S7::props(content),
+    props,
     "contents$properties",
     ids
   )
@@ -695,7 +710,7 @@ ellmer_unknown_content_event <- function(content, ids) {
       value = properties$value,
       metadata = list(source_class = source_class)
     ),
-    losses = properties$losses
+    losses = c(losses, properties$losses)
   )
 }
 

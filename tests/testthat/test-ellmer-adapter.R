@@ -370,6 +370,7 @@ test_that("sensitive names are matched regardless of case and prefix", {
     "Monkey",
     "tokenizer",
     "keys",
+    "primary_key",
     "author",
     "id",
     "model"
@@ -395,4 +396,18 @@ test_that("upper-case credential fields in tool arguments are redacted", {
   expect_identical(value$ANTHROPIC_API_KEY, "<redacted>")
   expect_identical(value$headers$Authorization, "<redacted>")
   expect_identical(value$url, "https://example.com")
+})
+
+test_that("unknown content locations are scrubbed like remote images", {
+  skip_if_not(exists("ContentUploaded", asNamespace("ellmer")))
+  uploaded <- get("ContentUploaded", asNamespace("ellmer"))(
+    uri = "https://user:pw@files.example.com/f/1?sig=SECRET",
+    mime_type = "text/plain"
+  )
+  bundle <- as_trajectory(list(ellmer::UserTurn(list(uploaded))))
+  event <- trajectory_events(bundle)
+  expect_identical(event$event_type, "custom")
+  expect_identical(event$value[[1L]]$uri, "https://files.example.com/f/1")
+  expect_no_match(as.character(event$value[[1L]]), "SECRET", fixed = TRUE)
+  expect_in("redacted", trajectory_losses(bundle)$reason)
 })
