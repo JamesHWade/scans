@@ -290,7 +290,9 @@ scans_app_filter_records <- function(
   source = NULL,
   status = NULL,
   query = "",
-  findings_only = FALSE
+  findings_only = FALSE,
+  annotated = NULL,
+  annotated_only = FALSE
 ) {
   keep <- rep(TRUE, nrow(records))
   source_all <- scans_app_filter_sentinel(records$source_type, "source-all")
@@ -310,6 +312,9 @@ scans_app_filter_records <- function(
   }
   if (isTRUE(findings_only)) {
     keep <- keep & records$n_findings > 0L
+  }
+  if (isTRUE(annotated_only)) {
+    keep <- keep & (annotated %||% rep(FALSE, nrow(records)))
   }
   records$index[keep]
 }

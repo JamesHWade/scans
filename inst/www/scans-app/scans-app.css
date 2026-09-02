@@ -219,6 +219,11 @@
   color: #555e6d;
 }
 
+.scans-app-badge-annotation {
+  background: #e7f3ff;
+  color: #1f5a96;
+}
+
 .scans-app-overview {
   margin-bottom: 0;
 }

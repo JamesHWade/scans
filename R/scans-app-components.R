@@ -30,7 +30,7 @@ scans_app_entry_id <- function(index) {
   paste0("scans_app_entry_", index)
 }
 
-scans_app_entry_ui <- function(record, selected) {
+scans_app_entry_ui <- function(record, selected, annotation = NULL) {
   findings <- record$n_findings[[1L]]
   errors <- record$n_errors[[1L]]
   tone <- if (errors > 0L) {
@@ -64,6 +64,9 @@ scans_app_entry_ui <- function(record, selected) {
             ),
             tone
           )
+        },
+        if (scans_app_has_string(annotation)) {
+          scans_app_badge(annotation, "annotation")
         }
       ),
       if (length(facts) > 0L) {

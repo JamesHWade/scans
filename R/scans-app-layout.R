@@ -95,7 +95,13 @@ scans_app_ui <- function(sources, annotations = NULL) {
         bslib::input_switch(
           "scans_app_findings_only",
           "With findings"
-        )
+        ),
+        if (!is.null(annotations)) {
+          bslib::input_switch(
+            "scans_app_annotated_only",
+            "Annotated"
+          )
+        }
       ),
       htmltools::div(
         class = "scans-app-browser-entries",

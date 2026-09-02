@@ -1239,6 +1239,80 @@ test_that("a string tool result is not shown twice", {
   expect_identical(lengths(regmatches(html, gregexpr("Cloudy", html))), 1L)
 })
 
+test_that("annotated trajectories are badged and filterable", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = c("good", "bad")
+  )
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  ids <- trajectory_info(bundle)$trajectory_id
+  store$append(
+    "Deployment",
+    ids[[2L]],
+    label = NA_character_,
+    note = "first look"
+  )
+  store$append("Deployment", ids[[2L]], label = "bad", note = "wrong tool")
+  store$append("Deployment", ids[[3L]], label = NA_character_, note = "check")
+
+  server <- scans_app_server(
+    scans_app_sources(list(Deployment = bundle)),
+    annotations = store
+  )
+  shiny::testServer(server, {
+    session$flushReact()
+    labels <- annotation_labels()
+    expect_identical(unname(labels[ids[[2L]]]), "bad")
+    expect_identical(unname(labels[ids[[3L]]]), "Note")
+
+    html <- as.character(output$scans_app_entries$html)
+    expect_match(html, ">bad<", fixed = TRUE)
+    expect_match(html, ">Note<", fixed = TRUE)
+
+    expect_identical(length(visible()), 4L)
+    session$setInputs(scans_app_annotated_only = TRUE)
+    expect_setequal(ids[visible()], ids[2:3])
+  })
+})
+
+test_that("a URL hash deep-links to a trajectory", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  ids <- trajectory_info(bundle)$trajectory_id
+  server <- scans_app_server(scans_app_sources(list(
+    First = trajectory_fixture("simple_exchange"),
+    Second = bundle
+  )))
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(application(), "First")
+
+    hash <- scans_app_hash("Second", ids[[3L]])
+    session$setInputs(scans_app_hash = hash)
+    # The application select is updated in the browser; mirror it here.
+    expect_identical(pending_hash()$application, "Second")
+    session$setInputs(scans_app_application = "Second")
+    expect_identical(application(), "Second")
+    expect_identical(selected(), 3L)
+    expect_null(pending_hash())
+
+    expect_null(scans_app_parse_hash("nonsense", c("First", "Second")))
+    expect_null(scans_app_parse_hash("Third/x", c("First", "Second")))
+    expect_identical(
+      scans_app_parse_hash(scans_app_hash("Second", "a/b c"), "Second"),
+      list(application = "Second", trajectory_id = "a/b c")
+    )
+  })
+})
+
 test_that("snapshot ages use an injected reference time", {
   now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
   loaded_at <- now - 120
