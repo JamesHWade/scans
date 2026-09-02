@@ -1,4 +1,4 @@
-# scans (development version)
+# scans 0.0.0.9000
 
 ## Review app and Connect reader
 

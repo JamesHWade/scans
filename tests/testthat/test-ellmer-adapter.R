@@ -340,3 +340,59 @@ test_that("ellmer adapter rejects malformed sources and arguments", {
     as_trajectory_ellmer(ellmer::UserTurn(), metadata = list("unnamed"))
   )
 })
+
+test_that("sensitive names are matched regardless of case and prefix", {
+  sensitive <- c(
+    "api_key",
+    "API_KEY",
+    "Api-Key",
+    "X-Api-Key",
+    "ANTHROPIC_API_KEY",
+    "Authorization",
+    "PASSWORD",
+    "db_password",
+    "token",
+    "GITHUB_TOKEN",
+    "session_token",
+    "private_key",
+    "client_secret",
+    "SECRET",
+    "Cookie",
+    "auth",
+    "bearer"
+  )
+  for (name in sensitive) {
+    expect_true(trajectory_sensitive_name(name), info = name)
+  }
+  benign <- c(
+    "city",
+    "keyboard",
+    "Monkey",
+    "tokenizer",
+    "keys",
+    "author",
+    "id",
+    "model"
+  )
+  for (name in benign) {
+    expect_false(trajectory_sensitive_name(name), info = name)
+  }
+  expect_false(trajectory_sensitive_name(NA_character_))
+})
+
+test_that("upper-case credential fields in tool arguments are redacted", {
+  request <- ellmer::ContentToolRequest(
+    "call-1",
+    "fetch",
+    list(
+      ANTHROPIC_API_KEY = "sk-ant-secret",
+      headers = list(Authorization = "Bearer abc"),
+      url = "https://example.com"
+    )
+  )
+  bundle <- as_trajectory(list(ellmer::AssistantTurn(list(request))))
+  value <- trajectory_events(bundle)$value[[1L]]
+  expect_identical(value$ANTHROPIC_API_KEY, "<redacted>")
+  expect_identical(value$headers$Authorization, "<redacted>")
+  expect_identical(value$url, "https://example.com")
+})
