@@ -1109,16 +1109,31 @@ test_that("an active session refreshes an expired shared snapshot", {
   })
 })
 
-test_that("an automatic cache refresh keeps the reviewer's selection", {
+test_that("an automatic cache refresh rematches the selected trajectory", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
   now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
   calls <- 0L
+  snapshot <- function(ids) {
+    TrajectoryBundle(
+      data.frame(
+        trajectory_id = ids,
+        source_type = "manual",
+        started_at = now + rev(seq_along(ids))
+      ),
+      data.frame(),
+      data.frame()
+    )
+  }
+  snapshots <- list(
+    snapshot(c("keep", "old")),
+    snapshot(c("new", "keep", "old"))
+  )
   sources <- scans_app_sources(list("Deployment" = function() {
     calls <<- calls + 1L
-    trajectory_fixture("ellmerverse_correlation")
+    snapshots[[min(calls, length(snapshots))]]
   }))
   server <- scans_app_server(
     sources,
@@ -1129,20 +1144,23 @@ test_that("an automatic cache refresh keeps the reviewer's selection", {
 
   shiny::testServer(server, {
     session$flushReact()
-    initial <- selected()
-    chosen <- setdiff(seq_len(4L), initial)[[1L]]
+    chosen <- match("keep", data()$info$trajectory_id)
     selected(chosen)
+    session$flushReact()
+    expect_identical(selected_trajectory_id(), "keep")
     now <<- now + 61
     # Simulate the timer invalidating active() after the entry has expired.
     revision(revision() + 1L)
     session$flushReact()
     expect_identical(calls, 2L)
-    expect_identical(selected(), chosen)
+    expect_identical(selected(), 2L)
+    expect_identical(data()$info$trajectory_id[[selected()]], "keep")
 
     # A reload replaces the snapshot and does reset the browser.
     session$setInputs(scans_app_reload = 1L)
     session$flushReact()
-    expect_identical(selected(), initial)
+    expect_identical(selected(), visible()[[1L]])
+    expect_identical(data()$info$trajectory_id[[selected()]], "new")
   })
 })
 

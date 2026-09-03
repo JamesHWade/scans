@@ -20,6 +20,7 @@ scans_app_server <- function(
     revision <- shiny::reactiveVal(0L)
     reload_revision <- shiny::reactiveVal(0L)
     selected <- shiny::reactiveVal(NULL)
+    selected_trajectory_id <- shiny::reactiveVal(NULL)
 
     application <- shiny::reactive({
       label <- scans_app_input_or(
@@ -113,6 +114,29 @@ scans_app_server <- function(
       }
       scans_app_data(current$bundle, scan_config())
     })
+
+    # The row index is only a view into the current snapshot. Keep its stable
+    # identity separately so an automatic refresh can rematch a trajectory
+    # when capped or newly sorted data shifts its row.
+    shiny::observeEvent(
+      selected(),
+      ignoreNULL = FALSE,
+      priority = 20L,
+      {
+        current <- shiny::isolate(data())
+        index <- selected()
+        trajectory_id <- if (
+          !is.null(current) &&
+            length(index) == 1L &&
+            !is.na(index) &&
+            index >= 1L &&
+            index <= nrow(current$info)
+        ) {
+          current$info$trajectory_id[[index]]
+        }
+        selected_trajectory_id(trajectory_id)
+      }
+    )
 
     output$scans_app_load_error <- shiny::renderUI({
       message <- active()$error
@@ -304,6 +328,12 @@ scans_app_server <- function(
       {
         key <- list(application(), reload_revision())
         if (identical(key, reset_key())) {
+          current <- data()
+          trajectory_id <- selected_trajectory_id()
+          if (!is.null(current) && !is.null(trajectory_id)) {
+            index <- match(trajectory_id, current$info$trajectory_id)
+            selected(if (is.na(index)) NULL else index)
+          }
           return()
         }
         reset_key(key)
