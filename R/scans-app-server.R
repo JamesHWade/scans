@@ -18,6 +18,7 @@ scans_app_server <- function(
   function(input, output, session) {
     seen <- new.env(parent = emptyenv())
     revision <- shiny::reactiveVal(0L)
+    reload_revision <- shiny::reactiveVal(0L)
     selected <- shiny::reactiveVal(NULL)
 
     application <- shiny::reactive({
@@ -286,6 +287,7 @@ scans_app_server <- function(
             rm(list = label, envir = store)
           }
         }
+        reload_revision(reload_revision() + 1L)
         revision(revision() + 1L)
       }
     )
@@ -300,10 +302,7 @@ scans_app_server <- function(
       ignoreNULL = TRUE,
       priority = 10L,
       {
-        key <- list(
-          application = application(),
-          loaded_at = active()$loaded_at
-        )
+        key <- list(application(), reload_revision())
         if (identical(key, reset_key())) {
           return()
         }

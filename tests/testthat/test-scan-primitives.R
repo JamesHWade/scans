@@ -239,6 +239,29 @@ test_that("failed trajectories and turns produce findings without events", {
   expect_identical(only_turns$finding_id, findings$finding_id[[2L]])
 })
 
+test_that("turn error text produces a finding without a failed status", {
+  bundle <- TrajectoryBundle(
+    data.frame(trajectory_id = "run-1", source_type = "manual"),
+    data.frame(
+      trajectory_id = "run-1",
+      turn_id = c("turn-1", "turn-2"),
+      turn_index = 1:2,
+      role = "assistant",
+      status = c(NA, "completed"),
+      error = c("provider failed", "adapter failed")
+    ),
+    data.frame()
+  )
+
+  findings <- scan_trajectories(bundle, scans = "turn_error")
+
+  expect_identical(findings$turn_id, c("turn-1", "turn-2"))
+  expect_identical(
+    vapply(findings$value, `[[`, character(1), "error"),
+    c("provider failed", "adapter failed")
+  )
+})
+
 test_that("tool correlation and cycle checks handle large bundles", {
   size <- 20000L
   ids <- sprintf("event-%06d", seq_len(size))

@@ -370,15 +370,29 @@ connect_trace_lines <- function(
   jobs = TRUE
 ) {
   limit <- page_size
-  response <- connect_perform(
-    connect_trace_request(client, guid, from, to, limit, 0L),
-    call
+  transient_failure <- FALSE
+  response <- withCallingHandlers(
+    connect_perform(
+      connect_trace_request(client, guid, from, to, limit, 0L),
+      call
+    ),
+    scans_connect_transient_failure = function(cnd) {
+      transient_failure <<- TRUE
+    }
   )
   if (is.null(response)) {
     if (!jobs) {
       lines <- character()
       attr(lines, "spans") <- list()
       return(lines)
+    }
+    lines <- character()
+    if (transient_failure) {
+      cli::cli_warn(c(
+        "This content's current traces could not be read from Posit Connect.",
+        "i" = "The result holds retained per-job traces and may be incomplete."
+      ))
+      attr(lines, "incomplete") <- TRUE
     }
     return(connect_job_trace_lines(
       client,
@@ -387,7 +401,8 @@ connect_trace_lines <- function(
       to,
       max_spans,
       call,
-      page_size
+      page_size,
+      lines = lines
     ))
   }
   page <- connect_trace_page(response)
@@ -538,12 +553,16 @@ connect_response_result <- function(response, call) {
   if (inherits(response, c("httr2_http_401", "httr2_http_403"))) {
     connect_access_abort(response, call)
   }
+  if (inherits(response, "httr2_http_404")) {
+    return(NULL)
+  }
   if (
-    inherits(
-      response,
-      c("httr2_http_404", "httr2_http_500", "httr2_http_502", "httr2_http_503")
-    )
+    inherits(response, c("httr2_http_500", "httr2_http_502", "httr2_http_503"))
   ) {
+    signalCondition(structure(
+      list(message = conditionMessage(response), call = NULL),
+      class = c("scans_connect_transient_failure", "condition")
+    ))
     return(NULL)
   }
   if (inherits(response, "error")) {

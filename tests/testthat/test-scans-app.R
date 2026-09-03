@@ -1109,15 +1109,17 @@ test_that("an active session refreshes an expired shared snapshot", {
   })
 })
 
-test_that("a cache timer tick keeps the reviewer's selection and filters", {
+test_that("an automatic cache refresh keeps the reviewer's selection", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
   now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
-  sources <- scans_app_sources(list(
-    "Deployment" = function() trajectory_fixture("ellmerverse_correlation")
-  ))
+  calls <- 0L
+  sources <- scans_app_sources(list("Deployment" = function() {
+    calls <<- calls + 1L
+    trajectory_fixture("ellmerverse_correlation")
+  }))
   server <- scans_app_server(
     sources,
     cache_max_age = 60,
@@ -1130,10 +1132,11 @@ test_that("a cache timer tick keeps the reviewer's selection and filters", {
     initial <- selected()
     chosen <- setdiff(seq_len(4L), initial)[[1L]]
     selected(chosen)
-    now <<- now + 10
-    # Simulate the timer: re-evaluate active() with a still-fresh entry.
+    now <<- now + 61
+    # Simulate the timer invalidating active() after the entry has expired.
     revision(revision() + 1L)
     session$flushReact()
+    expect_identical(calls, 2L)
     expect_identical(selected(), chosen)
 
     # A reload replaces the snapshot and does reset the browser.

@@ -650,7 +650,10 @@ scan_record_findings <- function(info_row, turns, scan_id) {
       scan_order = 0L
     )
   }
-  failed_turns <- which(!is.na(turns$status) & turns$status == "failed")
+  failed_turns <- which(
+    (!is.na(turns$status) & turns$status == "failed") |
+      (!is.na(turns$error) & nzchar(turns$error))
+  )
   for (row in failed_turns) {
     findings[[length(findings) + 1L]] <- scan_new_record_finding(
       scan_id = scan_id,
@@ -659,10 +662,11 @@ scan_record_findings <- function(info_row, turns, scan_id) {
       turn_id = turns$turn_id[[row]],
       severity = "error",
       label = "Turn failed",
-      explanation = "The turn ended with a failed status.",
+      explanation = "The turn ended with a failed status or an error.",
       value = list(
         role = turns$role[[row]],
-        finish_reason = turns$finish_reason[[row]]
+        finish_reason = turns$finish_reason[[row]],
+        error = turns$error[[row]]
       ),
       scan_order = 1L
     )
