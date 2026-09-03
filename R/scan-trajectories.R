@@ -170,7 +170,10 @@ scan_registry <- function() {
       "Consecutive identical tool calls suggest the agent is looping.",
       "An event recorded a failure.",
       "A failure followed an earlier one within the same trajectory.",
-      "A turn ended with a failed status.",
+      paste(
+        "A turn ended with a failed status, an error, or a truncating",
+        "finish reason."
+      ),
       "The trajectory ended with a failed status or an error."
     )
   )

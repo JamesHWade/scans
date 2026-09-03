@@ -291,6 +291,7 @@ test_that("truncating finish reasons produce failed-turn findings", {
   findings <- scan_trajectories(bundle, scans = "turn_error")
 
   expect_identical(findings$turn_id, paste0("turn-", 1:5))
+  expect_true(all(grepl("truncating finish reason", findings$explanation)))
   summary <- summarize_trajectories(bundle)
   expect_identical(summary$n_failed_turns, 5L)
 })

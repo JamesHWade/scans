@@ -678,7 +678,10 @@ scan_record_findings <- function(info_row, turns, scan_id) {
       turn_id = turns$turn_id[[row]],
       severity = "error",
       label = "Turn failed",
-      explanation = "The turn ended with a failed status or an error.",
+      explanation = paste(
+        "The turn ended with a failed status, an error, or a truncating",
+        "finish reason."
+      ),
       value = list(
         role = turns$role[[row]],
         finish_reason = turns$finish_reason[[row]],
