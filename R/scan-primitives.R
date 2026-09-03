@@ -342,7 +342,21 @@ scan_event_is_error <- function(events) {
 
 scan_turn_is_error <- function(turns) {
   (!is.na(turns$status) & turns$status == "failed") |
-    (!is.na(turns$error) & nzchar(turns$error))
+    (!is.na(turns$error) & nzchar(turns$error)) |
+    scan_turn_is_truncated(turns$finish_reason)
+}
+
+scan_turn_is_truncated <- function(finish_reason) {
+  finish_reason <- tolower(trimws(finish_reason))
+  !is.na(finish_reason) &
+    finish_reason %in%
+      c(
+        "length",
+        "max_tokens",
+        "max_output_tokens",
+        "context_window",
+        "model_context_window_exceeded"
+      )
 }
 
 scan_tool_signature <- function(name, value) {

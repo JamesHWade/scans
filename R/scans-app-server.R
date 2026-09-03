@@ -10,7 +10,8 @@ scans_app_server <- function(
   annotations = NULL,
   cache_max_age = 30 * 60,
   clock = Sys.time,
-  schedule = shiny::invalidateLater
+  schedule = shiny::invalidateLater,
+  annotation_poll_interval = 2000
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -158,18 +159,35 @@ scans_app_server <- function(
     annotation_revision <- shiny::reactiveVal(0L)
     annotation_status <- shiny::reactiveVal("")
 
+    annotation_records <- if (is.null(annotations)) {
+      function() NULL
+    } else {
+      shiny::reactivePoll(
+        intervalMillis = annotation_poll_interval,
+        session = session,
+        checkFunc = function() {
+          list(
+            application = application(),
+            local_revision = annotation_revision(),
+            file_revision = annotations_file_revision(annotations$path)
+          )
+        },
+        valueFunc = function() {
+          tryCatch(
+            annotations$read(application = application()),
+            error = function(cnd) NULL
+          )
+        }
+      )
+    }
+
     # The latest label (or "Note") per annotated trajectory of the current
     # application, so the browser can mark and filter reviewed entries.
     annotation_labels <- shiny::reactive({
       if (is.null(annotations)) {
         return(character())
       }
-      annotation_revision()
-      records <- tryCatch(
-        annotations$read(application = application()),
-        error = function(cnd) NULL
-      )
-      scans_app_annotation_labels(records)
+      scans_app_annotation_labels(annotation_records())
     })
 
     annotated <- shiny::reactive({
@@ -268,16 +286,15 @@ scans_app_server <- function(
       if (is.null(target)) {
         return(scans_app_empty_ui("Select a trajectory to annotate it."))
       }
-      records <- tryCatch(
-        annotations$read(
-          application = target$application,
-          trajectory_id = target$trajectory_id
-        ),
-        error = function(cnd) NULL
-      )
+      records <- annotation_records()
       if (is.null(records)) {
         return(scans_app_empty_ui("Could not read the annotation store."))
       }
+      records <- records[
+        records$trajectory_id %in% target$trajectory_id,
+        ,
+        drop = FALSE
+      ]
       scans_app_annotation_log_ui(records)
     })
 

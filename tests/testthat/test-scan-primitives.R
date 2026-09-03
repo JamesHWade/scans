@@ -265,6 +265,36 @@ test_that("turn error text produces a finding without a failed status", {
   expect_identical(summary$n_failed_turns, 2L)
 })
 
+test_that("truncating finish reasons produce failed-turn findings", {
+  finish_reasons <- c(
+    "length",
+    "max_tokens",
+    "max_output_tokens",
+    "context_window",
+    "model_context_window_exceeded",
+    "success",
+    "tool_use"
+  )
+  bundle <- TrajectoryBundle(
+    data.frame(trajectory_id = "run-1", source_type = "manual"),
+    data.frame(
+      trajectory_id = "run-1",
+      turn_id = paste0("turn-", seq_along(finish_reasons)),
+      turn_index = seq_along(finish_reasons),
+      role = "assistant",
+      status = "completed",
+      finish_reason = finish_reasons
+    ),
+    data.frame()
+  )
+
+  findings <- scan_trajectories(bundle, scans = "turn_error")
+
+  expect_identical(findings$turn_id, paste0("turn-", 1:5))
+  summary <- summarize_trajectories(bundle)
+  expect_identical(summary$n_failed_turns, 5L)
+})
+
 test_that("tool correlation and cycle checks handle large bundles", {
   size <- 20000L
   ids <- sprintf("event-%06d", seq_len(size))

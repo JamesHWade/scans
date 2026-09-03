@@ -1309,6 +1309,54 @@ test_that("annotated trajectories are badged and filterable", {
   })
 })
 
+test_that("annotation polling refreshes records written by another session", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = c("good", "bad")
+  )
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  ids <- trajectory_info(bundle)$trajectory_id
+  server <- scans_app_server(
+    scans_app_sources(list(Deployment = bundle)),
+    annotations = store,
+    annotation_poll_interval = 1000
+  )
+
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_length(annotation_labels(), 0L)
+
+    selected(match(ids[[2L]], data()$info$trajectory_id))
+    store$append(
+      "Deployment",
+      ids[[2L]],
+      label = "bad",
+      note = "Written by another reviewer"
+    )
+    session$elapse(1000)
+    session$flushReact()
+
+    expect_identical(unname(annotation_labels()[ids[[2L]]]), "bad")
+    expect_match(
+      as.character(output$scans_app_entries$html),
+      ">bad<",
+      fixed = TRUE
+    )
+    expect_match(
+      paste(as.character(output$scans_app_annotation_log), collapse = ""),
+      "Written by another reviewer",
+      fixed = TRUE
+    )
+    session$setInputs(scans_app_annotated_only = TRUE)
+    expect_identical(ids[visible()], ids[[2L]])
+  })
+})
+
 test_that("a URL hash deep-links to a trajectory", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")

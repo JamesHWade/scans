@@ -140,7 +140,7 @@ scan_registry()
 | `suspicious_tool_loop` | At least `loop_threshold` consecutive identical calls (default 3) suggest the agent is stuck. |
 | `event_error` | An event recorded a failure. |
 | `error_chain` | A failure followed an earlier one in the same trajectory, which often means the agent did not recover. |
-| `turn_error` | A turn ended with a failed status, for example a response cut off at the token limit. |
+| `turn_error` | A turn has a failed status, error text, or a truncating finish reason such as a token limit. |
 | `trajectory_error` | The run itself ended with a failed status or an error, even when no event recorded it. |
 
 Run a subset with `scans =`, and adjust the thresholds for agents whose normal
