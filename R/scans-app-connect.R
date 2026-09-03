@@ -2,8 +2,9 @@
 #'
 #' `scans_app_connect()` creates a [scans_app()] whose application switcher
 #' reads completed conversations from Posit Connect's content observability
-#' store. Each application is loaded lazily; switching back to one uses the
-#' session cache, and **Reload traces** fetches its current trace snapshot.
+#' store. Each application is read when it is first selected in any session,
+#' and the snapshot is then shared by every session of the deployment until it
+#' is thirty minutes old or **Reload traces** fetches it again.
 #'
 #' Two readers are available. The default, `"otel"`, uses this package's own
 #' [read_connect_traces()] with [as_trajectory_otel()]: it needs no other
@@ -39,7 +40,7 @@
 #' @returns A [shiny::shinyApp()] object.
 #'
 #' @examples
-#' if (interactive() && rlang::is_installed("commons")) {
+#' if (interactive()) {
 #'   scans_app_connect(c(
 #'     "Support assistant" = "11111111-1111-4111-8111-111111111111",
 #'     "Research assistant" = "22222222-2222-4222-8222-222222222222"
@@ -59,6 +60,8 @@ scans_app_connect <- function(
   default_to <- missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_bool(jobs)
+  from <- connect_check_bound(from, "from")
+  to <- connect_check_bound(to, "to")
   reader <- rlang::arg_match(reader)
   if (identical(reader, "commons")) {
     scans_app_connect_check_package()
@@ -186,8 +189,8 @@ scans_app_connect_check_package <- function(call = rlang::caller_env()) {
   }
   scans_abort(
     c(
-      "{.fn scans_app_connect} requires {.pkg commons} >= {minimum}.",
-      "i" = "Install it with {.code pak::pak(\"posit-dev/commons/pkg-r\")}."
+      "{.code reader = \"commons\"} requires {.pkg commons} >= {minimum}.",
+      "i" = "Install it with {.code pak::pak(\"posit-dev/commons/pkg-r\")}, or use the default {.code reader = \"otel\"}."
     ),
     class = "scans_error_app_dependency",
     call = call

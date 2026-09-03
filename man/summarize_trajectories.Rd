@@ -13,7 +13,10 @@ summarize_trajectories(x)
 A tibble with one row per trajectory and these columns:
 \itemize{
 \item Identity: \code{trajectory_id}, \code{run_id}, \code{parent_trajectory_id}, \code{source_type},
-and \code{status} retain the corresponding trajectory fields.
+\code{status}, \code{model}, \code{agent}, \code{task_id}, \code{sample_id}, \code{epoch}, \code{started_at},
+and \code{completed_at} retain the corresponding trajectory fields, so
+summaries can be grouped by model, agent, or task without a join back to
+\code{\link[=trajectory_info]{trajectory_info()}}.
 \item Structure: \code{trajectory_depth} counts parent trajectories from a root at
 zero; \code{max_event_depth} counts the longest event-parent path;
 \code{n_turns}, \code{n_rounds}, and \code{n_events} count semantic records.
@@ -27,8 +30,8 @@ token counts; \code{cost} sums known source costs without currency conversion;
 time in seconds from \code{started_at} through \code{completed_at}.
 }
 
-Depths and counts are integers. Usage, cost, and duration columns are
-doubles.
+Depths, counts, and \code{epoch} are integers. Usage, cost, and duration
+columns are doubles; \code{started_at} and \code{completed_at} are \code{POSIXct}.
 }
 \description{
 \code{summarize_trajectories()} reduces each trajectory in a \link{TrajectoryBundle}

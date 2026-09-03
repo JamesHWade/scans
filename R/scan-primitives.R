@@ -130,6 +130,13 @@ scan_empty_summaries <- function() {
     parent_trajectory_id = character(),
     source_type = character(),
     status = character(),
+    model = character(),
+    agent = character(),
+    task_id = character(),
+    sample_id = character(),
+    epoch = integer(),
+    started_at = as.POSIXct(character(), tz = "UTC"),
+    completed_at = as.POSIXct(character(), tz = "UTC"),
     trajectory_depth = integer(),
     max_event_depth = integer(),
     n_turns = integer(),
@@ -261,6 +268,9 @@ scan_tool_relation_counts <- function(
   out
 }
 
+# One ordered pass per call id: a result resolves the earliest pending call
+# with its id, a result with no pending call is unmatched, and calls still
+# pending at the end are unresolved. Linear in the number of tool events.
 scan_tool_relation_indices <- function(event_type, call_id) {
   calls <- which(event_type == "tool_call")
   results <- which(event_type == "tool_result")
@@ -270,30 +280,49 @@ scan_tool_relation_indices <- function(event_type, call_id) {
   unresolved_calls <- calls[is.na(call_ids)]
   unmatched_results <- results[is.na(result_ids)]
   ambiguous <- list()
-  ids <- unique(c(call_ids[!is.na(call_ids)], result_ids[!is.na(result_ids)]))
 
-  for (call_id in ids) {
-    matching_calls <- calls[!is.na(call_ids) & call_ids == call_id]
-    matching_results <- results[!is.na(result_ids) & result_ids == call_id]
-    pending_calls <- integer()
-    positions <- sort(c(matching_calls, matching_results))
-    for (position in positions) {
-      if (event_type[[position]] == "tool_call") {
-        pending_calls <- c(pending_calls, position)
-      } else if (length(pending_calls) == 0L) {
-        unmatched_results <- c(unmatched_results, position)
-      } else {
-        pending_calls <- pending_calls[-1L]
+  positions <- sort(c(calls[!is.na(call_ids)], results[!is.na(result_ids)]))
+  if (length(positions) > 0L) {
+    ids <- call_id[positions]
+    groups <- split(positions, factor(ids, levels = unique(ids)))
+    for (id in names(groups)) {
+      group <- groups[[id]]
+      is_call <- event_type[group] == "tool_call"
+      # A queue over the group's calls: `head` is the next call a result
+      # resolves, so popping is an index bump rather than a vector copy.
+      queue <- group[is_call]
+      head <- 1L
+      unmatched <- integer()
+      for (offset in seq_along(group)) {
+        if (is_call[[offset]]) {
+          next
+        }
+        if (head > length(queue)) {
+          unmatched[[length(unmatched) + 1L]] <- group[[offset]]
+        } else if (queue[[head]] < group[[offset]]) {
+          head <- head + 1L
+        } else {
+          # A result that precedes every pending call resolves none of them.
+          unmatched[[length(unmatched) + 1L]] <- group[[offset]]
+        }
       }
-    }
-    unresolved_calls <- c(unresolved_calls, pending_calls)
-    if (length(matching_calls) > 1L || length(matching_results) > 1L) {
-      ambiguous[[length(ambiguous) + 1L]] <- list(
-        call_id = call_id,
-        indices = sort(c(matching_calls, matching_results)),
-        n_calls = length(matching_calls),
-        n_results = length(matching_results)
-      )
+      if (head <= length(queue)) {
+        unresolved_calls <- c(
+          unresolved_calls,
+          queue[seq.int(head, length(queue))]
+        )
+      }
+      unmatched_results <- c(unmatched_results, unmatched)
+      n_calls <- sum(is_call)
+      n_results <- length(group) - n_calls
+      if (n_calls > 1L || n_results > 1L) {
+        ambiguous[[length(ambiguous) + 1L]] <- list(
+          call_id = id,
+          indices = group,
+          n_calls = n_calls,
+          n_results = n_results
+        )
+      }
     }
   }
   list(
@@ -309,6 +338,25 @@ scan_event_is_error <- function(events) {
   events$event_type == "error" |
     (!is.na(events$status) & events$status == "failed") |
     (!is.na(events$error) & nzchar(events$error))
+}
+
+scan_turn_is_error <- function(turns) {
+  (!is.na(turns$status) & turns$status == "failed") |
+    (!is.na(turns$error) & nzchar(turns$error)) |
+    scan_turn_is_truncated(turns$finish_reason)
+}
+
+scan_turn_is_truncated <- function(finish_reason) {
+  finish_reason <- tolower(trimws(finish_reason))
+  !is.na(finish_reason) &
+    finish_reason %in%
+      c(
+        "length",
+        "max_tokens",
+        "max_output_tokens",
+        "context_window",
+        "model_context_window_exceeded"
+      )
 }
 
 scan_tool_signature <- function(name, value) {
@@ -339,7 +387,8 @@ scan_tool_findings <- function(
   events,
   scan_id,
   repeat_threshold,
-  loop_threshold
+  loop_threshold,
+  roles = rep(NA_character_, nrow(events))
 ) {
   relations <- scan_tool_relations(events)
   findings <- list()
@@ -429,7 +478,7 @@ scan_tool_findings <- function(
     }
   }
 
-  run_groups <- scan_tool_run_groups(events, calls, signatures)
+  run_groups <- scan_tool_run_groups(events, calls, signatures, roles)
   for (positions in run_groups) {
     if (length(positions) < loop_threshold) {
       next
@@ -455,7 +504,7 @@ scan_tool_findings <- function(
   findings
 }
 
-scan_tool_run_groups <- function(events, calls, signatures) {
+scan_tool_run_groups <- function(events, calls, signatures, roles) {
   groups <- integer(length(calls))
   groups[[1L]] <- 1L
   if (length(calls) == 1L) {
@@ -470,8 +519,17 @@ scan_tool_run_groups <- function(events, calls, signatures) {
     } else {
       integer()
     }
+    # Results and the assistant's own narration ("Let me try that again")
+    # between two identical calls are how a real loop looks. Content from
+    # the user is a deliberate new request, so it ends the run, as does any
+    # other event.
+    between_types <- events$event_type[between]
+    between_roles <- roles[between]
     allowed_between <- length(between) == 0L ||
-      all(events$event_type[between] == "tool_result")
+      all(
+        between_types == "tool_result" |
+          (between_types == "content" & between_roles %in% "assistant")
+      )
     same_signature <- signatures[[index]] == signatures[[index - 1L]]
     groups[[index]] <- groups[[index - 1L]] +
       as.integer(!allowed_between || !same_signature)
@@ -559,6 +617,80 @@ scan_new_finding <- function(
     .event_index = events$event_index[[primary]],
     .scan_order = scan_order
   )
+}
+
+# A finding whose evidence is a trajectory or turn rather than an event: the
+# run died, or a turn failed, before or without any event recording it.
+scan_new_record_finding <- function(
+  scan_id,
+  scan,
+  trajectory_id,
+  turn_id,
+  severity,
+  label,
+  explanation,
+  value,
+  scan_order
+) {
+  list(
+    scan_id = scan_id,
+    scan = scan,
+    scan_version = "1",
+    trajectory_id = trajectory_id,
+    turn_id = turn_id,
+    event_id = NA_character_,
+    event_ids = character(),
+    severity = severity,
+    label = label,
+    value = value,
+    explanation = explanation,
+    metadata = list(),
+    .event_index = 0L,
+    .scan_order = scan_order
+  )
+}
+
+scan_record_findings <- function(info_row, turns, scan_id) {
+  findings <- list()
+  status <- info_row$status[[1L]]
+  error <- info_row$error[[1L]]
+  failed <- (!is.na(status) && status == "failed") ||
+    (!is.na(error) && nzchar(error))
+  if (failed) {
+    findings[[1L]] <- scan_new_record_finding(
+      scan_id = scan_id,
+      scan = "trajectory_error",
+      trajectory_id = info_row$trajectory_id[[1L]],
+      turn_id = NA_character_,
+      severity = "error",
+      label = "Trajectory failed",
+      explanation = "The trajectory ended with a failed status or an error.",
+      value = list(status = status, error = error),
+      scan_order = 0L
+    )
+  }
+  failed_turns <- which(scan_turn_is_error(turns))
+  for (row in failed_turns) {
+    findings[[length(findings) + 1L]] <- scan_new_record_finding(
+      scan_id = scan_id,
+      scan = "turn_error",
+      trajectory_id = turns$trajectory_id[[row]],
+      turn_id = turns$turn_id[[row]],
+      severity = "error",
+      label = "Turn failed",
+      explanation = paste(
+        "The turn ended with a failed status, an error, or a truncating",
+        "finish reason."
+      ),
+      value = list(
+        role = turns$role[[row]],
+        finish_reason = turns$finish_reason[[row]],
+        error = turns$error[[row]]
+      ),
+      scan_order = 1L
+    )
+  }
+  findings
 }
 
 scan_bind_findings <- function(findings, scan_id, trajectories) {

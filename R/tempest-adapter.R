@@ -433,7 +433,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
       event_type = "tempest:finding",
       name = finding$code,
       value = finding,
-      status = finding$severity,
+      status = "completed",
       parent_event_id = parent,
       field = paste0("findings$items[[", index, "]]")
     )
@@ -550,27 +550,7 @@ tempest_review_time <- function(x, field, ids, nullable = FALSE) {
 }
 
 tempest_review_status <- function(x) {
-  switch(
-    x,
-    succeeded = "completed",
-    success = "completed",
-    complete = "completed",
-    completed = "completed",
-    failed = "failed",
-    error = "failed",
-    abandoned = "failed",
-    cost_limit = "failed",
-    hook_requested_stop = "failed",
-    input_token_limit = "failed",
-    interrupted = "failed",
-    output_token_limit = "failed",
-    provider_error = "failed",
-    request_limit = "failed",
-    tool_call_limit = "failed",
-    total_token_limit = "failed",
-    cancelled = "cancelled",
-    x
-  )
+  trajectory_canonical_status(x)
 }
 
 tempest_review_reference_key <- function(type, id) {

@@ -12,6 +12,8 @@
 #                           application shown in the switcher
 #   SCANS_CONNECT_N         optional; max recent conversations per app
 #                           (default 100, "all" for no limit)
+#   SCANS_ANNOTATIONS_DIR   optional; persistent directory for reviewer
+#                           labels and notes (no controls when unset)
 
 # These packages are Suggests of scans; attaching them here makes rsconnect /
 # Posit Publisher bundle the app and native trace-reader dependencies.
@@ -50,4 +52,11 @@ sources <- parse_sources(Sys.getenv("SCANS_CONNECT_SOURCES"))
 n <- Sys.getenv("SCANS_CONNECT_N", "100")
 n <- if (identical(tolower(n), "all")) NULL else as.integer(n)
 
-scans_app_connect(sources, n = n)
+annotations_dir <- Sys.getenv("SCANS_ANNOTATIONS_DIR", "")
+annotations <- if (nzchar(annotations_dir)) {
+  scans_annotations(file.path(annotations_dir, "annotations.jsonl"))
+} else {
+  NULL
+}
+
+scans_app_connect(sources, n = n, annotations = annotations)

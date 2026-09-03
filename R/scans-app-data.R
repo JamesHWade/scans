@@ -263,10 +263,8 @@ scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
       if (length(user_rows) > 0L) {
         rows <- user_rows
       }
-      scans_app_truncate(
-        gsub("\\s+", " ", trimws(events$text[[rows[[1L]]]])),
-        90L
-      )
+      text <- scans_app_strip_markdown(events$text[[rows[[1L]]]])
+      scans_app_truncate(gsub("\\s+", " ", trimws(text)), 90L)
     },
     character(1)
   )
@@ -292,7 +290,9 @@ scans_app_filter_records <- function(
   source = NULL,
   status = NULL,
   query = "",
-  findings_only = FALSE
+  findings_only = FALSE,
+  annotated = NULL,
+  annotated_only = FALSE
 ) {
   keep <- rep(TRUE, nrow(records))
   source_all <- scans_app_filter_sentinel(records$source_type, "source-all")
@@ -312,6 +312,9 @@ scans_app_filter_records <- function(
   }
   if (isTRUE(findings_only)) {
     keep <- keep & records$n_findings > 0L
+  }
+  if (isTRUE(annotated_only)) {
+    keep <- keep & (annotated %||% rep(FALSE, nrow(records)))
   }
   records$index[keep]
 }

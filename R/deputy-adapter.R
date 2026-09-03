@@ -606,15 +606,7 @@ deputy_boundary_time <- function(events, type, first) {
 }
 
 deputy_result_status <- function(x) {
-  if (is.character(x) && length(x) == 1L && !is.na(x)) {
-    if (x %in% c("complete", "completed", "success")) {
-      return("completed")
-    }
-    if (x %in% c("error", "failed", "failure")) {
-      return("failed")
-    }
-  }
-  "interrupted"
+  trajectory_canonical_status(x)
 }
 
 deputy_trajectory_id <- function(run_id) {

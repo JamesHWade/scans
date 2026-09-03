@@ -108,3 +108,28 @@ test_that("malformed fixtures fail with stable scans conditions", {
     )
   }
 })
+
+test_that("adapters share one trajectory status vocabulary", {
+  expect_identical(trajectory_canonical_status("succeeded"), "completed")
+  expect_identical(trajectory_canonical_status("provider_error"), "failed")
+  expect_identical(trajectory_canonical_status("cancelled"), "cancelled")
+  for (reason in c(
+    "request_limit",
+    "tool_call_limit",
+    "cost_limit",
+    "hook_requested_stop",
+    "interrupted"
+  )) {
+    expect_identical(
+      trajectory_canonical_status(reason),
+      "interrupted",
+      info = reason
+    )
+    expect_identical(
+      deputy_result_status(reason),
+      tempest_review_status(reason),
+      info = reason
+    )
+  }
+  expect_identical(trajectory_canonical_status(NA_character_), "interrupted")
+})

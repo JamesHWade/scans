@@ -92,9 +92,18 @@ scans_app_ui <- function(sources, annotations = NULL) {
       htmltools::div(
         class = "scans-app-browser-count",
         shiny::textOutput("scans_app_visible_count", inline = TRUE),
-        bslib::input_switch(
-          "scans_app_findings_only",
-          "With findings"
+        htmltools::div(
+          class = "scans-app-browser-toggles",
+          bslib::input_switch(
+            "scans_app_findings_only",
+            "With findings"
+          ),
+          if (!is.null(annotations)) {
+            bslib::input_switch(
+              "scans_app_annotated_only",
+              "Annotated"
+            )
+          }
         )
       ),
       htmltools::div(

@@ -36,9 +36,12 @@ A tibble with one row per finding and these columns:
 caller-supplied diagnostic-run identifier.
 \item \code{scan}: one of \code{ambiguous_tool_correlation}, \code{unresolved_tool_call},
 \code{unmatched_tool_result}, \code{repeated_tool_call}, \code{suspicious_tool_loop},
-\code{event_error}, or \code{error_chain}; \code{scan_version}: detector version.
+\code{event_error}, \code{error_chain}, \code{turn_error}, or \code{trajectory_error};
+\code{scan_version}: detector version.
 \item \code{trajectory_id}, \code{turn_id}, and \code{event_id}: primary evidence identities;
-\code{event_ids}: character vector of every supporting event identifier.
+\code{event_ids}: character vector of every supporting event identifier. A
+\code{trajectory_error} finding has no turn or event, and a \code{turn_error}
+finding no event, because the failure is recorded on the record itself.
 \item \code{severity}: \code{warning} for tool-pattern findings or \code{error} for failures;
 \code{label} and \code{explanation}: concise human-readable descriptions.
 \item \code{value}: scan-specific structured details; \code{metadata}: a named extension

@@ -290,7 +290,9 @@ dsprrr_empty_base <- function(
       source_uri = safe_uri$value,
       agent = agent,
       model = model,
-      status = "interrupted"
+      # The trace completed; only its turns were not exported, and the loss
+      # table says so.
+      status = "completed"
     ),
     NULL,
     NULL,

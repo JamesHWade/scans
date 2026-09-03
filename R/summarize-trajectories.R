@@ -10,7 +10,10 @@
 #' @returns A tibble with one row per trajectory and these columns:
 #'
 #' - Identity: `trajectory_id`, `run_id`, `parent_trajectory_id`, `source_type`,
-#'   and `status` retain the corresponding trajectory fields.
+#'   `status`, `model`, `agent`, `task_id`, `sample_id`, `epoch`, `started_at`,
+#'   and `completed_at` retain the corresponding trajectory fields, so
+#'   summaries can be grouped by model, agent, or task without a join back to
+#'   [trajectory_info()].
 #' - Structure: `trajectory_depth` counts parent trajectories from a root at
 #'   zero; `max_event_depth` counts the longest event-parent path;
 #'   `n_turns`, `n_rounds`, and `n_events` count semantic records.
@@ -23,8 +26,8 @@
 #'   `turn_duration` sums known turn durations in seconds; `elapsed` is wall
 #'   time in seconds from `started_at` through `completed_at`.
 #'
-#' Depths and counts are integers. Usage, cost, and duration columns are
-#' doubles.
+#' Depths, counts, and `epoch` are integers. Usage, cost, and duration
+#' columns are doubles; `started_at` and `completed_at` are `POSIXct`.
 #'
 #' @export
 #'
@@ -74,6 +77,13 @@ summarize_trajectories <- function(x) {
     parent_trajectory_id = info$parent_trajectory_id,
     source_type = info$source_type,
     status = info$status,
+    model = info$model,
+    agent = info$agent,
+    task_id = info$task_id,
+    sample_id = info$sample_id,
+    epoch = info$epoch,
+    started_at = info$started_at,
+    completed_at = info$completed_at,
     trajectory_depth = trajectory_depths,
     max_event_depth = scan_group_max(event_depths, event_groups, size),
     n_turns = tabulate(turn_groups, nbins = size),
@@ -102,7 +112,7 @@ summarize_trajectories <- function(x) {
       size
     ),
     n_failed_turns = scan_group_count(
-      !is.na(turns$status) & turns$status == "failed",
+      scan_turn_is_error(turns),
       turn_groups,
       size
     ),

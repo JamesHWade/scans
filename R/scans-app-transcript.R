@@ -319,7 +319,7 @@ scans_app_tool_event_ui <- function(event, row, type) {
       if (scans_app_has_string(event$text[[1L]])) {
         htmltools::tags$pre(
           class = "scans-app-event-value",
-          htmltools::tags$code(event$text[[1L]])
+          htmltools::tags$code(scans_app_bounded_text(event$text[[1L]]))
         )
       },
       scans_app_event_value_ui(event),
@@ -354,16 +354,20 @@ scans_app_aside_event_ui <- function(event, row, type) {
     ),
     scans_app_event_meta_ui(event),
     if (scans_app_has_string(event$text[[1L]])) {
-      htmltools::div(class = "scans-app-event-text", event$text[[1L]])
+      htmltools::div(
+        class = "scans-app-event-text",
+        scans_app_bounded_text(event$text[[1L]])
+      )
     },
     scans_app_event_value_ui(event),
     scans_app_event_error_ui(event)
   )
 }
 
+# A value that is just the text again (a string tool result) is not repeated.
 scans_app_event_value_ui <- function(event) {
   value <- scans_app_value_text(event$value[[1L]])
-  if (is.null(value)) {
+  if (is.null(value) || identical(value, event$text[[1L]])) {
     return(NULL)
   }
   htmltools::tags$pre(

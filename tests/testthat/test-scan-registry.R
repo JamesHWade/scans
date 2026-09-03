@@ -9,11 +9,17 @@ test_that("the registry lists every scan the detectors emit", {
       "repeated_tool_call",
       "suspicious_tool_loop",
       "event_error",
-      "error_chain"
+      "error_chain",
+      "turn_error",
+      "trajectory_error"
     )
   )
   expect_true(all(registry$severity %in% c("warning", "error")))
   expect_true(all(nzchar(registry$description)))
+  expect_match(
+    registry$description[registry$scan == "turn_error"],
+    "truncating finish reason"
+  )
 })
 
 test_that("selecting scans narrows the findings", {

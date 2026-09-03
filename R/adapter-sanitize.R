@@ -504,26 +504,55 @@ trajectory_sanitize_uri <- function(x, field, ids) {
   text
 }
 
+# A name is sensitive when, normalised to lowercase words, it is a known
+# credential field or ends in one: `Authorization`, `X-Api-Key`,
+# `ANTHROPIC_API_KEY`, `github_token`, and `client_secret` all match.
 trajectory_sensitive_name <- function(x) {
-  normalized <- tolower(gsub("[^a-z0-9]", "_", x))
-  normalized %in%
-    c(
-      "authorization",
-      "proxy_authorization",
-      "cookie",
-      "set_cookie",
-      "password",
-      "passwd",
-      "api_key",
-      "apikey",
-      "access_token",
-      "refresh_token",
-      "secret",
-      "client_secret",
-      "credential",
-      "credentials"
-    )
+  if (length(x) != 1L || is.na(x)) {
+    return(FALSE)
+  }
+  normalized <- gsub("[^a-z0-9]+", "_", tolower(x))
+  normalized <- gsub("^_+|_+$", "", normalized)
+  if (normalized %in% trajectory_sensitive_names) {
+    return(TRUE)
+  }
+  grepl(trajectory_sensitive_pattern, normalized, perl = TRUE)
 }
+
+trajectory_sensitive_names <- c(
+  "authorization",
+  "proxy_authorization",
+  "cookie",
+  "set_cookie",
+  "password",
+  "passwd",
+  "pwd",
+  "auth",
+  "bearer",
+  "credential",
+  "credentials",
+  "secret"
+)
+
+trajectory_sensitive_pattern <- paste0(
+  "(^|_)(",
+  paste(
+    c(
+      "api_?key",
+      "(access|secret|private|signing|encryption|account|service|license|licence|master|session|auth)_?key",
+      "secret[a-z0-9_]*",
+      "[a-z0-9_]*token",
+      "[a-z0-9_]*password",
+      "[a-z0-9_]*passwd",
+      "credentials?",
+      "cookies?",
+      "authorization",
+      "auth_?header"
+    ),
+    collapse = "|"
+  ),
+  ")$"
+)
 
 trajectory_child_field <- function(field, name, index) {
   if (!is.na(name) && nzchar(name)) {

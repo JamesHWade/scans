@@ -3,13 +3,14 @@ Title: Diagnose AI Agent Trajectories
 Version: 0.0.0.9000
 Authors@R:
     person("James", "Wade", , "github@jameshwade.com", role = c("aut", "cre"))
-Description: Helps explain how completed artificial intelligence agent runs
-    produced their outcomes. Normalizes messages, tool calls, events,
-    evaluations, and multi-agent execution into validated trajectories;
-    detects evidence-linked problems such as repeated or unmatched tool
-    activity and causal error chains; summarizes execution and usage; and
-    provides a read-only application for investigation. Adapters support
-    'ellmer' and related R packages while keeping integrations optional.
+Description: Provides tools to import, inspect, scan, and validate
+    trajectories produced by artificial intelligence agents. Completed runs
+    from 'ellmer' chats, OpenTelemetry GenAI traces retained by Posit
+    Connect, and related R agent frameworks are normalized into one
+    validated trajectory structure. Complements outcome evaluation with
+    post-run analysis of messages, tool calls, events, and multi-agent
+    execution, deterministic scans for common failure patterns, and a
+    read-only review app.
 License: MIT + file LICENSE
 URL: https://jameshwade.github.io/scans/,
     https://github.com/JamesHWade/scans
@@ -20,7 +21,8 @@ Imports:
     cli (>= 3.6.3),
     rlang (>= 1.1.4),
     S7 (>= 0.2.2),
-    tibble (>= 3.3.0)
+    tibble (>= 3.3.0),
+    vctrs (>= 0.6.0)
 Suggests:
     bslib (>= 0.11.0),
     commonmark,
@@ -31,7 +33,9 @@ Suggests:
     htmltools,
     httr2 (>= 1.1.1),
     jsonlite,
+    knitr,
     R6,
+    rmarkdown,
     shiny (>= 1.11.1),
     shinychat,
     tempest (>= 0.3.0.9000),
@@ -40,10 +44,12 @@ Suggests:
     withr,
     xml2
 Remotes:
-    posit-dev/commons/pkg-r,
+    posit-dev/commons/pkg-r@bffce608dd8038be736fe53d656182c2629d3122,
     JamesHWade/deputy@89089c90ddeb668462422b14a4de7a8395eefdc8,
     JamesHWade/dsprrr@db28eae2235ab15c4f5c1c9794118d127eabbdd7,
     JamesHWade/tempest@87018b62fe2fdf632f33ef14b4d6fdf450d78253
+VignetteBuilder: knitr
+Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.1.0
 Config/testthat/edition: 3
 Config/testthat/parallel: true

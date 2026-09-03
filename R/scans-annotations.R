@@ -113,6 +113,18 @@ annotations_empty <- function() {
   tibble::as_tibble(annotations_columns())
 }
 
+# A cheap cookie for reactive polling. Annotation stores are append-only, so
+# file size detects every write made through the store; modification time also
+# catches an external replacement that happens to have the same size.
+annotations_file_revision <- function(path) {
+  info <- file.info(path)
+  list(
+    exists = !is.na(info$size[[1L]]),
+    size = unname(info$size[[1L]]),
+    modified = unname(as.numeric(info$mtime[[1L]]))
+  )
+}
+
 # A record that cannot be parsed is skipped rather than failing the read: one
 # malformed line, however it got there, must not hide every annotation.
 annotations_read <- function(path, application = NULL, trajectory_id = NULL) {

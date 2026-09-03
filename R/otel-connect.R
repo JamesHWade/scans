@@ -21,9 +21,13 @@
 #' @param source A Posit Connect content GUID, a content URL
 #'   (`.../content/<guid>/`), or a dashboard URL (`.../connect/#/apps/<guid>/`).
 #' @param n Maximum number of recent conversations to keep. `NULL` keeps all.
-#' @param from,to Optional lower-inclusive and upper-exclusive bounds on span
-#'   start time. `NULL` leaves that side open. When both are omitted, the seven
-#'   days ending now are read.
+#' @param from,to Optional lower-inclusive and upper-exclusive bounds on the
+#'   start time of a conversation's model calls: a conversation is kept when
+#'   one of its model calls started in the window, and its earlier spans are
+#'   kept with it as far back as the read reached (an hour before `from`).
+#'   Accepts POSIXct, Date, or ISO 8601 strings; a string without a zone is
+#'   read as UTC. `NULL` leaves that side open. When both are omitted, the
+#'   seven days ending now are read.
 #' @param server,api_key Connect server URL and API key. Default to
 #'   `CONNECT_SERVER` and `CONNECT_API_KEY`.
 #' @param max_spans Ceiling on how many GenAI spans are read. Only spans
@@ -41,7 +45,8 @@
 #' @returns A named list of conversations, each a list of spans, oldest-first.
 #'   The names are conversation identifiers. The `"read_info"` attribute
 #'   records how the read went: the window, how many spans and conversations
-#'   were found, and whether the `max_spans` ceiling cut the read short.
+#'   were found, whether the `max_spans` ceiling cut the read short
+#'   (`truncated`), and whether a page failed to load (`incomplete`).
 #'
 #' @section Progress:
 #' Set `options(scans.progress = function(message) ...)` to be told about
@@ -64,6 +69,8 @@ read_connect_traces <- function(
   call <- rlang::caller_env()
   rlang::check_bool(jobs)
   use_default_window <- missing(from) && missing(to)
+  from <- connect_check_bound(from, "from", call)
+  to <- connect_check_bound(to, "to", call)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_number_whole(max_spans, min = 1)
   guid <- connect_source_guid(source, call)
@@ -90,6 +97,7 @@ read_connect_traces <- function(
     connect_progress("Parsing spans")
     spans <- otel_parse_otlp_lines(lines)
   }
+  spans <- otel_unique_spans(spans)
   spans <- otel_limit_spans(spans, max_spans = max_spans, to = to)
   connect_progress("Grouping conversations")
   conversations <- otel_group_conversations_in_window(spans, from, to)
@@ -108,6 +116,7 @@ read_connect_traces <- function(
     spans_total = length(spans),
     max_spans = max_spans,
     truncated = isTRUE(attr(lines, "truncated", exact = TRUE)),
+    incomplete = isTRUE(attr(lines, "incomplete", exact = TRUE)),
     conversations_found = found,
     conversations = length(conversations)
   )
@@ -242,6 +251,64 @@ connect_request <- function(client, ...) {
     httr2::req_user_agent("scans")
 }
 
+# Bounds are compared as seconds, so a Date (days) or a string must become a
+# POSIXct first; silently mis-scaling a Date would shift the window by years.
+connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+  if (inherits(x, "POSIXct") && length(x) == 1L && !is.na(x)) {
+    return(x)
+  }
+  if (inherits(x, "Date") && length(x) == 1L && !is.na(x)) {
+    return(as.POSIXct(format(x), tz = "UTC"))
+  }
+  if (is.character(x) && length(x) == 1L && !is.na(x)) {
+    parsed <- connect_parse_bound_string(x)
+    if (!is.na(parsed)) {
+      return(parsed)
+    }
+  }
+  scans_abort(
+    c(
+      "{.arg {arg}} must be a single POSIXct, Date, or ISO 8601 string, or {.code NULL}.",
+      "i" = "Times without a zone are read as UTC."
+    ),
+    class = "scans_error_connect_window",
+    call = call
+  )
+}
+
+# ISO 8601 with an optional time, fractional seconds, and a zone: "Z" or a
+# numeric offset is honoured, and a string without a zone is read as UTC.
+connect_parse_bound_string <- function(x) {
+  x <- trimws(x)
+  if (grepl("^\\d{4}-\\d{2}-\\d{2}$", x)) {
+    x <- paste0(x, "T00:00:00")
+  }
+  x <- sub("^(\\d{4}-\\d{2}-\\d{2}) ", "\\1T", x)
+  x <- sub(
+    "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2})(?![:\\d])",
+    "\\1:00",
+    x,
+    perl = TRUE
+  )
+  x <- sub("Z$", "+0000", x)
+  x <- sub("([+-]\\d{2}):(\\d{2})$", "\\1\\2", x)
+  if (!grepl("[+-]\\d{4}$", x)) {
+    x <- paste0(x, "+0000")
+  }
+  parsed <- tryCatch(
+    suppressWarnings(as.POSIXct(
+      x,
+      format = "%Y-%m-%dT%H:%M:%OS%z",
+      tz = "UTC"
+    )),
+    error = function(cnd) NA
+  )
+  if (length(parsed) != 1L) NA else parsed
+}
+
 connect_source_guid <- function(source, call = rlang::caller_env()) {
   if (!is.character(source) || length(source) != 1L || is.na(source)) {
     scans_abort(
@@ -303,15 +370,36 @@ connect_trace_lines <- function(
   jobs = TRUE
 ) {
   limit <- page_size
-  response <- connect_perform(
-    connect_trace_request(client, guid, from, to, limit, 0L),
-    call
+  transient_failure <- FALSE
+  response <- withCallingHandlers(
+    connect_perform(
+      connect_trace_request(client, guid, from, to, limit, 0L),
+      call
+    ),
+    scans_connect_transient_failure = function(cnd) {
+      transient_failure <<- TRUE
+    }
   )
   if (is.null(response)) {
     if (!jobs) {
+      if (transient_failure) {
+        scans_abort(
+          "Couldn't read this content's traces from Posit Connect.",
+          class = "scans_error_connect_traces",
+          call = call
+        )
+      }
       lines <- character()
       attr(lines, "spans") <- list()
       return(lines)
+    }
+    lines <- character()
+    if (transient_failure) {
+      cli::cli_warn(c(
+        "This content's current traces could not be read from Posit Connect.",
+        "i" = "The result holds retained per-job traces and may be incomplete."
+      ))
+      attr(lines, "incomplete") <- TRUE
     }
     return(connect_job_trace_lines(
       client,
@@ -320,17 +408,22 @@ connect_trace_lines <- function(
       to,
       max_spans,
       call,
-      page_size
+      page_size,
+      lines = lines
     ))
   }
   page <- connect_trace_page(response)
-  added <- connect_add_trace_lines(character(), page, to)
+  seen <- connect_seen_spans()
+  added <- connect_add_trace_lines(character(), page, to, seen = seen)
   lines <- added$lines
   spans <- added$spans
   span_count <- added$span_count
   total <- connect_total_count(response)
   offset <- length(page)
   page_number <- 1L
+  # Without a total, a page shorter than requested is the last one, and pages
+  # are read one at a time so no wave is spent past the end.
+  last_full <- length(page) >= page_size
   connect_progress(sprintf(
     "Read page %d (%s GenAI spans)",
     page_number,
@@ -340,11 +433,16 @@ connect_trace_lines <- function(
   while (
     span_count < max_spans &&
       length(page) > 0L &&
-      !is.na(total) &&
-      offset < total
+      (if (is.na(total)) last_full else offset < total)
   ) {
-    offsets <- seq.int(offset, by = page_size, length.out = wave_size)
-    offsets <- offsets[offsets < total]
+    offsets <- seq.int(
+      offset,
+      by = page_size,
+      length.out = if (is.na(total)) 1L else wave_size
+    )
+    if (!is.na(total)) {
+      offsets <- offsets[offsets < total]
+    }
     if (length(offsets) == 0L) {
       break
     }
@@ -354,7 +452,7 @@ connect_trace_lines <- function(
         guid,
         from,
         to,
-        min(page_size, total - page_offset),
+        if (is.na(total)) page_size else min(page_size, total - page_offset),
         page_offset
       )
     })
@@ -367,6 +465,18 @@ connect_trace_lines <- function(
           call = call
         )
       }
+      # Pages already read are kept: the per-job stores hold nothing recorded
+      # after Connect's content-wide store began, so dropping them would turn
+      # one failed page into an empty, silently incomplete result.
+      cli::cli_warn(c(
+        "A page of this content's traces could not be read from Posit Connect.",
+        "i" = "The result holds the pages read so far plus retained per-job traces and may be incomplete."
+      ))
+      # Distinct from `truncated`: nothing about the span budget was reached,
+      # a page simply failed, and the app must say that rather than blame the
+      # ceiling.
+      attr(lines, "incomplete") <- TRUE
+      attr(lines, "spans") <- spans
       return(connect_job_trace_lines(
         client,
         guid,
@@ -374,16 +484,18 @@ connect_trace_lines <- function(
         to,
         max_spans,
         call,
-        page_size
+        page_size,
+        lines = lines
       ))
     }
     for (response in responses) {
       page <- connect_trace_page(response)
-      added <- connect_add_trace_lines(lines, page, to)
+      added <- connect_add_trace_lines(lines, page, to, seen = seen)
       lines <- added$lines
       spans <- c(spans, added$spans)
       span_count <- span_count + added$span_count
       offset <- offset + length(page)
+      last_full <- length(page) >= page_size
       page_number <- page_number + 1L
       connect_progress(sprintf(
         "Read page %d (%s GenAI spans)",
@@ -423,8 +535,11 @@ connect_trace_lines <- function(
   )
 }
 
+# A missing or unparseable X-Total-Count is NA, and callers then page until a
+# short or empty page rather than trusting a count they do not have.
 connect_total_count <- function(response) {
-  suppressWarnings(as.integer(httr2::resp_header(response, "X-Total-Count")))
+  header <- httr2::resp_header(response, "X-Total-Count") %||% NA_character_
+  suppressWarnings(as.integer(header))
 }
 
 # A missing or failing aggregate endpoint falls through to the per-job one.
@@ -445,12 +560,16 @@ connect_response_result <- function(response, call) {
   if (inherits(response, c("httr2_http_401", "httr2_http_403"))) {
     connect_access_abort(response, call)
   }
+  if (inherits(response, "httr2_http_404")) {
+    return(NULL)
+  }
   if (
-    inherits(
-      response,
-      c("httr2_http_404", "httr2_http_500", "httr2_http_502", "httr2_http_503")
-    )
+    inherits(response, c("httr2_http_500", "httr2_http_502", "httr2_http_503"))
   ) {
+    signalCondition(structure(
+      list(message = conditionMessage(response), call = NULL),
+      class = c("scans_connect_transient_failure", "condition")
+    ))
     return(NULL)
   }
   if (inherits(response, "error")) {
@@ -501,15 +620,20 @@ connect_job_trace_lines <- function(
   wave_size = 8L
 ) {
   truncated <- isTRUE(attr(lines, "truncated", exact = TRUE))
+  incomplete <- isTRUE(attr(lines, "incomplete", exact = TRUE))
   spans <- attr(lines, "spans", exact = TRUE)
   lines <- unique(lines)
   parsed <- connect_trace_lines_summary(lines, to, spans = spans)
   spans <- parsed$spans
   span_count <- parsed$span_count
+  seen <- connect_seen_spans(spans)
   finish <- function() {
     attr(lines, "spans") <- spans
     if (truncated) {
       attr(lines, "truncated") <- TRUE
+    }
+    if (incomplete) {
+      attr(lines, "incomplete") <- TRUE
     }
     lines
   }
@@ -547,7 +671,13 @@ connect_job_trace_lines <- function(
   }
   add_page <- function(response, key, page_number) {
     page <- connect_trace_page(response)
-    added <- connect_add_trace_lines(lines, page, to, drop_after = TRUE)
+    added <- connect_add_trace_lines(
+      lines,
+      page,
+      to,
+      drop_after = TRUE,
+      seen = seen
+    )
     lines <<- added$lines
     spans <<- c(spans, added$spans)
     span_count <<- span_count + added$span_count
@@ -709,11 +839,16 @@ connect_parse_time <- function(x) {
 
 # New lines are parsed here, once, and the spans travel with the lines so no
 # later step has to parse them again.
+# `seen` is an environment of "trace span" keys already accumulated: a span
+# that arrives again, in another store or on a shifted page, is not added and
+# does not count towards the ceiling, so a duplicate cannot displace a real
+# conversation at the budget.
 connect_add_trace_lines <- function(
   lines,
   page,
   to = NULL,
-  drop_after = FALSE
+  drop_after = FALSE,
+  seen = NULL
 ) {
   page <- unique(page)
   page <- page[!page %in% lines]
@@ -738,6 +873,7 @@ connect_add_trace_lines <- function(
     envelopes <- envelopes[keep]
   }
   spans <- unlist(lapply(envelopes, otel_envelope_spans), recursive = FALSE)
+  spans <- connect_new_spans(spans, seen)
   span_count <- as.integer(sum(vapply(
     spans,
     function(span) {
@@ -751,6 +887,33 @@ connect_add_trace_lines <- function(
     spans = spans,
     span_count = span_count
   )
+}
+
+connect_span_key <- function(span) {
+  paste(span$trace_id, span$span_id)
+}
+
+connect_seen_spans <- function(spans = list()) {
+  seen <- new.env(parent = emptyenv())
+  for (span in spans) {
+    assign(connect_span_key(span), TRUE, envir = seen)
+  }
+  seen
+}
+
+connect_new_spans <- function(spans, seen) {
+  if (is.null(seen) || length(spans) == 0L) {
+    return(spans)
+  }
+  keep <- logical(length(spans))
+  for (index in seq_along(spans)) {
+    key <- connect_span_key(spans[[index]])
+    if (!exists(key, envir = seen, inherits = FALSE)) {
+      assign(key, TRUE, envir = seen)
+      keep[[index]] <- TRUE
+    }
+  }
+  spans[keep]
 }
 
 # The legacy endpoint accepts a lower `since` bound but no upper bound. Drop
@@ -974,21 +1137,38 @@ otel_span_in_window <- function(span, from, to) {
     (is.null(to) || time < as.numeric(to))
 }
 
-# Group with the padded ancestry still present, then apply the exact time
-# window within each group. Filtering first loses an earlier parent that may
-# carry the conversation id; keeping it afterwards would incorrectly expose a
-# span outside the requested window.
+# Group with the padded ancestry still present, then apply the time window.
+# The window selects conversations: one is kept when a model call started
+# inside [from, to). Within a kept conversation every span before `to` stays,
+# because the latest model call carries the whole history anyway and an
+# earlier tool failure or token total is part of the conversation being
+# reviewed. Spans at or after `to` are dropped so the read is "as of `to`".
+# Only spans the read fetched can be kept: Connect is asked from an hour
+# before `from`, so a conversation that began earlier still keeps its full
+# transcript (the latest model call carries it) but not the timing or usage
+# of calls before that hour. Widen `from` to recover them.
 otel_group_conversations_in_window <- function(spans, from, to) {
   groups <- otel_group_conversations(spans)
+  groups <- Filter(
+    function(group) {
+      any(vapply(
+        group,
+        function(span) {
+          otel_is_chat_span(span) && otel_span_in_window(span, from, to)
+        },
+        logical(1)
+      ))
+    },
+    groups
+  )
   groups <- lapply(groups, function(group) {
     context <- attr(group, "otel_context", exact = TRUE)
-    group <- Filter(function(span) otel_span_in_window(span, from, to), group)
+    group <- Filter(
+      function(span) otel_span_in_window(span, from = NULL, to = to),
+      group
+    )
     attr(group, "otel_context") <- context
     group
   })
-  groups <- Filter(
-    function(group) any(vapply(group, otel_is_chat_span, logical(1))),
-    groups
-  )
   otel_order_conversations(groups)
 }

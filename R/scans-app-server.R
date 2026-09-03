@@ -10,7 +10,8 @@ scans_app_server <- function(
   annotations = NULL,
   cache_max_age = 30 * 60,
   clock = Sys.time,
-  schedule = shiny::invalidateLater
+  schedule = shiny::invalidateLater,
+  annotation_poll_interval = 2000
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -18,7 +19,9 @@ scans_app_server <- function(
   function(input, output, session) {
     seen <- new.env(parent = emptyenv())
     revision <- shiny::reactiveVal(0L)
+    reload_revision <- shiny::reactiveVal(0L)
     selected <- shiny::reactiveVal(NULL)
+    selected_trajectory_id <- shiny::reactiveVal(NULL)
 
     application <- shiny::reactive({
       label <- scans_app_input_or(
@@ -47,7 +50,13 @@ scans_app_server <- function(
       label <- application()
       entry <- scans_app_cache_get(cache, label)
       if (!is.null(entry)) {
-        displayed <- exists(label, envir = seen, inherits = FALSE)
+        # `seen` records which entry this session displayed, so a failure
+        # that replaced the shared entry after this session last looked is
+        # retried here rather than shown as this session's own failure.
+        displayed <- identical(
+          scans_app_cache_get(seen, label),
+          entry$loaded_at
+        )
         age <- scans_app_cache_age(entry, now = clock())
         fresh <- is.null(entry$error) && age < cache_max_age
         if ((displayed && !is.null(entry$error)) || fresh) {
@@ -58,7 +67,7 @@ scans_app_server <- function(
           ) {
             schedule(max(1, cache_max_age - age) * 1000, session)
           }
-          assign(label, TRUE, envir = seen)
+          assign(label, entry$loaded_at, envir = seen)
           return(entry)
         }
       }
@@ -69,7 +78,7 @@ scans_app_server <- function(
         clock = clock
       )
       assign(label, entry, envir = cache)
-      assign(label, TRUE, envir = seen)
+      assign(label, entry$loaded_at, envir = seen)
       if (
         is.null(entry$error) &&
           cache_max_age > 0 &&
@@ -107,6 +116,29 @@ scans_app_server <- function(
       scans_app_data(current$bundle, scan_config())
     })
 
+    # The row index is only a view into the current snapshot. Keep its stable
+    # identity separately so an automatic refresh can rematch a trajectory
+    # when capped or newly sorted data shifts its row.
+    shiny::observeEvent(
+      selected(),
+      ignoreNULL = FALSE,
+      priority = 20L,
+      {
+        current <- shiny::isolate(data())
+        index <- selected()
+        trajectory_id <- if (
+          !is.null(current) &&
+            length(index) == 1L &&
+            !is.na(index) &&
+            index >= 1L &&
+            index <= nrow(current$info)
+        ) {
+          current$info$trajectory_id[[index]]
+        }
+        selected_trajectory_id(trajectory_id)
+      }
+    )
+
     output$scans_app_load_error <- shiny::renderUI({
       message <- active()$error
       if (is.null(message)) {
@@ -126,6 +158,45 @@ scans_app_server <- function(
 
     annotation_revision <- shiny::reactiveVal(0L)
     annotation_status <- shiny::reactiveVal("")
+
+    annotation_records <- if (is.null(annotations)) {
+      function() NULL
+    } else {
+      shiny::reactivePoll(
+        intervalMillis = annotation_poll_interval,
+        session = session,
+        checkFunc = function() {
+          list(
+            application = application(),
+            local_revision = annotation_revision(),
+            file_revision = annotations_file_revision(annotations$path)
+          )
+        },
+        valueFunc = function() {
+          tryCatch(
+            annotations$read(application = application()),
+            error = function(cnd) NULL
+          )
+        }
+      )
+    }
+
+    # The latest label (or "Note") per annotated trajectory of the current
+    # application, so the browser can mark and filter reviewed entries.
+    annotation_labels <- shiny::reactive({
+      if (is.null(annotations)) {
+        return(character())
+      }
+      scans_app_annotation_labels(annotation_records())
+    })
+
+    annotated <- shiny::reactive({
+      current <- data()
+      if (is.null(current)) {
+        return(logical())
+      }
+      current$info$trajectory_id %in% names(annotation_labels())
+    })
 
     selected_annotation_target <- shiny::reactive({
       current <- data()
@@ -187,7 +258,7 @@ scans_app_server <- function(
             TRUE
           },
           error = function(cnd) {
-            annotation_status(conditionMessage(cnd))
+            annotation_status(scans_app_annotation_error(cnd))
             FALSE
           }
         )
@@ -215,16 +286,15 @@ scans_app_server <- function(
       if (is.null(target)) {
         return(scans_app_empty_ui("Select a trajectory to annotate it."))
       }
-      records <- tryCatch(
-        annotations$read(
-          application = target$application,
-          trajectory_id = target$trajectory_id
-        ),
-        error = function(cnd) NULL
-      )
+      records <- annotation_records()
       if (is.null(records)) {
         return(scans_app_empty_ui("Could not read the annotation store."))
       }
+      records <- records[
+        records$trajectory_id %in% target$trajectory_id,
+        ,
+        drop = FALSE
+      ]
       scans_app_annotation_log_ui(records)
     })
 
@@ -258,18 +328,32 @@ scans_app_server <- function(
             rm(list = label, envir = store)
           }
         }
+        reload_revision(reload_revision() + 1L)
         revision(revision() + 1L)
       }
     )
 
     # Only a newly selected or reloaded application resets the browser. Scan
-    # settings merely derive new findings from the same cached bundle and must
-    # not move the reviewer away from the trajectory under inspection.
+    # settings merely derive new findings from the same cached bundle, and the
+    # cache timer re-evaluates `active()` without changing the snapshot; neither
+    # may move the reviewer away from the trajectory under inspection.
+    reset_key <- shiny::reactiveVal(NULL)
     shiny::observeEvent(
       active(),
       ignoreNULL = TRUE,
       priority = 10L,
       {
+        key <- list(application(), reload_revision())
+        if (identical(key, reset_key())) {
+          current <- data()
+          trajectory_id <- selected_trajectory_id()
+          if (!is.null(current) && !is.null(trajectory_id)) {
+            index <- match(trajectory_id, current$info$trajectory_id)
+            selected(if (is.na(index)) NULL else index)
+          }
+          return()
+        }
+        reset_key(key)
         current <- data()
         if (is.null(current)) {
           selected(NULL)
@@ -317,7 +401,9 @@ scans_app_server <- function(
         source = source,
         status = status,
         query = scans_app_input_or(input$scans_app_query, ""),
-        findings_only = isTRUE(input$scans_app_findings_only)
+        findings_only = isTRUE(input$scans_app_findings_only),
+        annotated = annotated(),
+        annotated_only = isTRUE(input$scans_app_annotated_only)
       )
       scans_app_order_records(
         current$records,
@@ -377,10 +463,54 @@ scans_app_server <- function(
     # the slowest part of clicking.
     shiny::observe({
       index <- selected()
+      current <- shiny::isolate(data())
+      trajectory_id <- if (!is.null(index) && !is.null(current)) {
+        current$info$trajectory_id[[index]]
+      }
       session$sendCustomMessage(
         "scans-app-select",
-        list(id = if (is.null(index)) NULL else scans_app_entry_id(index))
+        list(
+          id = if (is.null(index)) NULL else scans_app_entry_id(index),
+          hash = scans_app_hash(
+            if (is.null(index)) NULL else shiny::isolate(application()),
+            trajectory_id
+          )
+        )
       )
+    })
+
+    # A URL hash of "<application>/<trajectory_id>" deep-links to one
+    # trajectory. The application is switched first; the selection is applied
+    # once that application's data is available.
+    pending_hash <- shiny::reactiveVal(NULL)
+    shiny::observeEvent(input$scans_app_hash, {
+      target <- scans_app_parse_hash(input$scans_app_hash, sources$labels)
+      if (is.null(target)) {
+        return()
+      }
+      pending_hash(target)
+      if (!identical(target$application, application())) {
+        shiny::updateSelectInput(
+          session,
+          "scans_app_application",
+          selected = target$application
+        )
+      }
+    })
+    shiny::observe({
+      target <- pending_hash()
+      current <- data()
+      if (is.null(target) || is.null(current)) {
+        return()
+      }
+      if (!identical(target$application, application())) {
+        return()
+      }
+      index <- match(target$trajectory_id, current$info$trajectory_id)
+      if (!is.na(index)) {
+        selected(index)
+      }
+      pending_hash(NULL)
     })
 
     entry_observers <- new.env(parent = emptyenv())
@@ -444,10 +574,12 @@ scans_app_server <- function(
         ))
       }
       chosen <- shiny::isolate(selected())
+      labels <- annotation_labels()
       htmltools::tagList(lapply(indices, function(index) {
         scans_app_entry_ui(
           current$records[index, , drop = FALSE],
-          selected = identical(chosen, index)
+          selected = identical(chosen, index),
+          annotation = labels[current$info$trajectory_id[[index]]]
         )
       }))
     })
@@ -576,6 +708,21 @@ scans_app_safe_source_error <- function() {
   "The trace source could not be read. Check the server logs for details."
 }
 
+# Validation failures from the store name what the reviewer must change and
+# are shown as written. Anything else (an unwritable path, a full disk) is
+# logged on the server and replaced, so the browser never learns the store's
+# location.
+scans_app_annotation_error <- function(cnd) {
+  if (inherits(cnd, "scans_error_annotation_record")) {
+    return(conditionMessage(cnd))
+  }
+  cli::cli_inform(c(
+    "!" = "Failed to save an annotation.",
+    "i" = "{conditionMessage(cnd)}"
+  ))
+  "The annotation could not be saved. Check the server logs for details."
+}
+
 scans_app_log_source_error <- function(label, cnd) {
   details <- conditionMessage(cnd)
   cli::cli_inform(c(
@@ -601,4 +748,48 @@ scans_app_threshold <- function(value, default) {
     return(default)
   }
   as.integer(value)
+}
+
+# Latest annotation label per trajectory; a note-only record shows as "Note".
+scans_app_annotation_labels <- function(records) {
+  if (is.null(records) || nrow(records) == 0L) {
+    return(character())
+  }
+  records <- records[
+    order(records$created_at, decreasing = TRUE),
+    ,
+    drop = FALSE
+  ]
+  latest <- records[!duplicated(records$trajectory_id), , drop = FALSE]
+  label <- latest$label
+  label[is.na(label) | !nzchar(label)] <- "Note"
+  stats::setNames(label, latest$trajectory_id)
+}
+
+scans_app_hash <- function(application, trajectory_id) {
+  if (is.null(application) || is.null(trajectory_id)) {
+    return("")
+  }
+  paste(
+    utils::URLencode(application, reserved = TRUE),
+    utils::URLencode(trajectory_id, reserved = TRUE),
+    sep = "/"
+  )
+}
+
+scans_app_parse_hash <- function(hash, labels) {
+  if (!scans_app_has_string(hash)) {
+    return(NULL)
+  }
+  hash <- sub("^#", "", hash)
+  parts <- strsplit(hash, "/", fixed = TRUE)[[1L]]
+  if (length(parts) < 2L) {
+    return(NULL)
+  }
+  application <- utils::URLdecode(parts[[1L]])
+  trajectory_id <- utils::URLdecode(paste(parts[-1L], collapse = "/"))
+  if (!application %in% labels || !nzchar(trajectory_id)) {
+    return(NULL)
+  }
+  list(application = application, trajectory_id = trajectory_id)
 }

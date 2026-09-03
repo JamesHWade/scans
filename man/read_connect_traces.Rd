@@ -21,9 +21,13 @@ read_connect_traces(
 
 \item{n}{Maximum number of recent conversations to keep. \code{NULL} keeps all.}
 
-\item{from, to}{Optional lower-inclusive and upper-exclusive bounds on span
-start time. \code{NULL} leaves that side open. When both are omitted, the seven
-days ending now are read.}
+\item{from, to}{Optional lower-inclusive and upper-exclusive bounds on the
+start time of a conversation's model calls: a conversation is kept when
+one of its model calls started in the window, and its earlier spans are
+kept with it as far back as the read reached (an hour before \code{from}).
+Accepts POSIXct, Date, or ISO 8601 strings; a string without a zone is
+read as UTC. \code{NULL} leaves that side open. When both are omitted, the
+seven days ending now are read.}
 
 \item{server, api_key}{Connect server URL and API key. Default to
 \code{CONNECT_SERVER} and \code{CONNECT_API_KEY}.}
@@ -45,7 +49,8 @@ once the content-wide store is known to hold everything of interest.}
 A named list of conversations, each a list of spans, oldest-first.
 The names are conversation identifiers. The \code{"read_info"} attribute
 records how the read went: the window, how many spans and conversations
-were found, and whether the \code{max_spans} ceiling cut the read short.
+were found, whether the \code{max_spans} ceiling cut the read short
+(\code{truncated}), and whether a page failed to load (\code{incomplete}).
 }
 \description{
 \code{read_connect_traces()} fetches a deployed application's GenAI spans from

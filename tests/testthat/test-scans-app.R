@@ -437,9 +437,17 @@ test_that("scans app records retain source identity and deterministic findings",
 
   expect_identical(data$records$trajectory_id, "trajectory-error")
   expect_identical(data$records$title, "Find the record")
-  expect_identical(data$records$n_findings, 2L)
-  expect_identical(data$records$n_errors, 2L)
-  expect_setequal(data$findings$event_id, c("error-event-3", "error-event-4"))
+  # Two event errors plus the failed turn and the failed trajectory.
+  expect_identical(data$records$n_findings, 4L)
+  expect_identical(data$records$n_errors, 4L)
+  expect_setequal(
+    data$findings$event_id[!is.na(data$findings$event_id)],
+    c("error-event-3", "error-event-4")
+  )
+  expect_setequal(
+    data$findings$scan[is.na(data$findings$event_id)],
+    c("trajectory_error", "turn_error")
+  )
 })
 
 test_that("scans app titles use canonical event order", {
@@ -1101,6 +1109,287 @@ test_that("an active session refreshes an expired shared snapshot", {
   })
 })
 
+test_that("an automatic cache refresh rematches the selected trajectory", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
+  calls <- 0L
+  snapshot <- function(ids) {
+    TrajectoryBundle(
+      data.frame(
+        trajectory_id = ids,
+        source_type = "manual",
+        started_at = now + rev(seq_along(ids))
+      ),
+      data.frame(),
+      data.frame()
+    )
+  }
+  snapshots <- list(
+    snapshot(c("keep", "old")),
+    snapshot(c("new", "keep", "old"))
+  )
+  sources <- scans_app_sources(list("Deployment" = function() {
+    calls <<- calls + 1L
+    snapshots[[min(calls, length(snapshots))]]
+  }))
+  server <- scans_app_server(
+    sources,
+    cache_max_age = 60,
+    clock = function() now,
+    schedule = function(delay, ...) invisible(NULL)
+  )
+
+  shiny::testServer(server, {
+    session$flushReact()
+    chosen <- match("keep", data()$info$trajectory_id)
+    selected(chosen)
+    session$flushReact()
+    expect_identical(selected_trajectory_id(), "keep")
+    now <<- now + 61
+    # Simulate the timer invalidating active() after the entry has expired.
+    revision(revision() + 1L)
+    session$flushReact()
+    expect_identical(calls, 2L)
+    expect_identical(selected(), 2L)
+    expect_identical(data()$info$trajectory_id[[selected()]], "keep")
+
+    # A reload replaces the snapshot and does reset the browser.
+    session$setInputs(scans_app_reload = 1L)
+    session$flushReact()
+    expect_identical(selected(), visible()[[1L]])
+    expect_identical(data()$info$trajectory_id[[selected()]], "new")
+  })
+})
+
+test_that("another session's failed reload is retried, not inherited", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  calls <- 0L
+  sources <- scans_app_sources(list(
+    "Deployment" = function() {
+      calls <<- calls + 1L
+      trajectory_fixture("simple_exchange")
+    }
+  ))
+  server <- scans_app_server(sources, cache_max_age = 3600)
+  cache <- environment(server)$cache
+
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(calls, 1L)
+    expect_null(active()$error)
+
+    # Another session's reload failed and replaced the shared entry.
+    assign(
+      "Deployment",
+      list(
+        bundle = NULL,
+        data = NULL,
+        error = "failed elsewhere",
+        loaded_at = Sys.time() + 1,
+        read_info = NULL
+      ),
+      envir = cache
+    )
+
+    # This session comes back to the application and retries the load.
+    revision(revision() + 1L)
+    session$flushReact()
+    expect_identical(calls, 2L)
+    expect_null(active()$error)
+  })
+})
+
+test_that("annotation store failures are not echoed to the browser", {
+  cnd <- simpleError("cannot open file '/srv/secret/annotations.jsonl'")
+  message <- suppressMessages(scans_app_annotation_error(cnd))
+  expect_no_match(message, "/srv/secret", fixed = TRUE)
+  expect_message(scans_app_annotation_error(cnd), "/srv/secret")
+
+  record <- rlang::catch_cnd(
+    scans_abort(
+      "Label must be one of {.val good}.",
+      class = "scans_error_annotation_record"
+    )
+  )
+  expect_match(scans_app_annotation_error(record), "Label must be one of")
+})
+
+test_that("values are formatted for reading rather than as str() output", {
+  expect_identical(scans_app_value_text(0.5), "0.5")
+  expect_identical(scans_app_value_text("C"), "C")
+  expect_identical(scans_app_value_text(TRUE), "TRUE")
+  expect_identical(scans_app_value_text(c(1L, 2L, 3L)), "1, 2, 3")
+  expect_identical(
+    scans_app_value_text(list(city = "Detroit", days = 3L)),
+    "city: Detroit\ndays: 3"
+  )
+  skip_if_not_installed("jsonlite")
+  nested <- scans_app_value_text(list(a = list(b = 1:2), c = "x"))
+  expect_match(nested, "\"b\": [1, 2]", fixed = TRUE)
+  expect_match(nested, "\"c\": \"x\"", fixed = TRUE)
+})
+
+test_that("oversized payload text is bounded with a visible marker", {
+  text <- strrep("x", 25000L)
+  bounded <- scans_app_bounded_text(text)
+  expect_lt(nchar(bounded), 20100L)
+  expect_match(bounded, "truncated: 5,000 more characters", fixed = TRUE)
+  expect_identical(scans_app_bounded_text("short"), "short")
+})
+
+test_that("list snippets drop markdown markers", {
+  expect_identical(
+    scans_app_strip_markdown("Please **summarize** the `report` in a *table*"),
+    "Please summarize the report in a table"
+  )
+  expect_identical(
+    scans_app_strip_markdown("## Heading\n- item [link](https://x.y)"),
+    "Heading\nitem link"
+  )
+})
+
+test_that("a string tool result is not shown twice", {
+  skip_if_not_installed("htmltools")
+  events <- trajectory_events(trajectory_fixture("multiple_tools"))
+  event <- events[
+    which(events$event_type == "tool_result")[[1L]],
+    ,
+    drop = FALSE
+  ]
+  event$text <- "Cloudy"
+  event$value <- list("Cloudy")
+  html <- as.character(scans_app_tool_event_ui(event, 1L, "tool_result"))
+  expect_identical(lengths(regmatches(html, gregexpr("Cloudy", html))), 1L)
+})
+
+test_that("annotated trajectories are badged and filterable", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = c("good", "bad")
+  )
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  ids <- trajectory_info(bundle)$trajectory_id
+  store$append(
+    "Deployment",
+    ids[[2L]],
+    label = NA_character_,
+    note = "first look"
+  )
+  store$append("Deployment", ids[[2L]], label = "bad", note = "wrong tool")
+  store$append("Deployment", ids[[3L]], label = NA_character_, note = "check")
+
+  server <- scans_app_server(
+    scans_app_sources(list(Deployment = bundle)),
+    annotations = store
+  )
+  shiny::testServer(server, {
+    session$flushReact()
+    labels <- annotation_labels()
+    expect_identical(unname(labels[ids[[2L]]]), "bad")
+    expect_identical(unname(labels[ids[[3L]]]), "Note")
+
+    html <- as.character(output$scans_app_entries$html)
+    expect_match(html, ">bad<", fixed = TRUE)
+    expect_match(html, ">Note<", fixed = TRUE)
+
+    expect_length(visible(), 4L)
+    session$setInputs(scans_app_annotated_only = TRUE)
+    expect_setequal(ids[visible()], ids[2:3])
+  })
+})
+
+test_that("annotation polling refreshes records written by another session", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = c("good", "bad")
+  )
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  ids <- trajectory_info(bundle)$trajectory_id
+  server <- scans_app_server(
+    scans_app_sources(list(Deployment = bundle)),
+    annotations = store,
+    annotation_poll_interval = 1000
+  )
+
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_length(annotation_labels(), 0L)
+
+    selected(match(ids[[2L]], data()$info$trajectory_id))
+    store$append(
+      "Deployment",
+      ids[[2L]],
+      label = "bad",
+      note = "Written by another reviewer"
+    )
+    session$elapse(1000)
+    session$flushReact()
+
+    expect_identical(unname(annotation_labels()[ids[[2L]]]), "bad")
+    expect_match(
+      as.character(output$scans_app_entries$html),
+      ">bad<",
+      fixed = TRUE
+    )
+    expect_match(
+      paste(as.character(output$scans_app_annotation_log), collapse = ""),
+      "Written by another reviewer",
+      fixed = TRUE
+    )
+    session$setInputs(scans_app_annotated_only = TRUE)
+    expect_identical(ids[visible()], ids[[2L]])
+  })
+})
+
+test_that("a URL hash deep-links to a trajectory", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+
+  bundle <- trajectory_fixture("ellmerverse_correlation")
+  ids <- trajectory_info(bundle)$trajectory_id
+  server <- scans_app_server(scans_app_sources(list(
+    First = trajectory_fixture("simple_exchange"),
+    Second = bundle
+  )))
+  shiny::testServer(server, {
+    session$flushReact()
+    expect_identical(application(), "First")
+
+    hash <- scans_app_hash("Second", ids[[3L]])
+    session$setInputs(scans_app_hash = hash)
+    # The application select is updated in the browser; mirror it here.
+    expect_identical(pending_hash()$application, "Second")
+    session$setInputs(scans_app_application = "Second")
+    expect_identical(application(), "Second")
+    expect_identical(selected(), 3L)
+    expect_null(pending_hash())
+
+    expect_null(scans_app_parse_hash("nonsense", c("First", "Second")))
+    expect_null(scans_app_parse_hash("Third/x", c("First", "Second")))
+    expect_identical(
+      scans_app_parse_hash(scans_app_hash("Second", "a/b c"), "Second"),
+      list(application = "Second", trajectory_id = "a/b c")
+    )
+  })
+})
+
 test_that("snapshot ages use an injected reference time", {
   now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
   loaded_at <- now - 120
@@ -1157,6 +1446,7 @@ test_that("scans app shows what a Connect read found", {
     spans = 12345L,
     max_spans = 50000L,
     truncated = TRUE,
+    incomplete = TRUE,
     conversations_found = 130L,
     conversations = 100L
   )
@@ -1172,6 +1462,7 @@ test_that("scans app shows what a Connect read found", {
     expect_match(info, "12,345 GenAI spans", fixed = TRUE)
     expect_match(info, "last 7 days", fixed = TRUE)
     expect_match(info, "GenAI span ceiling of 50,000 reached", fixed = TRUE)
+    expect_match(info, "could not be read from Connect", fixed = TRUE)
     expect_match(info, "100 most recent of 130", fixed = TRUE)
   })
 })

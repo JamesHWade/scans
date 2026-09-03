@@ -52,7 +52,24 @@
     Shiny.addCustomMessageHandler("scans-app-select", function (message) {
       state.selected = message && message.id ? message.id : null;
       applySelection();
+      // Keep the URL pointing at the selected trajectory so it can be shared.
+      var hash = message && message.hash ? "#" + message.hash : "";
+      if (hash !== window.location.hash && window.history.replaceState) {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search + hash
+        );
+      }
     });
+
+    function sendHash() {
+      var hash = window.location.hash;
+      if (!hash || hash.length < 2) return;
+      Shiny.setInputValue("scans_app_hash", hash.slice(1), { priority: "event" });
+    }
+    $(document).one("shiny:connected", sendHash);
+    window.addEventListener("hashchange", sendHash);
 
     // The entries output re-renders when the filters change; re-apply the
     // highlight once the new list is in the DOM.

@@ -141,7 +141,8 @@ test_that("ellmer metadata and tool payload secrets are redacted", {
     trajectory_info(bundle)$metadata[[1L]]$password,
     "<redacted>"
   )
-  expect_setequal(unique(losses$reason), "redacted")
+  expect_in("redacted", losses$reason)
+  expect_false("truncated" %in% losses$reason)
   expect_no_match(
     rendered,
     "argument-secret|metadata-secret|provider-secret|trajectory-secret"
@@ -339,4 +340,108 @@ test_that("ellmer adapter rejects malformed sources and arguments", {
     error = TRUE,
     as_trajectory_ellmer(ellmer::UserTurn(), metadata = list("unnamed"))
   )
+})
+
+test_that("sensitive names are matched regardless of case and prefix", {
+  sensitive <- c(
+    "api_key",
+    "API_KEY",
+    "Api-Key",
+    "X-Api-Key",
+    "ANTHROPIC_API_KEY",
+    "Authorization",
+    "PASSWORD",
+    "db_password",
+    "token",
+    "GITHUB_TOKEN",
+    "session_token",
+    "private_key",
+    "client_secret",
+    "SECRET",
+    "Cookie",
+    "auth",
+    "bearer"
+  )
+  for (name in sensitive) {
+    expect_true(trajectory_sensitive_name(name), info = name)
+  }
+  benign <- c(
+    "city",
+    "keyboard",
+    "Monkey",
+    "tokenizer",
+    "keys",
+    "primary_key",
+    "author",
+    "id",
+    "model"
+  )
+  for (name in benign) {
+    expect_false(trajectory_sensitive_name(name), info = name)
+  }
+  expect_false(trajectory_sensitive_name(NA_character_))
+})
+
+test_that("upper-case credential fields in tool arguments are redacted", {
+  request <- ellmer::ContentToolRequest(
+    "call-1",
+    "fetch",
+    list(
+      ANTHROPIC_API_KEY = "sk-ant-secret",
+      headers = list(Authorization = "Bearer abc"),
+      url = "https://example.com"
+    )
+  )
+  bundle <- as_trajectory(list(ellmer::AssistantTurn(list(request))))
+  value <- trajectory_events(bundle)$value[[1L]]
+  expect_identical(value$ANTHROPIC_API_KEY, "<redacted>")
+  expect_identical(value$headers$Authorization, "<redacted>")
+  expect_identical(value$url, "https://example.com")
+})
+
+test_that("unknown content locations are scrubbed like remote images", {
+  skip_if_not(exists("ContentUploaded", asNamespace("ellmer")))
+  uploaded <- get("ContentUploaded", asNamespace("ellmer"))(
+    uri = "https://user:pw@files.example.com/f/1?sig=SECRET",
+    mime_type = "text/plain"
+  )
+  bundle <- as_trajectory(list(ellmer::UserTurn(list(uploaded))))
+  event <- trajectory_events(bundle)
+  expect_identical(event$event_type, "custom")
+  expect_identical(event$value[[1L]]$uri, "https://files.example.com/f/1")
+  expect_no_match(as.character(event$value[[1L]]), "SECRET", fixed = TRUE)
+  expect_in("redacted", trajectory_losses(bundle)$reason)
+})
+
+test_that("tool results link to their calls in one indexed pass", {
+  events <- tibble::tibble(
+    event_id = paste0("e", 1:7),
+    event_index = 1:7,
+    event_type = c(
+      "tool_call",
+      "tool_result",
+      "tool_call",
+      "tool_call",
+      "tool_result",
+      "tool_result",
+      "tool_call"
+    ),
+    call_id = c("a", "a", "dup", "dup", "dup", "late", "late"),
+    parent_event_id = NA_character_
+  )
+  linked <- ellmer_link_tool_results(events)
+  # Unambiguous pair links; duplicated ids and a result before its call do not.
+  expect_identical(linked$parent_event_id[[2L]], "e1")
+  expect_true(all(is.na(linked$parent_event_id[-2L])))
+
+  size <- 20000L
+  large <- tibble::tibble(
+    event_id = sprintf("e%06d", seq_len(size)),
+    event_index = seq_len(size),
+    event_type = rep(c("tool_call", "tool_result"), size / 2L),
+    call_id = rep(sprintf("c%06d", seq_len(size / 2L)), each = 2L),
+    parent_event_id = NA_character_
+  )
+  linked <- ellmer_link_tool_results(large)
+  expect_identical(sum(!is.na(linked$parent_event_id)), size %/% 2L)
 })

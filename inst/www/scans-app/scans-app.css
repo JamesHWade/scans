@@ -219,6 +219,11 @@
   color: #555e6d;
 }
 
+.scans-app-badge-annotation {
+  background: #e7f3ff;
+  color: #1f5a96;
+}
+
 .scans-app-overview {
   margin-bottom: 0;
 }
@@ -1325,9 +1330,17 @@
   min-width: 0;
 }
 
+.scans-app-browser-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  justify-content: flex-end;
+}
+
 .scans-app-browser-count .form-check.form-switch {
   margin: 0;
   min-height: 0;
+  white-space: nowrap;
 }
 
 .scans-app-browser-count .form-check-label {

@@ -167,11 +167,63 @@ scans_app_empty_ui <- function(text, compact = FALSE) {
   )
 }
 
+# Values are shown the way a reviewer reads them, not the way R stores them:
+# a scalar as itself, a flat named list as `key: value` lines, and anything
+# nested as JSON. `str()` remains the fallback for objects JSON cannot express.
 scans_app_value_text <- function(value, max_chars = 4000L) {
   if (is.null(value) || length(value) == 0L) {
     return(NULL)
   }
-  text <- paste(
+  text <- scans_app_format_value(value)
+  scans_app_truncate(text, max_chars)
+}
+
+scans_app_format_value <- function(value) {
+  if (is.atomic(value) && is.null(names(value))) {
+    if (length(value) == 1L) {
+      return(scans_app_format_scalar(value))
+    }
+    if (length(value) <= 20L) {
+      return(paste(
+        vapply(value, scans_app_format_scalar, character(1)),
+        collapse = ", "
+      ))
+    }
+  }
+  is_flat <- (is.list(value) || is.atomic(value)) &&
+    !is.null(names(value)) &&
+    all(nzchar(names(value))) &&
+    all(vapply(
+      value,
+      function(x) is.atomic(x) && length(x) == 1L,
+      logical(1)
+    ))
+  if (is_flat) {
+    return(paste(
+      names(value),
+      vapply(value, scans_app_format_scalar, character(1)),
+      sep = ": ",
+      collapse = "\n"
+    ))
+  }
+  if (rlang::is_installed("jsonlite")) {
+    json <- tryCatch(
+      jsonlite::toJSON(
+        value,
+        auto_unbox = TRUE,
+        pretty = TRUE,
+        null = "null",
+        na = "null",
+        force = TRUE,
+        digits = NA
+      ),
+      error = function(cnd) NULL
+    )
+    if (!is.null(json)) {
+      return(as.character(json))
+    }
+  }
+  paste(
     utils::capture.output(
       utils::str(
         value,
@@ -183,7 +235,47 @@ scans_app_value_text <- function(value, max_chars = 4000L) {
     ),
     collapse = "\n"
   )
-  scans_app_truncate(text, max_chars)
+}
+
+scans_app_format_scalar <- function(x) {
+  if (is.na(x)) {
+    return("NA")
+  }
+  if (is.character(x)) {
+    return(x)
+  }
+  format(x, scientific = FALSE, trim = TRUE)
+}
+
+# Payload text in the transcript is bounded so one oversized tool result
+# cannot stall the browser; the marker says how much was left out.
+scans_app_text_limit <- 20000L
+
+scans_app_bounded_text <- function(text, max_chars = scans_app_text_limit) {
+  if (is.na(text) || nchar(text) <= max_chars) {
+    return(text)
+  }
+  omitted <- nchar(text) - max_chars
+  paste0(
+    substr(text, 1L, max_chars),
+    "\n\u2026 [truncated: ",
+    format(omitted, big.mark = ","),
+    " more characters]"
+  )
+}
+
+# Titles and list snippets come from user text that is often markdown; the
+# structure is noise at that size, so the markers are removed.
+scans_app_strip_markdown <- function(text) {
+  text <- gsub("```[^`]*```", " ", text)
+  text <- gsub("`([^`]*)`", "\\1", text)
+  text <- gsub("!\\[([^]]*)\\]\\([^)]*\\)", "\\1", text)
+  text <- gsub("\\[([^]]*)\\]\\([^)]*\\)", "\\1", text)
+  text <- gsub("(^|\\s)#{1,6}\\s+", "\\1", text)
+  text <- gsub("(\\*\\*|__)(.+?)\\1", "\\2", text, perl = TRUE)
+  text <- gsub("(^|[^*\\w])[*_]([^*_]+)[*_]", "\\1\\2", text)
+  text <- gsub("(^|\\n)\\s*(>|[-*+]|\\d+\\.)\\s+", "\\1", text)
+  text
 }
 
 scans_app_truncate <- function(text, max_chars) {
@@ -314,7 +406,18 @@ scans_app_opaque_tags <- c(
   "form",
   "video",
   "audio",
-  "source"
+  "source",
+  # libxml2 parses the content of these as raw text and flags those text
+  # nodes as not-to-be-encoded, so an unwrapped payload would serialize
+  # back out as live markup.
+  "plaintext",
+  "xmp",
+  "listing",
+  "noframes",
+  "noembed",
+  "noscript",
+  "textarea",
+  "title"
 )
 
 scans_app_allowed_attrs <- list(
@@ -332,6 +435,9 @@ scans_app_allowed_attrs <- list(
 scans_app_sanitize_html <- function(html) {
   root_name <- "scans-sanitizer-root"
   html <- scans_app_escape_html_declarations(html)
+  # `<plaintext>` swallows the rest of the document, including the wrapper's
+  # closing tag, so it is neutralised before parsing rather than as a node.
+  html <- gsub("(?i)<(/?plaintext\\b)", "&lt;\\1", html, perl = TRUE)
   root_close <- paste0(
     "(?i)<(/\\s*(?:html|body|",
     root_name,
@@ -433,9 +539,30 @@ scans_app_escape_node <- function(node) {
   invisible(NULL)
 }
 
+# Text children are rebuilt rather than moved: libxml2 marks the text inside
+# raw-text elements (script, xmp, noframes, ...) as not-to-be-encoded, and a
+# moved node keeps that flag and serializes its `<` unescaped.
 scans_app_unwrap_node <- function(node) {
   for (child in rev(xml2::xml_contents(node))) {
+    if (identical(xml2::xml_type(child), "text")) {
+      child <- scans_app_text_node(xml2::xml_text(child))
+      if (is.null(child)) {
+        next
+      }
+    }
     xml2::xml_add_sibling(node, child, .where = "after")
   }
   xml2::xml_remove(node)
+}
+
+scans_app_text_node <- function(text) {
+  if (!nzchar(text)) {
+    return(NULL)
+  }
+  fragment <- xml2::read_html(paste0(
+    "<div>",
+    htmltools::htmlEscape(text),
+    "</div>"
+  ))
+  xml2::xml_contents(xml2::xml_find_first(fragment, "//div"))[[1]]
 }
