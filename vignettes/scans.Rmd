@@ -119,9 +119,11 @@ findings[, c("severity", "label", "explanation")]
 findings$event_ids
 ```
 
-Each finding carries `trajectory_id` and `event_ids`, so joining findings back
-to events is a plain merge. Finding identifiers are stable across runs of the
-same bundle.
+Each finding carries `trajectory_id`. Event-backed findings also carry
+`event_id` and `event_ids`, so those findings join directly back to events.
+Record-level findings instead identify the failed trajectory or turn through
+`trajectory_id` or `turn_id`. Finding identifiers are stable across runs of
+the same bundle.
 
 ## What the built-in scans mean
 

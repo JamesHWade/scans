@@ -9,6 +9,7 @@ vignette: >
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(scans)
 ```
 
 An adapter snapshots a completed run from one framework into the
@@ -34,8 +35,6 @@ objects. It is also the foundation the other adapters reuse for
 model-visible turns.
 
 ```{r, eval = requireNamespace("ellmer", quietly = TRUE)}
-library(scans)
-
 request <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 7L))
 turns <- list(
   ellmer::UserTurn("Look up record 7"),
@@ -157,8 +156,8 @@ values and extra columns are kept.
 
 The scans rely on a handful of event columns: `event_type` values
 `tool_call` and `tool_result`, the tool `name`, a `call_id` shared by a call and
-its result, `arguments` for repeated-call detection, and `status` or `error`
-for failures.
+its result, the canonical `value` list-column for tool-call arguments and
+tool-result payloads, and `status` or `error` for failures.
 
 ```{r}
 trajectories <- data.frame(
@@ -182,6 +181,7 @@ events <- tibble::tibble(
   event_type = c("tool_call", "tool_result", "tool_result"),
   name = "search",
   call_id = c("call-1", "call-1", "call-2"),
+  value = list(list(query = "Detroit"), "sunny", NULL),
   status = c("completed", "completed", "failed"),
   error = c(NA, NA, "timeout")
 )
