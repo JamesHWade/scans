@@ -1635,6 +1635,32 @@ test_that("a transient first aggregate failure marks job fallback incomplete", {
   expect_identical(attr(lines, "spans", exact = TRUE), list())
 })
 
+test_that("a transient first aggregate failure aborts without job fallback", {
+  skip_if_not_installed("httr2")
+  unavailable <- structure(
+    list(message = "unavailable", call = NULL),
+    class = c("httr2_http_503", "httr2_http", "error", "condition")
+  )
+  testthat::local_mocked_bindings(
+    connect_perform = function(request, call) {
+      connect_response_result(unavailable, call)
+    }
+  )
+
+  expect_snapshot(
+    error = TRUE,
+    connect_trace_lines(
+      client = list(server = "https://connect.example.com", api_key = "secret"),
+      guid = "11111111-1111-4111-8111-111111111111",
+      from = NULL,
+      to = NULL,
+      max_spans = 10L,
+      call = rlang::caller_env(),
+      jobs = FALSE
+    )
+  )
+})
+
 test_that("parallel requests preserve unexpected HTTP failures", {
   rate_limit <- structure(
     list(message = "rate limited", call = NULL),

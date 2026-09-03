@@ -382,6 +382,13 @@ connect_trace_lines <- function(
   )
   if (is.null(response)) {
     if (!jobs) {
+      if (transient_failure) {
+        scans_abort(
+          "Couldn't read this content's traces from Posit Connect.",
+          class = "scans_error_connect_traces",
+          call = call
+        )
+      }
       lines <- character()
       attr(lines, "spans") <- list()
       return(lines)

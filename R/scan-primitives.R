@@ -340,6 +340,11 @@ scan_event_is_error <- function(events) {
     (!is.na(events$error) & nzchar(events$error))
 }
 
+scan_turn_is_error <- function(turns) {
+  (!is.na(turns$status) & turns$status == "failed") |
+    (!is.na(turns$error) & nzchar(turns$error))
+}
+
 scan_tool_signature <- function(name, value) {
   name <- if (is.na(name)) "<missing>" else name
   value <- scan_canonicalize_value(value)
@@ -650,10 +655,7 @@ scan_record_findings <- function(info_row, turns, scan_id) {
       scan_order = 0L
     )
   }
-  failed_turns <- which(
-    (!is.na(turns$status) & turns$status == "failed") |
-      (!is.na(turns$error) & nzchar(turns$error))
-  )
+  failed_turns <- which(scan_turn_is_error(turns))
   for (row in failed_turns) {
     findings[[length(findings) + 1L]] <- scan_new_record_finding(
       scan_id = scan_id,

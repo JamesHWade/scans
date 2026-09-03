@@ -112,7 +112,7 @@ summarize_trajectories <- function(x) {
       size
     ),
     n_failed_turns = scan_group_count(
-      !is.na(turns$status) & turns$status == "failed",
+      scan_turn_is_error(turns),
       turn_groups,
       size
     ),

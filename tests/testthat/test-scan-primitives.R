@@ -260,6 +260,9 @@ test_that("turn error text produces a finding without a failed status", {
     vapply(findings$value, `[[`, character(1), "error"),
     c("provider failed", "adapter failed")
   )
+
+  summary <- summarize_trajectories(bundle)
+  expect_identical(summary$n_failed_turns, 2L)
 })
 
 test_that("tool correlation and cycle checks handle large bundles", {
