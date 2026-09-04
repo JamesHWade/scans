@@ -14,3 +14,4 @@ inst/doc
 !pkgdown/
 pkgdown/*
 !pkgdown/favicon/
+_site/
