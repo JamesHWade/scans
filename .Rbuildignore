@@ -9,3 +9,5 @@
 ^jarl\.toml$
 ^deploy$
 ^pkgdown$
+^tools/hex-sticker$
+^_site$

@@ -10,3 +10,8 @@ pkgdown/
 vignettes/*.html
 vignettes/*.R
 inst/doc
+
+!pkgdown/
+pkgdown/*
+!pkgdown/favicon/
+_site/
