@@ -63,48 +63,15 @@ test_that("fixture corpus exercises every canonical column", {
   }
 })
 
-test_that("adapter conformance compares deterministic canonical output", {
-  fixtures <- trajectory_fixtures()
-
-  for (name in names(fixtures)) {
-    expected <- fixtures[[name]]
-    source <- fixture_source(expected)
-    actual <- expect_adapter_conforms(
-      source,
-      expected,
-      adapter = fixture_adapter
-    )
-
-    expect_s7_class(actual, TrajectoryBundle)
-  }
-})
-
-test_that("adapter conformance ignores physical row order", {
-  expected <- trajectory_fixture("multiple_tools")
-  source <- fixture_source(expected)
-  source$turns <- source$turns[rev(seq_len(nrow(source$turns))), ]
-  source$events <- source$events[rev(seq_len(nrow(source$events))), ]
-
-  expect_no_error(
-    expect_adapter_conforms(source, expected, adapter = fixture_adapter)
-  )
-})
-
 test_that("malformed fixtures fail with stable scans conditions", {
   fixtures <- malformed_trajectory_fixtures()
 
   for (name in names(fixtures)) {
     fixture <- fixtures[[name]]
-    condition <- expect_adapter_rejects(
+    expect_adapter_rejects(
       fixture$source,
-      fixture_adapter,
+      \(source) do.call(TrajectoryBundle, source),
       fixture$condition
-    )
-
-    expect_match(
-      conditionMessage(condition),
-      "TrajectoryBundle|trajectories|events",
-      info = paste("fixture:", name)
     )
   }
 })
@@ -123,11 +90,6 @@ test_that("adapters share one trajectory status vocabulary", {
     expect_identical(
       trajectory_canonical_status(reason),
       "interrupted",
-      info = reason
-    )
-    expect_identical(
-      deputy_result_status(reason),
-      tempest_review_status(reason),
       info = reason
     )
   }

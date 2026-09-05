@@ -383,6 +383,7 @@ test_that("sensitive names are matched regardless of case and prefix", {
 })
 
 test_that("upper-case credential fields in tool arguments are redacted", {
+  skip_if_not_installed("ellmer", "0.4.2")
   request <- ellmer::ContentToolRequest(
     "call-1",
     "fetch",
@@ -400,6 +401,7 @@ test_that("upper-case credential fields in tool arguments are redacted", {
 })
 
 test_that("unknown content locations are scrubbed like remote images", {
+  skip_if_not_installed("ellmer", "0.4.2")
   skip_if_not(exists("ContentUploaded", asNamespace("ellmer")))
   uploaded <- get("ContentUploaded", asNamespace("ellmer"))(
     uri = "https://user:pw@files.example.com/f/1?sig=SECRET",
@@ -413,7 +415,7 @@ test_that("unknown content locations are scrubbed like remote images", {
   expect_in("redacted", trajectory_losses(bundle)$reason)
 })
 
-test_that("tool results link to their calls in one indexed pass", {
+test_that("tool results link only to an unambiguous earlier call", {
   events <- tibble::tibble(
     event_id = paste0("e", 1:7),
     event_index = 1:7,
@@ -443,5 +445,12 @@ test_that("tool results link to their calls in one indexed pass", {
     parent_event_id = NA_character_
   )
   linked <- ellmer_link_tool_results(large)
-  expect_identical(sum(!is.na(linked$parent_event_id)), size %/% 2L)
+  expect_identical(
+    linked$parent_event_id[seq.int(2L, size, 2L)],
+    large$event_id[seq.int(1L, size, 2L)]
+  )
+  expect_identical(
+    linked$parent_event_id[seq.int(1L, size, 2L)],
+    rep(NA_character_, size %/% 2L)
+  )
 })

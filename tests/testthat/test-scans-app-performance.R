@@ -131,10 +131,7 @@ test_that("application overview follows filters and opens exact evidence without
 
 test_that("application overview handles the public Tempest review fixture", {
   skip_if_not_installed("htmltools")
-  bundle <- as_trajectory_tempest(readRDS(test_path(
-    "fixtures",
-    "tempest-review.rds"
-  )))
+  bundle <- as_trajectory_tempest(tempest_review_fixture())
   data <- scans_app_data(bundle)
   overview <- scans_app_performance_data(data, seq_len(nrow(data$info)))
   expect_equal(overview$n, 1)

@@ -1,16 +1,6 @@
-skip_if_no_markdown <- function() {
-  skip_if_not_installed("commonmark")
-  skip_if_not_installed("xml2")
-  skip_if_not_installed("htmltools")
-}
-
-render <- function(text) {
-  as.character(htmltools::renderTags(scans_app_markdown(text))$html)
-}
-
 test_that("markdown structure is rendered, not shown as source", {
   skip_if_no_markdown()
-  html <- render("## Heading\n\n- one\n- two\n\n**bold** and `code`")
+  html <- render_markdown("## Heading\n\n- one\n- two\n\n**bold** and `code`")
   expect_match(html, "<h2>Heading</h2>", fixed = TRUE)
   expect_match(html, "<li>one</li>", fixed = TRUE)
   expect_match(html, "<strong>bold</strong>", fixed = TRUE)
@@ -20,7 +10,7 @@ test_that("markdown structure is rendered, not shown as source", {
 
 test_that("tables render, since assistants answer with them", {
   skip_if_no_markdown()
-  html <- render("| a | b |\n|---|---|\n| 1 | 2 |")
+  html <- render_markdown("| a | b |\n|---|---|\n| 1 | 2 |")
   expect_match(html, "<table>", fixed = TRUE)
   expect_match(html, "<th>a</th>", fixed = TRUE)
   expect_match(html, "<td>2</td>", fixed = TRUE)
@@ -28,7 +18,7 @@ test_that("tables render, since assistants answer with them", {
 
 test_that("opaque markup is shown as text rather than dropped or executed", {
   skip_if_no_markdown()
-  html <- render("Before <script>alert(1)</script> after.")
+  html <- render_markdown("Before <script>alert(1)</script> after.")
   # Visible to whoever is diagnosing the trajectory...
   expect_match(html, "&lt;script&gt;alert(1)&lt;/script&gt;", fixed = TRUE)
   # ...but never live markup, and the surrounding prose survives.
@@ -39,7 +29,7 @@ test_that("opaque markup is shown as text rather than dropped or executed", {
 
 test_that("event handlers and unsafe link schemes do not survive", {
   skip_if_no_markdown()
-  html <- render(
+  html <- render_markdown(
     "<img src=x onerror=alert(1)>\n\n[bad](javascript:evil()) [ok](https://example.com)"
   )
   doc <- xml2::read_html(html)
@@ -54,14 +44,14 @@ test_that("event handlers and unsafe link schemes do not survive", {
 
 test_that("unknown containers keep their text", {
   skip_if_no_markdown()
-  html <- render("<div class=\"wrapper\">kept text</div>")
+  html <- render_markdown("<div class=\"wrapper\">kept text</div>")
   expect_match(html, "kept text", fixed = TRUE)
   expect_no_match(html, "wrapper", fixed = TRUE)
 })
 
 test_that("HTML comments remain visible as escaped source", {
   skip_if_no_markdown()
-  html <- render("Before <!-- diagnostic detail --> after.")
+  html <- render_markdown("Before <!-- diagnostic detail --> after.")
   expect_match(html, "&lt;!-- diagnostic detail --&gt;", fixed = TRUE)
   expect_no_match(html, "<!-- diagnostic detail -->", fixed = TRUE)
 
@@ -76,14 +66,14 @@ test_that("HTML comments remain visible as escaped source", {
 
 test_that("empty unknown elements remain visible as escaped source", {
   skip_if_no_markdown()
-  html <- render("Before <citation id=\"source-1\"></citation> after.")
+  html <- render_markdown("Before <citation id=\"source-1\"></citation> after.")
   expect_match(html, "&lt;citation id=\"source-1\"&gt;", fixed = TRUE)
   expect_match(html, "&lt;/citation&gt;", fixed = TRUE)
 })
 
 test_that("document declarations remain visible as escaped source", {
   skip_if_no_markdown()
-  html <- render("Before\n\n<!DOCTYPE html>\n\nAfter")
+  html <- render_markdown("Before\n\n<!DOCTYPE html>\n\nAfter")
   expect_match(html, "&lt;!DOCTYPE html&gt;", fixed = TRUE)
   expect_no_match(html, "<!DOCTYPE html>", fixed = TRUE)
   expect_match(html, "Before", fixed = TRUE)
@@ -125,7 +115,12 @@ test_that("raw-text elements cannot smuggle live markup", {
     "title"
   )
   for (tag in tags) {
-    html <- render(sprintf("hello <%s>%s</%s> tail", tag, payload, tag))
+    html <- render_markdown(sprintf(
+      "hello <%s>%s</%s> tail",
+      tag,
+      payload,
+      tag
+    ))
     doc <- xml2::read_html(html)
     nodes <- xml2::xml_find_all(doc, "//*")
     attrs <- unlist(lapply(nodes, function(node) names(xml2::xml_attrs(node))))
@@ -140,7 +135,7 @@ test_that("raw-text elements cannot smuggle live markup", {
 
 test_that("unwrapped text with angle brackets stays escaped", {
   skip_if_no_markdown()
-  html <- render("<font>1 &lt; 2 &amp; <b>bold</b></font>")
+  html <- render_markdown("<font>1 &lt; 2 &amp; <b>bold</b></font>")
   expect_match(html, "1 &lt; 2 &amp; ", fixed = TRUE)
   expect_match(html, "bold", fixed = TRUE)
   expect_no_match(html, "<b>", fixed = TRUE)

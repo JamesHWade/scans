@@ -1,71 +1,60 @@
-test_that("the registry lists every scan the detectors emit", {
+test_that("the registry advertises built-in names and severities", {
   registry <- scan_registry()
-  expect_setequal(
-    registry$scan,
-    c(
-      "ambiguous_tool_correlation",
-      "unresolved_tool_call",
-      "unmatched_tool_result",
-      "repeated_tool_call",
-      "suspicious_tool_loop",
-      "event_error",
-      "error_chain",
-      "turn_error",
-      "trajectory_error"
-    )
+  expected <- c(
+    ambiguous_tool_correlation = "warning",
+    unresolved_tool_call = "warning",
+    unmatched_tool_result = "warning",
+    repeated_tool_call = "warning",
+    suspicious_tool_loop = "warning",
+    event_error = "error",
+    error_chain = "error",
+    turn_error = "error",
+    trajectory_error = "error"
   )
-  expect_true(all(registry$severity %in% c("warning", "error")))
-  expect_true(all(nzchar(registry$description)))
-  expect_match(
-    registry$description[registry$scan == "turn_error"],
-    "truncating finish reason"
+
+  expect_setequal(registry$scan, names(expected))
+  expect_length(registry$scan, length(expected))
+  expect_identical(
+    stats::setNames(registry$severity, registry$scan)[names(expected)],
+    expected
   )
+  expect_all_true(nzchar(registry$description))
 })
 
-test_that("selecting scans narrows the findings", {
-  bundle <- do.call(
-    TrajectoryBundle,
-    fixture_source(trajectory_fixture("tool_error"))
-  )
-  all_findings <- scan_trajectories(bundle)
-  skip_if(nrow(all_findings) == 0L, "fixture produces no findings")
+test_that("selecting event errors retains both exact evidence records", {
+  bundle <- trajectory_fixture("tool_error")
+  findings <- scan_trajectories(bundle, scans = "event_error")
 
-  chosen <- unique(all_findings$scan)[[1L]]
-  narrowed <- scan_trajectories(bundle, scans = chosen)
-
-  expect_true(all(narrowed$scan == chosen))
-  expect_equal(nrow(narrowed), sum(all_findings$scan == chosen))
-  expect_identical(names(narrowed), names(all_findings))
+  expect_identical(findings$scan, rep("event_error", 2L))
+  expect_identical(findings$trajectory_id, rep("trajectory-error", 2L))
+  expect_identical(findings$event_id, c("error-event-3", "error-event-4"))
+  expect_identical(findings$event_ids, list("error-event-3", "error-event-4"))
+  expect_identical(findings$turn_id, rep("error-turn-3", 2L))
 })
 
 test_that("finding identifiers do not shift with the selection", {
-  bundle <- do.call(
-    TrajectoryBundle,
-    fixture_source(trajectory_fixture("tool_error"))
-  )
+  bundle <- trajectory_fixture("tool_error")
   all_findings <- scan_trajectories(bundle)
-  skip_if(nrow(all_findings) == 0L, "fixture produces no findings")
+  narrowed <- scan_trajectories(bundle, scans = "event_error")
 
-  chosen <- unique(all_findings$scan)[[1L]]
-  narrowed <- scan_trajectories(bundle, scans = chosen)
-  expected <- all_findings[all_findings$scan == chosen, , drop = FALSE]
-
-  expect_equal(narrowed$finding_id, expected$finding_id)
+  expect_identical(
+    all_findings$scan,
+    c("trajectory_error", "turn_error", "event_error", "event_error")
+  )
+  expect_identical(
+    narrowed$finding_id,
+    c("scan-000001/finding-000003", "scan-000001/finding-000004")
+  )
+  expect_identical(narrowed, all_findings[3:4, ])
 })
 
 test_that("selecting no scans returns no findings", {
-  bundle <- do.call(
-    TrajectoryBundle,
-    fixture_source(trajectory_fixture("tool_error"))
-  )
+  bundle <- trajectory_fixture("tool_error")
   expect_equal(nrow(scan_trajectories(bundle, scans = character())), 0L)
 })
 
 test_that("scan selection preserves positional threshold compatibility", {
-  bundle <- do.call(
-    TrajectoryBundle,
-    fixture_source(trajectory_fixture("tool_error"))
-  )
+  bundle <- trajectory_fixture("tool_error")
 
   positional <- scan_trajectories(bundle, "positional", 4L, 5L)
   named <- scan_trajectories(
@@ -79,10 +68,7 @@ test_that("scan selection preserves positional threshold compatibility", {
 })
 
 test_that("an unknown scan name is refused", {
-  bundle <- do.call(
-    TrajectoryBundle,
-    fixture_source(trajectory_fixture("tool_error"))
-  )
+  bundle <- trajectory_fixture("tool_error")
   expect_error(
     scan_trajectories(bundle, scans = "not_a_scan"),
     class = "scans_error_scan_selection"

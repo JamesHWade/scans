@@ -75,7 +75,7 @@ scans_app_check_annotations <- function(
   annotations,
   call = rlang::caller_env()
 ) {
-  if (is.null(annotations) || is_scans_annotations(annotations)) {
+  if (is.null(annotations) || inherits(annotations, "scans_annotations")) {
     return(invisible(annotations))
   }
   scans_abort(

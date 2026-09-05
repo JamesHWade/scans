@@ -243,8 +243,10 @@ test_that("unresolved Deputy parent runs remain explicit adapter losses", {
   expect_true(is.na(info$parent_trajectory_id))
   expect_identical(info$metadata[[1L]]$parent_run_id, "run-parent")
   expect_identical(info$metadata[[1L]]$delegation_id, "delegation-001")
-  expect_true(any(losses$field == "parent_run_id"))
-  expect_true(any(grepl("parent trajectory", losses$detail, fixed = TRUE)))
+  expect_identical(
+    losses$reason[losses$field == "parent_run_id"],
+    "unsupported"
+  )
 })
 
 test_that("Deputy result collections resolve included delegation parents", {
