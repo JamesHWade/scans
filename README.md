@@ -139,6 +139,12 @@ describes each adapter's contract and how to build one for another framework.
 
 ## The reviewer workflow
 
+- **Understand the application** in the overview: see recurring finding
+  patterns, median and 95th-percentile elapsed time, recorded token usage,
+  and evidence coverage for the trajectories matching your browser filters.
+  Select a pattern to narrow the list, or open a ranked trajectory to inspect
+  its evidence. Unknown measurements stay visible as missing; conversation
+  elapsed time may include pauses between user messages.
 - **Triage** in the app's left rail: search by identifier, user, model, or
   transcript text; filter by source and status; sort by time, findings, or
   length; step through trajectories with the arrow keys.

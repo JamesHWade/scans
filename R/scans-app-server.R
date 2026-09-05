@@ -22,6 +22,35 @@ scans_app_server <- function(
     reload_revision <- shiny::reactiveVal(0L)
     selected <- shiny::reactiveVal(NULL)
     selected_trajectory_id <- shiny::reactiveVal(NULL)
+    pattern_filter <- shiny::reactiveVal(NULL)
+
+    shiny::observeEvent(application(), {
+      pattern_filter(NULL)
+    })
+    shiny::observeEvent(input$scans_app_pattern, {
+      pattern <- input$scans_app_pattern
+      if (
+        is.character(pattern) &&
+          length(pattern) == 1L &&
+          pattern %in% scan_registry()$scan
+      ) {
+        pattern_filter(pattern)
+      }
+    })
+    shiny::observeEvent(input$scans_app_clear_pattern, {
+      pattern_filter(NULL)
+    })
+    output$scans_app_pattern_filter <- shiny::renderUI({
+      pattern <- pattern_filter()
+      if (is.null(pattern)) {
+        return(NULL)
+      }
+      htmltools::div(
+        class = "scans-app-active-pattern",
+        htmltools::tags$span(paste("Finding:", gsub("_", " ", pattern))),
+        shiny::actionLink("scans_app_clear_pattern", "Clear")
+      )
+    })
 
     application <- shiny::reactive({
       label <- scans_app_input_or(
@@ -405,6 +434,13 @@ scans_app_server <- function(
         annotated = annotated(),
         annotated_only = isTRUE(input$scans_app_annotated_only)
       )
+      pattern <- pattern_filter()
+      if (!is.null(pattern)) {
+        matching <- current$findings$trajectory_id[
+          current$findings$scan %in% pattern
+        ]
+        indices <- indices[current$records$trajectory_id[indices] %in% matching]
+      }
       scans_app_order_records(
         current$records,
         indices,
@@ -463,6 +499,7 @@ scans_app_server <- function(
     # the slowest part of clicking.
     shiny::observe({
       index <- selected()
+      showing_trajectory <- !identical(input$scans_app_view, "application")
       current <- shiny::isolate(data())
       trajectory_id <- if (!is.null(index) && !is.null(current)) {
         current$info$trajectory_id[[index]]
@@ -472,8 +509,12 @@ scans_app_server <- function(
         list(
           id = if (is.null(index)) NULL else scans_app_entry_id(index),
           hash = scans_app_hash(
-            if (is.null(index)) NULL else shiny::isolate(application()),
-            trajectory_id
+            if (is.null(index) || !showing_trajectory) {
+              NULL
+            } else {
+              shiny::isolate(application())
+            },
+            if (showing_trajectory) trajectory_id else NULL
           )
         )
       )
@@ -509,6 +550,7 @@ scans_app_server <- function(
       index <- match(target$trajectory_id, current$info$trajectory_id)
       if (!is.na(index)) {
         selected(index)
+        bslib::nav_select("scans_app_view", "trajectory", session = session)
       }
       pending_hash(NULL)
     })
@@ -528,6 +570,7 @@ scans_app_server <- function(
           entry <- index
           observer <- shiny::observeEvent(input[[scans_app_entry_id(entry)]], {
             selected(entry)
+            bslib::nav_select("scans_app_view", "trajectory", session = session)
           })
           assign(id, observer, envir = entry_observers)
         })
@@ -582,6 +625,42 @@ scans_app_server <- function(
           annotation = labels[current$info$trajectory_id[[index]]]
         )
       }))
+    })
+
+    shiny::observeEvent(input$scans_app_inspect, {
+      current <- data()
+      if (is.null(current)) {
+        return()
+      }
+      id <- input$scans_app_inspect
+      if (!is.character(id) || length(id) != 1L || is.na(id)) {
+        return()
+      }
+      index <- match(id, current$info$trajectory_id)
+      if (!is.na(index) && index %in% visible()) {
+        selected(index)
+        bslib::nav_select("scans_app_view", "trajectory", session = session)
+      }
+    })
+
+    performance <- shiny::reactive({
+      current <- data()
+      if (is.null(current)) {
+        return(NULL)
+      }
+      scans_app_performance_data(current, visible())
+    })
+    output$scans_app_performance <- shiny::renderUI({
+      current <- performance()
+      if (is.null(current)) {
+        return(scans_app_source_error_ui(application()))
+      }
+      scans_app_performance_ui(
+        current,
+        application(),
+        input$scans_app_priority %||% "elapsed",
+        scan_config()$scans
+      )
     })
 
     output$scans_app_overview <- shiny::renderUI({

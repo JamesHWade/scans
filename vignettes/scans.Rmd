@@ -156,10 +156,19 @@ scan_trajectories(
 
 ## Open the review app
 
-`scans_app()` renders the same bundle as a read-only Shiny app: a trajectory
-list you can search, filter, and sort; a transcript rendered as chat with tool
-activity collapsed into rows; and an evidence rail that links each finding to
-the events behind it.
+`scans_app()` opens an application overview of the same bundle. It summarizes
+the trajectories matching the browser filters, ranks recurring finding
+patterns by affected trajectories, and shows elapsed-time quantiles, recorded
+tokens, and evidence coverage. Select a pattern to narrow the browser, then
+open a trajectory to see its transcript and evidence links. The **Clear** link
+beside the active pattern restores the broader selection.
+
+Elapsed time runs from the recorded start to completion; in a conversation it
+may include pauses between user messages. It is not model response latency.
+Recorded tokens sum known turn values and may omit unrecorded usage. The app
+shows coverage counts and does not replace unknown values with zeros. Parent
+and delegated trajectories remain separate observations. Finding prevalence
+describes captured trajectories and does not measure answer quality.
 
 ```{r, eval = FALSE}
 scans_app(bundle)
