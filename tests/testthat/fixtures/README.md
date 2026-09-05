@@ -31,9 +31,12 @@ populate every canonical schema column and exercise every core loss reason.
 Fixtures are loaded through `testthat::test_path()`, so adapter tests work from
 the source tree and during `R CMD check` without network access.
 
-`tempest-review.rds` was produced by the installed Tempest 0.0.0.9000 public
-`tempest_trajectory_review()` function from Tempest's provider-free STORM
-promotion fixture. Tests read that authoritative result and project it through
+`tempest-review.rds` was rebuilt on 2026-09-05 with Tempest 0.3.0.9000,
+source commit `bfc32f6cd387ac64aa628301e110396b668d69a7`, through the public
+`tempest_trajectory_review()` function and Tempest's provider-free STORM
+promotion fixture. The rebuilt value also validates through the public accessor
+at `3d8d64aefaa2cb9498ebcafa9e590510926b97e9`, the Tempest revision selected by
+Scans' `Remotes` branch during this audit. Tests read that authoritative result and project it through
 Tempest's exported accessor; they do not reproduce Tempest classes or digest
 contracts. After installing a matching Tempest checkout, run from the scans root:
 
