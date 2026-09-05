@@ -10,7 +10,7 @@ turn-based sums, including raw costs; its columns do not change meaning.
 Every row carries a value, unit, aggregation, source, source unit,
 `n_recorded`, `n_total`, coverage, and a limitation. Counts refer to records in
 the loaded bundle, never to all calls made by an application. `complete` means
-every eligible captured record supplies this measure; `partial` means some
+every eligible source record supplies this measure; `partial` means some
 do; `unavailable` means none do or the measure is unsupported. `unknown` is
 reserved for older conversation totals whose recording denominator was not
 preserved. A known zero is a value; an empty or unmeasured set is `NA`.

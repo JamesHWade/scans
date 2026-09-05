@@ -3,27 +3,31 @@ scans_app_resources_ui <- function(data, index) {
     data$measures$trajectory_id == data$info$trajectory_id[[index]],
   ]
   labels <- c(
-    "Conversation elapsed",
-    "Input tokens",
-    "Output tokens",
-    "Cached input tokens",
-    "Turn duration sum",
-    "Model duration sum",
-    "Tool duration sum",
-    "Recorded work",
-    "Time outside recorded work",
-    "First-chunk latency (median)",
-    "First-token latency",
-    "Comparable cost"
+    elapsed = "Conversation elapsed",
+    input_tokens = "Input tokens",
+    output_tokens = "Output tokens",
+    cached_input_tokens = "Cached input tokens",
+    turn_duration = "Turn duration sum",
+    model_duration = "Model duration sum",
+    tool_duration = "Tool duration sum",
+    recorded_work = "Recorded work",
+    unattributed_elapsed = "Time outside recorded work",
+    first_chunk_latency = "First-chunk latency (median)",
+    first_token_latency = "First-token latency",
+    cost = "Comparable cost"
   )
   htmltools::tags$details(
     class = "scans-app-resources",
     htmltools::tags$summary("Resource measurements"),
     htmltools::tags$p(
-      "Coverage counts eligible captured records, not all work the application performed. Expand a measure for its source and interpretation."
+      "Coverage counts eligible source records in the loaded snapshot: spans, turns, tool-call events, or a pair of trajectory bounds, depending on the measure. Expand a measure for its source and interpretation."
     ),
     htmltools::tagList(lapply(seq_len(nrow(rows)), function(i) {
       row <- rows[i, ]
+      label <- unname(labels[row$measure])
+      if (is.na(label)) {
+        label <- row$measure
+      }
       value <- if (is.na(row$value)) {
         "Unavailable"
       } else if (identical(row$unit, "s")) {
@@ -43,7 +47,7 @@ scans_app_resources_ui <- function(data, index) {
       }
       htmltools::tags$details(
         htmltools::tags$summary(
-          htmltools::tags$span(labels[[i]]),
+          htmltools::tags$span(label),
           htmltools::tags$strong(value),
           htmltools::tags$small(coverage)
         ),

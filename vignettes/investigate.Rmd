@@ -103,7 +103,9 @@ usage sums; use `measure_trajectories()` for the source-aware resource view
 shared with the app. Cached input is part of input usage, not an additional
 token count to add to it.
 
-`complete` means every eligible **captured** record supplied a valid value.
+`complete` means every eligible source record in the **loaded snapshot**
+supplied a valid value. Depending on the measure, these records are spans,
+turns, tool-call events, or a pair of trajectory bounds.
 It cannot prove that a source recorded every call, retained every trace, or
 loaded the whole time window. The limited capture supplies input usage for
 one of two calls and no output usage. Unknown usage is never converted to
