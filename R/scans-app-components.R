@@ -5,9 +5,8 @@ scans_app_source_error_heading <- function(label) {
   )
 }
 
-# The reason is shown, not just the failure. Without it the app looks like an
-# application with no conversations, and the actual cause -- an expired key, a
-# server error on the trace endpoint -- is invisible to whoever is looking.
+# Show a failed load separately from an empty source. The server supplies
+# a fixed message here and logs the underlying error.
 scans_app_source_error_ui <- function(label, message = NULL) {
   htmltools::div(
     class = "scans-app-load-error",
@@ -108,9 +107,6 @@ scans_app_short_time <- function(time) {
   format(time, "%b %d %H:%M", tz = "UTC")
 }
 
-# The header's stat strip: the counts the value boxes used to show, plus
-# what a reviewer looks up first -- who, which model, when, how long, how
-# many tokens -- in one line above the transcript.
 scans_app_overview_ui <- function(data, index) {
   if (is.null(index)) {
     return(NULL)
@@ -219,9 +215,7 @@ scans_app_header_ui <- function(data, index) {
   )
 }
 
-# What the last load found. For a Connect source this says how far back it
-# looked and whether the span ceiling was hit -- the difference between "a
-# quiet week" and "traces are missing".
+# Keep the read window and capture limits visible beside the loaded data.
 scans_app_load_info_ui <- function(entry, reloadable = FALSE) {
   info <- entry$read_info
   loaded_at <- entry$loaded_at
@@ -349,9 +343,7 @@ scans_app_window_string <- function(from, to) {
 }
 
 
-# Annotations render newest-first as a short log rather than a single current
-# value: the store is append-only, and seeing that an earlier reviewer
-# disagreed is the point.
+# Show prior annotations newest first so revised judgments remain visible.
 scans_app_annotation_log_ui <- function(records) {
   if (nrow(records) == 0L) {
     return(scans_app_empty_ui(

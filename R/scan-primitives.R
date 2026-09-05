@@ -519,10 +519,8 @@ scan_tool_run_groups <- function(events, calls, signatures, roles) {
     } else {
       integer()
     }
-    # Results and the assistant's own narration ("Let me try that again")
-    # between two identical calls are how a real loop looks. Content from
-    # the user is a deliberate new request, so it ends the run, as does any
-    # other event.
+    # Tool results and assistant content may separate identical calls in a
+    # loop. User content and other event types end the sequence.
     between_types <- events$event_type[between]
     between_roles <- roles[between]
     allowed_between <- length(between) == 0L ||

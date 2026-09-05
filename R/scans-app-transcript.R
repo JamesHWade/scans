@@ -134,13 +134,7 @@ scans_app_event_group_ui <- function(title, events, rows) {
   )
 }
 
-# A turn renders as a chat message rather than a titled card: user turns as a
-# trailing bubble, assistant turns against an avatar, and the system prompt --
-# which is long, identical across a conversation, and rarely what someone
-# opened the transcript for -- collapsed behind a disclosure. The diagnostic
-# facts a card used to spell out (turn index, tokens, duration, status) move
-# to a quiet footer, and a status badge is shown only when the status is worth
-# noticing; a green "Completed" on every turn is noise that hides the failures.
+# Collapse the system prompt; show turn metadata below the content.
 scans_app_turn_ui <- function(turn, events, rows) {
   role <- scans_app_first_string(turn$role[[1L]], "unknown")
   token <- scans_app_css_token(role)
@@ -202,7 +196,6 @@ scans_app_turn_ui <- function(turn, events, rows) {
   )
 }
 
-# Turn index and round, as a quiet positional label.
 scans_app_turn_position <- function(turn) {
   text <- paste0("Turn ", turn$turn_index[[1L]])
   if (!is.na(turn$round_index[[1L]])) {
@@ -245,8 +238,7 @@ scans_app_count <- function(x) {
   if (is.na(x)) "\u2013" else format(x, big.mark = ",", trim = TRUE)
 }
 
-# Only statuses that deserve attention get a badge; a routine completion is
-# the absence of one.
+# Successful statuses have no badge.
 scans_app_notable_status_badge <- function(status) {
   if (!scans_app_has_string(status)) {
     return(NULL)
@@ -268,8 +260,6 @@ scans_app_event_ui <- function(event, row) {
   scans_app_aside_event_ui(event, row, type)
 }
 
-# Message text is the thing people came to read, so it renders as prose with
-# no card around it.
 scans_app_content_event_ui <- function(event, row) {
   content <- htmltools::tagList(
     scans_app_markdown(event$text[[1L]]),
@@ -294,8 +284,6 @@ scans_app_content_event_ui <- function(event, row) {
   )
 }
 
-# Tool activity is supporting detail: one compact, collapsed row per call,
-# with the tool name in monospace and the payload inside.
 scans_app_tool_event_ui <- function(event, row, type) {
   name <- scans_app_first_string(event$name[[1L]], "tool")
   label <- if (identical(type, "tool_call")) "Called" else "Returned"
@@ -328,8 +316,6 @@ scans_app_tool_event_ui <- function(event, row, type) {
   )
 }
 
-# Anything else (an error, a source-specific event such as commons
-# provenance) stays visible but quiet.
 scans_app_aside_event_ui <- function(event, row, type) {
   heading <- scans_app_title_case(gsub("[:_]", " ", type))
   if (scans_app_has_string(event$name[[1L]])) {

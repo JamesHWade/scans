@@ -1,7 +1,4 @@
-# The scanner settings the app runs with. Held as one value so the server
-# can recompute findings from a cached bundle when the settings change,
-# without refetching traces -- a Connect read is seconds of HTTP, and
-# choosing a different scan should not pay for it.
+# Recompute findings from the cached bundle when these settings change.
 scans_app_scan_config <- function(
   scans = NULL,
   repeat_threshold = 2L,

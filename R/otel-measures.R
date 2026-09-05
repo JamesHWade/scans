@@ -1,5 +1,4 @@
-# Preserve bounded aggregates before reconstructing only the latest history.
-# This source-specific contract does not pretend turn rows are model calls.
+# Preserve call aggregates before reconstructing the latest message history.
 otel_resource_measures <- function(spans, chat_spans) {
   tool_spans <- Filter(otel_is_tool_span, spans)
   work <- c(chat_spans, tool_spans)

@@ -48,9 +48,7 @@ scans_app_context_ui <- function(info) {
   )
 }
 
-# Metadata is flattened to dotted keys and shown as a definition list, so
-# `otel.attributes.enduser.id` reads as a fact rather than as a line of
-# `str()` output. Values are bounded per entry.
+# Flatten metadata to dotted keys and bound each displayed value.
 scans_app_metadata_ui <- function(metadata, max_chars = 300L) {
   entries <- scans_app_flatten_metadata(metadata)
   if (length(entries) == 0L) {
@@ -167,9 +165,8 @@ scans_app_empty_ui <- function(text, compact = FALSE) {
   )
 }
 
-# Values are shown the way a reviewer reads them, not the way R stores them:
-# a scalar as itself, a flat named list as `key: value` lines, and anything
-# nested as JSON. `str()` remains the fallback for objects JSON cannot express.
+# Format scalars and flat named lists directly; use JSON for nested values
+# and str() for objects JSON cannot represent.
 scans_app_value_text <- function(value, max_chars = 4000L) {
   if (is.null(value) || length(value) == 0L) {
     return(NULL)
@@ -264,8 +261,7 @@ scans_app_bounded_text <- function(text, max_chars = scans_app_text_limit) {
   )
 }
 
-# Titles and list snippets come from user text that is often markdown; the
-# structure is noise at that size, so the markers are removed.
+# Remove Markdown formatting from titles and list snippets.
 scans_app_strip_markdown <- function(text) {
   text <- gsub("```[^`]*```", " ", text)
   text <- gsub("`([^`]*)`", "\\1", text)
@@ -325,14 +321,10 @@ scans_app_dependency <- function(package_version = utils::packageVersion) {
   )
 }
 
-# Render model-authored markdown for the transcript.
-#
-# Model output is untrusted: it can contain raw HTML, and commonmark 2.0
-# dropped the `sanitize` argument that used to strip it. So the rendered
-# HTML is parsed and rebuilt against an allowlist of elements and
-# attributes -- a node filter rather than a regex, because regexes do not
-# reliably see tag boundaries. Without commonmark or xml2 the text is shown
-# verbatim, which is honest rather than merely unformatted-looking.
+# Treat model output as untrusted HTML. Parse rendered Markdown and retain
+# only allowed elements and attributes. Commonmark 2.0 removed its sanitize
+# argument, so sanitization is handled here. Without commonmark or xml2,
+# display the original text.
 scans_app_markdown <- function(text) {
   if (!scans_app_has_string(text)) {
     return(NULL)
@@ -385,10 +377,7 @@ scans_app_allowed_tags <- c(
   "td"
 )
 
-# Elements that carry a payload rather than readable children. Unwrapping
-# these would delete what the model actually emitted, and a transcript that
-# quietly drops content is worse than useless for diagnosis -- so they are
-# shown as their own source text instead.
+# Display these elements as escaped source to preserve their payload.
 scans_app_opaque_tags <- c(
   "script",
   "style",
@@ -426,12 +415,8 @@ scans_app_allowed_attrs <- list(
   td = c("align", "colspan", "rowspan")
 )
 
-# Keep only allowlisted elements and attributes. Nothing is deleted: an
-# element with readable children is unwrapped so its text survives, and an
-# opaque one is rewritten as inline code showing its markup verbatim. The
-# result is that a model emitting `<script>` is visible in the transcript as
-# text -- which is exactly what someone inspecting a trajectory needs to see
-# -- while never being live markup in the page.
+# Retain allowed elements and attributes. Unwrap readable children and
+# escape opaque elements so unsafe markup remains visible as text.
 scans_app_sanitize_html <- function(html) {
   root_name <- "scans-sanitizer-root"
   html <- scans_app_escape_html_declarations(html)

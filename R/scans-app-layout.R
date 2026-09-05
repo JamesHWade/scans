@@ -176,8 +176,6 @@ scans_app_ui <- function(sources, annotations = NULL) {
   scans_app_attach_dependency(page)
 }
 
-# Filters live in one compact toolbar row rather than a stack of labelled
-# selects: the sidebar's vertical space belongs to the trajectory list.
 scans_app_filter_toolbar <- function(choices) {
   bslib::toolbar(
     align = "left",
@@ -204,10 +202,7 @@ scans_app_filter_toolbar <- function(choices) {
   )
 }
 
-# Stepping and tool-disclosure controls sit in the card header. Tool
-# traffic renders collapsed; a reviewer chasing a loop wants it all open at
-# once, and a reviewer reading the conversation wants it all shut. Those two
-# buttons are handled in the browser alone.
+# Tool disclosure controls are handled in the browser.
 scans_app_workspace_toolbar <- function() {
   bslib::toolbar(
     align = "right",
@@ -249,10 +244,7 @@ scans_app_attach_dependency <- function(page) {
 }
 
 
-# The scanner panel. Scans are cheap and run over the bundle already in
-# memory, so they re-run as the selection changes rather than behind a button:
-# a "Run" control would imply a cost that isn't there, and would let the
-# findings on screen disagree with the boxes that produced them.
+# Changing scan settings recomputes findings from the loaded bundle.
 scans_app_scanner_ui <- function(registry = scan_registry()) {
   choices <- stats::setNames(registry$scan, scans_app_scan_label(registry))
   bslib::accordion(
@@ -295,8 +287,6 @@ scans_app_scanner_ui <- function(registry = scan_registry()) {
   )
 }
 
-# Severity rides along in the label so the panel says what a scan reports
-# without a second column of chrome.
 scans_app_scan_label <- function(registry) {
   paste0(
     gsub("_", " ", registry$scan),
@@ -306,10 +296,7 @@ scans_app_scan_label <- function(registry) {
 }
 
 
-# The annotation panel appears only when the app was given a store. An app
-# with nowhere to write should not offer a control that silently discards
-# what someone typed. It sits with the evidence, beside the findings the
-# judgement is about, rather than above the transcript.
+# Offer annotation controls only when an annotation store was configured.
 scans_app_annotation_ui <- function(annotations) {
   if (is.null(annotations)) {
     return(NULL)

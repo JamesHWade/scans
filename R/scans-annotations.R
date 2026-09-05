@@ -113,7 +113,7 @@ annotations_empty <- function() {
   tibble::as_tibble(annotations_columns())
 }
 
-# A cheap cookie for reactive polling. Annotation stores are append-only, so
+# File signature for reactive polling. Annotation stores are append-only, so
 # file size detects every write made through the store; modification time also
 # catches an external replacement that happens to have the same size.
 annotations_file_revision <- function(path) {
@@ -234,9 +234,8 @@ annotations_parse_time <- function(x) {
   )
 }
 
-# One line, appended. A whole-file rewrite would lose a concurrent reviewer's
-# record; an append of a single short line does not, which is why notes are
-# capped rather than allowed to grow unbounded.
+# Append one bounded record without rewriting prior records. See the
+# single-process deployment requirement in vignette("connect").
 annotations_append <- function(
   path,
   application,
