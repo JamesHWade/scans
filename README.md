@@ -70,6 +70,22 @@ finding per detected pattern. Findings identify their supporting trajectory,
 turn, or events. `scans_app()` opens the same bundle and links findings to
 that evidence.
 
+Use `assess_trajectory_scans()` when an empty finding set needs interpretation:
+
+```r
+result <- assess_trajectory_scans(bundle)
+result$assessments[, c("scan", "status", "reason")]
+result$findings
+```
+
+Each selected scanner reports assessed with or without findings, insufficient
+evidence, not applicable, or execution failure for each trajectory. Requirements,
+scanner version, settings, capture limitations, and finding identities travel
+with the assessment. Missing tool identities or incomplete arguments cannot
+become assessed tool findings. Conclusions cover retained evidence; they do not
+establish complete capture or overall success. The app uses this same result in
+Scanner assessments and the overview's Scanner coverage table.
+
 The following runnable example builds a trajectory in which the agent repeats a
 tool request after receiving its result:
 

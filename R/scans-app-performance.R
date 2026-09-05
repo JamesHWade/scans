@@ -56,6 +56,11 @@ scans_app_performance_data <- function(data, indices) {
     n_work_partial = sum(work$coverage == "partial"),
     median_work = scans_app_median(work$value[work$coverage == "complete"]),
     median_gap = scans_app_median(gap$value[gap$coverage == "complete"]),
+    assessment_coverage = scans_app_assessment_coverage(data$assessments[
+      data$assessments$trajectory_id %in% ids,
+      ,
+      drop = FALSE
+    ]),
     patterns = patterns,
     trajectories = summaries
   )
@@ -189,6 +194,11 @@ scans_app_performance_ui <- function(data, application, priority, scans) {
         ),
         htmltools::div(
           class = "scans-app-performance-section",
+          htmltools::tags$h3("Scanner coverage"),
+          scans_app_assessment_coverage_ui(data$assessment_coverage)
+        ),
+        htmltools::div(
+          class = "scans-app-performance-section",
           htmltools::tags$h3("Patterns to investigate"),
           htmltools::tags$p(
             "Affected trajectories can appear in more than one pattern."
@@ -235,7 +245,7 @@ scans_app_patterns_ui <- function(patterns, n, scans) {
   }
   if (nrow(patterns) == 0L) {
     return(scans_app_empty_ui(
-      "The selected scans found no patterns in these captured trajectories.",
+      "No patterns to display. Check Scanner coverage for unassessed trajectories.",
       compact = TRUE
     ))
   }

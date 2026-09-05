@@ -275,7 +275,14 @@ test_that("disabling the active pattern's scan restores the cohort", {
 test_that("patterns disappear when thresholds remove their findings", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")
-  app <- scans_app(list(Example = trajectory_fixture("repeated_tools")))
+  bundle <- scan_loop_fixture()
+  events <- trajectory_events(bundle)[1:4, ]
+  bundle <- TrajectoryBundle(
+    trajectory_info(bundle),
+    trajectory_turns(bundle)[1:4, ],
+    events
+  )
+  app <- scans_app(list(Example = bundle))
 
   shiny::testServer(app$serverFuncSource(), {
     session$setInputs(scans_app_scans = "repeated_tool_call")

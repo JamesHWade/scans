@@ -1574,3 +1574,25 @@
   flex: 1 1 auto;
   white-space: nowrap;
 }
+
+.scans-app-assessment {
+  border-bottom: 1px solid var(--scans-app-line);
+  padding: 0.65rem 0;
+  overflow-wrap: anywhere;
+}
+
+.scans-app-assessment summary {
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.scans-app-assessment p,
+.scans-app-assessment li {
+  font-size: 0.78rem;
+  margin: 0.5rem 0;
+}
+
+.scans-app-coverage-table th:not(:first-child) {
+  white-space: normal;
+  min-width: 5rem;
+}
