@@ -100,8 +100,11 @@ The retry conversation consumed 1,000 recorded input tokens across four
 model calls. Its reconstructed final assistant turn carries only the latest
 400 input tokens. `summarize_trajectories()` keeps its original turn-based
 usage sums; use `measure_trajectories()` for the source-aware resource view
-shared with the app. Cached input is part of input usage, not an additional
-token count to add to it.
+shared with the app. These OTel input counts include cache reads. The new
+interface also combines ellmer's separate uncached and cached input per turn,
+requiring both components to be recorded. `includes_cached_input` marks these
+inclusive totals. Other sources can retain unknown cache inclusion, so inspect
+the source before combining input and cached-input counts.
 
 `complete` means every eligible source record in the **loaded snapshot**
 supplied a valid value. Depending on the measure, these records are spans,

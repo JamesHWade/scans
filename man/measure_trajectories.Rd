@@ -23,6 +23,8 @@ conversation total without a denominator). Complete recording does not
 establish complete capture of an application's work.
 \item \code{source}, \code{source_unit}, \code{adapter}, \code{contract_version}: interpretation
 provenance. Contract version 1 describes this measurement interface.
+\item \code{includes_cached_input}: \code{TRUE} for input totals known to include cache
+reads, otherwise \code{NA} (unknown or not an input-token measure).
 \item \code{currency}, \code{price_basis}: missing until supported cost semantics exist.
 \item \code{limitation}: the boundary on interpreting the value.
 }
@@ -40,7 +42,12 @@ valid bounds for every captured span; incomplete bounds are unavailable.
 \code{input_tokens},
 \code{output_tokens}, and \code{cached_input_tokens} sum known captured call values,
 otherwise canonical assistant turns and other turns explicitly carrying
-usage. Cached input is a component of input, not an additional token total.
+usage. For ellmer turns, including those projected by Deputy, dsprrr,
+Commons, and vitals, input totals combine uncached and cached input per
+turn. Both components must be recorded for a turn to contribute a known
+input total; missing cache usage is not zero. Other canonical sources retain
+their input counts with unknown cache inclusion. Do not add cached usage
+again when \code{includes_cached_input} is \code{TRUE}.
 \code{turn_duration} sums known canonical turn durations without asserting one
 turn equals one model call.
 

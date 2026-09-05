@@ -239,10 +239,94 @@ test_that("public ellmer turns expose partial usage without inventing call timin
     bundle,
     c("input_tokens", "output_tokens", "cached_input_tokens", "turn_duration")
   )
-  expect_equal(rows$value, c(10, 3, 2, 1.5))
+  expect_equal(rows$value, c(12, 3, 2, 1.5))
   expect_equal(rows$n_recorded, rep(1L, 4))
   expect_equal(rows$n_total, rep(2L, 4))
   expect_equal(rows$coverage, rep("partial", 4))
   expect_equal(resource_row(bundle, "model_duration")$value, NA_real_)
   expect_equal(resource_row(bundle, "tool_duration")$n_total, 2L)
+})
+
+test_that("equivalent ellmer and OTel cache usage agrees without changing summaries", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("jsonlite")
+  ellmer <- as_trajectory_ellmer(list(ellmer::AssistantTurn(
+    list(ellmer::ContentText("Hello")),
+    tokens = c(10, 3, 2)
+  )))
+  otel <- as_trajectory_otel(list(resource_span(
+    "cached",
+    extra = list(
+      "gen_ai.usage.input_tokens" = 12,
+      "gen_ai.usage.output_tokens" = 3,
+      "gen_ai.usage.cache_read.input_tokens" = 2
+    )
+  )))
+  for (bundle in list(ellmer, otel)) {
+    input <- resource_row(bundle, "input_tokens")
+    expect_equal(input$value, 12)
+    expect_all_true(input$includes_cached_input)
+    expect_equal(input$coverage, "complete")
+    expect_equal(
+      scans_app_performance_data(scans_app_data(bundle), 1L)$median_tokens,
+      15
+    )
+  }
+  expect_equal(summarize_trajectories(ellmer)$input_tokens, 10)
+  expect_equal(resource_row(ellmer, "cached_input_tokens")$value, 2)
+})
+
+test_that("missing ellmer cache components cannot become complete input totals", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  components <- list(c(10, 3, 0), c(20, 3, NA), c(NA, 3, 5))
+  bundles <- lapply(components, function(tokens) {
+    as_trajectory_ellmer(ellmer::AssistantTurn(
+      list(ellmer::ContentText("Hello")),
+      tokens = tokens
+    ))
+  })
+  expect_equal(resource_row(bundles[[1L]], "input_tokens")$value, 10)
+  for (bundle in bundles[2:3]) {
+    input <- resource_row(bundle, "input_tokens")
+    expect_equal(input$value, NA_real_)
+    expect_equal(input$n_recorded, 0L)
+    expect_equal(input$n_total, 1L)
+    expect_equal(input$coverage, "unavailable")
+  }
+  combined <- as_trajectory_ellmer(lapply(components, function(tokens) {
+    ellmer::AssistantTurn(list(ellmer::ContentText("Hello")), tokens = tokens)
+  }))
+  input <- resource_row(combined, "input_tokens")
+  expect_equal(input$value, 10)
+  expect_equal(input$n_recorded, 1L)
+  expect_equal(input$n_total, 3L)
+  expect_equal(input$coverage, "partial")
+})
+
+test_that("manual input keeps unknown cache inclusion", {
+  bundle <- TrajectoryBundle(
+    data.frame(trajectory_id = "manual", source_type = "manual"),
+    tibble::tibble(
+      trajectory_id = "manual",
+      turn_id = "turn",
+      turn_index = 1L,
+      role = "assistant",
+      input_tokens = 10,
+      cached_input_tokens = 2
+    ),
+    data.frame()
+  )
+  input <- resource_row(bundle, "input_tokens")
+  expect_equal(input$value, 10)
+  expect_identical(input$includes_cached_input, NA)
+})
+
+test_that("dsprrr ellmer turns retain their separate cache component semantics", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("dsprrr", "0.0.0.9000")
+  bundle <- as_trajectory_dsprrr(dsprrr_trace_fixture())
+  input <- resource_row(bundle, "input_tokens")
+  expect_equal(input$value, 20)
+  expect_all_true(input$includes_cached_input)
+  expect_equal(summarize_trajectories(bundle)$input_tokens, 18)
 })

@@ -18,7 +18,7 @@ preserved. A known zero is a value; an empty or unmeasured set is `NA`.
 | Measure | Value and denominator |
 | --- | --- |
 | `elapsed` | Seconds between trajectory bounds; one pair for canonical sources. For new OTel captures, all captured spans must have valid bounds, with the span count as denominator. May include user pauses. |
-| `input_tokens`, `output_tokens`, `cached_input_tokens` | Sum of known counts across captured OTel chat calls, falling back to canonical assistant turns (plus any other turns explicitly carrying usage). Each component has its own coverage. Cached tokens are already part of input tokens and must not be added again. |
+| `input_tokens`, `output_tokens`, `cached_input_tokens` | Sum of known counts across captured OTel chat calls, falling back to canonical assistant turns (plus any other turns explicitly carrying usage). Each component has its own coverage. OTel input includes cache reads. Ellmer input combines uncached and cached input per turn only when both are recorded. Other canonical sources retain unknown cache inclusion. |
 | `turn_duration` | Sum of recorded canonical turn durations; all turns with duration or assistant role are eligible. Does not assert that a turn equals one model call. |
 | `model_duration` | Sum of captured OTel chat span durations. Inclusive of nested activity; not wall time. |
 | `tool_duration` | Sum of captured OTel execute-tool spans, or canonical tool-call event durations. Inclusive of nested work; not wall time. |
@@ -34,6 +34,17 @@ billing scope, and explicit inclusion of child work before producing deltas.
 Neither a model name nor a numeric cost establishes these facts.
 
 ## Attribution and source preservation
+
+`includes_cached_input` identifies input measures known to include cache reads.
+[Ellmer's public Turn contract](https://ellmer.tidyverse.org/reference/Turn.html)
+records uncached input, output, and cached input separately. The new interface
+normalizes those input components for ellmer and the Deputy, dsprrr, Commons,
+and vitals adapters that project ellmer turns. A missing component leaves that
+turn's inclusive input unavailable; it is not treated as zero. Canonical turn
+columns and `summarize_trajectories()` retain the original source values.
+OTel inclusive input needs no addition. Manual and other unproven sources
+retain their source counts with `includes_cached_input = NA`; do not assume
+their input/cached-input relationship.
 
 Rows retain trajectory and parent identity. No measure pools parent and child
 trajectories or subtracts children from inclusive parent durations. Overlapping

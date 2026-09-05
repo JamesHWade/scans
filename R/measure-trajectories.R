@@ -19,6 +19,8 @@
 #'   establish complete capture of an application's work.
 #' - `source`, `source_unit`, `adapter`, `contract_version`: interpretation
 #'   provenance. Contract version 1 describes this measurement interface.
+#' - `includes_cached_input`: `TRUE` for input totals known to include cache
+#'   reads, otherwise `NA` (unknown or not an input-token measure).
 #' - `currency`, `price_basis`: missing until supported cost semantics exist.
 #' - `limitation`: the boundary on interpreting the value.
 #'
@@ -28,7 +30,12 @@
 #' `input_tokens`,
 #' `output_tokens`, and `cached_input_tokens` sum known captured call values,
 #' otherwise canonical assistant turns and other turns explicitly carrying
-#' usage. Cached input is a component of input, not an additional token total.
+#' usage. For ellmer turns, including those projected by Deputy, dsprrr,
+#' Commons, and vitals, input totals combine uncached and cached input per
+#' turn. Both components must be recorded for a turn to contribute a known
+#' input total; missing cache usage is not zero. Other canonical sources retain
+#' their input counts with unknown cache inclusion. Do not add cached usage
+#' again when `includes_cached_input` is `TRUE`.
 #' `turn_duration` sums known canonical turn durations without asserting one
 #' turn equals one model call.
 #'
@@ -107,13 +114,14 @@ scans_measure_template <- function() {
     source_unit = NA_character_,
     adapter = "canonical",
     contract_version = 1L,
+    includes_cached_input = NA,
     currency = NA_character_,
     price_basis = NA_character_,
     limitation = c(
       "Time between recorded bounds; may include user pauses.",
-      "Known input counts only; missing calls can understate usage.",
+      "Known source input counts; cache inclusion is unknown.",
       "Known output counts only; missing calls can understate usage.",
-      "Cached input is included in input tokens; do not add it again.",
+      "Cache inclusion in input counts depends on the source; inspect its semantics before combining.",
       "Inclusive turn durations; a turn need not equal one model call.",
       "Inclusive chat span durations; overlaps count more than once.",
       "Inclusive tool durations; overlaps count more than once.",
@@ -206,6 +214,29 @@ scans_measure_trajectory <- function(info, turns, events) {
     "canonical_tool_calls",
     "s"
   )
+  if (
+    info$source_type %in% c("ellmer", "deputy", "dsprrr", "commons", "vitals")
+  ) {
+    # These adapters all obtain canonical turns via as_trajectory_ellmer().
+    # Ellmer's first and third token components are uncached and cached input.
+    eligible <- turns$role %in%
+      "assistant" |
+      !is.na(turns$input_tokens) |
+      !is.na(turns$cached_input_tokens)
+    rows <- scans_measure_set(
+      rows,
+      "input_tokens",
+      scans_measure_values((turns$input_tokens + turns$cached_input_tokens)[
+        eligible
+      ]),
+      "ellmer_turns",
+      "tokens"
+    )
+    rows$adapter[rows$measure == "input_tokens"] <- "as_trajectory_ellmer/1"
+    rows <- scans_measure_cache_inclusive(rows)
+    rows$limitation[rows$measure == "input_tokens"] <-
+      "Uncached plus cached input per turn; only turns with both components recorded contribute."
+  }
   otel <- info$metadata[[1L]]$otel
   if (!is.list(otel)) {
     return(rows)
@@ -225,6 +256,9 @@ scans_measure_trajectory <- function(info, turns, events) {
         "tokens"
       )
       rows$adapter[rows$measure == name] <- "as_trajectory_otel/legacy"
+      if (name == "input_tokens") {
+        rows <- scans_measure_cache_inclusive(rows)
+      }
     }
   }
   capture <- otel$measures
@@ -265,7 +299,19 @@ scans_measure_trajectory <- function(info, turns, events) {
       }
     )
     rows$adapter[rows$measure == name] <- "as_trajectory_otel/1"
+    if (name == "input_tokens") {
+      rows <- scans_measure_cache_inclusive(rows)
+    }
   }
+  rows
+}
+
+scans_measure_cache_inclusive <- function(rows) {
+  rows$includes_cached_input[rows$measure == "input_tokens"] <- TRUE
+  rows$limitation[rows$measure == "input_tokens"] <-
+    "Input counts include cache reads; missing calls can understate usage."
+  rows$limitation[rows$measure == "cached_input_tokens"] <-
+    "Cache reads overlap input totals; recording coverage can differ. Do not add this total again."
   rows
 }
 
