@@ -12,6 +12,9 @@
   including coverage and a versioned adapter contract. Duplicate spans
   in pre-grouped conversations no longer inflate resources
   ([\#40](https://github.com/JamesHWade/scans/issues/40)).
+- [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md)
+  accepts the initial Tempest development version when its public review
+  accessor and supported schema are available.
 - [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
   reports resource values with recording denominators, source units,
   attribution, and limitations while preserving

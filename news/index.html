@@ -44,6 +44,8 @@
 <li>
 <code><a href="../reference/as_trajectory_otel.html">as_trajectory_otel()</a></code> retains bounded resource aggregates across distinct captured calls, including coverage and a versioned adapter contract. Duplicate spans in pre-grouped conversations no longer inflate resources (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
 <li>
+<code><a href="../reference/as_trajectory_tempest.html">as_trajectory_tempest()</a></code> accepts the initial Tempest development version when its public review accessor and supported schema are available.</li>
+<li>
 <code><a href="../reference/measure_trajectories.html">measure_trajectories()</a></code> reports resource values with recording denominators, source units, attribution, and limitations while preserving <code><a href="../reference/summarize_trajectories.html">summarize_trajectories()</a></code> semantics. It normalizes ellmer’s separate input/cache components when both are recorded and identifies known cache-inclusive totals. It distinguishes inclusive model/tool durations, overlap-aware recorded work, and time outside recorded work; unsupported first-token latency and comparable cost remain unavailable (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
 <li>
 <code><a href="../reference/scans_app.html">scans_app()</a></code> uses the public resource measurements, shows where recorded time went, and exposes individual values and coverage in Resource measurements. Incomplete captured timestamps cannot establish conversation elapsed time, and partial recorded-work values are excluded from the overview’s timing medians (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
