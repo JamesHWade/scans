@@ -15,9 +15,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-scans works on the record an agent leaves behind. It never calls a model or
-runs a tool. This article introduces the trajectory model, the tour from a
-completed run to a finding, and what each built-in scan means.
+scans analyzes completed agent records without calling a model or running a
+tool. This article introduces trajectories, follows a completed run to a
+finding, and explains the built-in scans.
 
 ## The trajectory model
 
@@ -29,17 +29,17 @@ Inside a trajectory:
 
 - **Turns** are the conversational units, each with a role such as `user`,
   `assistant`, or `system`.
-- **Events** are what happened within turns: text content, tool calls, tool
-  results, thinking, errors, and source-specific records. Every event has an
+- **Events** record text content, tool calls, tool results, thinking, errors,
+  and source-specific records. Every event has an
   identifier, a position in canonical order, and optional timing, usage, and
-  status.
+  status. An event may belong to a turn or directly to a trajectory.
 - **Evaluations** are outcome judgements joined to a trajectory, for example a
   vitals score.
 - **Losses** record what an adapter could not carry over from its source. A
   loss is explicit so a reviewer knows what is missing rather than guessing.
 
-A **finding** is the output of a scan: a deterministic statement about a
-trajectory that names the events supporting it.
+A **finding** is a detector result with references to the supporting
+trajectory, turn, or events.
 
 ## From a completed run to a finding
 
@@ -99,7 +99,7 @@ filter_trajectory_events(bundle, event_type = "tool_call")[
 
 `summarize_trajectories()` returns one row per trajectory with counts of turns,
 events, tool activity, unresolved calls, failures, token usage, and duration,
-so a fleet of runs can be sorted and filtered before anyone opens a transcript:
+for sorting and filtering runs before opening a transcript:
 
 ```{r}
 summarize_trajectories(bundle)[
@@ -110,8 +110,7 @@ summarize_trajectories(bundle)[
 
 ### Scan
 
-`scan_trajectories()` runs the built-in detectors and returns one finding per
-problem:
+`scan_trajectories()` runs the built-in detectors and returns their findings:
 
 ```{r}
 findings <- scan_trajectories(bundle)
@@ -122,8 +121,8 @@ findings$event_ids
 Each finding carries `trajectory_id`. Event-backed findings also carry
 `event_id` and `event_ids`, so those findings join directly back to events.
 Record-level findings instead identify the failed trajectory or turn through
-`trajectory_id` or `turn_id`. Finding identifiers are stable across runs of
-the same bundle.
+`trajectory_id` or `turn_id`. Finding identifiers are stable for the same
+bundle, scan identifier, and threshold settings.
 
 ## What the built-in scans mean
 
@@ -187,8 +186,9 @@ scans_app(list(
 ```
 
 To let reviewers record labels and notes, pass a `scans_annotations()` store.
-Records append to a JSON-lines log and are never rewritten, so two reviewers
-cannot overwrite each other and a revised judgement keeps the one before it:
+Records append to a JSON-lines log; a revised judgment retains earlier
+records. For deployment, use shared persistent storage and a single app
+process as described in `vignette("connect")`:
 
 ```{r, eval = FALSE}
 store <- scans_annotations(

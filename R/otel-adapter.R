@@ -89,9 +89,8 @@ otel_empty_table <- function(table) {
   tibble::as_tibble(trajectory_table_schemas()[[table]])
 }
 
-# Conversations are combined before validation: validating one bundle per
-# conversation and then the combined one again roughly doubled the cost of
-# reading a busy application.
+# Combine conversation tables before validating the bundle to avoid
+# validating every conversation twice.
 otel_combine_tables <- function(tables) {
   TrajectoryBundle(
     trajectory_bind_rows(lapply(tables, `[[`, "info")),
@@ -188,10 +187,8 @@ otel_conversation_tables <- function(
   )
 }
 
-# Token usage is summed across every model call in the conversation, not just
-# the one the transcript was rebuilt from: the cost of a conversation is the
-# cost of all its calls, and reporting only the last would understate a long
-# tool-using exchange by an order of magnitude.
+# Sum usage across distinct captured model calls, including calls whose
+# turns are absent from the reconstructed history.
 otel_info_metadata <- function(spans, chat_spans, metadata) {
   context <- attr(spans, "otel_context", exact = TRUE) %||% list()
   usage <- list(
@@ -213,11 +210,7 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
   metadata
 }
 
-# Whatever the instrumentation recorded beyond the GenAI payloads is kept:
-# a framework wrapper or Connect itself may tag spans with the visiting user,
-# a session id, or deployment facts, and those are the first thing a
-# reviewer asks for when a conversation looks odd. Values are bounded so an
-# oversized attribute cannot blow up the metadata field.
+# Retain bounded source attributes for user, session, and deployment context.
 otel_extra_attributes <- function(spans, max_chars = 200L) {
   values <- list()
   for (span in spans) {
@@ -334,9 +327,7 @@ otel_sum_attribute <- function(spans, key) {
   if (all(is.na(values))) NA_real_ else sum(values, na.rm = TRUE)
 }
 
-# As with a span's duration, skewed clocks can put the last end before the
-# first start. Reporting no completion time is honest; reporting one that
-# precedes the start is not, and fails bundle validation besides.
+# Leave completion unavailable when recorded bounds are reversed.
 otel_span_times <- function(spans) {
   starts <- vapply(spans, function(s) otel_nanos(s$start_time), numeric(1))
   ends <- vapply(spans, function(s) otel_nanos(s$end_time), numeric(1))
@@ -575,10 +566,7 @@ otel_part_event <- function(
   list(event = row, loss = loss)
 }
 
-# A tool that returns a large document produces a message part larger than a
-# bundle field may hold. Truncating and saying so keeps the trajectory
-# readable; refusing it would throw away the whole conversation over one
-# oversized result.
+# Return truncated text and its original byte count for loss reporting.
 otel_truncate_text <- function(text, max_bytes = trajectory_payload_max_bytes) {
   if (is.na(text) || nchar(text, type = "bytes") <= max_bytes) {
     return(list(text = text, truncated = FALSE, bytes = NA_integer_))
@@ -622,9 +610,7 @@ otel_truncation_loss <- function(
   )
 }
 
-# Rows are plain lists while a conversation is being assembled and become
-# one tibble per table at the end: a tibble per event was most of the cost
-# of reading a busy application.
+# Construct one tibble per table after assembling event rows.
 otel_event_row <- function(
   trajectory_id,
   turn_id,
@@ -800,10 +786,8 @@ otel_posixct <- function(nanos) {
   as.POSIXct(nanos / 1e9, origin = "1970-01-01", tz = "UTC")
 }
 
-# Clock skew between the process that started a span and the one that ended
-# it can put the end before the start. A negative duration is not information,
-# and passing it on would fail bundle validation with an error about the
-# bundle rather than about the trace it came from.
+# Leave missing or reversed span bounds unavailable; durations must be
+# nonnegative for bundle validation.
 otel_span_duration <- function(span) {
   start <- otel_nanos(span$start_time)
   end <- otel_nanos(span$end_time)

@@ -1,10 +1,6 @@
-# Loaded snapshots are cached per app object, not per session: the cache is
-# created once when the server function is built, so a second reviewer -- or
-# the same reviewer after a browser refresh -- sees the snapshot instantly
-# rather than paying for another Connect read. A snapshot older than
-# `cache_max_age` is refreshed for active sessions as well as new ones. A
-# failed load is cached for the session that saw it fail, so the failure is
-# shown instead of an empty app, but is retried by any other.
+# Sessions share loaded snapshots within one app object. Refresh entries
+# older than cache_max_age. Keep failures visible in the session that saw
+# them; other sessions may retry the source.
 scans_app_server <- function(
   sources,
   annotations = NULL,
@@ -727,11 +723,8 @@ scans_app_cache_age <- function(entry, now = Sys.time()) {
   as.numeric(now - entry$loaded_at, units = "secs")
 }
 
-# One cache entry: the bundle (or already-derived tables), when it was
-# loaded, and what the reader said about the read. The load runs under a
-# progress notification so a Connect read that takes a while is visibly
-# running rather than apparently hung; the reader reports pages through the
-# `scans.progress` option.
+# Cache the bundle, load time, and read details together. Forward reader
+# progress through the scans.progress option to the Shiny notification.
 scans_app_load_entry <- function(
   source,
   label,
@@ -830,9 +823,7 @@ scans_app_log_source_error <- function(label, cnd) {
 }
 
 
-# A threshold the user has cleared or typed nonsense into falls back to the
-# default rather than erroring: the panel should not be able to break the
-# view it controls.
+# Use the default when the input is empty or invalid.
 scans_app_threshold <- function(value, default) {
   valid <- is.numeric(value) &&
     length(value) == 1L &&
