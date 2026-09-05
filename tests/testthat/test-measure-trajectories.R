@@ -222,11 +222,7 @@ test_that("parent and child measurements retain attribution without pooling cost
 })
 
 test_that("public Tempest review retains unsupported resource measures", {
-  skip_if_not_installed("tempest", "0.3.0.9000")
-  bundle <- as_trajectory_tempest(readRDS(test_path(
-    "fixtures",
-    "tempest-review.rds"
-  )))
+  bundle <- as_trajectory_tempest(tempest_review_fixture())
   expect_equal(resource_row(bundle, "input_tokens")$coverage, "unavailable")
   expect_equal(resource_row(bundle, "model_duration")$value, NA_real_)
   expect_equal(resource_row(bundle, "first_token_latency")$value, NA_real_)
