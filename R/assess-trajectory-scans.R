@@ -230,14 +230,14 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
     }
     if (!any(tools)) {
       semantic <- nrow(turns) > 0L &&
-        any(
-          events$event_type == "content" &
-            events$turn_id %in% turns$turn_id &
-            scan_has_value(events$text)
-        )
+        nrow(events) > 0L &&
+        all(events$event_type == "content") &&
+        all(events$turn_id %in% turns$turn_id) &&
+        all(turns$role %in% c("user", "assistant", "system")) &&
+        any(scan_has_value(events$text))
       if (!semantic) {
         return(insufficient(
-          "No semantic tool exchange or text conversation is recorded."
+          "No tool exchange or fully interpretable text conversation is recorded."
         ))
       }
       return(list(
@@ -256,7 +256,10 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
     ) {
       if (
         !all(scan_has_value(events$call_id[tools])) ||
-          any(grepl("call_id|tool_call_id", fields))
+          any(grepl(
+            "call_id|tool_call_id|^contents\\$(request\\$)?id$",
+            fields
+          ))
       ) {
         return(insufficient(
           "Tool call identities are missing or lost; pairing cannot be assessed."
@@ -348,10 +351,10 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       if (
         length(failed) >= 2L &&
           !positive &&
-          !any(scan_has_value(events$parent_event_id[failed]))
+          !all(scan_has_value(events$parent_event_id[failed]))
       ) {
         return(insufficient(
-          "Multiple failed events lack recorded causal parent relationships."
+          "Causal parent relationships are missing for one or more failed events."
         ))
       }
       if (any(grepl("parent_event_id", fields))) {

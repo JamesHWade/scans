@@ -279,3 +279,55 @@ test_that("an execution failure does not affect other trajectories", {
   )
   expect_setequal(result$findings$trajectory_id, "trajectory-chain")
 })
+
+test_that("text mixed with opaque events does not establish tool inapplicability", {
+  skip_if_not_installed("ellmer")
+  bundle <- as_trajectory_ellmer(list(
+    ellmer::UserTurn(list(ellmer::ContentText("Question"))),
+    ellmer::AssistantTurn(list(ellmer::ContentText("Opaque output")))
+  ))
+  events <- trajectory_events(bundle)
+  events$event_type[[2L]] <- "custom"
+  events$text[[2L]] <- NA_character_
+  bundle@events <- events
+  result <- assess_trajectory_scans(bundle)
+  expect_equal(result$assessments$status[1:5], rep("insufficient_evidence", 5))
+})
+
+test_that("public source identity losses prevent false correlation findings", {
+  skip_if_not_installed("ellmer")
+  request <- ellmer::ContentToolRequest(
+    paste(rep("x", 70000), collapse = ""),
+    "lookup",
+    list(query = "example")
+  )
+  bundle <- as_trajectory_ellmer(list(ellmer::AssistantTurn(list(request))))
+  expect_match(
+    trajectory_losses(bundle)$field[[1L]],
+    "contents$id",
+    fixed = TRUE
+  )
+  expect_gt(nrow(scan_trajectories(bundle)), 0L)
+  result <- assess_trajectory_scans(bundle)
+  expect_equal(result$assessments$status[1:3], rep("insufficient_evidence", 3))
+  expect_identical(nrow(result$findings), 0L)
+})
+
+test_that("one recorded parent does not establish complete error-chain evidence", {
+  bundle <- scan_error_chain_fixture()
+  events <- trajectory_events(bundle)
+  parent <- events[1L, ]
+  parent$event_id <- "known-parent"
+  parent$event_index <- 1L
+  parent$turn_id <- NA_character_
+  parent$content_index <- NA_integer_
+  events$event_index <- events$event_index + 1L
+  parent$event_type <- "content"
+  parent$status <- "completed"
+  parent$error <- NA_character_
+  events$parent_event_id <- c(NA_character_, "known-parent")
+  bundle@events <- rbind(parent, events)
+  result <- assess_trajectory_scans(bundle, scans = "error_chain")
+  expect_identical(result$assessments$status, "insufficient_evidence")
+  expect_identical(nrow(result$findings), 0L)
+})
