@@ -38,6 +38,7 @@ scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
     loss_trajectory_ids = loss_trajectory_ids,
     findings = findings,
     summaries = summaries,
+    measures = measure_trajectories(x),
     records = scans_app_records(
       info,
       turns,
@@ -50,34 +51,16 @@ scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
 
 # Conversation totals can include model calls omitted from reconstructed
 # turns. Both app views use them when valid, with per-component fallbacks.
-scans_app_token_usage <- function(info, summaries) {
-  usage <- summaries[c("input_tokens", "output_tokens")]
-  for (i in seq_len(nrow(info))) {
-    metadata <- info$metadata[[i]]
-    if (!is.list(metadata) || !is.list(metadata$otel)) {
-      next
-    }
-    for (field in names(usage)) {
-      usage[[field]][[i]] <- scans_app_token_count(
-        metadata$otel[[field]],
-        usage[[field]][[i]]
-      )
-    }
-  }
-  usage
+scans_app_token_usage <- function(data, ids) {
+  tibble::tibble(
+    input_tokens = scans_app_measure_rows(data, ids, "input_tokens")$value,
+    output_tokens = scans_app_measure_rows(data, ids, "output_tokens")$value
+  )
 }
 
-scans_app_token_count <- function(value, fallback) {
-  if (
-    length(value) != 1L ||
-      !is.numeric(value) ||
-      is.na(value) ||
-      !is.finite(value) ||
-      value < 0
-  ) {
-    return(fallback)
-  }
-  value
+scans_app_measure_rows <- function(data, ids, measure) {
+  rows <- data$measures[data$measures$measure == measure, ]
+  rows[match(ids, rows$trajectory_id), ]
 }
 
 scans_app_loss_trajectory_ids <- function(losses, turns, events) {

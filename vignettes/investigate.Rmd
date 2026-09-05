@@ -1,0 +1,167 @@
+---
+title: "Investigate a support assistant offline"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Investigate a support assistant offline}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+An order lookup keeps failing. Another conversation takes two minutes. Which
+deserves attention first? This example takes you from an application snapshot
+to the supporting events, then shows what the capture cannot tell you.
+
+Everything runs locally without credentials or provider calls. The four
+conversations are authored examples, not production records. They include
+repeated message histories, overlapping tools, a delayed follow-up, and a
+conversation with content capture disabled and one missing end timestamp.
+
+## Load the snapshot
+
+Install the package and the small JSON reader once:
+
+```{r, eval=FALSE}
+pak::pak(c("JamesHWade/scans", "jsonlite"))
+```
+
+```{r}
+library(scans)
+path <- system.file("extdata", "support-investigation.json", package = "scans")
+bundle <- as_trajectory_otel(jsonlite::read_json(path))
+trajectory_info(bundle)[, c("trajectory_id", "model")]
+```
+
+The fixture's source is `data-raw/investigation-fixture.R` in the repository.
+The installed JSON is sufficient to repeat every calculation below.
+
+## Find a pattern worth investigating
+
+```{r}
+findings <- scan_trajectories(bundle)
+findings[, c("trajectory_id", "scan", "label")]
+```
+
+Only `otel/retry` is flagged. It has three tool errors, a repeated request,
+and a suspicious loop. Those five findings describe **one affected
+conversation**, not five failing conversations. They identify behavior to
+review; they do not establish that the final answer was wrong.
+
+Inspect the events that support the loop finding:
+
+```{r}
+loop <- findings[findings$scan == "suspicious_tool_loop", ]
+events <- trajectory_events(bundle)
+evidence <- events[events$event_id %in% loop$event_ids[[1]], ]
+evidence[, c("event_id", "event_type", "name", "duration", "error")]
+```
+
+All three calls ask `lookup_order` for the same order. Each ends with
+`order_service_timeout`. The transcript's final answer acknowledges that it
+could not retrieve the shipment. A useful engineering question is whether
+the workflow should stop repeating that request or use a recovery route.
+This record alone does not tell us whether a retry policy was intentional,
+or whether the order service was failing for other users.
+
+## Separate waiting from recorded work
+
+```{r}
+measures <- measure_trajectories(bundle)
+timing <- measures[measures$measure %in% c(
+  "elapsed", "model_duration", "tool_duration",
+  "recorded_work", "unattributed_elapsed"
+), ]
+timing[, c("trajectory_id", "measure", "value", "n_recorded", "n_total", "coverage")]
+```
+
+The follow-up conversation spans **126 seconds**, with **6 seconds** of
+recorded model work and **120 seconds** outside recorded work. Its elapsed
+time does not establish a slow model. The parallel example records **4
+seconds** in model calls and **10 seconds** in tools, but **10 seconds** of
+work after overlapping intervals are counted once. Adding its inclusive
+durations would wrongly claim 14 seconds of wall time.
+
+The limited capture has one valid four-second interval and one span without
+an end timestamp. Recorded work is therefore partial. Its elapsed time and
+time outside recorded work are unavailable. No transcript findings on that
+conversation do not establish a successful or well-behaved interaction.
+
+## Check the recording denominator
+
+```{r}
+usage <- measures[measures$measure %in% c("input_tokens", "output_tokens"), ]
+usage[, c("trajectory_id", "measure", "value", "n_recorded", "n_total", "coverage")]
+```
+
+The retry conversation consumed 1,000 recorded input tokens across four
+model calls. Its reconstructed final assistant turn carries only the latest
+400 input tokens. `summarize_trajectories()` keeps its original turn-based
+usage sums; use `measure_trajectories()` for the source-aware resource view
+shared with the app. Cached input is part of input usage, not an additional
+token count to add to it.
+
+`complete` means every eligible **captured** record supplied a valid value.
+It cannot prove that a source recorded every call, retained every trace, or
+loaded the whole time window. The limited capture supplies input usage for
+one of two calls and no output usage. Unknown usage is never converted to
+zero.
+
+```{r}
+measures[measures$trajectory_id == "otel/retry" &
+  measures$measure %in% c("first_chunk_latency", "first_token_latency", "cost"),
+  c("measure", "value", "coverage", "limitation")]
+```
+
+This fixture has no first-chunk measurement. Where an OTel producer records
+`gen_ai.response.time_to_first_chunk`, scans reports its median in seconds.
+A chunk need not contain a token, so it is not labelled first-token latency.
+Comparable cost is unavailable without currency, a price basis, and known
+inclusion of child work. The old raw cost column remains available for
+source-specific analysis.
+
+## Open the same investigation in the app
+
+Install the optional UI dependencies once, then open the same bundle:
+
+```{r, eval=FALSE}
+pak::pak(c("shiny", "bslib", "htmltools", "commonmark", "xml2"))
+scans_app(list("Support assistant example" = bundle))
+```
+
+The application overview uses these measurements. Select **suspicious tool
+loop**, then open `otel/retry`. The transcript and findings retain the event
+identifiers shown above. Expand **Resource measurements** to inspect each
+quantity, recording denominator, source, and limitation. Clear the pattern
+filter to inspect the other three conversations. Filter changes reuse the
+loaded snapshot.
+
+The overview's recorded-work medians exclude trajectories with partial timing;
+individual resource details still show their known intervals. Elapsed medians
+exclude unavailable bounds. Recorded token medians can include partial sums,
+so inspect coverage before interpreting a difference as an improvement.
+
+## Bring your own completed evidence
+
+| Source | Public entry point | Resource and capture boundary |
+| --- | --- | --- |
+| ellmer chat or turns (>= 0.4.2) | `as_trajectory_ellmer()` | Canonical turn usage and duration where supplied. A turn duration is not asserted to be one model call. |
+| OTel GenAI / Connect | `as_trajectory_otel()` / `read_connect_traces()` | Call-level usage and intervals when recorded. Message capture and conversation IDs determine whether a meaningful transcript can be reconstructed. Keep read limits with the snapshot. |
+| vitals evaluation (>= 0.3.0) | `as_trajectory_vitals()` | Outcome evaluations joined to solver trajectories; resource coverage follows the supplied turns. Reading development vitals logs requires its supported development API. |
+| Deputy and dsprrr public results | `as_trajectory_deputy()` / `as_trajectory_dsprrr()` | Source execution and trace measurements remain distinct from model-call timing. dsprrr millisecond latency is normalized to canonical seconds. |
+| Tempest public review | `as_trajectory_tempest()` | Product review evidence is not a full call trace. The bundled public review fixture has no canonical token counts or model durations. |
+| Commons conversations | `as_trajectory_commons()` | Already-read conversation evidence; availability depends on what the upstream reader retained. |
+
+Optional integration versions are specified in `DESCRIPTION` and exercised
+through public producer objects in the test suite. This is a capture table,
+not a claim that every release or every deployment records every field.
+Continue with [plain ellmer and adapters](adapters.html),
+[Connect capture](connect.html), or the [core scans tour](scans.html).
+
+Reviewed, immutable example export is the next workflow stage tracked in
+[#41](https://github.com/JamesHWade/scans/issues/41). This recipe stops at
+inspection; it does not silently turn captured conversations into evaluation
+data. The full community onboarding issue
+[#45](https://github.com/JamesHWade/scans/issues/45) stays open for that stage.

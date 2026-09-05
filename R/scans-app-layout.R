@@ -166,6 +166,7 @@ scans_app_ui <- function(sources, annotations = NULL) {
           ),
           htmltools::tags$main(
             class = "scans-app-transcript",
+            shiny::uiOutput("scans_app_resources"),
             shiny::uiOutput("scans_app_transcript")
           )
         )

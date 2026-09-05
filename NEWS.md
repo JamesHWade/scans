@@ -1,5 +1,10 @@
 # scans 0.0.0.9000
 
+* A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (#45).
+* `as_trajectory_otel()` retains bounded resource aggregates across distinct captured calls, including coverage and a versioned adapter contract. Duplicate spans in pre-grouped conversations no longer inflate resources (#40).
+* `measure_trajectories()` reports resource values with recording denominators, source units, attribution, and limitations while preserving `summarize_trajectories()` semantics. It distinguishes inclusive model/tool durations, overlap-aware recorded work, and time outside recorded work; unsupported first-token latency and comparable cost remain unavailable (#40).
+* `scans_app()` uses the public resource measurements, shows where recorded time went, and exposes individual values and coverage in Resource measurements. Incomplete captured timestamps cannot establish conversation elapsed time, and partial recorded-work values are excluded from the overview's timing medians (#40).
+
 ## Review app and Connect reader
 
 * `scans_app()` opens with an application overview that follows the browser filters, counts distinct trajectories affected by each diagnostic pattern, summarizes elapsed time and recorded tokens with coverage counts, and opens ranked trajectories in the evidence inspector. Selecting a pattern narrows the browser and a visible Clear control restores the cohort (#39).

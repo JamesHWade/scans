@@ -72,10 +72,13 @@ Unknown usage remains unknown. The app does not invent outcome scores or cost.
 
 The calculations reuse canonical summaries, preserved conversation usage, and
 findings. Both app views prefer valid conversation token totals over turn
-summaries because reconstructed turns may omit earlier model calls. These
-calculations remain internal while we prove the interaction; promote a compact
-public analysis interface when the report/export work below provides its second
-consumer. Avoid making Shiny inputs part of that interface.
+summaries because reconstructed turns may omit earlier model calls. The #40
+implementation now supplies a public, per-trajectory `measure_trajectories()`
+interface shared with the offline investigation recipe, including coverage and
+source semantics. The [resource contract](resource-measures.md) preserves the
+existing summary columns. Cohort analysis remains internal; the report/export
+work below still earns that separate public interface. Neither interface should
+depend on Shiny inputs.
 
 Validation uses a deterministic cohort with known, partial, and missing
 measurements, public ellmer turn objects, and the existing public Tempest

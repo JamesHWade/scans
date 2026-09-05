@@ -21,6 +21,7 @@ reference:
   contents:
   - filter_trajectory_events
   - summarize_trajectories
+  - measure_trajectories
   - scan_trajectories
   - scan_registry
   - read_connect_traces

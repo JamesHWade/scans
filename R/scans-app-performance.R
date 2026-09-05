@@ -32,9 +32,12 @@ scans_app_performance_data <- function(data, indices) {
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
-  usage <- scans_app_token_usage(data$info[indices, , drop = FALSE], summaries)
+  summaries$elapsed <- scans_app_measure_rows(data, ids, "elapsed")$value
+  usage <- scans_app_token_usage(data, ids)
   summaries$tokens <- rowSums(usage, na.rm = TRUE)
   summaries$tokens[rowSums(!is.na(usage)) == 0L] <- NA_real_
+  work <- scans_app_measure_rows(data, ids, "recorded_work")
+  gap <- scans_app_measure_rows(data, ids, "unattributed_elapsed")
 
   list(
     total = nrow(data$info),
@@ -49,6 +52,10 @@ scans_app_performance_data <- function(data, indices) {
     median_elapsed = scans_app_median(summaries$elapsed),
     p95_elapsed = scans_app_quantile(summaries$elapsed, 0.95),
     median_tokens = scans_app_median(summaries$tokens),
+    n_work = sum(work$coverage == "complete"),
+    n_work_partial = sum(work$coverage == "partial"),
+    median_work = scans_app_median(work$value[work$coverage == "complete"]),
+    median_gap = scans_app_median(gap$value[gap$coverage == "complete"]),
     patterns = patterns,
     trajectories = summaries
   )
@@ -153,6 +160,32 @@ scans_app_performance_ui <- function(data, application, priority, scans) {
         htmltools::div(
           class = "scans-app-performance-note",
           "Elapsed time may include pauses between user messages. Token counts use recorded conversation totals when available, otherwise known turn values, and may be partial. Each trajectory is counted separately, including delegated trajectories."
+        ),
+        htmltools::div(
+          class = "scans-app-performance-section",
+          htmltools::tags$h3("Where the recorded time went"),
+          htmltools::div(
+            class = "scans-app-performance-metrics",
+            scans_app_performance_metric(
+              "Median recorded work",
+              scans_app_seconds(data$median_work),
+              sprintf(
+                "All captured call intervals timed for %d / %d",
+                data$n_work,
+                n
+              )
+            ),
+            scans_app_performance_metric(
+              "Median time outside recorded work",
+              scans_app_seconds(data$median_gap),
+              "May include pauses or work that was not captured"
+            )
+          ),
+          htmltools::tags$p(sprintf(
+            "Recorded work counts overlapping model and tool spans once. Partial timing excluded from these medians: %d / %d trajectories. Complete timing of captured calls does not establish complete capture. Open a trajectory's Resource measurements for values and denominators.",
+            data$n_work_partial,
+            n
+          ))
         ),
         htmltools::div(
           class = "scans-app-performance-section",

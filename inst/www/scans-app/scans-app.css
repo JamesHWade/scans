@@ -44,6 +44,31 @@
   font-size: 0.85rem;
 }
 
+.scans-app-resources {
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.5rem;
+}
+
+.scans-app-resources > summary {
+  font-weight: 600;
+}
+
+.scans-app-resources details {
+  border-top: 1px solid var(--bs-border-color);
+  padding: 0.6rem 0;
+}
+
+.scans-app-resources details summary span {
+  margin-right: 1rem;
+}
+
+.scans-app-resources details summary small {
+  display: block;
+  color: var(--bs-secondary-color);
+}
+
 .scans-app-performance-metrics {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
