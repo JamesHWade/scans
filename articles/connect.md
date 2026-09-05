@@ -36,9 +36,10 @@ capture.
     attribute. Without it, each model call becomes its own one-turn
     trajectory.
 
-Captured message content is sensitive. It stays on the Connect server,
-and the review app described below reads it with the credentials of its
-deployment owner.
+Connect retains captured message content. Reading traces copies that
+content into the R process running scans, which may be on a local
+computer or Connect. The deployed review app reads with its deployment
+owner’s credentials.
 
 ## Read traces from R
 
@@ -81,9 +82,9 @@ scan_trajectories(bundle)
   do not exhaust the budget before the conversations are reached.
 - `jobs` controls whether retained per-job trace stores are read as
   well. Connect did not migrate traces recorded before its content-wide
-  store, so the default reads both and de-duplicates. `jobs = FALSE` is
-  much faster on deployments with many past jobs and is safe once the
-  content-wide store holds everything you care about.
+  store, so the default reads both and de-duplicates. `jobs = FALSE`
+  skips per-job requests. Use it after verifying that the content-wide
+  store holds the records needed for the investigation.
 
 The `read_info` attribute records the window, how many spans and
 conversations were found, whether the span ceiling or `n` left
@@ -93,10 +94,10 @@ truncated or incomplete read.
 
 ### How a conversation is reconstructed
 
-Provider instrumentation records the whole message history on every
-model call, so the most recent `chat` span of a conversation carries the
-complete exchange. `execute_tool` spans contribute each tool call’s
-duration and failure, which the message history alone does not hold.
+scans reconstructs messages from the most recent `chat` span of a
+conversation. The transcript is limited to the history captured in that
+span; disabled or partial message capture leaves content unavailable.
+`execute_tool` spans contribute recorded tool duration and failure.
 Non-GenAI span and resource attributes such as `enduser.id` or a session
 identifier are kept in trajectory metadata and surface in the app as
 badges and search terms.

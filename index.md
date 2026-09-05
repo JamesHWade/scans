@@ -1,16 +1,15 @@
 # scans
 
-Understand how your R agent reached its result, and where it went wrong.
+Inspect completed R agent and chat runs to find failed tools, repeated
+requests, and changes in recorded resource use. scans imports the
+captured record, returns summaries and diagnostic findings as tibbles,
+and opens the same evidence in a Shiny review app. It does not call the
+model or tools again.
 
-An evaluation score says whether an agent produced the right outcome.
-scans explains the path that produced it. It turns completed agent runs
-into evidence-linked trajectories that you can summarize, scan for
-common failure patterns, and inspect in a read-only review app, without
-calling the model or its tools again.
-
-Reach for scans when a pass/fail score is not enough: a tool failed
-somewhere in a long run, an agent repeated the same request, token usage
-jumped, or a reviewer needs to see the exact events behind a finding.
+Use scans to investigate how a run unfolded. Use outcome evaluations
+from vitals to assess the result. Findings identify behavior to review;
+an empty findings table does not establish that a run succeeded or was
+fully captured.
 
 scans is experimental. Its trajectory contract is stable enough to build
 on, but function signatures and finding vocabularies may still change.
@@ -22,11 +21,11 @@ on, but function signatures and finding vocabularies may still change.
 pak::pak("JamesHWade/scans")
 ```
 
-The core analysis layer depends only on cli, rlang, S7, and tibble.
+The core analysis layer depends on cli, rlang, S7, tibble, and vctrs.
 Adapters and the review app use optional packages that are loaded when
 you need them.
 
-## A thirty-second tour
+## Try the offline example
 
 Start without a provider account using the bundled support-assistant
 example:
@@ -71,11 +70,10 @@ failures, token usage, and duration.
 [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
 runs the deterministic detectors listed by
 [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md)
-and returns one finding per problem, each carrying the trajectory and
-event identifiers that support it.
+and returns one finding per detected pattern. Findings identify their
+supporting trajectory, turn, or events.
 [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
-opens the same bundle so you can move from a finding to the transcript
-event behind it.
+opens the same bundle and links findings to that evidence.
 
 The following runnable example builds a trajectory in which the agent
 repeats a tool request after receiving its result:
@@ -189,11 +187,13 @@ framework.
 - **Choose the scans** that matter for your agent with the scanner
   panel, or in code with
   `scan_trajectories(bundle, scans = c("event_error", "error_chain"))`.
-- **Record judgements** by passing a
+- **Record judgments** by passing a
   [`scans_annotations()`](https://jameshwade.github.io/scans/reference/scans_annotations.md)
   store to the app. Labels and notes append to a JSON-lines log that
-  never rewrites earlier records, so reviewers cannot overwrite each
-  other and every record stays available to your own analysis.
+  never rewrites earlier records. Earlier judgments remain available to
+  your own analysis. See the [Connect
+  guide](https://jameshwade.github.io/scans/articles/connect.html) for
+  storage and single-process deployment requirements.
 
 Core diagnostics return ordinary tibbles and compose with the base pipe:
 

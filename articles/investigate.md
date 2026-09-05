@@ -237,9 +237,9 @@ adapters](https://jameshwade.github.io/scans/articles/adapters.md),
 capture](https://jameshwade.github.io/scans/articles/connect.md), or the
 [core scans tour](https://jameshwade.github.io/scans/articles/scans.md).
 
-Reviewed, immutable example export is the next workflow stage tracked in
-[\#41](https://github.com/JamesHWade/scans/issues/41). This recipe stops
-at inspection; it does not silently turn captured conversations into
-evaluation data. The full community onboarding issue
-[\#45](https://github.com/JamesHWade/scans/issues/45) stays open for
-that stage.
+This recipe covers inspection. Reviewed-example export and its runnable
+recipe are tracked in
+[\#41](https://github.com/JamesHWade/scans/issues/41).
+[\#45](https://github.com/JamesHWade/scans/issues/45) tracks first-use
+testing with another R user; later feature recipes belong to their
+delivery issues.

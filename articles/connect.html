@@ -105,9 +105,10 @@ set the chat’s conversation identifier or open a parent span carrying
 the attribute. Without it, each model call becomes its own one-turn
 trajectory.</p></li>
 </ol>
-<p>Captured message content is sensitive. It stays on the Connect
-server, and the review app described below reads it with the credentials
-of its deployment owner.</p>
+<p>Connect retains captured message content. Reading traces copies that
+content into the R process running scans, which may be on a local
+computer or Connect. The deployed review app reads with its deployment
+owner’s credentials.</p>
 </div>
 <div class="section level2">
 <h2 id="read-traces-from-r">Read traces from R<a class="anchor" aria-label="anchor" href="#read-traces-from-r"></a>
@@ -158,9 +159,9 @@ conversations are reached.</li>
 <code>jobs</code> controls whether retained per-job trace stores are
 read as well. Connect did not migrate traces recorded before its
 content-wide store, so the default reads both and de-duplicates.
-<code>jobs = FALSE</code> is much faster on deployments with many past
-jobs and is safe once the content-wide store holds everything you care
-about.</li>
+<code>jobs = FALSE</code> skips per-job requests. Use it after verifying
+that the content-wide store holds the records needed for the
+investigation.</li>
 </ul>
 <p>The <code>read_info</code> attribute records the window, how many
 spans and conversations were found, whether the span ceiling or
@@ -171,11 +172,11 @@ quiet week from a truncated or incomplete read.</p>
 <div class="section level3">
 <h3 id="how-a-conversation-is-reconstructed">How a conversation is reconstructed<a class="anchor" aria-label="anchor" href="#how-a-conversation-is-reconstructed"></a>
 </h3>
-<p>Provider instrumentation records the whole message history on every
-model call, so the most recent <code>chat</code> span of a conversation
-carries the complete exchange. <code>execute_tool</code> spans
-contribute each tool call’s duration and failure, which the message
-history alone does not hold. Non-GenAI span and resource attributes such
+<p>scans reconstructs messages from the most recent <code>chat</code>
+span of a conversation. The transcript is limited to the history
+captured in that span; disabled or partial message capture leaves
+content unavailable. <code>execute_tool</code> spans contribute recorded
+tool duration and failure. Non-GenAI span and resource attributes such
 as <code>enduser.id</code> or a session identifier are kept in
 trajectory metadata and surface in the app as badges and search
 terms.</p>

@@ -68,19 +68,18 @@
 </div>
 <!-- badges: start -->
 
-<p>Understand how your R agent reached its result, and where it went wrong.</p>
-<p>An evaluation score says whether an agent produced the right outcome. scans explains the path that produced it. It turns completed agent runs into evidence-linked trajectories that you can summarize, scan for common failure patterns, and inspect in a read-only review app, without calling the model or its tools again.</p>
-<p>Reach for scans when a pass/fail score is not enough: a tool failed somewhere in a long run, an agent repeated the same request, token usage jumped, or a reviewer needs to see the exact events behind a finding.</p>
+<p>Inspect completed R agent and chat runs to find failed tools, repeated requests, and changes in recorded resource use. scans imports the captured record, returns summaries and diagnostic findings as tibbles, and opens the same evidence in a Shiny review app. It does not call the model or tools again.</p>
+<p>Use scans to investigate how a run unfolded. Use outcome evaluations from vitals to assess the result. Findings identify behavior to review; an empty findings table does not establish that a run succeeded or was fully captured.</p>
 <p>scans is experimental. Its trajectory contract is stable enough to build on, but function signatures and finding vocabularies may still change.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"JamesHWade/scans"</span><span class="op">)</span></span></code></pre></div>
-<p>The core analysis layer depends only on cli, rlang, S7, and tibble. Adapters and the review app use optional packages that are loaded when you need them.</p>
+<p>The core analysis layer depends on cli, rlang, S7, tibble, and vctrs. Adapters and the review app use optional packages that are loaded when you need them.</p>
 </div>
 <div class="section level2">
-<h2 id="a-thirty-second-tour">A thirty-second tour<a class="anchor" aria-label="anchor" href="#a-thirty-second-tour"></a>
+<h2 id="try-the-offline-example">Try the offline example<a class="anchor" aria-label="anchor" href="#try-the-offline-example"></a>
 </h2>
 <p>Start without a provider account using the bundled support-assistant example:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
@@ -103,7 +102,7 @@
 <span><span class="va">findings</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"severity"</span>, <span class="st">"label"</span>, <span class="st">"explanation"</span>, <span class="st">"event_ids"</span><span class="op">)</span><span class="op">]</span></span>
 <span></span>
 <span><span class="fu"><a href="reference/scans_app.html">scans_app</a></span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="reference/summarize_trajectories.html">summarize_trajectories()</a></code> gives one row per trajectory: turns, tool calls, unresolved calls, failures, token usage, and duration. <code><a href="reference/scan_trajectories.html">scan_trajectories()</a></code> runs the deterministic detectors listed by <code><a href="reference/scan_registry.html">scan_registry()</a></code> and returns one finding per problem, each carrying the trajectory and event identifiers that support it. <code><a href="reference/scans_app.html">scans_app()</a></code> opens the same bundle so you can move from a finding to the transcript event behind it.</p>
+<p><code><a href="reference/summarize_trajectories.html">summarize_trajectories()</a></code> gives one row per trajectory: turns, tool calls, unresolved calls, failures, token usage, and duration. <code><a href="reference/scan_trajectories.html">scan_trajectories()</a></code> runs the deterministic detectors listed by <code><a href="reference/scan_registry.html">scan_registry()</a></code> and returns one finding per detected pattern. Findings identify their supporting trajectory, turn, or events. <code><a href="reference/scans_app.html">scans_app()</a></code> opens the same bundle and links findings to that evidence.</p>
 <p>The following runnable example builds a trajectory in which the agent repeats a tool request after receiving its result:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">first_request</span> <span class="op">&lt;-</span> <span class="fu">ellmer</span><span class="fu">::</span><span class="fu"><a href="https://ellmer.tidyverse.org/reference/Content.html" class="external-link">ContentToolRequest</a></span><span class="op">(</span></span>
@@ -223,7 +222,7 @@
 <li>
 <strong>Choose the scans</strong> that matter for your agent with the scanner panel, or in code with <code>scan_trajectories(bundle, scans = c("event_error", "error_chain"))</code>.</li>
 <li>
-<strong>Record judgements</strong> by passing a <code><a href="reference/scans_annotations.html">scans_annotations()</a></code> store to the app. Labels and notes append to a JSON-lines log that never rewrites earlier records, so reviewers cannot overwrite each other and every record stays available to your own analysis.</li>
+<strong>Record judgments</strong> by passing a <code><a href="reference/scans_annotations.html">scans_annotations()</a></code> store to the app. Labels and notes append to a JSON-lines log that never rewrites earlier records. Earlier judgments remain available to your own analysis. See the <a href="https://jameshwade.github.io/scans/articles/connect.html">Connect guide</a> for storage and single-process deployment requirements.</li>
 </ul>
 <p>Core diagnostics return ordinary tibbles and compose with the base pipe:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">

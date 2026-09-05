@@ -72,10 +72,9 @@
 
     
     
-<p>scans works on the record an agent leaves behind. It never calls a
-model or runs a tool. This article introduces the trajectory model, the
-tour from a completed run to a finding, and what each built-in scan
-means.</p>
+<p>scans analyzes completed agent records without calling a model or
+running a tool. This article introduces trajectories, follows a
+completed run to a finding, and explains the built-in scans.</p>
 <div class="section level2">
 <h2 id="the-trajectory-model">The trajectory model<a class="anchor" aria-label="anchor" href="#the-trajectory-model"></a>
 </h2>
@@ -89,10 +88,11 @@ more trajectories and is the unit every scans function accepts.</p>
 role such as <code>user</code>, <code>assistant</code>, or
 <code>system</code>.</li>
 <li>
-<strong>Events</strong> are what happened within turns: text
-content, tool calls, tool results, thinking, errors, and source-specific
-records. Every event has an identifier, a position in canonical order,
-and optional timing, usage, and status.</li>
+<strong>Events</strong> record text content, tool calls, tool
+results, thinking, errors, and source-specific records. Every event has
+an identifier, a position in canonical order, and optional timing,
+usage, and status. An event may belong to a turn or directly to a
+trajectory.</li>
 <li>
 <strong>Evaluations</strong> are outcome judgements joined to a
 trajectory, for example a vitals score.</li>
@@ -101,8 +101,8 @@ trajectory, for example a vitals score.</li>
 from its source. A loss is explicit so a reviewer knows what is missing
 rather than guessing.</li>
 </ul>
-<p>A <strong>finding</strong> is the output of a scan: a deterministic
-statement about a trajectory that names the events supporting it.</p>
+<p>A <strong>finding</strong> is a detector result with references to
+the supporting trajectory, turn, or events.</p>
 </div>
 <div class="section level2">
 <h2 id="from-a-completed-run-to-a-finding">From a completed run to a finding<a class="anchor" aria-label="anchor" href="#from-a-completed-run-to-a-finding"></a>
@@ -191,8 +191,8 @@ context in dot-prefixed columns:</p>
 </h3>
 <p><code><a href="../reference/summarize_trajectories.html">summarize_trajectories()</a></code> returns one row per trajectory
 with counts of turns, events, tool activity, unresolved calls, failures,
-token usage, and duration, so a fleet of runs can be sorted and filtered
-before anyone opens a transcript:</p>
+token usage, and duration, for sorting and filtering runs before opening
+a transcript:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/summarize_trajectories.html">summarize_trajectories</a></span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span><span class="op">[</span></span>
 <span>  ,</span>
@@ -207,7 +207,7 @@ before anyone opens a transcript:</p>
 <h3 id="scan">Scan<a class="anchor" aria-label="anchor" href="#scan"></a>
 </h3>
 <p><code><a href="../reference/scan_trajectories.html">scan_trajectories()</a></code> runs the built-in detectors and
-returns one finding per problem:</p>
+returns their findings:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">findings</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/scan_trajectories.html">scan_trajectories</a></span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span></span>
 <span><span class="va">findings</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"severity"</span>, <span class="st">"label"</span>, <span class="st">"explanation"</span><span class="op">)</span><span class="op">]</span></span>
@@ -227,7 +227,8 @@ findings also carry <code>event_id</code> and <code>event_ids</code>, so
 those findings join directly back to events. Record-level findings
 instead identify the failed trajectory or turn through
 <code>trajectory_id</code> or <code>turn_id</code>. Finding identifiers
-are stable across runs of the same bundle.</p>
+are stable for the same bundle, scan identifier, and threshold
+settings.</p>
 </div>
 </div>
 <div class="section level2">
@@ -287,8 +288,9 @@ matter.</td>
 </tr>
 <tr class="odd">
 <td><code>error_chain</code></td>
-<td>A failure followed an earlier one in the same trajectory, which
-often means the agent did not recover.</td>
+<td>At least two failed events are connected by
+<code>parent_event_id</code> links. Earlier unrelated failures do not
+form a chain.</td>
 </tr>
 <tr class="even">
 <td><code>turn_error</code></td>
@@ -346,8 +348,9 @@ first selected:</p>
 <span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>To let reviewers record labels and notes, pass a
 <code><a href="../reference/scans_annotations.html">scans_annotations()</a></code> store. Records append to a JSON-lines
-log and are never rewritten, so two reviewers cannot overwrite each
-other and a revised judgement keeps the one before it:</p>
+log; a revised judgment retains earlier records. For deployment, use
+shared persistent storage and a single app process as described in
+<code><a href="../articles/connect.html">vignette("connect")</a></code>:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">store</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/scans_annotations.html">scans_annotations</a></span><span class="op">(</span></span>
 <span>  <span class="st">"reviews/annotations.jsonl"</span>,</span>

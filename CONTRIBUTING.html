@@ -51,10 +51,10 @@
 <ol style="list-style-type: decimal"><li>Fork and clone the package. If you use usethis, run <code>usethis::create_from_github("JamesHWade/scans", fork = TRUE)</code>.</li>
 <li>Install development dependencies with <code>devtools::install_dev_deps()</code>.</li>
 <li>Create a branch with a short, descriptive name.</li>
-<li>Make the change, add focused tests, and update documentation where needed.</li>
+<li>Make the change, test affected behavior, and update documentation where needed.</li>
 <li>Run the local verification commands below.</li>
 <li>Open a pull request that explains the problem, the approach, and the verification performed.</li>
-</ol><p>For user-facing changes, add a concise bullet under the development heading in <code>NEWS.md</code>.</p>
+</ol><p>For user-facing behavior changes, add a concise bullet under the development heading in <code>NEWS.md</code>. Small documentation corrections do not need a bullet.</p>
 </div>
 <div class="section level2">
 <h2 id="development-style">Development style<a class="anchor" aria-label="anchor" href="#development-style"></a></h2>
@@ -63,8 +63,18 @@
 <li>Lint with <code>jarl check .</code>.</li>
 <li>Use roxygen2 with Markdown for documentation.</li>
 <li>Use testthat for deterministic tests that do not require credentials or live model calls.</li>
-<li>Prefer small, composable functions and common R data structures.</li>
-</ul><p>Run the full local verification suite with:</p>
+<li>Use ordinary R data structures. Extract a helper when it names a useful operation or keeps a shared rule in one place.</li>
+</ul></div>
+<div class="section level2">
+<h2 id="writing-and-review">Writing and review<a class="anchor" aria-label="anchor" href="#writing-and-review"></a></h2>
+<p>Describe what users can do and what the recorded evidence supports. Keep limitations next to the feature they qualify. Remove repeated explanations, unsupported performance claims, and wording that praises the implementation.</p>
+<p>Comments should explain constraints, source conventions, or non-obvious failure modes. Remove comments that restate the code or describe an abandoned design. Keep current priorities in the <a href="https://github.com/JamesHWade/scans/issues/2" class="external-link">roadmap</a> and durable design decisions in <code>docs/</code>; avoid copying issue acceptance lists into design documents.</p>
+<p>Tests should protect a behavior, invariant, or known failure. Prefer expected outcomes from public source objects. An unexpectedly empty fixture result should fail, not skip. Reserve skips for unavailable optional dependencies or explicitly unsupported environments. Avoid tests of incidental prose or the structure of an internal helper.</p>
+<p>Before deleting a helper, inspect its callers. Preserve shared rules for identity, missing values, and sanitization. A short function or a single caller is not enough reason to remove it. Explain the maintenance cost removed by a cleanup; test counts and line reductions are not goals.</p>
+</div>
+<div class="section level2">
+<h2 id="local-checks">Local checks<a class="anchor" aria-label="anchor" href="#local-checks"></a></h2>
+<p>Run the full local verification suite with:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="ex">air</span> format . <span class="at">--check</span></span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="ex">jarl</span> check .</span>
 <span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="ex">Rscript</span> <span class="at">-e</span> <span class="st">'devtools::test()'</span></span>
