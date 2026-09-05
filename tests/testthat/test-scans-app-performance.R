@@ -190,3 +190,48 @@ test_that("pattern filters reset when changing application", {
     )
   })
 })
+
+test_that("disabling the active pattern's scan restores the cohort", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  calls <- 0L
+  app <- scans_app(list(Example = function() {
+    calls <<- calls + 1L
+    performance_fixture()
+  }))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(scans_app_pattern = "event_error")
+    expect_equal(performance()$n, 1)
+    session$setInputs(
+      scans_app_scans = setdiff(scan_registry()$scan, "event_error")
+    )
+    expect_null(pattern_filter())
+    expect_equal(performance()$n, 3)
+    session$setInputs(scans_app_pattern = "event_error")
+    expect_null(pattern_filter())
+    expect_equal(performance()$n, 3)
+    expect_identical(calls, 1L)
+  })
+})
+
+test_that("patterns disappear when thresholds remove their findings", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Example = trajectory_fixture("repeated_tools")))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = "repeated_tool_call")
+    session$setInputs(scans_app_pattern = "repeated_tool_call")
+    expect_identical(pattern_filter(), "repeated_tool_call")
+    session$setInputs(scans_app_query = "no matching trajectory")
+    expect_identical(pattern_filter(), "repeated_tool_call")
+    session$setInputs(scans_app_query = "", scans_app_repeat_threshold = 3L)
+    expect_null(pattern_filter())
+    expect_equal(performance()$n, 1)
+    session$setInputs(scans_app_pattern = "repeated_tool_call")
+    expect_null(pattern_filter())
+    expect_equal(performance()$n, 1)
+  })
+})

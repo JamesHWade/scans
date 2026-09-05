@@ -32,7 +32,7 @@ scans_app_server <- function(
       if (
         is.character(pattern) &&
           length(pattern) == 1L &&
-          pattern %in% scan_registry()$scan
+          pattern %in% available_patterns()
       ) {
         pattern_filter(pattern)
       }
@@ -143,6 +143,17 @@ scans_app_server <- function(
         return(NULL)
       }
       scans_app_data(current$bundle, scan_config())
+    })
+
+    available_patterns <- shiny::reactive({
+      current <- data()
+      intersect(current$findings$scan, scan_config()$scans)
+    })
+    shiny::observe({
+      pattern <- pattern_filter()
+      if (!is.null(pattern) && !pattern %in% available_patterns()) {
+        pattern_filter(NULL)
+      }
     })
 
     # The row index is only a view into the current snapshot. Keep its stable
