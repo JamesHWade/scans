@@ -24,7 +24,9 @@ A \link{TrajectoryBundle}.
 \description{
 \code{as_trajectory_commons()} converts the already-read result of
 \code{commons::trajectory_read()} into one canonical \link{TrajectoryBundle}. Each
-named conversation becomes one trajectory, and its model-visible turns are
+named conversation becomes one trajectory. Both current records with \code{turns}
+and \code{last_active} fields and older attributed turn lists are accepted.
+Model-visible turns are
 delegated to \code{\link[=as_trajectory_ellmer]{as_trajectory_ellmer()}}. The adapter does not read files,
 connect to Posit Connect, or parse trace records itself.
 }
@@ -37,7 +39,8 @@ sanitized metadata. Each source provenance record also becomes a
 \code{"commons:provenance"} event. Because the public commons result does not
 expose an exchange-to-turn key, provenance events retain their source index
 without inferring a \code{turn_id}. Missing or malformed source facts are reported
-as adapter losses.
+as adapter losses. Extra record fields and turn attributes are retained as
+sanitized metadata. A missing outer source descriptor remains a loss.
 
 Because \code{commons::trajectory_read()} returns an ordinary list without a
 discriminating class, use this explicit adapter instead of
