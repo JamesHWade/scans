@@ -28,11 +28,12 @@ Changes are justified by behavior, not by assertion counts or function length.
 | `test-scans-app.R`: Connect application switching | Guard httr2 and jsonlite, which the native reader actually uses, instead of requiring commons. Preserve request, lazy-load, and application-selection checks. |
 | `test-scans-app-performance.R`: Tempest overview | Use the shared public-review fixture accessor so the optional dependency checks and fixture ownership stay consistent. |
 
-The Tempest fixture repair is a separate commit: the old serialized proposal
-failed the installed producer's schema-digest validation. The replacement was
-created through public Tempest/Graft APIs, including actual host acceptance in
-an in-memory Graft store. No digest was patched or validator bypassed. The
-fixture README records the producer commit and CI compatibility check.
+The baseline Tempest failures came from a stale installed producer with the same
+package version as a current checkout. Both the current source revision and the
+revision selected by CI validate the original serialized fixture through the
+public accessor. The fixture is retained unchanged; its README records these
+checks. Verification uses an isolated installation of the current producer,
+without patching a digest, bypassing a validator, or changing the user's library.
 
 ## Coverage retained across the suite
 
@@ -85,3 +86,74 @@ between runs; these modifications are not part of the package.
   still cannot establish that every scanner assessed the captured evidence.
 - TestServer and public fixtures do not replace the second-user deployment
   and first-use observations in #39 and #45.
+
+## Helper decisions
+
+The helper pass follows the strengthened tests. A repository-wide definition
+and reference search found no demonstrated unused internal function to delete;
+candidates were checked against public dispatch, callbacks, tests, and docs.
+The changes below remove redundant layers while keeping the shared rules.
+
+| Removed or simplified | Callers inspected and regression protection |
+| --- | --- |
+| `deputy_result_status()`, `tempest_review_status()` | `as_trajectory_deputy()`, `as_trajectory_tempest()`, and Tempest stage/agent projection now call `trajectory_canonical_status()` directly. That shared status policy is unchanged, with independent status expectations and public producer conversion tests. |
+| `scan_tool_relations()` | Its sole caller, `scan_tool_findings()`, passes the event-type and call-ID columns directly to `scan_tool_relation_indices()`. Correlation rules stay in the indexed implementation; public ambiguous, unmatched, unresolved, and repeated-tool tests remain. |
+| `connect_content_url()` | `read_connect_traces()` constructs its source URI at the assignment. The helper only concatenated the already-normalized server and GUID; no validation or sanitization policy was moved. Native reader source-URI and credential tests remain. |
+| `is_scans_annotations()` | The sole caller, `scans_app_check_annotations()`, uses `inherits()` directly. Public annotation store creation/app writes and invalid-argument tests protect the class boundary. |
+| `trajectory_bundle_validation_problems()` | The S7 validator passes `S7::props(self)` directly to `trajectory_bundle_data_validation_problems()`. Structure, reference, chronology, payload, and property-replacement rules remain centralized and tested. |
+| Annotation record prefilter | `annotations_read()` lets `trajectory_bind_rows()` perform its existing NULL/empty filtering, removing a duplicate pass. Empty stores and valid records around malformed lines retain their tests. |
+| `fixture_adapter()` | The malformed-fixture test calls the public constructor explicitly inside its adapter function. `expect_adapter_rejects()` still owns the shared error-class expectations. |
+| Cached Tempest fixture closure | `tempest_review_fixture()` reads a fresh serialized value on each call. This removes cached mutable state plus a second serialize/unserialize copy. The optional dependency checks and exact fixture path remain shared. |
+| Test-file helper definitions | Move OTel builders, the Connect app envelope builder, and Markdown helpers to corresponding `helper-*.R` files. Preserve their inputs and outputs. Give the Markdown renderer a specific name because helpers share an environment. All test files now contain only test blocks. |
+
+The remaining fixture helpers keep their existing ownership: minimal canonical
+tables, correlated bundles, independent expected ellmer tables, public Chat,
+AgentResult, Task and module construction, local Commons reads, resource spans,
+loop/error/correlation cases, app performance cases, and bounded Tempest
+collections. `order_fixture_table()` still normalizes only comparison order;
+`fixture_column_has_value()` still distinguishes populated list, string, and
+atomic columns. Combining those constructors would hide the cases they explain.
+
+The production helper review retains these boundaries across every R file:
+
+- `trajectory-*`, `adapter-sanitize`, and `conditions`: schema, identity, status,
+  bounded/serializable values, redaction, losses, and stable conditions.
+- The six source adapters and `zzz`: source recognition, public snapshot
+  access, registration, version/dependency checks, source-specific fields,
+  ordering, and correlation. Similar-looking number/string helpers have
+  different missing-value or source-validation responsibilities; no general
+  converter replaces them.
+- `otel-connect`, `otel-adapter`, and `otel-measures`: request/error boundaries,
+  pagination, context-only spans, de-duplication, source normalization, units,
+  capture limits, and interval union. Thin dependency/request helpers that
+  provide the test seam for missing packages or HTTP failures are retained.
+- `scan-primitives`, `scan-trajectories`, `filter-trajectory-events`,
+  `summarize-trajectories`, and `measure-trajectories`: grouping, exact matching,
+  chronology, thresholds, missing-value arithmetic, and evidence construction.
+- `scans-annotations` and all `scans-app*` files: record validation, append/read
+  policy, source/cache lifetime, filtering, shared measurements, presentation,
+  evidence anchors, escaping, and dependency checks. Small ID and text helpers
+  remain where they keep writers and readers in agreement.
+
+No public signatures, exports, canonical field shapes, or user-facing behavior
+change in this refactoring. No new generic framework or helper-count target was
+introduced.
+
+## Verification
+
+Local verification used R 4.6.1 on macOS, testthat 3.3.2, ellmer 0.4.2.9000,
+commons 0.0.0.9003, vitals 0.3.0, and Shiny 1.14.0. Deputy, dsprrr, and Graft
+reported 0.0.0.9000. Tempest 0.3.0.9000 from `bfc32f6` was installed into an
+isolated library; the fixture compatibility check also used `3d8d64a`.
+
+- Full `devtools::test()` passed after the helper changes. The vitals development
+  log test was the only skip. The final annotation identity tightening also
+  passed its focused test file.
+- All nine intentional defects above were detected before the helper refactor.
+- `air format .`, `jarl check .`, `pkgdown::check_pkgdown()`, and
+  `git diff --check` passed.
+- `devtools::check(document = FALSE, error_on = "note")` completed with
+  zero errors, warnings, or notes, including examples and vignette rebuilding.
+  `_R_CHECK_SYSTEM_CLOCK_=false` disabled only the unavailable remote clock
+  verification; the initial check's sole note concerned that network check.
+- The original Tempest binary fixture is byte-for-byte unchanged from the base.

@@ -261,11 +261,6 @@ trajectory_schema_abort <- function(
   )
 }
 
-trajectory_bundle_validation_problems <- function(self) {
-  data <- S7::props(self)
-  trajectory_bundle_data_validation_problems(data)
-}
-
 trajectory_bundle_data_validation_problems <- function(data) {
   schemas <- trajectory_table_schemas()
   problems <- character()

@@ -238,10 +238,6 @@ scan_parent_depths <- function(ids, parent_ids) {
   depths
 }
 
-scan_tool_relations <- function(events) {
-  scan_tool_relation_indices(events$event_type, events$call_id)
-}
-
 scan_tool_relation_counts <- function(
   event_type,
   call_id,
@@ -390,7 +386,7 @@ scan_tool_findings <- function(
   loop_threshold,
   roles = rep(NA_character_, nrow(events))
 ) {
-  relations <- scan_tool_relations(events)
+  relations <- scan_tool_relation_indices(events$event_type, events$call_id)
   findings <- list()
 
   for (ambiguous in relations$ambiguous) {

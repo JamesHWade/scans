@@ -70,7 +70,7 @@ test_that("malformed fixtures fail with stable scans conditions", {
     fixture <- fixtures[[name]]
     expect_adapter_rejects(
       fixture$source,
-      fixture_adapter,
+      \(source) do.call(TrajectoryBundle, source),
       fixture$condition
     )
   }

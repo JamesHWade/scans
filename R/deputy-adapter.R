@@ -110,7 +110,7 @@ as_trajectory_deputy <- function(
     "stop",
     first = FALSE
   )
-  info$status <- deputy_result_status(snapshot$stop_reason)
+  info$status <- trajectory_canonical_status(snapshot$stop_reason)
   info$metadata <- list(safe_metadata$value)
 
   events <- deputy_merge_events(
@@ -603,10 +603,6 @@ deputy_boundary_time <- function(events, type, first) {
     return(as.POSIXct(NA, tz = "UTC"))
   }
   if (first) times[[1L]] else times[[length(times)]]
-}
-
-deputy_result_status <- function(x) {
-  trajectory_canonical_status(x)
 }
 
 deputy_trajectory_id <- function(run_id) {

@@ -117,7 +117,7 @@ as_trajectory_tempest <- function(
     agent = review$product$mode,
     started_at = started_at,
     completed_at = completed_at,
-    status = tempest_review_status(review$product$status),
+    status = trajectory_canonical_status(review$product$status),
     metadata = list(source_metadata$value)
   )
   losses <- trajectory_loss_table(c(
@@ -335,7 +335,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
       value = stage$output,
       timestamp = timestamp,
       duration = duration,
-      status = tempest_review_status(stage$status),
+      status = trajectory_canonical_status(stage$status),
       error = stage$failure_class %||% NA_character_,
       metadata = stage[setdiff(names(stage), "output")],
       field = paste0("stages$items[[", index, "]]")
@@ -353,7 +353,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
       event_type = paste0("tempest:", agent$trace_type),
       name = agent$role,
       call_id = agent$tool_call_id %||% NA_character_,
-      status = tempest_review_status(agent$status),
+      status = trajectory_canonical_status(agent$status),
       metadata = agent,
       field = paste0("agent_runs$items[[", index, "]]")
     )
@@ -547,10 +547,6 @@ tempest_review_time <- function(x, field, ids, nullable = FALSE) {
       "A Tempest stage timestamp could not be represented as POSIXct"
     ))
   )
-}
-
-tempest_review_status <- function(x) {
-  trajectory_canonical_status(x)
 }
 
 tempest_review_reference_key <- function(type, id) {

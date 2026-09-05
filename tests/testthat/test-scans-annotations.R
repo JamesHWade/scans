@@ -77,13 +77,13 @@ test_that("reads are scoped to an application and trajectory", {
   store$append("Research", "trajectory-1", label = "follow up", note = NULL)
 
   expect_identical(store$read("Support", "trajectory-1")$label, "looks right")
-  expect_setequal(
-    store$read("Support")$trajectory_id,
+  expect_identical(
+    sort(store$read("Support")$trajectory_id),
     c("trajectory-1", "trajectory-2")
   )
-  expect_setequal(
-    store$read(trajectory_id = "trajectory-1")$application,
-    c("Support", "Research")
+  expect_identical(
+    sort(store$read(trajectory_id = "trajectory-1")$application),
+    c("Research", "Support")
   )
   expect_equal(nrow(store$read()), 3L)
   expect_equal(nrow(store$read("missing")), 0L)
@@ -217,7 +217,7 @@ test_that("a malformed line does not hide the annotations around it", {
   )
 
   records <- store$read("Support", "trajectory-1")
-  expect_setequal(records$note, c("Good.", "Also good."))
+  expect_identical(sort(records$note), c("Also good.", "Good."))
 })
 
 test_that("an invalid timestamp does not hide valid annotations", {

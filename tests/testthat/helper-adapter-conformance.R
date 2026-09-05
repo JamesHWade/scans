@@ -68,10 +68,6 @@ order_fixture_table <- function(x, table) {
   x[do.call(order, order_arguments), , drop = FALSE]
 }
 
-fixture_adapter <- function(source) {
-  do.call(TrajectoryBundle, source)
-}
-
 fixture_column_has_value <- function(x) {
   if (is.list(x)) {
     return(any(vapply(x, \(value) length(value) > 0L, logical(1))))

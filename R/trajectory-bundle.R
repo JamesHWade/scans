@@ -103,7 +103,9 @@ TrajectoryBundle <- S7::new_class(
       schema_version = trajectory_schema_version
     )
   },
-  validator = function(self) trajectory_bundle_validation_problems(self)
+  validator = function(self) {
+    trajectory_bundle_data_validation_problems(S7::props(self))
+  }
 )
 
 #' Convert an object to a trajectory bundle

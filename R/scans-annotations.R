@@ -185,7 +185,7 @@ annotations_read <- function(path, application = NULL, trajectory_id = NULL) {
     lines,
     seq_along(lines)
   )
-  out <- trajectory_bind_rows(Filter(Negate(is.null), records))
+  out <- trajectory_bind_rows(records)
   if (nrow(out) == 0L) {
     return(annotations_empty())
   }
@@ -334,8 +334,4 @@ annotations_default_author <- function(session = NULL) {
     user <- tryCatch(Sys.info()[["user"]], error = function(e) "")
   }
   if (is.null(user) || is.na(user) || !nzchar(user)) "unknown" else user
-}
-
-is_scans_annotations <- function(x) {
-  inherits(x, "scans_annotations")
 }

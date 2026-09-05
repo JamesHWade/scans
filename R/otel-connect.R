@@ -106,7 +106,12 @@ read_connect_traces <- function(
   if (!is.null(n) && found > n) {
     conversations <- utils::tail(conversations, n)
   }
-  attr(conversations, "source_uri") <- connect_content_url(client, guid)
+  attr(conversations, "source_uri") <- paste0(
+    client$server,
+    "/content/",
+    guid,
+    "/"
+  )
   attr(conversations, "read_info") <- list(
     read_at = read_at,
     from = from,
@@ -235,10 +240,6 @@ otel_check_jsonlite <- function(call = rlang::caller_env()) {
     class = "scans_error_otel_dependency",
     call = call
   )
-}
-
-connect_content_url <- function(client, guid) {
-  paste0(client$server, "/content/", guid, "/")
 }
 
 connect_request <- function(client, ...) {
