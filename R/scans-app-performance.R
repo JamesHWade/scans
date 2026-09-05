@@ -32,7 +32,9 @@ scans_app_performance_data <- function(data, indices) {
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
-  summaries$tokens <- summaries$input_tokens + summaries$output_tokens
+  usage <- summaries[c("input_tokens", "output_tokens")]
+  summaries$tokens <- rowSums(usage, na.rm = TRUE)
+  summaries$tokens[rowSums(!is.na(usage)) == 0L] <- NA_real_
 
   list(
     total = nrow(data$info),

@@ -41,6 +41,31 @@ test_that("empty and unmeasured cohorts do not manufacture zero usage", {
   expect_equal(empty$n, 0)
 })
 
+test_that("recorded token measures retain one-sided usage and known zeros", {
+  ids <- c("input", "output", "both", "zero", "unknown")
+  bundle <- TrajectoryBundle(
+    tibble::tibble(trajectory_id = ids, source_type = "manual"),
+    tibble::tibble(
+      trajectory_id = ids,
+      turn_id = paste0(ids, "-turn"),
+      turn_index = 1L,
+      role = "assistant",
+      input_tokens = c(10, NA, 5, 0, NA),
+      output_tokens = c(NA, 20, 7, NA, NA)
+    ),
+    data.frame()
+  )
+  overview <- scans_app_performance_data(scans_app_data(bundle), seq_along(ids))
+
+  expect_equal(overview$trajectories$tokens, c(10, 20, 12, 0, NA))
+  expect_equal(overview$n_tokens, 4)
+  expect_equal(overview$median_tokens, 11)
+  expect_identical(
+    scans_app_performance_order(overview$trajectories, "tokens")$trajectory_id,
+    c("output", "both", "input", "zero", "unknown")
+  )
+})
+
 test_that("ranked trajectories keep identities and put unknown values last", {
   data <- scans_app_performance_data(scans_app_data(performance_fixture()), 1:3)
   expect_identical(
