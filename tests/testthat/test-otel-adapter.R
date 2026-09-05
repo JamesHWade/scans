@@ -2118,16 +2118,18 @@ test_that("a span seen twice does not count towards the span ceiling", {
       lapply(requests, serve)
     }
   )
-  lines <- connect_trace_lines(
-    client = list(server = "https://connect.example.com", api_key = "secret"),
-    guid = "11111111-1111-4111-8111-111111111111",
-    from = NULL,
-    to = NULL,
-    max_spans = 2L,
-    call = rlang::caller_env(),
-    page_size = 1L,
-    wave_size = 1L,
-    jobs = FALSE
+  expect_snapshot(
+    lines <- connect_trace_lines(
+      client = list(server = "https://connect.example.com", api_key = "secret"),
+      guid = "11111111-1111-4111-8111-111111111111",
+      from = NULL,
+      to = NULL,
+      max_spans = 2L,
+      call = rlang::caller_env(),
+      page_size = 1L,
+      wave_size = 1L,
+      jobs = FALSE
+    )
   )
   spans <- attr(lines, "spans")
   expect_setequal(vapply(spans, `[[`, character(1), "span_id"), c("a", "b"))

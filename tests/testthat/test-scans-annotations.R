@@ -30,7 +30,6 @@ test_that("the store is append-only and newest-first", {
     label = "looks right",
     note = "First pass."
   )
-  Sys.sleep(0.01)
   store$append(
     "Support assistant",
     "trajectory-1",
@@ -77,9 +76,15 @@ test_that("reads are scoped to an application and trajectory", {
   store$append("Support", "trajectory-2", label = "follow up", note = NULL)
   store$append("Research", "trajectory-1", label = "follow up", note = NULL)
 
-  expect_equal(nrow(store$read("Support", "trajectory-1")), 1L)
-  expect_equal(nrow(store$read("Support")), 2L)
-  expect_equal(nrow(store$read(trajectory_id = "trajectory-1")), 2L)
+  expect_identical(store$read("Support", "trajectory-1")$label, "looks right")
+  expect_setequal(
+    store$read("Support")$trajectory_id,
+    c("trajectory-1", "trajectory-2")
+  )
+  expect_setequal(
+    store$read(trajectory_id = "trajectory-1")$application,
+    c("Support", "Research")
+  )
   expect_equal(nrow(store$read()), 3L)
   expect_equal(nrow(store$read("missing")), 0L)
 })
@@ -212,7 +217,7 @@ test_that("a malformed line does not hide the annotations around it", {
   )
 
   records <- store$read("Support", "trajectory-1")
-  expect_equal(nrow(records), 2L)
+  expect_setequal(records$note, c("Good.", "Also good."))
 })
 
 test_that("an invalid timestamp does not hide valid annotations", {
@@ -242,7 +247,7 @@ test_that("an invalid timestamp does not hide valid annotations", {
 
 test_that("reading a store that does not exist yet returns no rows", {
   skip_if_not_installed("jsonlite")
-  store <- scans_annotations(path = file.path(tempdir(), "absent.jsonl"))
+  store <- scans_annotations(path = withr::local_tempfile(fileext = ".jsonl"))
   expect_equal(nrow(store$read()), 0L)
 })
 

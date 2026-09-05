@@ -165,7 +165,8 @@ scans_app_connect_trace_line <- function(prompt) {
 
 test_that("scans app switches between Posit Connect trace stores lazily", {
   skip_if_not_installed("bslib", "0.11.0")
-  skip_if_not_installed("commons", "0.0.0.9002")
+  skip_if_not_installed("httr2", "1.1.1")
+  skip_if_not_installed("jsonlite")
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
