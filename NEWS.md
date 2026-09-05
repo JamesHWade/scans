@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* `as_trajectory_tempest()` accepts the initial Tempest development version when its public review accessor and supported schema are available.
+
 ## Review app and Connect reader
 
 * `scans_app()` opens with an application overview that follows the browser filters, counts distinct trajectories affected by each diagnostic pattern, summarizes elapsed time and recorded tokens with coverage counts, and opens ranked trajectories in the evidence inspector. Selecting a pattern narrows the browser and a visible Clear control restores the cohort (#39).

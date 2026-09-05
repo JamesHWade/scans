@@ -2,7 +2,7 @@ tempest_review_fixture <- local({
   review <- NULL
 
   function() {
-    testthat::skip_if_not_installed("tempest", "0.3.0.9000")
+    testthat::skip_if_not_installed("tempest")
     if (is.null(review)) {
       review <<- readRDS(testthat::test_path(
         "fixtures",

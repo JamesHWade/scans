@@ -222,7 +222,7 @@ tempest_review_check_installed <- function(call = rlang::caller_env()) {
 }
 
 tempest_review_accessor_available <- function() {
-  if (!rlang::is_installed("tempest", version = "0.3.0.9000")) {
+  if (!rlang::is_installed("tempest")) {
     return(FALSE)
   }
   tryCatch(
