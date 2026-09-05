@@ -97,6 +97,20 @@
     });
 
     document.addEventListener("click", function (event) {
+      var pattern = event.target.closest("[data-scans-pattern]");
+      if (pattern) {
+        Shiny.setInputValue("scans_app_pattern", pattern.dataset.scansPattern, {
+          priority: "event"
+        });
+        return;
+      }
+      var trajectory = event.target.closest("[data-scans-trajectory]");
+      if (trajectory) {
+        Shiny.setInputValue("scans_app_inspect", trajectory.dataset.scansTrajectory, {
+          priority: "event"
+        });
+        return;
+      }
       var button = event.target.closest(
         "#scans_app_tools_open, #scans_app_tools_close"
       );

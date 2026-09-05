@@ -15,6 +15,175 @@
   color: var(--scans-app-ink);
 }
 
+.scans-app-performance-controls {
+  padding: 1rem 1.5rem 0;
+}
+
+.scans-app-workspace-header {
+  flex-shrink: 0;
+}
+
+.scans-app-performance {
+  padding: 0.5rem 1.5rem 1.5rem;
+}
+
+.scans-app-performance h2 {
+  font-size: 1.55rem;
+  font-weight: 720;
+  letter-spacing: -0.03em;
+}
+
+.scans-app-performance h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.scans-app-performance p,
+.scans-app-performance-note {
+  color: var(--scans-app-muted);
+  font-size: 0.85rem;
+}
+
+.scans-app-performance-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0 0.75rem;
+}
+
+.scans-app-performance-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid var(--scans-app-line);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: var(--scans-app-soft);
+}
+
+.scans-app-performance-metric strong {
+  font-size: 1.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.scans-app-performance-metric small {
+  color: var(--scans-app-muted);
+  font-size: 0.75rem;
+}
+
+.scans-app-performance-section {
+  margin-top: 1.6rem;
+}
+
+.scans-app-patterns {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.scans-app-pattern {
+  display: grid;
+  grid-template-columns: minmax(160px, 2fr) 4rem minmax(40px, 1fr) 5rem;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid var(--scans-app-line);
+  border-radius: 0.4rem;
+  background: var(--scans-app-panel);
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--scans-app-ink);
+}
+
+.scans-app-pattern:hover,
+.scans-app-pattern:focus-visible {
+  background: var(--scans-app-primary-soft);
+  border-color: var(--scans-app-primary);
+}
+
+.scans-app-pattern-track {
+  display: block;
+  height: 0.4rem;
+  background: var(--scans-app-soft);
+  border-radius: 1rem;
+}
+
+.scans-app-pattern-track > span {
+  display: block;
+  height: 100%;
+  background: var(--scans-app-primary);
+  border-radius: inherit;
+}
+
+.scans-app-performance-table {
+  overflow-x: auto;
+}
+
+.scans-app-performance-table table {
+  font-size: 0.82rem;
+}
+
+.scans-app-performance-table th:not(:first-child),
+.scans-app-performance-table td:not(:first-child) {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.scans-app-performance-table td:first-child {
+  min-width: 180px;
+  max-width: 28rem;
+  overflow-wrap: anywhere;
+}
+
+.scans-app-performance-table td > small {
+  display: block;
+  color: var(--scans-app-muted);
+  font-size: 0.68rem;
+}
+
+.scans-app-inspect {
+  border: 0;
+  background: transparent;
+  padding: 0.2rem 0;
+  color: var(--scans-app-primary);
+  text-align: left;
+  text-decoration: underline;
+}
+
+.scans-app-performance-coverage {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--scans-app-line);
+  padding-top: 1rem;
+}
+
+.scans-app-active-pattern {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  padding: 0.5rem;
+  border-radius: 0.4rem;
+  background: var(--scans-app-primary-soft);
+}
+
+@media (max-width: 600px) {
+  .scans-app-performance,
+  .scans-app-performance-controls {
+    padding-inline: 0.8rem;
+  }
+
+  .scans-app-pattern {
+    grid-template-columns: minmax(130px, 1fr) 3.5rem;
+  }
+
+  .scans-app-pattern-track,
+  .scans-app-pattern small {
+    display: none;
+  }
+}
+
 .scans-app-brand {
   align-items: baseline;
   display: flex;

@@ -88,6 +88,7 @@ scans_app_ui <- function(sources, annotations = NULL) {
         width = "100%"
       ),
       scans_app_filter_toolbar(choices),
+      shiny::uiOutput("scans_app_pattern_filter"),
       scans_app_scanner_ui(),
       htmltools::div(
         class = "scans-app-browser-count",
@@ -112,36 +113,61 @@ scans_app_ui <- function(sources, annotations = NULL) {
       )
     ),
     shiny::uiOutput("scans_app_load_error"),
-    bslib::card(
-      fill = TRUE,
+    bslib::navset_card_underline(
+      id = "scans_app_view",
+      selected = "application",
       full_screen = TRUE,
-      class = "scans-app-workspace",
-      bslib::card_header(
-        class = "scans-app-workspace-header",
-        htmltools::div(
-          class = "scans-app-workspace-bar",
-          shiny::uiOutput("scans_app_header"),
-          scans_app_workspace_toolbar()
+      wrapper = function(...) bslib::card_body(..., padding = 0),
+      bslib::nav_panel(
+        "Application overview",
+        value = "application",
+        bslib::card_body(
+          fill = FALSE,
+          class = "scans-app-performance-controls",
+          shiny::selectInput(
+            "scans_app_priority",
+            "Order trajectories by",
+            choices = c(
+              "Elapsed time" = "elapsed",
+              "Recorded tokens" = "tokens",
+              "Findings" = "findings"
+            ),
+            width = "220px"
+          )
         ),
-        shiny::uiOutput("scans_app_overview")
+        shiny::uiOutput("scans_app_performance")
       ),
-      bslib::layout_sidebar(
-        fillable = TRUE,
-        border = FALSE,
-        border_radius = FALSE,
-        padding = 0,
-        gap = 0,
-        sidebar = bslib::sidebar(
-          title = NULL,
-          position = "right",
-          width = 340,
-          class = "scans-app-evidence",
-          scans_app_annotation_ui(annotations),
-          shiny::uiOutput("scans_app_evidence")
+      bslib::nav_panel(
+        "Trajectory",
+        value = "trajectory",
+        bslib::card_body(
+          fill = FALSE,
+          class = "scans-app-workspace-header",
+          htmltools::div(
+            class = "scans-app-workspace-bar",
+            shiny::uiOutput("scans_app_header"),
+            scans_app_workspace_toolbar()
+          ),
+          shiny::uiOutput("scans_app_overview")
         ),
-        htmltools::tags$main(
-          class = "scans-app-transcript",
-          shiny::uiOutput("scans_app_transcript")
+        bslib::layout_sidebar(
+          fillable = TRUE,
+          border = FALSE,
+          border_radius = FALSE,
+          padding = 0,
+          gap = 0,
+          sidebar = bslib::sidebar(
+            title = NULL,
+            position = "right",
+            width = 340,
+            class = "scans-app-evidence",
+            scans_app_annotation_ui(annotations),
+            shiny::uiOutput("scans_app_evidence")
+          ),
+          htmltools::tags$main(
+            class = "scans-app-transcript",
+            shiny::uiOutput("scans_app_transcript")
+          )
         )
       )
     )

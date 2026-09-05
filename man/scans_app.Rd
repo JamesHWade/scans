@@ -32,7 +32,15 @@ call a model, run tools, modify a bundle, or infer missing source facts.
 Caller-supplied loaders are invoked only when their application is first
 selected in a session or explicitly reloaded.
 
-The app provides filters and a trajectory browser, a source-neutral
+The app opens with an application overview of the filtered trajectories:
+recurring findings, elapsed-time quantiles, recorded token usage, and
+evidence coverage. Selecting a pattern filters the browser; selecting a
+trajectory opens its evidence. Elapsed time includes any pauses between
+user messages and is not model response latency. Unknown measurements
+remain unknown. Token counts use preserved conversation totals when
+available, otherwise sum known turn values, and may be partial.
+
+The app also provides filters and a trajectory browser, a source-neutral
 transcript and event stream, and the findings, evaluations, and adapter
 losses associated with the selected trajectory. Built-in findings are
 computed with \code{\link[=scan_trajectories]{scan_trajectories()}} when each application snapshot is first
