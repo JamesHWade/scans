@@ -3,6 +3,10 @@ tempest_review_fixture <- local({
 
   function() {
     testthat::skip_if_not_installed("tempest")
+    testthat::skip_if(
+      !tempest_review_accessor_available(),
+      "Tempest does not export tempest_trajectory_review_data()."
+    )
     if (is.null(review)) {
       review <<- readRDS(testthat::test_path(
         "fixtures",

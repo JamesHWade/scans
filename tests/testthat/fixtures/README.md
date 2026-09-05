@@ -35,9 +35,13 @@ the source tree and during `R CMD check` without network access.
 `tempest_trajectory_review()` function from Tempest's provider-free STORM
 promotion fixture. Tests read that authoritative result and project it through
 Tempest's exported accessor; they do not reproduce Tempest classes or digest
-contracts. Rebuild it with `Rscript tools/rebuild-tempest-fixture.R
-/path/to/matching/tempest-checkout` after installing that checkout. The fixture
-includes a host-accepted promotion receipt from a real Graft store.
+contracts. After installing a matching Tempest checkout, run from the scans root:
+
+```sh
+Rscript tools/rebuild-tempest-fixture.R /path/to/matching/tempest-checkout
+```
+
+The fixture includes a host-accepted promotion receipt from a real Graft store.
 
 `commons/trace-0.jsonl` is a static OTLP envelope. Commons tests obtain their
 source by passing its directory to `commons::trajectory_read()`. The dsprrr

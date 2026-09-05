@@ -206,7 +206,7 @@ tempest_review_check_installed <- function(call = rlang::caller_env()) {
     scans_abort(
       c(
         paste(
-          "A {.pkg tempest} development version that exports",
+          "An installed {.pkg tempest} package that exports",
           "{.fn tempest_trajectory_review_data} is required."
         ),
         "i" = paste(
