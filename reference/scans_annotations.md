@@ -61,5 +61,5 @@ store$read("Support assistant", "trajectory-1")
 #> # A tibble: 1 × 6
 #>   application       trajectory_id label     note      author created_at         
 #>   <chr>             <chr>         <chr>     <chr>     <chr>  <dttm>             
-#> 1 Support assistant trajectory-1  follow up Tool loo… runner 2026-09-05 13:15:34
+#> 1 Support assistant trajectory-1  follow up Tool loo… runner 2026-09-05 16:26:02
 ```

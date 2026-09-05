@@ -28,6 +28,26 @@ you need them.
 
 ## A thirty-second tour
 
+Start without a provider account using the bundled support-assistant
+example:
+
+``` r
+
+library(scans)
+path <- system.file("extdata", "support-investigation.json", package = "scans")
+bundle <- as_trajectory_otel(jsonlite::read_json(path))
+scan_trajectories(bundle)
+measure_trajectories(bundle)
+scans_app(list("Support assistant example" = bundle))
+```
+
+The [offline
+investigation](https://jameshwade.github.io/scans/articles/investigate.html)
+walks from three failed order lookups to their exact events, separates
+recorded work from conversation elapsed time, and makes incomplete
+capture visible. It includes optional-package installation instructions
+and a capture table for bringing your own evidence.
+
 After an ellmer chat has run, snapshot it and work entirely from the
 completed record:
 
@@ -247,6 +267,8 @@ By contributing, you agree to abide by its terms.
   : Filter trajectory events
 - [`summarize_trajectories()`](https://jameshwade.github.io/scans/reference/summarize_trajectories.md)
   : Summarize trajectories
+- [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
+  : Measure recorded trajectory resources
 - [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
   : Scan trajectories for diagnostic findings
 - [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md)
@@ -268,5 +290,7 @@ By contributing, you agree to abide by its terms.
   own](https://jameshwade.github.io/scans/articles/adapters.md):
 - [Reviewing Posit Connect
   traces](https://jameshwade.github.io/scans/articles/connect.md):
+- [Investigate a support assistant
+  offline](https://jameshwade.github.io/scans/articles/investigate.md):
 - [Get started with
   scans](https://jameshwade.github.io/scans/articles/scans.md):

@@ -21,6 +21,7 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
@@ -39,7 +40,14 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.0.9000" id="scans-0009000">scans 0.0.0.9000<a class="anchor" aria-label="anchor" href="#scans-0009000"></a></h2>
-<div class="section level3">
+<ul><li>A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (<a href="https://github.com/JamesHWade/scans/issues/45" class="external-link">#45</a>).</li>
+<li>
+<code><a href="../reference/as_trajectory_otel.html">as_trajectory_otel()</a></code> retains bounded resource aggregates across distinct captured calls, including coverage and a versioned adapter contract. Duplicate spans in pre-grouped conversations no longer inflate resources (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
+<li>
+<code><a href="../reference/measure_trajectories.html">measure_trajectories()</a></code> reports resource values with recording denominators, source units, attribution, and limitations while preserving <code><a href="../reference/summarize_trajectories.html">summarize_trajectories()</a></code> semantics. It normalizes ellmer’s separate input/cache components when both are recorded and identifies known cache-inclusive totals. It distinguishes inclusive model/tool durations, overlap-aware recorded work, and time outside recorded work; unsupported first-token latency and comparable cost remain unavailable (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
+<li>
+<code><a href="../reference/scans_app.html">scans_app()</a></code> uses the public resource measurements, shows where recorded time went, and exposes individual values and coverage in Resource measurements. Incomplete captured timestamps cannot establish conversation elapsed time, and partial recorded-work values are excluded from the overview’s timing medians (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
+</ul><div class="section level3">
 <h3 id="review-app-and-connect-reader-0-0-0-9000">Review app and Connect reader<a class="anchor" aria-label="anchor" href="#review-app-and-connect-reader-0-0-0-9000"></a></h3>
 <ul><li>
 <code><a href="../reference/scans_app.html">scans_app()</a></code> opens with an application overview that follows the browser filters, counts distinct trajectories affected by each diagnostic pattern, summarizes elapsed time and recorded tokens with coverage counts, and opens ranked trajectories in the evidence inspector. Selecting a pattern narrows the browser and a visible Clear control restores the cohort (<a href="https://github.com/JamesHWade/scans/issues/39" class="external-link">#39</a>).</li>

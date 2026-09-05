@@ -4,8 +4,9 @@ pkgdown_sha: ~
 articles:
   adapters: adapters.html
   connect: connect.html
+  investigate: investigate.html
   scans: scans.html
-last_built: 2026-09-05T13:15Z
+last_built: 2026-09-05T16:25Z
 urls:
   reference: https://jameshwade.github.io/scans/reference
   article: https://jameshwade.github.io/scans/articles

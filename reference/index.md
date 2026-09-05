@@ -35,6 +35,8 @@
   : Filter trajectory events
 - [`summarize_trajectories()`](https://jameshwade.github.io/scans/reference/summarize_trajectories.md)
   : Summarize trajectories
+- [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
+  : Measure recorded trajectory resources
 - [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
   : Scan trajectories for diagnostic findings
 - [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md)
