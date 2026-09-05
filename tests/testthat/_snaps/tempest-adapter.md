@@ -16,7 +16,7 @@
       as_trajectory_tempest(review)
     Condition
       Error:
-      ! A tempest development version that exports `tempest_trajectory_review_data()` is required.
+      ! An installed tempest package that exports `tempest_trajectory_review_data()` is required.
       i Install it from <https://github.com/JamesHWade/tempest>.
 
 # Tempest adapter enforces scans-owned trajectory ID bounds

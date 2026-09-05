@@ -2,6 +2,7 @@
 
 * A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (#45).
 * `as_trajectory_otel()` retains bounded resource aggregates across distinct captured calls, including coverage and a versioned adapter contract. Duplicate spans in pre-grouped conversations no longer inflate resources (#40).
+* `as_trajectory_tempest()` accepts the initial Tempest development version when its public review accessor and supported schema are available.
 * `measure_trajectories()` reports resource values with recording denominators, source units, attribution, and limitations while preserving `summarize_trajectories()` semantics. It normalizes ellmer's separate input/cache components when both are recorded and identifies known cache-inclusive totals. It distinguishes inclusive model/tool durations, overlap-aware recorded work, and time outside recorded work; unsupported first-token latency and comparable cost remain unavailable (#40).
 * `scans_app()` uses the public resource measurements, shows where recorded time went, and exposes individual values and coverage in Resource measurements. Incomplete captured timestamps cannot establish conversation elapsed time, and partial recorded-work values are excluded from the overview's timing medians (#40).
 

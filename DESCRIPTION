@@ -38,16 +38,16 @@ Suggests:
     rmarkdown,
     shiny (>= 1.11.1),
     shinychat,
-    tempest (>= 0.3.0.9000),
+    tempest (>= 0.0.0.9000),
     testthat (>= 3.0.0),
     vitals (>= 0.3.0),
     withr,
     xml2
 Remotes:
-    posit-dev/commons/pkg-r@bffce608dd8038be736fe53d656182c2629d3122,
-    JamesHWade/deputy@89089c90ddeb668462422b14a4de7a8395eefdc8,
-    JamesHWade/dsprrr@db28eae2235ab15c4f5c1c9794118d127eabbdd7,
-    JamesHWade/tempest@87018b62fe2fdf632f33ef14b4d6fdf450d78253
+    posit-dev/commons/pkg-r,
+    JamesHWade/deputy,
+    JamesHWade/dsprrr,
+    JamesHWade/tempest@codex/accepted-research-reuse
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.1.0

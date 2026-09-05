@@ -206,7 +206,7 @@ tempest_review_check_installed <- function(call = rlang::caller_env()) {
     scans_abort(
       c(
         paste(
-          "A {.pkg tempest} development version that exports",
+          "An installed {.pkg tempest} package that exports",
           "{.fn tempest_trajectory_review_data} is required."
         ),
         "i" = paste(
@@ -222,7 +222,7 @@ tempest_review_check_installed <- function(call = rlang::caller_env()) {
 }
 
 tempest_review_accessor_available <- function() {
-  if (!rlang::is_installed("tempest", version = "0.3.0.9000")) {
+  if (!rlang::is_installed("tempest")) {
     return(FALSE)
   }
   tryCatch(
