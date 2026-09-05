@@ -33,6 +33,23 @@ and the review app use optional packages that are loaded when you need them.
 
 ## A thirty-second tour
 
+Start without a provider account using the bundled support-assistant example:
+
+```r
+library(scans)
+path <- system.file("extdata", "support-investigation.json", package = "scans")
+bundle <- as_trajectory_otel(jsonlite::read_json(path))
+scan_trajectories(bundle)
+measure_trajectories(bundle)
+scans_app(list("Support assistant example" = bundle))
+```
+
+The [offline investigation](https://jameshwade.github.io/scans/articles/investigate.html)
+walks from three failed order lookups to their exact events, separates
+recorded work from conversation elapsed time, and makes incomplete capture
+visible. It includes optional-package installation instructions and a capture
+table for bringing your own evidence.
+
 After an ellmer chat has run, snapshot it and work entirely from the completed
 record:
 

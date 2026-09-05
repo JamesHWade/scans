@@ -688,6 +688,13 @@ scans_app_server <- function(
       }
       scans_app_header_ui(current, selected())
     })
+    output$scans_app_resources <- shiny::renderUI({
+      current <- data()
+      if (is.null(current) || is.null(selected())) {
+        return(NULL)
+      }
+      scans_app_resources_ui(current, selected())
+    })
     output$scans_app_transcript <- shiny::renderUI({
       current <- data()
       if (is.null(current)) {

@@ -110,6 +110,9 @@ otel_conversation_tables <- function(
   source_uri,
   metadata
 ) {
+  context <- attr(spans, "otel_context", exact = TRUE)
+  spans <- otel_unique_spans(spans)
+  attr(spans, "otel_context") <- context
   if (is.null(trajectory_id)) {
     trajectory_id <- paste0(
       "otel/",
@@ -204,6 +207,7 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
   usage$attributes <- context$attributes %||% otel_extra_attributes(spans)
   usage$resource <- context$resource %||% otel_resource_attributes(spans)
   usage$failed_spans <- metadata$otel_failed_spans
+  usage$measures <- otel_resource_measures(spans, chat_spans)
   metadata$otel_failed_spans <- NULL
   metadata$otel <- usage[!vapply(usage, is.null, logical(1))]
   metadata
@@ -896,10 +900,8 @@ otel_order_conversations <- function(groups) {
   latest <- vapply(
     groups,
     function(group) {
-      max(
-        vapply(group, function(s) otel_nanos(s$start_time), numeric(1)),
-        na.rm = TRUE
-      )
+      starts <- vapply(group, function(s) otel_nanos(s$start_time), numeric(1))
+      if (any(is.finite(starts))) max(starts[is.finite(starts)]) else -Inf
     },
     numeric(1)
   )

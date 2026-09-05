@@ -1,0 +1,251 @@
+[
+  {
+    "trace_id": "trace-retry",
+    "span_id": "retry-chat-1",
+    "parent_span_id": "",
+    "name": "retry-chat-1",
+    "scope": "scans.offline-example",
+    "start_time": "1788264000000000000",
+    "end_time": "1788264003000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Where is order DEMO-104? The tracking page has not changed.\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-1\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]}]",
+      "gen_ai.usage.input_tokens": 100,
+      "gen_ai.usage.output_tokens": 20
+    }
+  },
+  {
+    "trace_id": "trace-retry",
+    "span_id": "lookup-1",
+    "parent_span_id": "",
+    "name": "lookup-1",
+    "scope": "scans.offline-example",
+    "start_time": "1788264003000000000",
+    "end_time": "1788264008000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "execute_tool",
+      "gen_ai.tool.call.id": "lookup-1",
+      "gen_ai.tool.name": "lookup_order",
+      "error.type": "order_service_timeout"
+    }
+  },
+  {
+    "trace_id": "trace-retry",
+    "span_id": "retry-chat-2",
+    "parent_span_id": "",
+    "name": "retry-chat-2",
+    "scope": "scans.offline-example",
+    "start_time": "1788264008000000000",
+    "end_time": "1788264011000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Where is order DEMO-104? The tracking page has not changed.\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-1\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"lookup-1\",\"response\":\"The order service timed out. No shipment data was returned.\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-2\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]}]",
+      "gen_ai.usage.input_tokens": 200,
+      "gen_ai.usage.output_tokens": 20
+    }
+  },
+  {
+    "trace_id": "trace-retry",
+    "span_id": "lookup-2",
+    "parent_span_id": "",
+    "name": "lookup-2",
+    "scope": "scans.offline-example",
+    "start_time": "1788264011000000000",
+    "end_time": "1788264017000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "execute_tool",
+      "gen_ai.tool.call.id": "lookup-2",
+      "gen_ai.tool.name": "lookup_order",
+      "error.type": "order_service_timeout"
+    }
+  },
+  {
+    "trace_id": "trace-retry",
+    "span_id": "retry-chat-3",
+    "parent_span_id": "",
+    "name": "retry-chat-3",
+    "scope": "scans.offline-example",
+    "start_time": "1788264017000000000",
+    "end_time": "1788264020000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Where is order DEMO-104? The tracking page has not changed.\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-1\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"lookup-1\",\"response\":\"The order service timed out. No shipment data was returned.\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-2\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"lookup-2\",\"response\":\"The order service timed out. No shipment data was returned.\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-3\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]}]",
+      "gen_ai.usage.input_tokens": 300,
+      "gen_ai.usage.output_tokens": 20
+    }
+  },
+  {
+    "trace_id": "trace-retry",
+    "span_id": "lookup-3",
+    "parent_span_id": "",
+    "name": "lookup-3",
+    "scope": "scans.offline-example",
+    "start_time": "1788264020000000000",
+    "end_time": "1788264029000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "execute_tool",
+      "gen_ai.tool.call.id": "lookup-3",
+      "gen_ai.tool.name": "lookup_order",
+      "error.type": "order_service_timeout"
+    }
+  },
+  {
+    "trace_id": "trace-retry",
+    "span_id": "retry-final",
+    "parent_span_id": "",
+    "name": "retry-final",
+    "scope": "scans.offline-example",
+    "start_time": "1788264029000000000",
+    "end_time": "1788264033000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "retry",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Where is order DEMO-104? The tracking page has not changed.\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-1\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"lookup-1\",\"response\":\"The order service timed out. No shipment data was returned.\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-2\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"lookup-2\",\"response\":\"The order service timed out. No shipment data was returned.\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"lookup-3\",\"name\":\"lookup_order\",\"arguments\":{\"order\":\"DEMO-104\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"lookup-3\",\"response\":\"The order service timed out. No shipment data was returned.\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"I could not retrieve this order. Please contact the support desk; I cannot confirm its shipping status.\"}]}]",
+      "gen_ai.usage.input_tokens": 400,
+      "gen_ai.usage.output_tokens": 35
+    }
+  },
+  {
+    "trace_id": "trace-follow-up",
+    "span_id": "policy-first",
+    "parent_span_id": "",
+    "name": "policy-first",
+    "scope": "scans.offline-example",
+    "start_time": "1788264200000000000",
+    "end_time": "1788264202000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "follow-up",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Can I return an unopened item?\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Unopened items can be returned within the example store's 30-day window.\"}]}]",
+      "gen_ai.usage.input_tokens": 90,
+      "gen_ai.usage.output_tokens": 25
+    }
+  },
+  {
+    "trace_id": "trace-follow-up",
+    "span_id": "policy-second",
+    "parent_span_id": "",
+    "name": "policy-second",
+    "scope": "scans.offline-example",
+    "start_time": "1788264322000000000",
+    "end_time": "1788264326000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "follow-up",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Can I return an unopened item?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Unopened items can be returned within the example store's 30-day window.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Does that include gifts?\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Yes. Keep the gift receipt so the support desk can find the order.\"}]}]",
+      "gen_ai.usage.input_tokens": 150,
+      "gen_ai.usage.output_tokens": 30
+    }
+  },
+  {
+    "trace_id": "trace-parallel",
+    "span_id": "parallel-first",
+    "parent_span_id": "",
+    "name": "parallel-first",
+    "scope": "scans.offline-example",
+    "start_time": "1788264400000000000",
+    "end_time": "1788264402000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "parallel",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Is the blue jacket in stock, and what is its return window?\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"stock\",\"name\":\"check_stock\",\"arguments\":{\"item\":\"blue-jacket\"}},{\"type\":\"tool_call\",\"id\":\"policy\",\"name\":\"return_policy\",\"arguments\":{\"item\":\"blue-jacket\"}}]}]",
+      "gen_ai.usage.input_tokens": 120,
+      "gen_ai.usage.output_tokens": 40
+    }
+  },
+  {
+    "trace_id": "trace-parallel",
+    "span_id": "stock",
+    "parent_span_id": "",
+    "name": "stock",
+    "scope": "scans.offline-example",
+    "start_time": "1788264402000000000",
+    "end_time": "1788264407000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "parallel",
+      "gen_ai.operation.name": "execute_tool",
+      "gen_ai.tool.call.id": "stock",
+      "gen_ai.tool.name": "check_stock"
+    }
+  },
+  {
+    "trace_id": "trace-parallel",
+    "span_id": "policy",
+    "parent_span_id": "",
+    "name": "policy",
+    "scope": "scans.offline-example",
+    "start_time": "1788264403000000000",
+    "end_time": "1788264408000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "parallel",
+      "gen_ai.operation.name": "execute_tool",
+      "gen_ai.tool.call.id": "policy",
+      "gen_ai.tool.name": "return_policy"
+    }
+  },
+  {
+    "trace_id": "trace-parallel",
+    "span_id": "parallel-final",
+    "parent_span_id": "",
+    "name": "parallel-final",
+    "scope": "scans.offline-example",
+    "start_time": "1788264408000000000",
+    "end_time": "1788264410000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "parallel",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.request.model": "example-support-model",
+      "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Is the blue jacket in stock, and what is its return window?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"stock\",\"name\":\"check_stock\",\"arguments\":{\"item\":\"blue-jacket\"}},{\"type\":\"tool_call\",\"id\":\"policy\",\"name\":\"return_policy\",\"arguments\":{\"item\":\"blue-jacket\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"stock\",\"response\":\"The blue jacket is in stock.\"}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"policy\",\"response\":\"Unworn jackets have a 30-day return window.\"}]}]",
+      "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"The blue jacket is in stock. You have 30 days to return it unworn.\"}]}]",
+      "gen_ai.usage.input_tokens": 230,
+      "gen_ai.usage.output_tokens": 35
+    }
+  },
+  {
+    "trace_id": "trace-limited-capture",
+    "span_id": "limited-first",
+    "parent_span_id": "",
+    "name": "limited-first",
+    "scope": "scans.offline-example",
+    "start_time": "1788264500000000000",
+    "end_time": "1788264504000000000",
+    "attributes": {
+      "gen_ai.conversation.id": "limited-capture",
+      "gen_ai.operation.name": "chat",
+      "gen_ai.usage.input_tokens": 75
+    }
+  },
+  {
+    "trace_id": "trace-limited-capture",
+    "span_id": "limited-second",
+    "parent_span_id": "",
+    "name": "limited-second",
+    "scope": "scans.offline-example",
+    "start_time": "1788264510000000000",
+    "end_time": null,
+    "attributes": {
+      "gen_ai.conversation.id": "limited-capture",
+      "gen_ai.operation.name": "chat"
+    }
+  }
+]
