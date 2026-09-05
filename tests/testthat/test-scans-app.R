@@ -1561,6 +1561,10 @@ test_that("scans app overview tolerates an atomic OTel metadata namespace", {
   data <- scans_app_data(do.call(TrajectoryBundle, tables))
 
   expect_no_error(scans_app_overview_ui(data, 1L))
+  expect_equal(
+    scans_app_performance_data(data, 1L)$trajectories$tokens,
+    data$summaries$input_tokens + data$summaries$output_tokens
+  )
 })
 
 test_that("scans app overview falls back from invalid OTel token counts", {
@@ -1579,6 +1583,16 @@ test_that("scans app overview falls back from invalid OTel token counts", {
   overview <- as.character(scans_app_overview_ui(data, 1L))
 
   expect_match(overview, "11 in / 5 out", fixed = TRUE)
+  expect_equal(scans_app_performance_data(data, 1L)$median_tokens, 16)
+
+  tables$trajectories$metadata <- list(list(otel = list(input_tokens = 0)))
+  data <- scans_app_data(do.call(TrajectoryBundle, tables))
+  expect_match(
+    as.character(scans_app_overview_ui(data, 1L)),
+    "0 in / 5 out",
+    fixed = TRUE
+  )
+  expect_equal(scans_app_performance_data(data, 1L)$median_tokens, 5)
 })
 
 test_that("scans app flattens metadata into a bounded definition list", {

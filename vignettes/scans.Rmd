@@ -165,9 +165,10 @@ beside the active pattern restores the broader selection.
 
 Elapsed time runs from the recorded start to completion; in a conversation it
 may include pauses between user messages. It is not model response latency.
-Recorded tokens sum known turn values and may omit unrecorded usage. The app
-shows coverage counts and does not replace unknown values with zeros. Parent
-and delegated trajectories remain separate observations. Finding prevalence
+Recorded tokens use preserved conversation totals when available and otherwise
+sum known turn values. Usage may be partial. The app shows coverage counts and
+does not replace unknown values with zeros. Parent and delegated trajectories
+remain separate observations. Finding prevalence
 describes captured trajectories and does not measure answer quality.
 
 ```{r, eval = FALSE}

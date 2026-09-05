@@ -179,6 +179,56 @@ test_that("the overview consumes public ellmer turns without inferring wall time
   expect_equal(overview$n_timed, 0)
 })
 
+test_that("OTel overview and inspector use usage across all model calls", {
+  skip_if_not_installed("jsonlite")
+  skip_if_not_installed("htmltools")
+  span <- function(id, conversation, start, input_tokens, output_tokens) {
+    list(
+      trace_id = paste0("trace-", conversation),
+      span_id = id,
+      parent_span_id = "",
+      start_time = as.character(start * 1e9),
+      end_time = as.character((start + 1) * 1e9),
+      attributes = list(
+        "gen_ai.operation.name" = "chat",
+        "gen_ai.conversation.id" = conversation,
+        "gen_ai.request.model" = "test-model",
+        "gen_ai.usage.input_tokens" = input_tokens,
+        "gen_ai.usage.output_tokens" = output_tokens,
+        "gen_ai.input.messages" = '[{"role":"user","parts":[{"type":"text","content":"Hello"}]}]',
+        "gen_ai.output.messages" = '[{"role":"assistant","parts":[{"type":"text","content":"Hi"}]}]'
+      )
+    )
+  }
+  bundle <- as_trajectory_otel(list(
+    span("early", "multi", 1, 500, 100),
+    span("late", "multi", 5, 10, 2),
+    span("single", "single", 3, 100, 20)
+  ))
+  data <- scans_app_data(bundle)
+  multi <- match("otel/multi", data$info$trajectory_id)
+  overview <- scans_app_performance_data(data, seq_len(nrow(data$info)))
+
+  expect_equal(data$summaries$input_tokens[[multi]], 10)
+  expect_equal(overview$trajectories$tokens[[multi]], 612)
+  expect_equal(overview$median_tokens, 366)
+  expect_equal(overview$n_tokens, 2)
+  expect_identical(
+    scans_app_performance_order(overview$trajectories, "tokens")$trajectory_id,
+    c("otel/multi", "otel/single")
+  )
+  expect_match(
+    as.character(scans_app_overview_ui(data, multi)),
+    "510 in / 102 out",
+    fixed = TRUE
+  )
+  expect_match(
+    as.character(scans_app_performance_table(overview$trajectories, "tokens")),
+    "<td>612</td>",
+    fixed = TRUE
+  )
+})
+
 test_that("pattern filters reset when changing application", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")

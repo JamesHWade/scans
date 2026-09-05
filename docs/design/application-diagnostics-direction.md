@@ -70,10 +70,12 @@ tokens, and evaluation/loss coverage. A pattern narrows the browser with a
 visible clear action; ranked trajectories open the existing evidence view.
 Unknown usage remains unknown. The app does not invent outcome scores or cost.
 
-The calculations reuse canonical summaries and findings. They remain internal
-while we prove the interaction; promote a compact public analysis interface
-when the report/export work below provides its second consumer. Avoid making
-Shiny inputs part of that interface.
+The calculations reuse canonical summaries, preserved conversation usage, and
+findings. Both app views prefer valid conversation token totals over turn
+summaries because reconstructed turns may omit earlier model calls. These
+calculations remain internal while we prove the interaction; promote a compact
+public analysis interface when the report/export work below provides its second
+consumer. Avoid making Shiny inputs part of that interface.
 
 Validation uses a deterministic cohort with known, partial, and missing
 measurements, public ellmer turn objects, and the existing public Tempest

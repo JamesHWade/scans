@@ -32,7 +32,7 @@ scans_app_performance_data <- function(data, indices) {
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
-  usage <- summaries[c("input_tokens", "output_tokens")]
+  usage <- scans_app_token_usage(data$info[indices, , drop = FALSE], summaries)
   summaries$tokens <- rowSums(usage, na.rm = TRUE)
   summaries$tokens[rowSums(!is.na(usage)) == 0L] <- NA_real_
 
@@ -152,7 +152,7 @@ scans_app_performance_ui <- function(data, application, priority, scans) {
         ),
         htmltools::div(
           class = "scans-app-performance-note",
-          "Elapsed time may include pauses between user messages. Token counts sum known turn values and may be partial. Each trajectory is counted separately, including delegated trajectories."
+          "Elapsed time may include pauses between user messages. Token counts use recorded conversation totals when available, otherwise known turn values, and may be partial. Each trajectory is counted separately, including delegated trajectories."
         ),
         htmltools::div(
           class = "scans-app-performance-section",

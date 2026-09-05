@@ -16,7 +16,8 @@
 #' evidence coverage. Selecting a pattern filters the browser; selecting a
 #' trajectory opens its evidence. Elapsed time includes any pauses between
 #' user messages and is not model response latency. Unknown measurements
-#' remain unknown, and token totals may be partial when turns omit usage.
+#' remain unknown. Token counts use preserved conversation totals when
+#' available, otherwise sum known turn values, and may be partial.
 #'
 #' The app also provides filters and a trajectory browser, a source-neutral
 #' transcript and event stream, and the findings, evaluations, and adapter
