@@ -138,7 +138,7 @@ scan_registry()
 | `repeated_tool_call` | The same tool was called with the same arguments at least `repeat_threshold` times (default 2). Argument order does not matter. |
 | `suspicious_tool_loop` | At least `loop_threshold` consecutive identical calls (default 3) suggest the agent is stuck. |
 | `event_error` | An event recorded a failure. |
-| `error_chain` | A failure followed an earlier one in the same trajectory, which often means the agent did not recover. |
+| `error_chain` | At least two failed events are connected by `parent_event_id` links. Earlier unrelated failures do not form a chain. |
 | `turn_error` | A turn has a failed status, error text, or a truncating finish reason such as a token limit. |
 | `trajectory_error` | The run itself ended with a failed status or an error, even when no event recorded it. |
 
