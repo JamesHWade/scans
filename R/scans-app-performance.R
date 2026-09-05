@@ -147,7 +147,7 @@ scans_app_performance_ui <- function(data, application, priority, scans) {
             } else {
               scans_app_count(data$median_tokens)
             },
-            sprintf("Input and output available for %d / %d", data$n_tokens, n)
+            sprintf("Input or output recorded for %d / %d", data$n_tokens, n)
           )
         ),
         htmltools::div(

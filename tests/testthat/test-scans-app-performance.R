@@ -64,6 +64,15 @@ test_that("recorded token measures retain one-sided usage and known zeros", {
     scans_app_performance_order(overview$trajectories, "tokens")$trajectory_id,
     c("output", "both", "input", "zero", "unknown")
   )
+
+  skip_if_not_installed("htmltools")
+  html <- as.character(scans_app_performance_ui(
+    overview,
+    "Partial capture",
+    "tokens",
+    scan_registry()$scan
+  ))
+  expect_match(html, "Input or output recorded for 4 / 5", fixed = TRUE)
 })
 
 test_that("ranked trajectories keep identities and put unknown values last", {
