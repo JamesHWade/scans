@@ -2,16 +2,15 @@ rebuild_tempest_fixture <- function() {
   # Run with Tempest installed and its matching source checkout as the argument.
   args <- commandArgs(trailingOnly = TRUE)
   if (length(args) != 1L) {
-    stop(
-      "Usage: Rscript tools/rebuild-tempest-fixture.R <tempest-checkout>",
-      call. = FALSE
+    cli::cli_abort(
+      "Usage: Rscript tools/rebuild-tempest-fixture.R <tempest-checkout>"
     )
   }
   if (
     !file.exists("DESCRIPTION") ||
       !identical(read.dcf("DESCRIPTION", fields = "Package")[[1L]], "scans")
   ) {
-    stop("Run this script from the scans repository root.", call. = FALSE)
+    cli::cli_abort("Run this script from the scans repository root.")
   }
   library(tempest)
   library(testthat)
