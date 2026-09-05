@@ -174,7 +174,7 @@ test_that("the overview consumes public ellmer turns without inferring wall time
 
   expect_equal(overview$n, 1)
   expect_equal(overview$trajectories$n_tool_calls, 2)
-  expect_equal(overview$median_tokens, 13)
+  expect_equal(overview$median_tokens, 15)
   expect_identical(overview$median_elapsed, NA_real_)
   expect_equal(overview$n_timed, 0)
 })

@@ -118,13 +118,11 @@ scans_app_overview_ui <- function(data, index) {
   id <- data$info$trajectory_id[[index]]
   info <- data$info[index, , drop = FALSE]
   summary <- data$summaries[index, , drop = FALSE]
-  usage <- scans_app_token_usage(info, summary)
+  usage <- scans_app_token_usage(data, id)
   tokens_in <- usage$input_tokens[[1L]]
   tokens_out <- usage$output_tokens[[1L]]
-  duration <- scans_app_elapsed(
-    info$started_at[[1L]],
-    info$completed_at[[1L]]
-  )
+  elapsed <- scans_app_measure_rows(data, id, "elapsed")$value[[1L]]
+  duration <- if (is.na(elapsed)) NULL else scans_app_seconds(elapsed)
   n_findings <- sum(data$findings$trajectory_id == id)
   n_errors <- sum(
     data$findings$trajectory_id == id & data$findings$severity %in% "error"
@@ -186,23 +184,6 @@ scans_app_overview_ui <- function(data, index) {
       )
     }))
   )
-}
-
-scans_app_elapsed <- function(start, end) {
-  if (length(start) == 0L || is.na(start) || length(end) == 0L || is.na(end)) {
-    return(NULL)
-  }
-  seconds <- as.numeric(end, units = "secs") - as.numeric(start, units = "secs")
-  if (!is.finite(seconds) || seconds < 0) {
-    return(NULL)
-  }
-  if (seconds < 60) {
-    return(sprintf("%.1f s", seconds))
-  }
-  if (seconds < 3600) {
-    return(sprintf("%d min %02d s", seconds %/% 60, round(seconds %% 60)))
-  }
-  sprintf("%d h %02d min", seconds %/% 3600, (seconds %% 3600) %/% 60)
 }
 
 scans_app_header_ui <- function(data, index) {
