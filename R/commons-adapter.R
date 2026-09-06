@@ -4,13 +4,12 @@
 #' `commons::trajectory_read()` into one canonical [TrajectoryBundle]. Each
 #' named conversation becomes one trajectory. Both current records with `turns`
 #' and `last_active` fields and older attributed turn lists are accepted.
-#' Model-visible turns are
-#' delegated to [as_trajectory_ellmer()]. The adapter does not read files,
-#' connect to Posit Connect, or parse trace records itself.
+#' Model-visible turns are delegated to [as_trajectory_ellmer()]. The adapter
+#' does not read files, connect to Posit Connect, or parse trace records itself.
 #'
 #' Provenance stays attached to the turn list. An outer source descriptor, when
-#' supplied by the reader or caller, is retained as
-#' sanitized metadata. Each source provenance record also becomes a
+#' supplied by the reader or caller, is retained as sanitized metadata. Each
+#' source provenance record also becomes a
 #' `"commons:provenance"` event. Because the public commons result does not
 #' expose an exchange-to-turn key, provenance events retain their source index
 #' without inferring a `turn_id`. Missing or malformed source facts are reported

@@ -659,3 +659,78 @@ test_that("trajectory metadata and causal metadata do not create coverage gaps",
     "insufficient_evidence"
   )
 })
+
+test_that("collection losses affect only the status records they describe", {
+  skip_if_not_installed("ellmer")
+  bundle <- as_trajectory_ellmer(ellmer_tool_turns_fixture())
+  cases <- tibble::tribble(
+    ~field                 , ~turn                   , ~event                  ,
+    "turns"                , "insufficient_evidence" , "assessed_no_findings"  ,
+    "events"               , "assessed_no_findings"  , "insufficient_evidence" ,
+    "parts"                , "assessed_no_findings"  , "insufficient_evidence" ,
+    "messages"             , "insufficient_evidence" , "insufficient_evidence" ,
+    "capture"              , "insufficient_evidence" , "insufficient_evidence" ,
+    "read_info$incomplete" , "insufficient_evidence" , "insufficient_evidence"
+  )
+  for (i in seq_len(nrow(cases))) {
+    case <- cases[i, ]
+    bundle@losses <- trajectory_loss_table(list(trajectory_new_loss(
+      trajectory_ids(trajectory_info(bundle)$trajectory_id[[1]]),
+      case$field,
+      "truncated",
+      "Collection omitted"
+    )))
+    result <- assess_trajectory_scans(
+      bundle,
+      scans = c("turn_error", "event_error", "error_chain")
+    )$assessments
+    expect_identical(
+      result$status,
+      c(
+        case$turn,
+        case$event,
+        if (case$event == "assessed_no_findings") {
+          "not_applicable"
+        } else {
+          case$event
+        }
+      ),
+      info = case$field
+    )
+    expect_identical(result$loss_rows, list(1L, 1L, 1L))
+    expect_all_true(vapply(
+      result$limitations,
+      function(x) {
+        any(grepl("Collection omitted", x, fixed = TRUE))
+      },
+      logical(1)
+    ))
+  }
+})
+
+test_that("independent collection losses do not qualify intact positive status evidence", {
+  bundle <- scan_error_chain_fixture()
+  for (field in c("turns", "events")) {
+    bundle@losses <- trajectory_loss_table(list(trajectory_new_loss(
+      trajectory_ids(trajectory_info(bundle)$trajectory_id[[1]]),
+      field,
+      "truncated",
+      "Collection omitted"
+    )))
+    scans <- if (field == "turns") {
+      c("event_error", "error_chain")
+    } else {
+      "turn_error"
+    }
+    result <- assess_trajectory_scans(bundle, scans = scans)
+    expect_equal(
+      result$assessments$status,
+      rep("assessed_with_findings", length(scans))
+    )
+    expect_identical(result$findings, scan_trajectories(bundle, scans = scans))
+    expect_no_match(
+      paste(unlist(result$assessments$limitations), collapse = " "),
+      "prevent ruling out"
+    )
+  }
+})

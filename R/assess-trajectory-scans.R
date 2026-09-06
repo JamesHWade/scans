@@ -218,15 +218,15 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
   event_fields <- scan_event_loss_fields(fields)
   # Loss paths come from public adapters. Credential or text redaction does not
   # invalidate a status scan, but argument loss invalidates tool comparison.
-  structure_loss <- any(grepl(
-    "^(turns|events|messages|parts)$|^(read_info|capture)($|[.$])",
-    fields
-  ))
+  capture_loss <- any(grepl("^(read_info|capture)($|[.$])", fields))
+  turn_loss <- capture_loss || any(fields %in% c("turns", "messages"))
+  event_loss <- capture_loss ||
+    any(fields %in% c("events", "messages", "parts"))
   group <- scan_assessment_group(scan)
   if (group == "tool") {
     tools <- events$event_type %in% c("tool_call", "tool_result")
     calls <- events$event_type %in% "tool_call"
-    if (structure_loss) {
+    if (turn_loss || event_loss) {
       return(insufficient("Capture losses affect the semantic tool sequence."))
     }
     if (!any(tools)) {
@@ -341,7 +341,7 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
         (is.na(losses$turn_id) & is.na(losses$trajectory_id))
       turn_field <- fields %in%
         c("status", "finish_reason", "error", "contents$error")
-      relevant_loss <- structure_loss ||
+      relevant_loss <- turn_loss ||
         any(
           is.na(losses$event_id) & turn_owner & (turn_path | turn_field)
         )
@@ -357,7 +357,7 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
         (is.na(losses$event_id) &
           is.na(losses$turn_id) &
           is.na(losses$trajectory_id))
-      relevant_loss <- structure_loss ||
+      relevant_loss <- event_loss ||
         any(
           event_owner &
             event_fields %in%

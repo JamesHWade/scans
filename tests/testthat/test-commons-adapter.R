@@ -423,6 +423,8 @@ test_that("commons record fields and turn attributes retain safe provenance", {
   skip_if_not_installed("ellmer", "0.4.2")
   source <- commons_record_trajectory_fixture()
   source[[1L]]$revision <- 2L
+  attr(source[[1L]], "revision") <- "record-attribute"
+  attr(source[[1L]]$turns, "revision") <- "turn-attribute"
   source[[1L]]$api_key <- "secret"
   attr(source[[1L]]$turns, "capture_batch") <- "batch-1"
   bundle <- as_trajectory_commons(source)
@@ -431,6 +433,11 @@ test_that("commons record fields and turn attributes retain safe provenance", {
     metadata$conversation_fields,
     list(revision = 2L, api_key = "<redacted>")
   )
+  expect_identical(
+    metadata$conversation_attributes$revision,
+    "record-attribute"
+  )
+  expect_identical(metadata$turn_attributes$revision, "turn-attribute")
   expect_identical(metadata$turn_attributes$capture_batch, "batch-1")
   expect_in(
     "metadata$conversation_fields$api_key",

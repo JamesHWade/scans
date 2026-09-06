@@ -122,12 +122,11 @@ bundle <- as_trajectory_commons(conversations)
 filter_trajectory_events(bundle, event_type = "commons:provenance")
 ```
 
-Current reader results contain `turns` and `last_active` fields; older
-attributed turn lists also remain supported. Model-visible turns reuse the
-ellmer adapter. Activity time, any recorded local or Connect source descriptor,
-trust tags, and citation decisions stay
-inspectable as `commons:provenance` events. Missing or conflicting provenance
-becomes a loss; scans never infers a stronger trust claim.
+Model-visible turns reuse the ellmer adapter. Activity time remains trajectory
+timing, and any recorded local or Connect source descriptor stays in metadata.
+Trust tags and citation decisions remain inspectable as `commons:provenance`
+events. Missing or conflicting provenance becomes a loss; scans never infers a
+stronger trust claim.
 
 ## Tempest
 
