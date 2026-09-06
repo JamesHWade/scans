@@ -75,6 +75,26 @@ supporting trajectory, turn, or events.
 [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
 opens the same bundle and links findings to that evidence.
 
+Use
+[`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+when an empty finding set needs interpretation:
+
+``` r
+
+result <- assess_trajectory_scans(bundle)
+result$assessments[, c("scan", "status", "reason")]
+result$findings
+```
+
+Each selected scanner reports assessed with or without findings,
+insufficient evidence, not applicable, or execution failure for each
+trajectory. Requirements, scanner version, settings, capture
+limitations, and finding identities travel with the assessment. Missing
+tool identities or incomplete arguments cannot become assessed tool
+findings. Conclusions cover retained evidence; they do not establish
+complete capture or overall success. The app uses this same result in
+Scanner assessments and the overview’s Scanner coverage table.
+
 The following runnable example builds a trajectory in which the agent
 repeats a tool request after receiving its result:
 
@@ -269,6 +289,8 @@ By contributing, you agree to abide by its terms.
   : Summarize trajectories
 - [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
   : Measure recorded trajectory resources
+- [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+  : Assess built-in trajectory scans and their evidence coverage
 - [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
   : Scan trajectories for diagnostic findings
 - [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md)

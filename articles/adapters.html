@@ -192,11 +192,12 @@ commons, then convert the settled value:</p>
 <code class="sourceCode R"><span><span class="va">conversations</span> <span class="op">&lt;-</span> <span class="fu">commons</span><span class="fu">::</span><span class="fu"><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">trajectory_read</a></span><span class="op">(</span><span class="st">"path/to/otel-traces"</span><span class="op">)</span></span>
 <span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_commons.html">as_trajectory_commons</a></span><span class="op">(</span><span class="va">conversations</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/filter_trajectory_events.html">filter_trajectory_events</a></span><span class="op">(</span><span class="va">bundle</span>, event_type <span class="op">=</span> <span class="st">"commons:provenance"</span><span class="op">)</span></span></code></pre></div>
-<p>Model-visible turns reuse the ellmer adapter. Activity time, the
-local or Connect source descriptor, trust tags, and citation decisions
-stay inspectable as <code>commons:provenance</code> events. Missing or
-conflicting provenance becomes a loss; scans never infers a stronger
-trust claim.</p>
+<p>Model-visible turns reuse the ellmer adapter. Activity time remains
+trajectory timing, and any recorded local or Connect source descriptor
+stays in metadata. Trust tags and citation decisions remain inspectable
+as <code>commons:provenance</code> events. Missing or conflicting
+provenance becomes a loss; scans never infers a stronger trust
+claim.</p>
 </div>
 <div class="section level2">
 <h2 id="tempest">Tempest<a class="anchor" aria-label="anchor" href="#tempest"></a>

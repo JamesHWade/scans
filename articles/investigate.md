@@ -85,6 +85,39 @@ recovery route. This record alone does not tell us whether a retry
 policy was intentional, or whether the order service was failing for
 other users.
 
+## Distinguish no findings from missing evidence
+
+``` r
+
+assessment <- assess_trajectory_scans(bundle)
+coverage <- assessment$assessments
+coverage[coverage$scan == "repeated_tool_call",
+         c("trajectory_id", "scan", "status", "reason")]
+#> # A tibble: 4 × 4
+#>   trajectory_id        scan               status                 reason         
+#>   <chr>                <chr>              <chr>                  <chr>          
+#> 1 otel/retry           repeated_tool_call assessed_with_findings Findings are s…
+#> 2 otel/follow-up       repeated_tool_call not_applicable         The retained t…
+#> 3 otel/parallel        repeated_tool_call assessed_no_findings   Required evide…
+#> 4 otel/limited-capture repeated_tool_call insufficient_evidence  No tool exchan…
+```
+
+The retry conversation has assessed repetition findings. A contentless
+capture cannot support that comparison, even if its spans record elapsed
+time and token counts. A captured text conversation with no tool
+activity instead reports `not_applicable`. These states must not be
+counted as assessed negative results.
+
+`assessment$findings` retains the evidence identities used above. The
+assessment rows also carry `scan_version`, `settings`,
+`required_evidence`, `finding_ids`, `limitations`, and `loss_rows` (row
+references into `trajectory_losses(bundle)`). The app shows the same
+information in **Scanner assessments**, and counts each state separately
+for the selected scanners and filtered trajectories in **Scanner
+coverage**. An execution failure remains visible there while the
+unaffected detector groups continue. Conclusions always concern retained
+records.
+
 ## Separate waiting from recorded work
 
 ``` r

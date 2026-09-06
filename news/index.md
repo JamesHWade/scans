@@ -12,6 +12,14 @@
   well as earlier turn-list results. Provenance remains attached to the
   turns, and missing source descriptors are reported instead of inferred
   ([\#56](https://github.com/JamesHWade/scans/issues/56)).
+- [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+  reports each selected built-in scanner as assessed with or without
+  findings, insufficient evidence, not applicable, or execution failure,
+  with requirements, version, settings, capture limitations, and links
+  to findings.
+  [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
+  retains its findings-only contract
+  ([\#52](https://github.com/JamesHWade/scans/issues/52)).
 - [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
   retains bounded resource aggregates across distinct captured calls,
   including coverage and a versioned adapter contract. Duplicate spans
@@ -30,6 +38,11 @@
   work, and time outside recorded work; unsupported first-token latency
   and comparable cost remain unavailable
   ([\#40](https://github.com/JamesHWade/scans/issues/40)).
+- [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  shows scanner assessment details and filtered coverage counts, keeps
+  detector execution failures visible, and no longer presents missing
+  diagnostic evidence as a clean result
+  ([\#52](https://github.com/JamesHWade/scans/issues/52)).
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   uses the public resource measurements, shows where recorded time went,
   and exposes individual values and coverage in Resource measurements.

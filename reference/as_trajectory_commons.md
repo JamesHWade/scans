@@ -4,8 +4,9 @@
 [`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html)
 into one canonical
 [TrajectoryBundle](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md).
-Each named conversation becomes one trajectory, and its model-visible
-turns are delegated to
+Each named conversation becomes one trajectory. Both current records
+with `turns` and `last_active` fields and older attributed turn lists
+are accepted. Model-visible turns are delegated to
 [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md).
 The adapter does not read files, connect to Posit Connect, or parse
 trace records itself.
@@ -42,15 +43,15 @@ A
 
 ## Details
 
-Conversations may contain `turns` and `last_active` fields, or use the
-older form with turns directly in the list and `last_active` as an
-attribute. Provenance stays attached to the turn list. An outer source
-descriptor, when supplied by the reader or caller, is retained as
-sanitized metadata. Each source provenance record also becomes a
+Provenance stays attached to the turn list. An outer source descriptor,
+when supplied by the reader or caller, is retained as sanitized
+metadata. Each source provenance record also becomes a
 `"commons:provenance"` event. Because the public commons result does not
 expose an exchange-to-turn key, provenance events retain their source
 index without inferring a `turn_id`. Missing or malformed source facts
-are reported as adapter losses.
+are reported as adapter losses. Extra record fields and turn attributes
+are retained as sanitized metadata. A missing outer source descriptor
+remains a loss.
 
 Because
 [`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html)

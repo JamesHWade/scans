@@ -143,9 +143,41 @@ not tell us whether a retry policy was intentional, or whether the order
 service was failing for other users.</p>
 </div>
 <div class="section level2">
-<h2 id="separate-waiting-from-recorded-work">Separate waiting from recorded work<a class="anchor" aria-label="anchor" href="#separate-waiting-from-recorded-work"></a>
+<h2 id="distinguish-no-findings-from-missing-evidence">Distinguish no findings from missing evidence<a class="anchor" aria-label="anchor" href="#distinguish-no-findings-from-missing-evidence"></a>
 </h2>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">assessment</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/assess_trajectory_scans.html">assess_trajectory_scans</a></span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span></span>
+<span><span class="va">coverage</span> <span class="op">&lt;-</span> <span class="va">assessment</span><span class="op">$</span><span class="va">assessments</span></span>
+<span><span class="va">coverage</span><span class="op">[</span><span class="va">coverage</span><span class="op">$</span><span class="va">scan</span> <span class="op">==</span> <span class="st">"repeated_tool_call"</span>,</span>
+<span>         <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"trajectory_id"</span>, <span class="st">"scan"</span>, <span class="st">"status"</span>, <span class="st">"reason"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 4 × 4</span></span></span>
+<span><span class="co">#&gt;   trajectory_id        scan               status                 reason         </span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>          </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> otel/retry           repeated_tool_call assessed_with_findings Findings are s…</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> otel/follow-up       repeated_tool_call not_applicable         The retained t…</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> otel/parallel        repeated_tool_call assessed_no_findings   Required evide…</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> otel/limited-capture repeated_tool_call insufficient_evidence  No tool exchan…</span></span></code></pre></div>
+<p>The retry conversation has assessed repetition findings. A
+contentless capture cannot support that comparison, even if its spans
+record elapsed time and token counts. A captured text conversation with
+no tool activity instead reports <code>not_applicable</code>. These
+states must not be counted as assessed negative results.</p>
+<p><code>assessment$findings</code> retains the evidence identities used
+above. The assessment rows also carry <code>scan_version</code>,
+<code>settings</code>, <code>required_evidence</code>,
+<code>finding_ids</code>, <code>limitations</code>, and
+<code>loss_rows</code> (row references into
+<code>trajectory_losses(bundle)</code>). The app shows the same
+information in <strong>Scanner assessments</strong>, and counts each
+state separately for the selected scanners and filtered trajectories in
+<strong>Scanner coverage</strong>. An execution failure remains visible
+there while the unaffected detector groups continue. Conclusions always
+concern retained records.</p>
+</div>
+<div class="section level2">
+<h2 id="separate-waiting-from-recorded-work">Separate waiting from recorded work<a class="anchor" aria-label="anchor" href="#separate-waiting-from-recorded-work"></a>
+</h2>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">measures</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/measure_trajectories.html">measure_trajectories</a></span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span></span>
 <span><span class="va">timing</span> <span class="op">&lt;-</span> <span class="va">measures</span><span class="op">[</span><span class="va">measures</span><span class="op">$</span><span class="va">measure</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="st">"elapsed"</span>, <span class="st">"model_duration"</span>, <span class="st">"tool_duration"</span>,</span>
@@ -192,7 +224,7 @@ or well-behaved interaction.</p>
 <div class="section level2">
 <h2 id="check-the-recording-denominator">Check the recording denominator<a class="anchor" aria-label="anchor" href="#check-the-recording-denominator"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">usage</span> <span class="op">&lt;-</span> <span class="va">measures</span><span class="op">[</span><span class="va">measures</span><span class="op">$</span><span class="va">measure</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"input_tokens"</span>, <span class="st">"output_tokens"</span><span class="op">)</span>, <span class="op">]</span></span>
 <span><span class="va">usage</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"trajectory_id"</span>, <span class="st">"measure"</span>, <span class="st">"value"</span>, <span class="st">"n_recorded"</span>, <span class="st">"n_total"</span>, <span class="st">"coverage"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 8 × 6</span></span></span>
@@ -224,7 +256,7 @@ of trajectory bounds. It cannot prove that a source recorded every call,
 retained every trace, or loaded the whole time window. The limited
 capture supplies input usage for one of two calls and no output usage.
 Unknown usage is never converted to zero.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">measures</span><span class="op">[</span><span class="va">measures</span><span class="op">$</span><span class="va">trajectory_id</span> <span class="op">==</span> <span class="st">"otel/retry"</span> <span class="op">&amp;</span></span>
 <span>  <span class="va">measures</span><span class="op">$</span><span class="va">measure</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"first_chunk_latency"</span>, <span class="st">"first_token_latency"</span>, <span class="st">"cost"</span><span class="op">)</span>,</span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"measure"</span>, <span class="st">"value"</span>, <span class="st">"coverage"</span>, <span class="st">"limitation"</span><span class="op">)</span><span class="op">]</span></span>
@@ -246,7 +278,7 @@ cost column remains available for source-specific analysis.</p>
 </h2>
 <p>Install the optional UI dependencies once, then open the same
 bundle:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"shiny"</span>, <span class="st">"bslib"</span>, <span class="st">"htmltools"</span>, <span class="st">"commonmark"</span>, <span class="st">"xml2"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/scans_app.html">scans_app</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Support assistant example"</span> <span class="op">=</span> <span class="va">bundle</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>The application overview uses these measurements. Select
