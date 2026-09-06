@@ -73,48 +73,14 @@ scan_trajectories <- function(
     call
   )
 
+  collected <- scan_collect_findings(
+    x,
+    scan_id,
+    repeat_threshold,
+    loop_threshold
+  )
   info <- trajectory_info(x)
-  turns <- trajectory_turns(x)
-  events <- trajectory_events(x)
-  event_groups <- scan_split_trajectory_rows(events, info$trajectory_id)
-  turn_groups <- scan_split_trajectory_rows(turns, info$trajectory_id)
-  findings <- list()
-
-  for (index in seq_len(nrow(info))) {
-    findings <- c(
-      findings,
-      scan_record_findings(
-        info[index, , drop = FALSE],
-        turn_groups[[index]],
-        scan_id
-      )
-    )
-    trajectory_events <- event_groups[[index]]
-    trajectory_events <- trajectory_events[
-      order(
-        trajectory_events$event_index,
-        trajectory_events$event_id,
-        method = "radix"
-      ),
-      ,
-      drop = FALSE
-    ]
-    trajectory_turns <- turn_groups[[index]]
-    roles <- trajectory_turns$role[
-      match(trajectory_events$turn_id, trajectory_turns$turn_id)
-    ]
-    findings <- c(
-      findings,
-      scan_tool_findings(
-        trajectory_events,
-        scan_id,
-        repeat_threshold,
-        loop_threshold,
-        roles = roles
-      ),
-      scan_error_findings(trajectory_events, scan_id)
-    )
-  }
+  findings <- collected$findings
 
   # Selection filters the generated findings rather than skipping
   # detectors, so identifiers stay deterministic for a bundle and

@@ -70,12 +70,12 @@ test_that("current and legacy commons layouts retain the same evidence", {
   current[[1L]]$review_batch <- "batch-001"
   current[[1L]]$api_key <- "secret"
   bundle <- as_trajectory_commons(current)
-  metadata <- trajectory_info(bundle)$metadata[[1L]]$conversation_attributes
+  metadata <- trajectory_info(bundle)$metadata[[1L]]$conversation_fields
   expect_identical(metadata$review_batch, "batch-001")
   expect_identical(metadata$api_key, "<redacted>")
   expect_identical(
     trajectory_losses(bundle)$field,
-    "metadata$conversation_attributes$api_key"
+    "metadata$conversation_fields$api_key"
   )
 })
 
@@ -164,10 +164,10 @@ test_that("multiple commons conversations retain stable identities", {
 test_that("commons provenance gaps and conflicts are explicit losses", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_legacy_trajectory_fixture()
+  source <- commons_record_trajectory_fixture()
   conversation <- source[[1L]]
-  attr(conversation, "last_active") <- NULL
-  attr(conversation, "provenance") <- list(
+  conversation$last_active <- NULL
+  attr(conversation$turns, "provenance") <- list(
     list(
       provenance_tag = c("A", "C"),
       citation_decisions = list()
@@ -214,8 +214,8 @@ test_that("commons provenance gaps and conflicts are explicit losses", {
 test_that("missing commons provenance is not inferred", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_legacy_trajectory_fixture()
-  attr(source[[1L]], "provenance") <- NULL
+  source <- commons_record_trajectory_fixture()
+  attr(source[[1L]]$turns, "provenance") <- NULL
   attr(source, "source") <- NULL
   bundle <- as_trajectory_commons(source)
 
@@ -232,8 +232,9 @@ test_that("missing commons provenance is not inferred", {
 test_that("commons preserves malformed provenance without trusting it", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_legacy_trajectory_fixture()
-  attr(source[[1L]], "provenance") <- "conflicting audit records"
+  source <- commons_record_trajectory_fixture()
+  attr(source, "source") <- list(kind = "local", path = "/traces")
+  attr(source[[1L]]$turns, "provenance") <- "conflicting audit records"
   bundle <- as_trajectory_commons(source)
 
   expect_identical(
@@ -250,8 +251,9 @@ test_that("commons preserves malformed provenance without trusting it", {
 test_that("commons does not infer missing exchange records", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_legacy_trajectory_fixture()
-  attr(source[[1L]], "provenance") <- list()
+  source <- commons_record_trajectory_fixture()
+  attr(source, "source") <- list(kind = "local", path = "/traces")
+  attr(source[[1L]]$turns, "provenance") <- list()
   bundle <- as_trajectory_commons(source)
 
   events <- trajectory_events(bundle)
@@ -262,7 +264,7 @@ test_that("commons does not infer missing exchange records", {
 test_that("commons source kinds and extra attributes remain inspectable", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_legacy_trajectory_fixture()
+  source <- commons_record_trajectory_fixture()
   attr(source, "source") <- list(
     kind = "connect",
     server = "https://user:secret@connect.example?token=secret",
@@ -302,8 +304,8 @@ test_that("commons source kinds and extra attributes remain inspectable", {
 test_that("commons citation decisions are sanitized and diagnosed", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_legacy_trajectory_fixture()
-  provenance <- attr(source[[1L]], "provenance")
+  source <- commons_record_trajectory_fixture()
+  provenance <- attr(source[[1L]]$turns, "provenance")
   provenance[[1L]]$citation_decisions <- list(list(
     quote = "Six orders",
     api_key = "secret"
@@ -312,7 +314,7 @@ test_that("commons citation decisions are sanitized and diagnosed", {
     provenance_tag = "A",
     citation_decisions = list("malformed")
   )
-  attr(source[[1L]], "provenance") <- provenance
+  attr(source[[1L]]$turns, "provenance") <- provenance
 
   bundle <- as_trajectory_commons(source)
   events <- trajectory_events(bundle)
@@ -351,11 +353,11 @@ test_that("commons inputs use an explicit classless boundary", {
 test_that("commons argument and source failures have stable conditions", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_record_trajectory_fixture()
   multiple <- c(source, source)
   names(multiple) <- c("conversation-001", "conversation-002")
   invalid_turn <- source
-  invalid_turn[[1L]][[1L]] <- "not an ellmer turn"
+  invalid_turn[[1L]]$turns[[1L]] <- "not an ellmer turn"
 
   expect_s3_class(
     rlang::catch_cnd(as_trajectory_commons(source, trajectory_id = "")),
@@ -401,4 +403,85 @@ test_that("empty commons reads convert without optional dependencies", {
 
   expect_s7_class(bundle, TrajectoryBundle)
   expect_identical(nrow(trajectory_info(bundle)), 0L)
+})
+
+test_that("current commons records and legacy turn lists preserve the same evidence", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  turns <- ellmer_tool_turns_fixture()
+  attr(turns, "provenance") <- list()
+  active <- as.POSIXct("2026-09-05 12:00:00", tz = "UTC")
+  record <- list(example = list(turns = turns, last_active = active))
+  attr(turns, "last_active") <- active
+  legacy <- list(example = turns)
+  expect_identical(
+    S7::props(as_trajectory_commons(record)),
+    S7::props(as_trajectory_commons(legacy))
+  )
+})
+
+test_that("commons record fields and turn attributes retain safe provenance", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  source <- commons_record_trajectory_fixture()
+  source[[1L]]$revision <- 2L
+  attr(source[[1L]], "revision") <- "record-attribute"
+  attr(source[[1L]]$turns, "revision") <- "turn-attribute"
+  source[[1L]]$api_key <- "secret"
+  attr(source[[1L]]$turns, "capture_batch") <- "batch-1"
+  bundle <- as_trajectory_commons(source)
+  metadata <- trajectory_info(bundle)$metadata[[1L]]
+  expect_identical(
+    metadata$conversation_fields,
+    list(revision = 2L, api_key = "<redacted>")
+  )
+  expect_identical(
+    metadata$conversation_attributes$revision,
+    "record-attribute"
+  )
+  expect_identical(metadata$turn_attributes$revision, "turn-attribute")
+  expect_identical(metadata$turn_attributes$capture_batch, "batch-1")
+  expect_in(
+    "metadata$conversation_fields$api_key",
+    trajectory_losses(bundle)$field
+  )
+})
+
+test_that("malformed commons records and invalid positions retain source errors", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  expect_error(
+    as_trajectory_commons(list(example = list(turns = "invalid"))),
+    class = "scans_error_commons_source"
+  )
+  expect_error(
+    as_trajectory_commons(list(
+      example = list(turns = list("invalid", "invalid"))
+    )),
+    class = "scans_error_commons_source"
+  )
+  expect_error(
+    as_trajectory_commons(list(
+      example = stats::setNames(list(list(), list()), c("turns", "turns"))
+    )),
+    class = "scans_error_commons_source"
+  )
+})
+
+test_that("extra Commons fields cannot partially match last activity", {
+  source <- commons_record_trajectory_fixture()
+  active <- source[[1L]][["last_active"]]
+  attr(active, "tzone") <- "UTC"
+  source[[1L]][["last_active"]] <- NULL
+  source[[1L]]$last_active_at <- active
+  bundle <- as_trajectory_commons(source)
+  info <- trajectory_info(bundle)
+  expect_identical(info$completed_at, as.POSIXct(NA, tz = "UTC"))
+  expect_in("last_active", trajectory_losses(bundle)$field)
+  expect_named(info$metadata[[1L]]$conversation_fields, "last_active_at")
+
+  source[[1L]][["last_active"]] <- active
+  bundle <- as_trajectory_commons(source)
+  expect_identical(trajectory_info(bundle)$completed_at, active)
+  expect_no_match(
+    paste(trajectory_losses(bundle)$field, collapse = " "),
+    "last_active$"
+  )
 })

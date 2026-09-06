@@ -17,12 +17,13 @@ scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
   events <- trajectory_events(x)
   evaluations <- trajectory_evaluations(x)
   losses <- trajectory_losses(x)
-  findings <- scan_trajectories(
+  assessment <- assess_trajectory_scans(
     x,
     scans = scan_config$scans,
     repeat_threshold = scan_config$repeat_threshold,
     loop_threshold = scan_config$loop_threshold
   )
+  findings <- assessment$findings
   summaries <- summarize_trajectories(x)
   loss_trajectory_ids <- scans_app_loss_trajectory_ids(losses, turns, events)
 
@@ -34,6 +35,7 @@ scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
     losses = losses,
     loss_trajectory_ids = loss_trajectory_ids,
     findings = findings,
+    assessments = assessment$assessments,
     summaries = summaries,
     measures = measure_trajectories(x),
     records = scans_app_records(
@@ -61,15 +63,7 @@ scans_app_measure_rows <- function(data, ids, measure) {
 }
 
 scans_app_loss_trajectory_ids <- function(losses, turns, events) {
-  owners <- losses$trajectory_id
-  event_owners <- events$trajectory_id[match(losses$event_id, events$event_id)]
-  missing <- is.na(owners) & !is.na(event_owners)
-  owners[missing] <- event_owners[missing]
-
-  turn_owners <- turns$trajectory_id[match(losses$turn_id, turns$turn_id)]
-  missing <- is.na(owners) & !is.na(turn_owners)
-  owners[missing] <- turn_owners[missing]
-  owners
+  scan_loss_trajectory_ids(losses, turns, events)
 }
 
 scans_app_records <- function(info, turns, events, findings, summaries) {

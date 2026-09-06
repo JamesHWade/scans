@@ -16,3 +16,18 @@ commons_legacy_trajectory_fixture <- function() {
   attr(source, "source") <- list(kind = "local", path = "fixtures/commons")
   source
 }
+
+# Keep mutation fixtures on the current record shape when testing against
+# an older Commons installation. Conformance tests use the raw reader above.
+commons_record_trajectory_fixture <- function() {
+  source <- commons_trajectory_fixture()
+  for (i in seq_along(source)) {
+    conversation <- source[[i]]
+    if (!"turns" %in% names(conversation)) {
+      active <- attr(conversation, "last_active", exact = TRUE)
+      attr(conversation, "last_active") <- NULL
+      source[[i]] <- list(turns = conversation, last_active = active)
+    }
+  }
+  source
+}

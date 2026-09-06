@@ -7,6 +7,7 @@ scans_app_evidence_ui <- function(data, index) {
   evaluation_rows <- which(data$evaluations$trajectory_id == id)
   loss_rows <- which(data$loss_trajectory_ids %in% id)
   open <- c(
+    "assessments",
     if (length(finding_rows) > 0L) "findings",
     if (length(loss_rows) > 0L) "losses"
   )
@@ -18,6 +19,11 @@ scans_app_evidence_ui <- function(data, index) {
     open = open,
     multiple = TRUE,
     class = "scans-app-evidence-accordion",
+    bslib::accordion_panel(
+      "Scanner assessments",
+      value = "assessments",
+      scans_app_assessments_ui(data, id)
+    ),
     bslib::accordion_panel(
       paste0("Findings (", length(finding_rows), ")"),
       value = "findings",
@@ -44,7 +50,7 @@ scans_app_evidence_ui <- function(data, index) {
 scans_app_findings_ui <- function(data, rows) {
   if (length(rows) == 0L) {
     return(scans_app_empty_ui(
-      "Built-in scans found no diagnostic issues.",
+      "No findings to display. Check Scanner assessments for evidence coverage and execution status.",
       compact = TRUE
     ))
   }
@@ -58,6 +64,7 @@ scans_app_findings_ui <- function(data, rows) {
     }
     links <- scans_app_event_links(evidence, data$events)
     htmltools::tags$article(
+      id = paste0("scans-app-finding-", row),
       class = paste0(
         "scans-app-finding scans-app-finding-",
         scans_app_css_token(finding$severity[[1L]])

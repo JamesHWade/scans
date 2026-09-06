@@ -2,19 +2,19 @@
 #'
 #' `as_trajectory_commons()` converts the already-read result of
 #' `commons::trajectory_read()` into one canonical [TrajectoryBundle]. Each
-#' named conversation becomes one trajectory, and its model-visible turns are
-#' delegated to [as_trajectory_ellmer()]. The adapter does not read files,
-#' connect to Posit Connect, or parse trace records itself.
+#' named conversation becomes one trajectory. Both current records with `turns`
+#' and `last_active` fields and older attributed turn lists are accepted.
+#' Model-visible turns are delegated to [as_trajectory_ellmer()]. The adapter
+#' does not read files, connect to Posit Connect, or parse trace records itself.
 #'
-#' Conversations may contain `turns` and `last_active` fields, or use the older
-#' form with turns directly in the list and `last_active` as an attribute.
 #' Provenance stays attached to the turn list. An outer source descriptor, when
-#' supplied by the reader or caller, is retained as
-#' sanitized metadata. Each source provenance record also becomes a
+#' supplied by the reader or caller, is retained as sanitized metadata. Each
+#' source provenance record also becomes a
 #' `"commons:provenance"` event. Because the public commons result does not
 #' expose an exchange-to-turn key, provenance events retain their source index
 #' without inferring a `turn_id`. Missing or malformed source facts are reported
-#' as adapter losses.
+#' as adapter losses. Extra record fields and turn attributes are retained as
+#' sanitized metadata. A missing outer source descriptor remains a loss.
 #'
 #' Because `commons::trajectory_read()` returns an ordinary list without a
 #' discriminating class, use this explicit adapter instead of
@@ -71,7 +71,9 @@ as_trajectory_commons <- function(
       "source",
       "provenance",
       "source_attributes",
-      "conversation_attributes"
+      "conversation_attributes",
+      "conversation_fields",
+      "turn_attributes"
     )
   )
   if (length(reserved) > 0L) {
@@ -202,32 +204,33 @@ commons_conversation_bundle <- function(
       utils::URLencode(conversation_id, reserved = TRUE)
     )
   }
-  if (
-    "turns" %in% names(conversation) && !ellmer_is_turn(conversation[["turns"]])
-  ) {
-    if (!trajectory_is_named_list(conversation)) {
+  record <- "turns" %in%
+    names(conversation) &&
+    !ellmer_is_turn(conversation[["turns"]])
+  conversation_fields <- list()
+  turn_attributes <- list()
+  if (record) {
+    if (
+      !trajectory_is_named_list(conversation) ||
+        !is.list(conversation$turns) ||
+        is.data.frame(conversation$turns)
+    ) {
       scans_abort(
-        "The commons conversation must have uniquely named fields.",
+        "A commons conversation record must contain a list of ellmer turns in {.field turns} and have unique field names.",
         class = "scans_error_commons_source",
         call = call
       )
     }
     last_active <- conversation[["last_active"]]
-    conversation_attributes <- c(
-      commons_extra_attributes(conversation, "names"),
-      conversation[setdiff(names(conversation), c("turns", "last_active"))]
-    )
-    conversation <- conversation[["turns"]]
-    if (!is.list(conversation) || is.data.frame(conversation)) {
-      scans_abort(
-        "The commons conversation's {.field turns} must be a list of ellmer turns.",
-        class = "scans_error_commons_source",
-        call = call
-      )
-    }
-    conversation_attributes <- c(
-      conversation_attributes,
-      commons_extra_attributes(conversation, c("names", "provenance"))
+    conversation_fields <- conversation[setdiff(
+      names(conversation),
+      c("turns", "last_active")
+    )]
+    conversation_attributes <- commons_extra_attributes(conversation, "names")
+    conversation <- conversation$turns
+    turn_attributes <- commons_extra_attributes(
+      conversation,
+      c("names", "provenance")
     )
   } else {
     last_active <- attr(conversation, "last_active", exact = TRUE)
@@ -243,7 +246,7 @@ commons_conversation_bundle <- function(
     scans_abort(
       c(
         "The commons conversation contains invalid ellmer turns.",
-        "x" = "Invalid positions: {.val {positions}}."
+        "x" = "Invalid turn positions: {.val {positions}}."
       ),
       class = "scans_error_commons_source",
       call = call
@@ -259,6 +262,13 @@ commons_conversation_bundle <- function(
   }
   if (length(conversation_attributes) > 0L) {
     source_metadata$conversation_attributes <- conversation_attributes
+  }
+
+  if (length(conversation_fields) > 0L) {
+    source_metadata$conversation_fields <- conversation_fields
+  }
+  if (length(turn_attributes) > 0L) {
+    source_metadata$turn_attributes <- turn_attributes
   }
 
   base <- as_trajectory_ellmer(
