@@ -218,7 +218,7 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
   # Loss paths come from public adapters. Credential or text redaction does not
   # invalidate a status scan, but argument loss invalidates tool comparison.
   structure_loss <- any(grepl(
-    "(^|[.$])(turns|events|messages|parts)($)|read_info|capture",
+    "^(turns|events|messages|parts)$|^(read_info|capture)($|[.$])",
     fields
   ))
   group <- scan_assessment_group(scan)
@@ -229,12 +229,13 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       return(insufficient("Capture losses affect the semantic tool sequence."))
     }
     if (!any(tools)) {
+      conversation <- events[events$event_type != "commons:provenance", ]
       semantic <- nrow(turns) > 0L &&
-        nrow(events) > 0L &&
-        all(events$event_type == "content") &&
-        all(events$turn_id %in% turns$turn_id) &&
+        nrow(conversation) > 0L &&
+        all(conversation$event_type == "content") &&
+        all(conversation$turn_id %in% turns$turn_id) &&
         all(turns$role %in% c("user", "assistant", "system")) &&
-        any(scan_has_value(events$text))
+        any(scan_has_value(conversation$text))
       if (!semantic) {
         return(insufficient(
           "No tool exchange or fully interpretable text conversation is recorded."
@@ -318,8 +319,20 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       complete <- scan_status_recorded(turns$status) |
         scan_has_value(turns$finish_reason) |
         scan_has_value(turns$error)
+      turn_path <- grepl(
+        "^turns\\[\\[[0-9]+\\]\\]\\$(status|finish_reason|error)$",
+        fields
+      )
+      turn_owner <- losses$turn_id %in%
+        turns$turn_id |
+        (is.na(losses$turn_id) & turn_path) |
+        (is.na(losses$turn_id) & is.na(losses$trajectory_id))
+      turn_field <- fields %in%
+        c("status", "finish_reason", "error", "contents$error")
       relevant_loss <- structure_loss ||
-        any(grepl("status|finish_reason|error", fields))
+        any(
+          is.na(losses$event_id) & turn_owner & (turn_path | turn_field)
+        )
     } else {
       if (!nrow(events)) {
         return(insufficient("Events with diagnostic status are not recorded."))

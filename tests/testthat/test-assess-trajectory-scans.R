@@ -331,3 +331,146 @@ test_that("one recorded parent does not establish complete error-chain evidence"
   expect_identical(result$assessments$status, "insufficient_evidence")
   expect_identical(nrow(result$findings), 0L)
 })
+
+test_that("Commons provenance preserves text-only tool inapplicability", {
+  bundle <- as_trajectory_commons(commons_trajectory_fixture())
+  events <- trajectory_events(bundle)
+  expect_setequal(events$event_type, c("content", "commons:provenance"))
+  expect_equal(
+    assess_trajectory_scans(bundle)$assessments$status[1:5],
+    rep("not_applicable", 5)
+  )
+
+  events$event_type[events$event_type == "commons:provenance"] <- "custom"
+  bundle@events <- events
+  expect_equal(
+    assess_trajectory_scans(bundle)$assessments$status[1:5],
+    rep("insufficient_evidence", 5)
+  )
+})
+
+test_that("metadata loss names do not imply missing semantic records", {
+  skip_if_not_installed("ellmer")
+  oversized <- strrep("x", 70000)
+  request <- ellmer::ContentToolRequest(
+    "call-1",
+    "lookup",
+    list(query = "example"),
+    extra = list(
+      capture_note = oversized,
+      read_info = oversized,
+      parts = oversized,
+      events = oversized
+    )
+  )
+  bundle <- as_trajectory_ellmer(list(
+    ellmer::AssistantTurn(list(request)),
+    ellmer::UserTurn(list(ellmer::ContentToolResult("OK", request = request)))
+  ))
+  losses <- trajectory_losses(bundle)
+  expect_setequal(
+    losses$field,
+    paste0("contents$extra$", c("capture_note", "read_info", "parts", "events"))
+  )
+  result <- assess_trajectory_scans(bundle)$assessments
+  expect_equal(result$status[1:5], rep("assessed_no_findings", 5))
+  expect_identical(result$loss_rows[[1]], seq_len(nrow(losses)))
+  expect_match(paste(result$limitations[[1]], collapse = " "), "capture_note")
+
+  for (field in c(
+    "turns",
+    "events",
+    "messages",
+    "parts",
+    "read_info$incomplete",
+    "capture"
+  )) {
+    lost <- losses[1L, ]
+    lost$field <- field
+    bundle@losses <- lost
+    expect_equal(
+      assess_trajectory_scans(bundle)$assessments$status[1:5],
+      rep("insufficient_evidence", 5),
+      info = field
+    )
+  }
+})
+
+test_that("turn status losses respect exact paths and record ownership", {
+  skip_if_not_installed("ellmer")
+  bundle <- as_trajectory_ellmer(list(
+    ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
+    ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))
+  ))
+  turns <- trajectory_turns(bundle)
+  events <- trajectory_events(bundle)
+  cases <- tibble::tribble(
+    ~field                      , ~owner       , ~expected               ,
+    "metadata$error_budget"     , "turn"       , "assessed_no_findings"  ,
+    "metadata$status"           , "turn"       , "assessed_no_findings"  ,
+    "metadata$finish_reason"    , "turn"       , "assessed_no_findings"  ,
+    "turns[[1]]$metadata$error" , "turn"       , "assessed_no_findings"  ,
+    "error"                     , "event"      , "assessed_no_findings"  ,
+    "contents$error"            , "event"      , "assessed_no_findings"  ,
+    "status"                    , "trajectory" , "assessed_no_findings"  ,
+    "status"                    , "turn"       , "insufficient_evidence" ,
+    "error"                     , "turn"       , "insufficient_evidence" ,
+    "contents$error"            , "turn"       , "insufficient_evidence" ,
+    "turns[[1]]$finish_reason"  , "turn"       , "insufficient_evidence" ,
+    "finish_reason"             , "unassigned" , "insufficient_evidence"
+  )
+  for (i in seq_len(nrow(cases))) {
+    case <- cases[i, ]
+    losses <- trajectory_loss_table(list(trajectory_new_loss(
+      trajectory_ids(
+        if (case$owner == "unassigned") {
+          NA_character_
+        } else {
+          turns$trajectory_id[[1]]
+        },
+        if (case$owner %in% c("turn", "event")) {
+          turns$turn_id[[1]]
+        } else {
+          NA_character_
+        },
+        if (case$owner == "event") events$event_id[[1]] else NA_character_
+      ),
+      case$field,
+      "truncated",
+      "Field truncated"
+    )))
+    bundle@losses <- losses
+    result <- assess_trajectory_scans(bundle, scans = "turn_error")$assessments
+    expect_identical(
+      result$status,
+      case$expected,
+      info = paste(case$field, case$owner)
+    )
+    expect_identical(result$loss_rows[[1]], 1L)
+  }
+})
+
+test_that("public turn finish-reason loss qualifies negative and positive results", {
+  skip_if_not_installed("ellmer")
+  turn <- ellmer::AssistantTurn(
+    list(ellmer::ContentText("Done")),
+    finish_reason = strrep("x", 70000)
+  )
+  bundle <- as_trajectory_ellmer(list(turn))
+  expect_identical(trajectory_losses(bundle)$field, "turns[[1]]$finish_reason")
+  expect_identical(
+    assess_trajectory_scans(bundle, scans = "turn_error")$assessments$status,
+    "insufficient_evidence"
+  )
+  turns <- trajectory_turns(bundle)
+  turns$status <- "failed"
+  turns$error <- "Recorded failure"
+  bundle@turns <- turns
+  result <- assess_trajectory_scans(bundle, scans = "turn_error")
+  expect_identical(result$assessments$status, "assessed_with_findings")
+  expect_identical(nrow(result$findings), 1L)
+  expect_match(
+    paste(result$assessments$limitations[[1]], collapse = " "),
+    "prevent ruling out"
+  )
+})
