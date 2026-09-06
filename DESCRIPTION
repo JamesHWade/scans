@@ -47,7 +47,7 @@ Remotes:
     posit-dev/commons/pkg-r,
     JamesHWade/deputy,
     JamesHWade/dsprrr,
-    JamesHWade/tempest@codex/accepted-research-reuse
+    JamesHWade/tempest
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.1.0

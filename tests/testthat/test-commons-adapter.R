@@ -32,6 +32,10 @@ test_that("already-read commons conversations become canonical trajectories", {
   )
   expect_identical(info$metadata[[1L]]$source, attr(source, "source"))
   expect_identical(
+    "source" %in% trajectory_losses(bundle)$field,
+    is.null(attr(source, "source"))
+  )
+  expect_identical(
     turns$role,
     c("user", "assistant")
   )
@@ -45,6 +49,54 @@ test_that("already-read commons conversations become canonical trajectories", {
   expect_identical(
     provenance$value[[1L]]$citation_decisions[[1L]]$label,
     "Data dictionary"
+  )
+})
+
+test_that("current and legacy commons layouts retain the same evidence", {
+  legacy <- commons_legacy_trajectory_fixture()
+  names(legacy[[1L]]) <- c("turns", "reply")
+  current <- lapply(legacy, function(turns) {
+    last_active <- attr(turns, "last_active")
+    attr(turns, "last_active") <- NULL
+    list(turns = turns, last_active = last_active)
+  })
+  attr(current, "source") <- attr(legacy, "source")
+
+  expect_identical(
+    S7::props(as_trajectory_commons(current)),
+    S7::props(as_trajectory_commons(legacy))
+  )
+
+  current[[1L]]$review_batch <- "batch-001"
+  current[[1L]]$api_key <- "secret"
+  bundle <- as_trajectory_commons(current)
+  metadata <- trajectory_info(bundle)$metadata[[1L]]$conversation_attributes
+  expect_identical(metadata$review_batch, "batch-001")
+  expect_identical(metadata$api_key, "<redacted>")
+  expect_identical(
+    trajectory_losses(bundle)$field,
+    "metadata$conversation_attributes$api_key"
+  )
+})
+
+test_that("malformed current commons turns keep the public error class", {
+  skip_if_not_installed("ellmer", "0.4.2")
+  for (turns in list(
+    NULL,
+    "invalid",
+    data.frame(x = 1),
+    list("invalid", FALSE)
+  )) {
+    source <- list(conversation = list(turns = turns))
+    expect_error(
+      as_trajectory_commons(source),
+      class = "scans_error_commons_source"
+    )
+  }
+  duplicate <- stats::setNames(list(list(), list()), c("turns", "turns"))
+  expect_error(
+    as_trajectory_commons(list(conversation = duplicate)),
+    class = "scans_error_commons_source"
   )
 })
 
@@ -112,7 +164,7 @@ test_that("multiple commons conversations retain stable identities", {
 test_that("commons provenance gaps and conflicts are explicit losses", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_legacy_trajectory_fixture()
   conversation <- source[[1L]]
   attr(conversation, "last_active") <- NULL
   attr(conversation, "provenance") <- list(
@@ -162,7 +214,7 @@ test_that("commons provenance gaps and conflicts are explicit losses", {
 test_that("missing commons provenance is not inferred", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_legacy_trajectory_fixture()
   attr(source[[1L]], "provenance") <- NULL
   attr(source, "source") <- NULL
   bundle <- as_trajectory_commons(source)
@@ -180,7 +232,7 @@ test_that("missing commons provenance is not inferred", {
 test_that("commons preserves malformed provenance without trusting it", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_legacy_trajectory_fixture()
   attr(source[[1L]], "provenance") <- "conflicting audit records"
   bundle <- as_trajectory_commons(source)
 
@@ -198,7 +250,7 @@ test_that("commons preserves malformed provenance without trusting it", {
 test_that("commons does not infer missing exchange records", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_legacy_trajectory_fixture()
   attr(source[[1L]], "provenance") <- list()
   bundle <- as_trajectory_commons(source)
 
@@ -210,7 +262,7 @@ test_that("commons does not infer missing exchange records", {
 test_that("commons source kinds and extra attributes remain inspectable", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_legacy_trajectory_fixture()
   attr(source, "source") <- list(
     kind = "connect",
     server = "https://user:secret@connect.example?token=secret",
@@ -250,7 +302,7 @@ test_that("commons source kinds and extra attributes remain inspectable", {
 test_that("commons citation decisions are sanitized and diagnosed", {
   skip_if_not_installed("ellmer", "0.4.2")
 
-  source <- commons_trajectory_fixture()
+  source <- commons_legacy_trajectory_fixture()
   provenance <- attr(source[[1L]], "provenance")
   provenance[[1L]]$citation_decisions <- list(list(
     quote = "Six orders",
