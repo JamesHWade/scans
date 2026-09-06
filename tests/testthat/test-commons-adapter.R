@@ -457,3 +457,24 @@ test_that("malformed commons records and invalid positions retain source errors"
     class = "scans_error_commons_source"
   )
 })
+
+test_that("extra Commons fields cannot partially match last activity", {
+  source <- commons_record_trajectory_fixture()
+  active <- source[[1L]][["last_active"]]
+  attr(active, "tzone") <- "UTC"
+  source[[1L]][["last_active"]] <- NULL
+  source[[1L]]$last_active_at <- active
+  bundle <- as_trajectory_commons(source)
+  info <- trajectory_info(bundle)
+  expect_identical(info$completed_at, as.POSIXct(NA, tz = "UTC"))
+  expect_in("last_active", trajectory_losses(bundle)$field)
+  expect_named(info$metadata[[1L]]$conversation_fields, "last_active_at")
+
+  source[[1L]][["last_active"]] <- active
+  bundle <- as_trajectory_commons(source)
+  expect_identical(trajectory_info(bundle)$completed_at, active)
+  expect_no_match(
+    paste(trajectory_losses(bundle)$field, collapse = " "),
+    "last_active$"
+  )
+})

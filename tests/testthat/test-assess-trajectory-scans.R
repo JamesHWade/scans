@@ -360,7 +360,14 @@ test_that("metadata loss names do not imply missing semantic records", {
       capture_note = oversized,
       read_info = oversized,
       parts = oversized,
-      events = oversized
+      events = oversized,
+      call_id_note = oversized,
+      error_budget = oversized,
+      status = oversized,
+      arguments = oversized,
+      value = oversized,
+      name = oversized,
+      parent_event_id = oversized
     )
   )
   bundle <- as_trajectory_ellmer(list(
@@ -370,10 +377,32 @@ test_that("metadata loss names do not imply missing semantic records", {
   losses <- trajectory_losses(bundle)
   expect_setequal(
     losses$field,
-    paste0("contents$extra$", c("capture_note", "read_info", "parts", "events"))
+    paste0(
+      "contents$extra$",
+      c(
+        "capture_note",
+        "read_info",
+        "parts",
+        "events",
+        "call_id_note",
+        "error_budget",
+        "status",
+        "arguments",
+        "value",
+        "name",
+        "parent_event_id"
+      )
+    )
   )
   result <- assess_trajectory_scans(bundle)$assessments
-  expect_equal(result$status[1:5], rep("assessed_no_findings", 5))
+  expect_equal(
+    result$status,
+    c(
+      rep("assessed_no_findings", 6),
+      "not_applicable",
+      rep("assessed_no_findings", 2)
+    )
+  )
   expect_identical(result$loss_rows[[1]], seq_len(nrow(losses)))
   expect_match(paste(result$limitations[[1]], collapse = " "), "capture_note")
 
@@ -472,5 +501,161 @@ test_that("public turn finish-reason loss qualifies negative and positive result
   expect_match(
     paste(result$assessments$limitations[[1]], collapse = " "),
     "prevent ruling out"
+  )
+})
+
+test_that("event diagnostic losses respect exact paths and record ownership", {
+  skip_if_not_installed("ellmer")
+  bundle <- as_trajectory_ellmer(ellmer_tool_turns_fixture())
+  turns <- trajectory_turns(bundle)
+  events <- trajectory_events(bundle)
+  cases <- tibble::tribble(
+    ~field                              , ~owner       , ~expected               ,
+    "events[[1]]$metadata$error_budget" , "event"      , "assessed_no_findings"  ,
+    "contents$extra$status"             , "event"      , "assessed_no_findings"  ,
+    "status"                            , "turn"       , "assessed_no_findings"  ,
+    "contents$error"                    , "turn"       , "assessed_no_findings"  ,
+    "error"                             , "trajectory" , "assessed_no_findings"  ,
+    "status"                            , "event"      , "insufficient_evidence" ,
+    "error"                             , "event"      , "insufficient_evidence" ,
+    "event_type"                        , "event"      , "insufficient_evidence" ,
+    "contents$error"                    , "event"      , "insufficient_evidence" ,
+    "events[[1]]$error"                 , "event"      , "insufficient_evidence" ,
+    "stages$items[[1]]$error"           , "event"      , "insufficient_evidence" ,
+    "status"                            , "unassigned" , "insufficient_evidence"
+  )
+  for (i in seq_len(nrow(cases))) {
+    case <- cases[i, ]
+    bundle@losses <- trajectory_loss_table(list(trajectory_new_loss(
+      trajectory_ids(
+        if (case$owner == "unassigned") {
+          NA_character_
+        } else {
+          turns$trajectory_id[[1]]
+        },
+        if (case$owner %in% c("turn", "event")) {
+          turns$turn_id[[1]]
+        } else {
+          NA_character_
+        },
+        if (case$owner == "event") events$event_id[[1]] else NA_character_
+      ),
+      case$field,
+      "truncated",
+      "Field truncated"
+    )))
+    result <- assess_trajectory_scans(
+      bundle,
+      scans = c("event_error", "error_chain")
+    )$assessments
+    expected <- c(
+      case$expected,
+      if (case$expected == "assessed_no_findings") {
+        "not_applicable"
+      } else {
+        case$expected
+      }
+    )
+    expect_identical(
+      result$status,
+      expected,
+      info = paste(case$field, case$owner)
+    )
+    expect_identical(result$loss_rows, list(1L, 1L))
+  }
+})
+
+test_that("tool identity losses affect only the relevant tool records", {
+  skip_if_not_installed("ellmer")
+  bundle <- as_trajectory_ellmer(ellmer_tool_turns_fixture())
+  events <- trajectory_events(bundle)
+  call <- which(events$event_type == "tool_call")[[1]]
+  content <- which(events$event_type == "content")[[1]]
+  for (field in c(
+    "call_id",
+    "tool_call_id",
+    "events[[1]]$call_id",
+    "contents$id",
+    "contents$request$id"
+  )) {
+    for (index in c(call, content)) {
+      bundle@losses <- trajectory_loss_table(list(trajectory_new_loss(
+        trajectory_ids(
+          events$trajectory_id[[index]],
+          events$turn_id[[index]],
+          events$event_id[[index]]
+        ),
+        field,
+        "truncated",
+        "Identity truncated"
+      )))
+      expect_equal(
+        assess_trajectory_scans(bundle)$assessments$status[1:3],
+        rep(
+          if (index == call) {
+            "insufficient_evidence"
+          } else {
+            "assessed_no_findings"
+          },
+          3
+        ),
+        info = paste(field, index)
+      )
+    }
+  }
+})
+
+test_that("trajectory metadata and causal metadata do not create coverage gaps", {
+  bundle <- scan_error_chain_fixture()
+  events <- trajectory_events(bundle)
+  events$parent_event_id <- "known-parent"
+  parent <- events[1L, ]
+  parent$event_id <- "known-parent"
+  parent$event_index <- 1L
+  parent$parent_event_id <- NA_character_
+  parent$turn_id <- NA_character_
+  parent$content_index <- NA_integer_
+  parent$status <- "completed"
+  parent$error <- NA_character_
+  parent$event_type <- "content"
+  events$event_index <- events$event_index + 1L
+  bundle@events <- rbind(parent, events)
+  info <- trajectory_info(bundle)
+  info$status <- "completed"
+  info$error <- NA_character_
+  bundle@trajectories <- info
+  for (field in c(
+    "metadata$status",
+    "metadata$error",
+    "metadata$parent_event_id"
+  )) {
+    bundle@losses <- trajectory_loss_table(list(trajectory_new_loss(
+      trajectory_ids(info$trajectory_id[[1]]),
+      field,
+      "truncated",
+      "Metadata truncated"
+    )))
+    result <- assess_trajectory_scans(
+      bundle,
+      scans = c("trajectory_error", "error_chain")
+    )$assessments
+    expect_equal(result$status, rep("assessed_no_findings", 2), info = field)
+    expect_identical(result$loss_rows, list(1L, 1L))
+  }
+  losses <- trajectory_losses(bundle)
+  losses$field <- "status"
+  bundle@losses <- losses
+  expect_identical(
+    assess_trajectory_scans(
+      bundle,
+      scans = "trajectory_error"
+    )$assessments$status,
+    "insufficient_evidence"
+  )
+  losses$field <- "parent_event_id"
+  bundle@losses <- losses
+  expect_identical(
+    assess_trajectory_scans(bundle, scans = "error_chain")$assessments$status,
+    "insufficient_evidence"
   )
 })

@@ -222,7 +222,7 @@ commons_conversation_bundle <- function(
         call = call
       )
     }
-    last_active <- conversation$last_active
+    last_active <- conversation[["last_active"]]
     conversation_fields <- conversation[setdiff(
       names(conversation),
       c("turns", "last_active")

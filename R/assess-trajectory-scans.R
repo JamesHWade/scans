@@ -215,6 +215,7 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
     )
   }
   fields <- losses$field
+  event_fields <- scan_event_loss_fields(fields)
   # Loss paths come from public adapters. Credential or text redaction does not
   # invalidate a status scan, but argument loss invalidates tool comparison.
   structure_loss <- any(grepl(
@@ -257,10 +258,16 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
     ) {
       if (
         !all(scan_has_value(events$call_id[tools])) ||
-          any(grepl(
-            "call_id|tool_call_id|^contents\\$(request\\$)?id$",
-            fields
-          ))
+          any(
+            scan_event_loss_scope(losses, events[tools, ]) &
+              event_fields %in%
+                c(
+                  "call_id",
+                  "tool_call_id",
+                  "contents$id",
+                  "contents$request$id"
+                )
+          )
       ) {
         return(insufficient(
           "Tool call identities are missing or lost; pairing cannot be assessed."
@@ -273,10 +280,15 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
         ))
       }
       missing_args <- vapply(events$value[calls], is.null, logical(1))
-      call_losses <- is.na(losses$event_id) |
-        losses$event_id %in% events$event_id[calls]
+      call_losses <- scan_event_loss_scope(losses, events[calls, ])
       argument_loss <- any(
-        call_losses & grepl("value|arguments|(^|[.$])name($|[.$])", fields)
+        call_losses &
+          (event_fields %in%
+            c("name", "contents$name") |
+            grepl(
+              "^(contents\\$)?(value|arguments)($|\\$|\\.|\\[|@)",
+              event_fields
+            ))
       )
       if (
         !all(scan_has_value(events$name[calls])) ||
@@ -308,7 +320,7 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
     if (scan == "trajectory_error") {
       complete <- scan_status_recorded(info$status) | scan_has_value(info$error)
       relevant_loss <- any(
-        grepl("(^|[.$])(status|error)($|[.$])", fields) &
+        grepl("^(trajectories\\[\\[[0-9]+\\]\\]\\$)?(status|error)$", fields) &
           is.na(losses$event_id) &
           is.na(losses$turn_id)
       )
@@ -339,7 +351,18 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       }
       complete <- scan_status_recorded(events$status) |
         scan_event_is_error(events)
-      relevant_loss <- structure_loss || any(grepl("status|error", fields))
+      event_owner <- losses$event_id %in%
+        events$event_id |
+        (is.na(losses$event_id) & event_fields != fields) |
+        (is.na(losses$event_id) &
+          is.na(losses$turn_id) &
+          is.na(losses$trajectory_id))
+      relevant_loss <- structure_loss ||
+        any(
+          event_owner &
+            event_fields %in%
+              c("status", "error", "event_type", "contents$error")
+        )
     }
     if (!all(complete) || relevant_loss) {
       if (!positive) {
@@ -370,7 +393,12 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
           "Causal parent relationships are missing for one or more failed events."
         ))
       }
-      if (any(grepl("parent_event_id", fields))) {
+      if (
+        any(
+          scan_event_loss_scope(losses, events[failed, ]) &
+            event_fields == "parent_event_id"
+        )
+      ) {
         if (!positive) {
           return(insufficient(
             "Capture losses affect causal parent relationships."
@@ -384,4 +412,24 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
     }
   }
   list(status = status, reason = reason, limitations = limitations)
+}
+
+# Normalize only record prefixes emitted by adapters; metadata paths stay intact.
+scan_event_loss_fields <- function(fields) {
+  sub(
+    paste0(
+      "^(events\\[\\[[0-9]+\\]\\]|",
+      "(stages|agent_runs|evidence|joins|findings)\\$items\\[\\[[0-9]+\\]\\]|",
+      "programs\\$[^$]+|knowledge)\\$"
+    ),
+    "",
+    fields
+  )
+}
+
+scan_event_loss_scope <- function(losses, events) {
+  losses$event_id %in%
+    events$event_id |
+    (is.na(losses$event_id) &
+      (is.na(losses$turn_id) | losses$turn_id %in% events$turn_id))
 }
