@@ -42,7 +42,10 @@ A
 
 ## Details
 
-Conversation provenance and the outer source descriptor are retained as
+Conversations may contain `turns` and `last_active` fields, or use the
+older form with turns directly in the list and `last_active` as an
+attribute. Provenance stays attached to the turn list. An outer source
+descriptor, when supplied by the reader or caller, is retained as
 sanitized metadata. Each source provenance record also becomes a
 `"commons:provenance"` event. Because the public commons result does not
 expose an exchange-to-turn key, provenance events retain their source
@@ -59,18 +62,18 @@ explicit adapter instead of
 
 ``` r
 if (rlang::is_installed("ellmer", version = "0.4.2")) {
-  conversation <- list(
+  turns <- list(
     ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
     ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))
   )
-  attr(conversation, "last_active") <- as.POSIXct(
-    "2026-08-23 12:00:00",
-    tz = "UTC"
-  )
-  attr(conversation, "provenance") <- list(list(
+  attr(turns, "provenance") <- list(list(
     provenance_tag = "A",
     citation_decisions = list()
   ))
+  conversation <- list(
+    turns = turns,
+    last_active = as.POSIXct("2026-08-23 12:00:00", tz = "UTC")
+  )
 
   source <- list(`conversation-001` = conversation)
   attr(source, "source") <- list(kind = "local", path = "/traces")

@@ -7,6 +7,11 @@
   incomplete capture through public functions. The new article includes
   a capture table and instructions for using the same evidence in the
   app ([\#45](https://github.com/JamesHWade/scans/issues/45)).
+- [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md)
+  accepts current conversations with `turns` and `last_active` fields as
+  well as earlier turn-list results. Provenance remains attached to the
+  turns, and missing source descriptors are reported instead of inferred
+  ([\#56](https://github.com/JamesHWade/scans/issues/56)).
 - [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
   retains bounded resource aggregates across distinct captured calls,
   including coverage and a versioned adapter contract. Duplicate spans

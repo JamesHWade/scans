@@ -182,8 +182,12 @@ establishes integrity, not authenticity.</p>
 <h2 id="commons">commons<a class="anchor" aria-label="anchor" href="#commons"></a>
 </h2>
 <p>commons reconstructs conversations and their provenance from
-OpenTelemetry traces. Read through commons, then convert the settled
-value:</p>
+OpenTelemetry traces. Current conversations contain <code>turns</code>
+and <code>last_active</code> fields; earlier turn-list results remain
+supported. Provenance stays attached to the turns. Current Commons does
+not return an outer source descriptor, so scans reports that missing
+fact without inferring where the conversation came from. Read through
+commons, then convert the settled value:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conversations</span> <span class="op">&lt;-</span> <span class="fu">commons</span><span class="fu">::</span><span class="fu"><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">trajectory_read</a></span><span class="op">(</span><span class="st">"path/to/otel-traces"</span><span class="op">)</span></span>
 <span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_commons.html">as_trajectory_commons</a></span><span class="op">(</span><span class="va">conversations</span><span class="op">)</span></span>

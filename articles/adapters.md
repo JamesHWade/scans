@@ -116,8 +116,12 @@ establishes integrity, not authenticity.
 ## commons
 
 commons reconstructs conversations and their provenance from
-OpenTelemetry traces. Read through commons, then convert the settled
-value:
+OpenTelemetry traces. Current conversations contain `turns` and
+`last_active` fields; earlier turn-list results remain supported.
+Provenance stays attached to the turns. Current Commons does not return
+an outer source descriptor, so scans reports that missing fact without
+inferring where the conversation came from. Read through commons, then
+convert the settled value:
 
 ``` r
 

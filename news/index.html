@@ -42,6 +42,8 @@
 <h2 class="pkg-version" data-toc-text="0.0.0.9000" id="scans-0009000">scans 0.0.0.9000<a class="anchor" aria-label="anchor" href="#scans-0009000"></a></h2>
 <ul><li>A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (<a href="https://github.com/JamesHWade/scans/issues/45" class="external-link">#45</a>).</li>
 <li>
+<code><a href="../reference/as_trajectory_commons.html">as_trajectory_commons()</a></code> accepts current conversations with <code>turns</code> and <code>last_active</code> fields as well as earlier turn-list results. Provenance remains attached to the turns, and missing source descriptors are reported instead of inferred (<a href="https://github.com/JamesHWade/scans/issues/56" class="external-link">#56</a>).</li>
+<li>
 <code><a href="../reference/as_trajectory_otel.html">as_trajectory_otel()</a></code> retains bounded resource aggregates across distinct captured calls, including coverage and a versioned adapter contract. Duplicate spans in pre-grouped conversations no longer inflate resources (<a href="https://github.com/JamesHWade/scans/issues/40" class="external-link">#40</a>).</li>
 <li>
 <code><a href="../reference/as_trajectory_tempest.html">as_trajectory_tempest()</a></code> accepts the initial Tempest development version when its public review accessor and supported schema are available.</li>
