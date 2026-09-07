@@ -217,7 +217,7 @@ scans_app_header_ui <- function(data, index) {
 
 # Keep the read window and capture limits visible beside the loaded data.
 scans_app_load_info_ui <- function(entry, reloadable = FALSE) {
-  info <- entry$read_info
+  info <- if (is.list(entry$read_info)) entry$read_info else NULL
   loaded_at <- entry$loaded_at
   parts <- list()
   if (!is.null(loaded_at)) {

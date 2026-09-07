@@ -44,8 +44,10 @@
 #'
 #' @param annotations Optional [scans_annotations()] store. When supplied, the
 #'   app shows an annotation panel for the selected trajectory and appends what
-#'   reviewers write to that store. Without one the app writes only explicitly
-#'   requested investigation downloads.
+#'   reviewers write to that store. The store also supplies current annotation
+#'   filter membership when opening a saved investigation. Without a store,
+#'   saved membership is used and the app writes only explicitly requested
+#'   investigation downloads.
 #' @param x A [TrajectoryBundle], a saved [investigation_snapshot()], or a named
 #'   list of application sources. Each source can be either value or a
 #'   zero-argument function that returns one. Source names are shown in the

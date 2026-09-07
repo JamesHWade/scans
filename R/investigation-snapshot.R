@@ -47,7 +47,9 @@
 #'   `priority` (`"elapsed"`, `"tokens"`, or `"findings"`). Annotation IDs
 #'   record filter membership only, not judgments or reviewer text.
 #' @param previous An optional earlier investigation. Its revision identifier
-#'   is recorded as the parent; its settings are not inherited.
+#'   is recorded as the parent; its settings are not inherited. When `x` is
+#'   the earlier investigation's bundle, its prior omission count is retained
+#'   and any newly excluded trajectories are added to that count.
 #'
 #' @returns A `scans_investigation` value. Its identifiers are verified when
 #'   writing or opening it; use this constructor to create a changed revision
@@ -192,10 +194,14 @@ investigation_build <- function(
       }
     }
   }
+  omitted <- nrow(info) - length(ids)
   parent <- NA_character_
   if (!is.null(previous)) {
     investigation_validate(previous)
     parent <- previous$manifest$revision_id
+    if (identical(S7::props(x), S7::props(previous$bundle))) {
+      omitted <- omitted + previous$manifest$content_policy$omitted_trajectories
+    }
   }
   versions <- unique(analysis$assessments[c("scan", "scan_version")])
   manifest <- list(
@@ -210,7 +216,7 @@ investigation_build <- function(
       included = "All retained fields of selected trajectories, their turns, events, evaluations, and relevant losses.",
       excluded = "Unselected trajectory records, annotation history, loader credentials, and live connections.",
       redaction = "Existing adapter redactions are preserved. No additional anonymization is performed.",
-      omitted_trajectories = nrow(info) - length(ids)
+      omitted_trajectories = omitted
     ),
     parent_revision_id = parent
   )
@@ -585,7 +591,12 @@ investigation_validate <- function(x) {
       (!is.na(manifest$parent_revision_id) &&
         !grepl("^sha256:[0-9a-f]{64}$", manifest$parent_revision_id)) ||
       !trajectory_is_named_list(manifest$content_policy) ||
-      !identical(manifest$content_policy$id, "retained-v1")
+      !identical(manifest$content_policy$id, "retained-v1") ||
+      !is.numeric(manifest$content_policy$omitted_trajectories) ||
+      length(manifest$content_policy$omitted_trajectories) != 1L ||
+      !is.finite(manifest$content_policy$omitted_trajectories) ||
+      manifest$content_policy$omitted_trajectories < 0 ||
+      manifest$content_policy$omitted_trajectories %% 1 != 0
   ) {
     investigation_abort(
       "The investigation manifest or content policy is invalid."

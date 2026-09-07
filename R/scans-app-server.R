@@ -397,7 +397,7 @@ scans_app_server <- function(
         return(logical())
       }
       saved <- active()$investigation
-      if (!is.null(saved)) {
+      if (!is.null(saved) && is.null(annotations)) {
         return(current$info$trajectory_id %in% saved$view$annotation_ids)
       }
       current$info$trajectory_id %in% names(annotation_labels())

@@ -14,8 +14,10 @@ application switcher.}
 
 \item{annotations}{Optional \code{\link[=scans_annotations]{scans_annotations()}} store. When supplied, the
 app shows an annotation panel for the selected trajectory and appends what
-reviewers write to that store. Without one the app writes only explicitly
-requested investigation downloads.}
+reviewers write to that store. The store also supplies current annotation
+filter membership when opening a saved investigation. Without a store,
+saved membership is used and the app writes only explicitly requested
+investigation downloads.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console

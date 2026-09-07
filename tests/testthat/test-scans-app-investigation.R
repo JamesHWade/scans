@@ -169,3 +169,51 @@ test_that("removed scanners remain visible until an explicit current rescan", {
     expect_identical(nrow(data()$findings), 0L)
   })
 })
+
+
+test_that("opened investigations use live annotation membership when available", {
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    application = "Deployment",
+    view = list(annotation_ids = "otel/retry")
+  )
+  store <- scans_annotations(withr::local_tempfile(fileext = ".jsonl"))
+  app <- scans_app(saved, annotations = store)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_annotated_only = TRUE)
+    expect_length(visible(), 0L)
+    store$append(
+      "Deployment",
+      "otel/parallel",
+      label = NA_character_,
+      note = "New review"
+    )
+    annotation_revision(annotation_revision() + 1L)
+    session$flushReact()
+    expect_identical(data()$info$trajectory_id[visible()], "otel/parallel")
+    session$setInputs(scans_app_save_investigation = 1L)
+    expect_identical(
+      pending_investigation()$view$annotation_ids,
+      "otel/parallel"
+    )
+  })
+})
+
+test_that("optional source data is not assumed to be Connect read metadata", {
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    source = list(read_info = "external capture")
+  )
+  app <- scans_app(saved)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    expect_identical(data()$findings, saved$analysis$findings)
+    expect_match(output$scans_app_load_info$html, "Loaded")
+    expect_identical(
+      active()$investigation$manifest$source$read_info,
+      "external capture"
+    )
+  })
+})

@@ -50,7 +50,9 @@ unknown), \code{findings_only}, \code{annotated_only}, \code{annotation_ids}, \c
 record filter membership only, not judgments or reviewer text.}
 
 \item{previous}{An optional earlier investigation. Its revision identifier
-is recorded as the parent; its settings are not inherited.}
+is recorded as the parent; its settings are not inherited. When \code{x} is
+the earlier investigation's bundle, its prior omission count is retained
+and any newly excluded trajectories are added to that count.}
 }
 \value{
 A \code{scans_investigation} value. Its identifiers are verified when

@@ -186,3 +186,33 @@ test_that("orphan findings fail before hashing", {
     saved$analysis$assessments$finding_ids[[i]][1L]
   expect_snapshot(error = TRUE, write_investigation(saved, tempfile()))
 })
+
+
+test_that("resaving a captured subset preserves prior omission counts", {
+  bundle <- investigation_bundle_fixture()
+  first <- investigation_snapshot(
+    bundle,
+    c("otel/retry", "otel/limited-capture")
+  )
+  path <- tempfile()
+  write_investigation(first, path)
+  opened <- read_investigation(path)
+  same <- investigation_snapshot(opened$bundle, previous = opened)
+  expect_identical(same$manifest$content_policy$omitted_trajectories, 2L)
+  smaller <- investigation_snapshot(
+    opened$bundle,
+    "otel/retry",
+    previous = opened
+  )
+  expect_identical(smaller$manifest$content_policy$omitted_trajectories, 3L)
+  restored <- investigation_snapshot(bundle, previous = opened)
+  expect_identical(restored$manifest$content_policy$omitted_trajectories, 0L)
+  for (invalid in list(NULL, NA_integer_, Inf, -1L, 0.5, "2", c(1L, 2L))) {
+    malformed <- opened
+    malformed$manifest$content_policy$omitted_trajectories <- invalid
+    expect_error(
+      investigation_validate(malformed),
+      class = "scans_error_investigation"
+    )
+  }
+})
