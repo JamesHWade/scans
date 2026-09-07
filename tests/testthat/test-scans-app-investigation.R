@@ -291,7 +291,12 @@ test_that("saved investigation controls can be explicitly disabled", {
 })
 
 test_that("Connect apps forward the investigation opt-in without loading traces", {
-  local_mocked_bindings(scans_app = function(x, annotations, investigations) {
+  local_mocked_bindings(scans_app = function(
+    x,
+    annotations,
+    investigations,
+    reviews
+  ) {
     investigations
   })
   source <- c(Deployment = "11111111-1111-4111-8111-111111111111")

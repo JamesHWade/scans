@@ -56,6 +56,9 @@
 #'   zero-argument function that returns one. Source names are shown in the
 #'   application switcher.
 #'
+#' @param reviews Whether to enable session-local evidence review and example
+#'   export controls. Defaults to `FALSE`. Download selected examples to keep
+#'   them after closing the session; no shared review store is written.
 #' @param investigations Whether to enable investigation save, upload, and
 #'   rescan controls. Defaults to `TRUE` for a single saved investigation and
 #'   `FALSE` for other inputs. Set explicitly for named sources or lazy loaders.
@@ -85,21 +88,24 @@
 scans_app <- function(
   x,
   annotations = NULL,
-  investigations = inherits(x, "scans_investigation")
+  investigations = inherits(x, "scans_investigation"),
+  reviews = FALSE
 ) {
   sources <- scans_app_sources(x)
   scans_app_check_packages()
   scans_app_check_annotations(annotations)
   rlang::check_bool(investigations)
+  rlang::check_bool(reviews)
 
   shiny::shinyApp(
-    ui = scans_app_ui(sources, annotations, investigations),
+    ui = scans_app_ui(sources, annotations, investigations, reviews),
     server = scans_app_server(
       sources,
       annotations,
-      investigations = investigations
+      investigations = investigations,
+      reviews = reviews
     ),
-    onStart = if (investigations) scans_app_investigation_start
+    onStart = if (investigations || reviews) scans_app_investigation_start
   )
 }
 

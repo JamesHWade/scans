@@ -373,7 +373,7 @@ ellmer_turn_row <- function(
     input_tokens = tokens[[1L]],
     output_tokens = tokens[[2L]],
     cached_input_tokens = tokens[[3L]],
-    cost = ellmer_prop(turn, "cost", NA_real_),
+    cost = as.numeric(ellmer_prop(turn, "cost", NA_real_)),
     duration = ellmer_prop(turn, "duration", NA_real_),
     finish_reason = finish_reason,
     status = status,

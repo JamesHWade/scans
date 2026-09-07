@@ -12,7 +12,8 @@ scans_app_connect(
   reader = c("otel", "commons"),
   annotations = NULL,
   jobs = TRUE,
-  investigations = FALSE
+  investigations = FALSE,
+  reviews = FALSE
 )
 }
 \arguments{
@@ -39,6 +40,9 @@ retained per-job trace stores. \code{FALSE} makes loads noticeably faster on
 deployments with many past jobs. Ignored by the \code{"commons"} reader.}
 
 \item{investigations}{Whether to enable investigation save/open controls,
+forwarded to \code{\link[=scans_app]{scans_app()}}. Defaults to \code{FALSE}.}
+
+\item{reviews}{Whether to enable session-local review/example controls,
 forwarded to \code{\link[=scans_app]{scans_app()}}. Defaults to \code{FALSE}.}
 }
 \value{

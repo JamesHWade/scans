@@ -34,3 +34,11 @@ reference:
   contents:
   - investigation_snapshot
   - investigation_files
+
+- title: Reviewed examples
+  contents:
+  - review_case
+  - review_examples
+  - review_dataset
+  - review_example_files
+  - validate_review_examples
