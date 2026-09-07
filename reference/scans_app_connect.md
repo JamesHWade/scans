@@ -18,7 +18,8 @@ scans_app_connect(
   to = NULL,
   reader = c("otel", "commons"),
   annotations = NULL,
-  jobs = TRUE
+  jobs = TRUE,
+  investigations = FALSE
 )
 ```
 
@@ -62,6 +63,12 @@ scans_app_connect(
   whether to also read the retained per-job trace stores. `FALSE` makes
   loads noticeably faster on deployments with many past jobs. Ignored by
   the `"commons"` reader.
+
+- investigations:
+
+  Whether to enable investigation save/open controls, forwarded to
+  [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md).
+  Defaults to `FALSE`.
 
 ## Value
 

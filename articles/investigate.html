@@ -280,7 +280,7 @@ cost column remains available for source-specific analysis.</p>
 bundle:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"shiny"</span>, <span class="st">"bslib"</span>, <span class="st">"htmltools"</span>, <span class="st">"commonmark"</span>, <span class="st">"xml2"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/scans_app.html">scans_app</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Support assistant example"</span> <span class="op">=</span> <span class="va">bundle</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu"><a href="../reference/scans_app.html">scans_app</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"Support assistant example"</span> <span class="op">=</span> <span class="va">bundle</span><span class="op">)</span>, investigations <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
 <p>The application overview uses these measurements. Select
 <strong>suspicious tool loop</strong>, then open
 <code>otel/retry</code>. The transcript and findings retain the event
@@ -293,6 +293,102 @@ partial timing; individual resource details still show their known
 intervals. Elapsed medians exclude unavailable bounds. Recorded token
 medians can include partial sums, so inspect coverage before
 interpreting a difference as an improvement.</p>
+</div>
+<div class="section level2">
+<h2 id="save-and-reopen-the-evidence">Save and reopen the evidence<a class="anchor" aria-label="anchor" href="#save-and-reopen-the-evidence"></a>
+</h2>
+<p>Install the optional file-format dependencies once:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"jsonlite"</span>, <span class="st">"digest"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Save the retry conversation alongside the incomplete capture. Their
+findings and scanner assessments travel with the evidence, so the
+incomplete capture remains distinguishable from an assessed conversation
+with no findings.</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">saved</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_snapshot.html">investigation_snapshot</a></span><span class="op">(</span></span>
+<span>  <span class="va">bundle</span>,</span>
+<span>  trajectory_ids <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"otel/retry"</span>, <span class="st">"otel/limited-capture"</span><span class="op">)</span>,</span>
+<span>  application <span class="op">=</span> <span class="st">"Support assistant example"</span>,</span>
+<span>  source <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>kind <span class="op">=</span> <span class="st">"bundled example"</span>, incomplete <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  view <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>selected_trajectory_id <span class="op">=</span> <span class="st">"otel/retry"</span>, tab <span class="op">=</span> <span class="st">"trajectory"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".scans.json"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/investigation_files.html">write_investigation</a></span><span class="op">(</span><span class="va">saved</span>, <span class="va">path</span><span class="op">)</span></span>
+<span><span class="va">reopened</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_files.html">read_investigation</a></span><span class="op">(</span><span class="va">path</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">saved</span>, <span class="va">reopened</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">reopened</span><span class="op">$</span><span class="va">analysis</span><span class="op">$</span><span class="va">assessments</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"trajectory_id"</span>, <span class="st">"scan"</span>, <span class="st">"status"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 18 × 3</span></span></span>
+<span><span class="co">#&gt;    trajectory_id        scan                       status                </span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> otel/retry           ambiguous_tool_correlation assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> otel/retry           unresolved_tool_call       assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> otel/retry           unmatched_tool_result      assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> otel/retry           repeated_tool_call         assessed_with_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> otel/retry           suspicious_tool_loop       assessed_with_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> otel/retry           event_error                assessed_with_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> otel/retry           error_chain                insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> otel/retry           turn_error                 assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> otel/retry           trajectory_error           assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> otel/limited-capture ambiguous_tool_correlation insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> otel/limited-capture unresolved_tool_call       insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> otel/limited-capture unmatched_tool_result      insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">13</span> otel/limited-capture repeated_tool_call         insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">14</span> otel/limited-capture suspicious_tool_loop       insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">15</span> otel/limited-capture event_error                insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">16</span> otel/limited-capture error_chain                insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">17</span> otel/limited-capture turn_error                 insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">18</span> otel/limited-capture trajectory_error           assessed_no_findings</span></span>
+<span><span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">content_policy</span></span>
+<span><span class="co">#&gt; $id</span></span>
+<span><span class="co">#&gt; [1] "retained-v1"</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $included</span></span>
+<span><span class="co">#&gt; [1] "All retained fields of selected trajectories, their turns, events, evaluations, and relevant losses."</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $excluded</span></span>
+<span><span class="co">#&gt; [1] "Unselected trajectory records, annotation history, loader credentials, and live connections."</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $redaction</span></span>
+<span><span class="co">#&gt; [1] "Existing adapter redactions are preserved. No additional anonymization is performed."</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $omitted_trajectories</span></span>
+<span><span class="co">#&gt; [1] 2</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/scans_app.html">scans_app</a></span><span class="op">(</span><span class="va">reopened</span><span class="op">)</span></span></code></pre></div>
+<p>In the app, <strong>Save or open</strong> offers the same workflow
+for the visible selection. The preview names its content policy before
+downloading: selected retained text, tool arguments and results,
+evaluations, metadata, and capture limits. Existing redactions remain,
+but the file performs no additional anonymization. Annotation history
+and unselected records are excluded. Review the selected content before
+sharing it.</p>
+<p>Close the app and reopen the file with the code above, or upload it
+through <strong>Open an investigation</strong> in a new app session.
+Confirm that the retry evidence and incomplete-capture assessments are
+still present. The saved query, filters, ordering, focused trajectory,
+and scanner settings are restored. The upload belongs to that session
+and leaves other reviewers’ source snapshots alone.</p>
+<p>Opening uses the saved diagnostic results. Changing scanner controls
+does not replace them until you choose <strong>Apply current
+scanners</strong>. Saving that analysis creates a revision with the
+earlier revision as its parent. From R:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">revised</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_snapshot.html">investigation_snapshot</a></span><span class="op">(</span></span>
+<span>  <span class="va">reopened</span><span class="op">$</span><span class="va">bundle</span>,</span>
+<span>  application <span class="op">=</span> <span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">application</span>,</span>
+<span>  source <span class="op">=</span> <span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">source</span>,</span>
+<span>  repeat_threshold <span class="op">=</span> <span class="fl">4L</span>,</span>
+<span>  previous <span class="op">=</span> <span class="va">reopened</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">revised</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">snapshot_id</span>, <span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">snapshot_id</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">revised</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">parent_revision_id</span>, <span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">revision_id</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Snapshot and revision identifiers detect changed content; they do not
+certify author identity. Unsupported file versions, altered identifiers,
+and invalid evidence references fail explicitly. The JSON reader
+restores supported data types without deserializing R code or
+reconnecting to the original source.</p>
 </div>
 <div class="section level2">
 <h2 id="bring-your-own-completed-evidence">Bring your own completed evidence<a class="anchor" aria-label="anchor" href="#bring-your-own-completed-evidence"></a>

@@ -6,7 +6,9 @@ objects into a canonical
 [TrajectoryBundle](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md).
 It delegates model-visible turns to
 [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md)
-and adds ordered, namespaced Deputy lifecycle events.
+and adds ordered, namespaced Deputy lifecycle events. Current S7 results
+and events are read through their public properties; earlier R6 results
+remain supported.
 
 ## Usage
 
@@ -54,8 +56,8 @@ Run, session, agent, delegation, usage, and immutable run-context values
 are retained as sanitized data. When a result's parent run occurs in the
 same input, the adapter resolves `parent_trajectory_id`. Otherwise it
 retains the parent run ID as metadata and records an adapter loss.
-Missing run identity is also explicit. The live R6 results, providers,
-tools, callbacks, and credentials are never retained.
+Missing run identity is also explicit. Source objects, providers, tools,
+callbacks, and credentials are never retained.
 
 [`as_trajectory()`](https://jameshwade.github.io/scans/reference/as_trajectory.md)
 dispatches to this adapter for Deputy results and non-empty lists
@@ -68,7 +70,9 @@ if (
   rlang::is_installed("deputy", version = "0.0.0.9000") &&
     rlang::is_installed("ellmer", version = "0.4.2")
 ) {
-  result <- deputy::AgentResult$new(
+  constructor <- deputy::AgentResult
+  if (!inherits(constructor, "S7_class")) constructor <- constructor$new
+  result <- constructor(
     turns = list(
       ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
       ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))

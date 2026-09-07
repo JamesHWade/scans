@@ -234,7 +234,7 @@ Install the optional UI dependencies once, then open the same bundle:
 ``` r
 
 pak::pak(c("shiny", "bslib", "htmltools", "commonmark", "xml2"))
-scans_app(list("Support assistant example" = bundle))
+scans_app(list("Support assistant example" = bundle), investigations = TRUE)
 ```
 
 The application overview uses these measurements. Select **suspicious
@@ -249,6 +249,117 @@ timing; individual resource details still show their known intervals.
 Elapsed medians exclude unavailable bounds. Recorded token medians can
 include partial sums, so inspect coverage before interpreting a
 difference as an improvement.
+
+## Save and reopen the evidence
+
+Install the optional file-format dependencies once:
+
+``` r
+
+pak::pak(c("jsonlite", "digest"))
+```
+
+Save the retry conversation alongside the incomplete capture. Their
+findings and scanner assessments travel with the evidence, so the
+incomplete capture remains distinguishable from an assessed conversation
+with no findings.
+
+``` r
+
+saved <- investigation_snapshot(
+  bundle,
+  trajectory_ids = c("otel/retry", "otel/limited-capture"),
+  application = "Support assistant example",
+  source = list(kind = "bundled example", incomplete = TRUE),
+  view = list(selected_trajectory_id = "otel/retry", tab = "trajectory")
+)
+path <- tempfile(fileext = ".scans.json")
+write_investigation(saved, path)
+reopened <- read_investigation(path)
+stopifnot(identical(saved, reopened))
+reopened$analysis$assessments[c("trajectory_id", "scan", "status")]
+#> # A tibble: 18 × 3
+#>    trajectory_id        scan                       status                
+#>    <chr>                <chr>                      <chr>                 
+#>  1 otel/retry           ambiguous_tool_correlation assessed_no_findings  
+#>  2 otel/retry           unresolved_tool_call       assessed_no_findings  
+#>  3 otel/retry           unmatched_tool_result      assessed_no_findings  
+#>  4 otel/retry           repeated_tool_call         assessed_with_findings
+#>  5 otel/retry           suspicious_tool_loop       assessed_with_findings
+#>  6 otel/retry           event_error                assessed_with_findings
+#>  7 otel/retry           error_chain                insufficient_evidence 
+#>  8 otel/retry           turn_error                 assessed_no_findings  
+#>  9 otel/retry           trajectory_error           assessed_no_findings  
+#> 10 otel/limited-capture ambiguous_tool_correlation insufficient_evidence 
+#> 11 otel/limited-capture unresolved_tool_call       insufficient_evidence 
+#> 12 otel/limited-capture unmatched_tool_result      insufficient_evidence 
+#> 13 otel/limited-capture repeated_tool_call         insufficient_evidence 
+#> 14 otel/limited-capture suspicious_tool_loop       insufficient_evidence 
+#> 15 otel/limited-capture event_error                insufficient_evidence 
+#> 16 otel/limited-capture error_chain                insufficient_evidence 
+#> 17 otel/limited-capture turn_error                 insufficient_evidence 
+#> 18 otel/limited-capture trajectory_error           assessed_no_findings
+reopened$manifest$content_policy
+#> $id
+#> [1] "retained-v1"
+#> 
+#> $included
+#> [1] "All retained fields of selected trajectories, their turns, events, evaluations, and relevant losses."
+#> 
+#> $excluded
+#> [1] "Unselected trajectory records, annotation history, loader credentials, and live connections."
+#> 
+#> $redaction
+#> [1] "Existing adapter redactions are preserved. No additional anonymization is performed."
+#> 
+#> $omitted_trajectories
+#> [1] 2
+```
+
+``` r
+
+scans_app(reopened)
+```
+
+In the app, **Save or open** offers the same workflow for the visible
+selection. The preview names its content policy before downloading:
+selected retained text, tool arguments and results, evaluations,
+metadata, and capture limits. Existing redactions remain, but the file
+performs no additional anonymization. Annotation history and unselected
+records are excluded. Review the selected content before sharing it.
+
+Close the app and reopen the file with the code above, or upload it
+through **Open an investigation** in a new app session. Confirm that the
+retry evidence and incomplete-capture assessments are still present. The
+saved query, filters, ordering, focused trajectory, and scanner settings
+are restored. The upload belongs to that session and leaves other
+reviewers’ source snapshots alone.
+
+Opening uses the saved diagnostic results. Changing scanner controls
+does not replace them until you choose **Apply current scanners**.
+Saving that analysis creates a revision with the earlier revision as its
+parent. From R:
+
+``` r
+
+revised <- investigation_snapshot(
+  reopened$bundle,
+  application = reopened$manifest$application,
+  source = reopened$manifest$source,
+  repeat_threshold = 4L,
+  previous = reopened
+)
+stopifnot(
+  identical(revised$manifest$snapshot_id, reopened$manifest$snapshot_id),
+  identical(revised$manifest$parent_revision_id, reopened$manifest$revision_id)
+)
+```
+
+Snapshot and revision identifiers detect changed content; they do not
+certify author identity. Unsupported file versions, altered identifiers,
+and invalid evidence references fail explicitly. The JSON reader
+restores supported data types without deserializing R code or
+reconnecting to the original source.
 
 ## Bring your own completed evidence
 

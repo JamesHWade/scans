@@ -1,16 +1,23 @@
 # Explore trajectory diagnostics with the scans app
 
-`scans_app()` launches a read-only Shiny app for exploring one or more
+`scans_app()` launches a Shiny app for exploring one or more
 [TrajectoryBundle](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md)
-snapshots. A named list creates an application switcher; each entry can
-be a bundle or a zero-argument loader that returns one. Lazy loaders
-make it practical to review snapshots from multiple deployed apps
-without downloading every snapshot when the review app starts.
+snapshots or saved
+[`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md)
+values. A named list creates an application switcher; each entry can be
+a bundle, saved investigation, or a zero-argument loader that returns
+either. Lazy loaders make it practical to review snapshots from multiple
+deployed apps without downloading every snapshot when the review app
+starts.
 
 ## Usage
 
 ``` r
-scans_app(x, annotations = NULL)
+scans_app(
+  x,
+  annotations = NULL,
+  investigations = inherits(x, "scans_investigation")
+)
 ```
 
 ## Arguments
@@ -19,9 +26,11 @@ scans_app(x, annotations = NULL)
 
   A
   [TrajectoryBundle](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md),
-  or a named list of application sources. Each source must be a
-  `TrajectoryBundle` or a zero-argument function that returns one.
-  Source names are shown in the application switcher.
+  a saved
+  [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md),
+  or a named list of application sources. Each source can be either
+  value or a zero-argument function that returns one. Source names are
+  shown in the application switcher.
 
 - annotations:
 
@@ -29,7 +38,16 @@ scans_app(x, annotations = NULL)
   [`scans_annotations()`](https://jameshwade.github.io/scans/reference/scans_annotations.md)
   store. When supplied, the app shows an annotation panel for the
   selected trajectory and appends what reviewers write to that store.
-  Without one the app makes no writes at all.
+  The store also supplies current annotation filter membership when
+  opening a saved investigation. Without a store, saved membership is
+  used and the app writes only explicitly requested investigation
+  downloads.
+
+- investigations:
+
+  Whether to enable investigation save, upload, and rescan controls.
+  Defaults to `TRUE` for a single saved investigation and `FALSE` for
+  other inputs. Set explicitly for named sources or lazy loaders.
 
 ## Value
 
@@ -58,6 +76,21 @@ losses associated with the selected trajectory. Built-in findings are
 computed with
 [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
 when each application snapshot is first loaded.
+
+## Saved investigations
+
+Set `investigations = TRUE` to enable save/open controls in a regular
+app. They are enabled by default when `x` is a single saved
+investigation. Save visible trajectories downloads the selected retained
+evidence, analysis, scanner settings, and browser state as JSON. The
+preview describes the content policy before download. Open an
+investigation restores a file in the current session. Saved diagnostics
+remain unchanged until the reviewer chooses Apply current scanners;
+saving again records a parent revision. Opening does not contact the
+original source. The default upload limit is 50 MiB. An explicit
+`shiny.maxRequestSize` option sets both the app upload ceiling and its
+investigation reader limit; `Inf` disables the size limit. See
+[`investigation_files()`](https://jameshwade.github.io/scans/reference/investigation_files.md).
 
 ## Posit Connect
 

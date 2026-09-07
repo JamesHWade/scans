@@ -12,6 +12,10 @@
   well as earlier turn-list results. Provenance remains attached to the
   turns, and missing source descriptors are reported instead of inferred
   ([\#56](https://github.com/JamesHWade/scans/issues/56)).
+- [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
+  reads current Deputy S7 results, event payloads, and usage records
+  through their public properties while preserving support for earlier
+  R6 results.
 - [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
   reports each selected built-in scanner as assessed with or without
   findings, insufficient evidence, not applicable, or execution failure,
@@ -28,6 +32,20 @@
 - [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md)
   accepts the initial Tempest development version when its public review
   accessor and supported schema are available.
+- [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md),
+  [`write_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md),
+  and
+  [`read_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
+  save and reopen selected evidence with its analysis, capture limits,
+  scanner settings, view state, and revision identity. With
+  `investigations = TRUE`,
+  [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  and
+  [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
+  can download the visible selection and reopen a file without
+  contacting its source or implicitly rerunning scanners. Files contain
+  retained content and preserve existing redactions; they do not add
+  anonymization ([\#44](https://github.com/JamesHWade/scans/issues/44)).
 - [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
   reports resource values with recording denominators, source units,
   attribution, and limitations while preserving

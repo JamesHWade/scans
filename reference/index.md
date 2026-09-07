@@ -51,3 +51,11 @@
   : Explore trajectory diagnostics with the scans app
 - [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
   : Review Posit Connect traces with the scans app
+
+## Saved investigations
+
+- [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md)
+  : Capture an investigation for saving and reopening
+- [`write_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
+  [`read_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
+  : Write or read a saved investigation

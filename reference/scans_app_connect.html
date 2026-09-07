@@ -64,7 +64,8 @@ is thirty minutes old or <strong>Reload traces</strong> fetches it again.</p>
 <span>  to <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  reader <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"otel"</span>, <span class="st">"commons"</span><span class="op">)</span>,</span>
 <span>  annotations <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  jobs <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span>  jobs <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  investigations <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -104,6 +105,11 @@ package's native reader, or <code>"commons"</code> for <code><a href="https://po
 <dd><p>Passed to <code><a href="read_connect_traces.html">read_connect_traces()</a></code>: whether to also read the
 retained per-job trace stores. <code>FALSE</code> makes loads noticeably faster on
 deployments with many past jobs. Ignored by the <code>"commons"</code> reader.</p></dd>
+
+
+<dt id="arg-investigations">investigations<a class="anchor" aria-label="anchor" href="#arg-investigations"></a></dt>
+<dd><p>Whether to enable investigation save/open controls,
+forwarded to <code><a href="scans_app.html">scans_app()</a></code>. Defaults to <code>FALSE</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

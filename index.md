@@ -126,6 +126,33 @@ scan_trajectories(bundle)
 
 The scan reports both the repeated request and its missing result.
 
+## Save an investigation
+
+Keep the evidence and diagnostic results behind a review, including what
+was not captured. Enable the controls with
+`scans_app(bundle, investigations = TRUE)` (or the same argument to
+[`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)).
+Then filter the trajectory list and choose **Save or open** then **Save
+visible trajectories**. The download preview explains which retained
+content goes into the file. Saving requires the optional `jsonlite` and
+`digest` packages.
+
+``` r
+
+saved <- investigation_snapshot(bundle, application = "Support assistant")
+write_investigation(saved, "support-review.json")
+reopened <- read_investigation("support-review.json")
+scans_app(reopened)
+```
+
+Opening restores saved analysis without contacting its source or
+rerunning scanners. Choose **Apply current scanners** to derive a new
+analysis. Files include retained text and tool payloads with existing
+redactions; they do not perform additional anonymization. The [saved
+investigation
+recipe](https://jameshwade.github.io/scans/articles/investigate.html#save-and-reopen-the-evidence)
+uses the bundled example and checks the reopened results.
+
 ## Review deployed apps on Posit Connect
 
 When Posit Connect’s content observability is enabled, it retains the
