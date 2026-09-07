@@ -10,7 +10,7 @@
 ---
 
     Code
-      as_trajectory_deputy(invalid_events)
+      deputy_event_tables(invalid_events, "run", rlang::current_env())
     Condition
       Error:
       ! Deputy event 1 is not an <AgentEvent>.

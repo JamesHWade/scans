@@ -1,6 +1,7 @@
 deputy_result_fixture <- function(
   events = NULL,
-  result_class = deputy::AgentResult
+  result_class = deputy::AgentResult,
+  overrides = list()
 ) {
   started_at <- as.POSIXct("2026-08-22 17:00:00", tz = "UTC")
   run_context <- list(
@@ -37,11 +38,13 @@ deputy_result_fixture <- function(
         run_context = run_context
       )
     )
-    events[[1L]]$timestamp <- started_at
-    events[[2L]]$timestamp <- started_at + 2
+    if (!inherits(deputy::AgentEvent, "S7_class")) {
+      events[[1L]]$timestamp <- started_at
+      events[[2L]]$timestamp <- started_at + 2
+    }
   }
 
-  result_class$new(
+  args <- list(
     response = "Evidence found",
     turns = list(
       ellmer::UserTurn(list(ellmer::ContentText("Find the evidence"))),
@@ -69,4 +72,11 @@ deputy_result_fixture <- function(
       cost_usd = 0.001
     )
   )
+  args[names(overrides)] <- overrides
+  constructor <- if (inherits(result_class, "S7_class")) {
+    result_class
+  } else {
+    result_class$new
+  }
+  do.call(constructor, args)
 }

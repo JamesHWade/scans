@@ -32,14 +32,15 @@ A \link{TrajectoryBundle}.
 \code{as_trajectory_deputy()} snapshots one or more completed
 \code{deputy::AgentResult} objects into a canonical \link{TrajectoryBundle}. It
 delegates model-visible turns to \code{\link[=as_trajectory_ellmer]{as_trajectory_ellmer()}} and adds ordered,
-namespaced Deputy lifecycle events.
+namespaced Deputy lifecycle events. Current S7 results and events are read
+through their public properties; earlier R6 results remain supported.
 }
 \details{
 Run, session, agent, delegation, usage, and immutable run-context values are
 retained as sanitized data. When a result's parent run occurs in the same
 input, the adapter resolves \code{parent_trajectory_id}. Otherwise it retains the
 parent run ID as metadata and records an adapter loss. Missing run identity
-is also explicit. The live R6 results, providers, tools, callbacks, and
+is also explicit. Source objects, providers, tools, callbacks, and
 credentials are never retained.
 
 \code{as_trajectory()} dispatches to this adapter for Deputy results and non-empty
@@ -50,7 +51,9 @@ if (
   rlang::is_installed("deputy", version = "0.0.0.9000") &&
     rlang::is_installed("ellmer", version = "0.4.2")
 ) {
-  result <- deputy::AgentResult$new(
+  constructor <- deputy::AgentResult
+  if (!inherits(constructor, "S7_class")) constructor <- constructor$new
+  result <- constructor(
     turns = list(
       ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
       ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))

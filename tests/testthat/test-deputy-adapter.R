@@ -12,7 +12,8 @@ test_that("completed Deputy results become canonical trajectories", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
-  bundle <- as_trajectory_deputy(deputy_result_fixture())
+  result <- deputy_result_fixture()
+  bundle <- as_trajectory_deputy(result)
   info <- trajectory_info(bundle)
   events <- trajectory_events(bundle)
 
@@ -24,13 +25,15 @@ test_that("completed Deputy results become canonical trajectories", {
   expect_identical(info$status, "completed")
   expect_identical(
     info$started_at,
-    as.POSIXct("2026-08-22 17:00:00", tz = "UTC")
+    deputy_event_timestamp(result$events[[1L]]$timestamp)
   )
   expect_identical(
     info$completed_at,
-    as.POSIXct("2026-08-22 17:00:02", tz = "UTC")
+    deputy_event_timestamp(result$events[[2L]]$timestamp)
   )
   expect_identical(info$metadata[[1L]]$session_id, "session-001")
+  expect_identical(info$metadata[[1L]]$usage$input_tokens, 8)
+  expect_identical(info$metadata[[1L]]$usage$cost_usd, 0.001)
   expect_identical(
     info$metadata[[1L]]$run_context$research_run_id,
     "research-run-001"
@@ -52,15 +55,19 @@ test_that("as_trajectory dispatches Deputy results", {
   expect_identical(trajectory_info(bundle)$source_type, "deputy")
 })
 
-test_that("Deputy AgentResult subclasses may override public methods", {
+test_that("Deputy AgentResult subclasses retain adapter dispatch", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
-  subclass <- R6::R6Class(
-    "ScansAgentResult",
-    inherit = deputy::AgentResult,
-    public = list(n_turns = function() super$n_turns())
-  )
+  subclass <- if (inherits(deputy::AgentResult, "S7_class")) {
+    S7::new_class("ScansAgentResult", parent = deputy::AgentResult)
+  } else {
+    R6::R6Class(
+      "ScansAgentResult",
+      inherit = deputy::AgentResult,
+      public = list(n_turns = function() super$n_turns())
+    )
+  }
   bundle <- as_trajectory(deputy_result_fixture(result_class = subclass))
 
   expect_s7_class(bundle, TrajectoryBundle)
@@ -115,7 +122,9 @@ test_that("Deputy tool events preserve lifecycle correlation and failures", {
     deputy::AgentEvent("stop", reason = "complete")
   )
   for (index in seq_along(events)) {
-    events[[index]]$timestamp <- started_at + index - 1L
+    if (!inherits(deputy::AgentEvent, "S7_class")) {
+      events[[index]]$timestamp <- started_at + index - 1L
+    }
   }
 
   bundle <- as_trajectory_deputy(deputy_result_fixture(events))
@@ -231,10 +240,13 @@ test_that("unresolved Deputy parent runs remain explicit adapter losses", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
-  result <- deputy_result_fixture()
-  result$parent_agent_id <- "agent-parent"
-  result$parent_run_id <- "run-parent"
-  result$delegation_id <- "delegation-001"
+  result <- deputy_result_fixture(
+    overrides = list(
+      parent_agent_id = "agent-parent",
+      parent_run_id = "run-parent",
+      delegation_id = "delegation-001"
+    )
+  )
 
   bundle <- as_trajectory_deputy(result)
   info <- trajectory_info(bundle)
@@ -254,13 +266,16 @@ test_that("Deputy result collections resolve included delegation parents", {
   skip_if_not_installed("ellmer", "0.4.2")
 
   parent <- deputy_result_fixture()
-  child <- deputy_result_fixture()
-  child$run_id <- "run-child"
-  child$agent_id <- "agent-child"
-  child$agent_name <- "writer"
-  child$parent_agent_id <- "agent-001"
-  child$parent_run_id <- "run-001"
-  child$delegation_id <- "delegation-001"
+  child <- deputy_result_fixture(
+    overrides = list(
+      run_id = "run-child",
+      agent_id = "agent-child",
+      agent_name = "writer",
+      parent_agent_id = "agent-001",
+      parent_run_id = "run-001",
+      delegation_id = "delegation-001"
+    )
+  )
 
   bundle <- as_trajectory_deputy(list(parent, child))
   generic <- as_trajectory(list(parent, child))
@@ -280,8 +295,7 @@ test_that("missing Deputy run identity is explicit and deterministic", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
-  result <- deputy_result_fixture()
-  result$run_id <- NULL
+  result <- deputy_result_fixture(overrides = list(run_id = NULL))
 
   bundle <- as_trajectory_deputy(result)
   info <- trajectory_info(bundle)
@@ -297,10 +311,8 @@ test_that("multiple missing Deputy run IDs get distinct fallback identities", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
-  first <- deputy_result_fixture()
-  first$run_id <- NULL
-  second <- deputy_result_fixture()
-  second$run_id <- NULL
+  first <- deputy_result_fixture(overrides = list(run_id = NULL))
+  second <- deputy_result_fixture(overrides = list(run_id = NULL))
 
   bundle <- as_trajectory_deputy(list(first, second))
 
@@ -318,15 +330,20 @@ test_that("Deputy source errors identify malformed public snapshots", {
   skip_if_not_installed("deputy", "0.0.0.9000")
   skip_if_not_installed("ellmer", "0.4.2")
 
-  invalid_turns <- deputy_result_fixture()
-  invalid_turns$turns <- list("not a turn")
+  invalid_turns <- deputy_result_fixture(
+    overrides = list(turns = list("not a turn"))
+  )
   condition <- rlang::catch_cnd(as_trajectory_deputy(invalid_turns))
   expect_s3_class(condition, "scans_error_deputy_source")
   expect_snapshot(error = TRUE, as_trajectory_deputy(invalid_turns))
 
-  invalid_events <- deputy_result_fixture()
-  invalid_events$events <- list(list(type = "start", timestamp = Sys.time()))
-  expect_snapshot(error = TRUE, as_trajectory_deputy(invalid_events))
+  # Current Deputy rejects malformed events at construction. The adapter
+  # still validates the older public list projection at its own boundary.
+  invalid_events <- list(list(type = "start", timestamp = Sys.time()))
+  expect_snapshot(
+    error = TRUE,
+    deputy_event_tables(invalid_events, "run", rlang::current_env())
+  )
 })
 
 test_that("unsupported Deputy event text is represented as an adapter loss", {
@@ -376,7 +393,9 @@ test_that("Deputy conversion is deterministic and contains no live source", {
   second <- as_trajectory_deputy(result)
   restored <- unserialize(serialize(first, NULL))
   has_live_source <- function(value) {
-    if (inherits(value, c("AgentResult", "AgentEvent", "AgentUsage"))) {
+    if (
+      inherits(value, c("AgentResult", "AgentEvent", "AgentUsage", "S7_object"))
+    ) {
       return(TRUE)
     }
     if (is.list(value)) {

@@ -1,3 +1,15 @@
+scans_app_investigation_max_bytes <- function() {
+  getOption("shiny.maxRequestSize", 50 * 1024^2)
+}
+
+scans_app_investigation_start <- function() {
+  if (!is.null(getOption("shiny.maxRequestSize"))) {
+    return(invisible(NULL))
+  }
+  old <- options(shiny.maxRequestSize = scans_app_investigation_max_bytes())
+  shiny::onStop(function() options(old), session = NULL)
+}
+
 scans_app_investigation_ui <- function() {
   htmltools::div(
     class = "scans-app-investigation",
@@ -17,7 +29,11 @@ scans_app_investigation_ui <- function() {
           width = "100%"
         ),
         htmltools::tags$small(
-          "Files include selected retained content. Opening stays in this session."
+          paste0(
+            "Files include selected retained content. Opening stays in this session. Upload limit: ",
+            format(scans_app_investigation_max_bytes() / 1024^2, trim = TRUE),
+            " MiB."
+          )
         )
       )
     ),

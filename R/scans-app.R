@@ -32,7 +32,9 @@
 #' content policy before download. Open an investigation restores a file in the
 #' current session. Saved diagnostics remain unchanged until the reviewer
 #' chooses Apply current scanners; saving again records a parent revision.
-#' Opening does not contact the original source. See [investigation_files()].
+#' Opening does not contact the original source. The default upload limit is
+#' 50 MiB. An explicit `shiny.maxRequestSize` option sets both the app upload
+#' ceiling and its investigation reader limit. See [investigation_files()].
 #'
 #' @section Posit Connect:
 #' Use [scans_app_connect()] when Connect content observability is enabled. It
@@ -78,7 +80,8 @@ scans_app <- function(x, annotations = NULL) {
 
   shiny::shinyApp(
     ui = scans_app_ui(sources, annotations),
-    server = scans_app_server(sources, annotations)
+    server = scans_app_server(sources, annotations),
+    onStart = scans_app_investigation_start
   )
 }
 
@@ -114,7 +117,7 @@ scans_app_sources <- function(x, call = rlang::caller_env()) {
   if (!is.list(x) || length(x) == 0L) {
     scans_abort(
       c(
-        "{.arg x} must be a {.cls TrajectoryBundle} or a named list of application sources.",
+        "{.arg x} must be a {.cls TrajectoryBundle}, {.cls scans_investigation}, or a named list of application sources.",
         "x" = "It is {.obj_type_friendly {x}}."
       ),
       class = "scans_error_app_source",
@@ -133,7 +136,7 @@ scans_app_sources <- function(x, call = rlang::caller_env()) {
       ) {
         scans_abort(
           c(
-            "Application source {.val {label}} must be a {.cls TrajectoryBundle} or a function.",
+            "Application source {.val {label}} must be a {.cls TrajectoryBundle}, {.cls scans_investigation}, or a function.",
             "x" = "It is {.obj_type_friendly {value}}."
           ),
           class = "scans_error_app_source",

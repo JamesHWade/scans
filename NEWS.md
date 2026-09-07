@@ -2,6 +2,7 @@
 
 * A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (#45).
 * `as_trajectory_commons()` accepts current conversations with `turns` and `last_active` fields as well as earlier turn-list results. Provenance remains attached to the turns, and missing source descriptors are reported instead of inferred (#56).
+* `as_trajectory_deputy()` reads current Deputy S7 results, event payloads, and usage records through their public properties while preserving support for earlier R6 results.
 * `assess_trajectory_scans()` reports each selected built-in scanner as assessed with or without findings, insufficient evidence, not applicable, or execution failure, with requirements, version, settings, capture limitations, and links to findings. `scan_trajectories()` retains its findings-only contract (#52).
 * `as_trajectory_otel()` retains bounded resource aggregates across distinct captured calls, including coverage and a versioned adapter contract. Duplicate spans in pre-grouped conversations no longer inflate resources (#40).
 * `as_trajectory_tempest()` accepts the initial Tempest development version when its public review accessor and supported schema are available.

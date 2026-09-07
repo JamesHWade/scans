@@ -171,7 +171,10 @@ scans_app_server <- function(
       {
         file <- input$scans_app_open_investigation
         saved <- tryCatch(
-          read_investigation(file$datapath),
+          read_investigation(
+            file$datapath,
+            max_bytes = scans_app_investigation_max_bytes()
+          ),
           error = function(cnd) {
             shiny::showNotification(
               "Could not open this investigation. Check its format, size, and integrity.",

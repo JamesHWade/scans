@@ -20,7 +20,7 @@
       scans_app(list(App = 1))
     Condition
       Error in `scans_app()`:
-      ! Application source "App" must be a <TrajectoryBundle> or a function.
+      ! Application source "App" must be a <TrajectoryBundle>, <scans_investigation>, or a function.
       x It is a number.
 
 # scans app rejects loaders that require arguments

@@ -93,3 +93,47 @@ test_that("saved annotation membership restores without including reviewer text"
     expect_length(visible(), 4L)
   })
 })
+
+test_that("app startup aligns default uploads and reads and respects configured limits", {
+  withr::local_options(list(shiny.maxRequestSize = NULL))
+  app <- scans_app(investigation_bundle_fixture())
+  unregister <- app$onStart()
+  on.exit(unregister(), add = TRUE)
+  expect_identical(getOption("shiny.maxRequestSize"), 50 * 1024^2)
+  expect_identical(scans_app_investigation_max_bytes(), 50 * 1024^2)
+  expect_match(
+    as.character(scans_app_investigation_ui()),
+    "Upload limit: 50 MiB"
+  )
+
+  options(shiny.maxRequestSize = 1024^2)
+  expect_null(app$onStart())
+  expect_identical(scans_app_investigation_max_bytes(), 1024^2)
+  expect_match(
+    as.character(scans_app_investigation_ui()),
+    "Upload limit: 1 MiB"
+  )
+})
+
+test_that("app uploads can reopen investigations above Shiny's original default", {
+  withr::local_options(list(shiny.maxRequestSize = NULL))
+  bundle <- investigation_bundle_fixture()
+  saved <- investigation_snapshot(
+    bundle,
+    source = list(note = strrep("x", 6 * 1024^2))
+  )
+  path <- tempfile()
+  write_investigation(saved, path)
+  expect_gt(file.info(path)$size, 5 * 1024^2)
+  app <- scans_app(bundle)
+  unregister <- app$onStart()
+  on.exit(unregister(), add = TRUE)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    session$setInputs(
+      scans_app_open_investigation = data.frame(datapath = path)
+    )
+    investigation_ack_inputs(session)
+    expect_identical(active()$investigation, saved)
+  })
+})

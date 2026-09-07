@@ -56,7 +56,9 @@ scanner settings, and browser state as JSON. The preview describes the
 content policy before download. Open an investigation restores a file in the
 current session. Saved diagnostics remain unchanged until the reviewer
 chooses Apply current scanners; saving again records a parent revision.
-Opening does not contact the original source. See \code{\link[=investigation_files]{investigation_files()}}.
+Opening does not contact the original source. The default upload limit is
+50 MiB. An explicit \code{shiny.maxRequestSize} option sets both the app upload
+ceiling and its investigation reader limit. See \code{\link[=investigation_files]{investigation_files()}}.
 }
 
 \section{Posit Connect}{
