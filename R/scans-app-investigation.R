@@ -11,6 +11,12 @@ scans_app_investigation_start <- function() {
 }
 
 scans_app_investigation_ui <- function() {
+  max_bytes <- scans_app_investigation_max_bytes()
+  limit <- if (identical(max_bytes, Inf)) {
+    "Unlimited"
+  } else {
+    paste(format(max_bytes / 1024^2, trim = TRUE), "MiB")
+  }
   htmltools::div(
     class = "scans-app-investigation",
     bslib::accordion(
@@ -31,8 +37,8 @@ scans_app_investigation_ui <- function() {
         htmltools::tags$small(
           paste0(
             "Files include selected retained content. Opening stays in this session. Upload limit: ",
-            format(scans_app_investigation_max_bytes() / 1024^2, trim = TRUE),
-            " MiB."
+            limit,
+            "."
           )
         )
       )

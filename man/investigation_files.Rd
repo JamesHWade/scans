@@ -18,7 +18,8 @@ read_investigation(path, max_bytes = 50 * 1024^2)
 
 \item{overwrite}{Whether to replace an existing file. Defaults to \code{FALSE}.}
 
-\item{max_bytes}{Largest file to read, in bytes. Defaults to 50 MiB.}
+\item{max_bytes}{Largest file to read, in bytes. Defaults to 50 MiB.
+Use \code{Inf} to disable the size limit.}
 }
 \value{
 \code{write_investigation()} returns \code{x} invisibly.

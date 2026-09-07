@@ -70,7 +70,8 @@ current session. Saved diagnostics remain unchanged until the reviewer
 chooses Apply current scanners; saving again records a parent revision.
 Opening does not contact the original source. The default upload limit is
 50 MiB. An explicit \code{shiny.maxRequestSize} option sets both the app upload
-ceiling and its investigation reader limit. See \code{\link[=investigation_files]{investigation_files()}}.
+ceiling and its investigation reader limit; \code{Inf} disables the size limit.
+See \code{\link[=investigation_files]{investigation_files()}}.
 }
 
 \section{Posit Connect}{

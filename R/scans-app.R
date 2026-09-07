@@ -36,7 +36,8 @@
 #' chooses Apply current scanners; saving again records a parent revision.
 #' Opening does not contact the original source. The default upload limit is
 #' 50 MiB. An explicit `shiny.maxRequestSize` option sets both the app upload
-#' ceiling and its investigation reader limit. See [investigation_files()].
+#' ceiling and its investigation reader limit; `Inf` disables the size limit.
+#' See [investigation_files()].
 #'
 #' @section Posit Connect:
 #' Use [scans_app_connect()] when Connect content observability is enabled. It

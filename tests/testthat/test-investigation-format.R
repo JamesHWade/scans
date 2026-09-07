@@ -94,6 +94,7 @@ test_that("size limits and overwrite defaults protect existing files", {
   expect_snapshot(error = TRUE, write_investigation(saved, path))
   expect_identical(readBin(path, "raw", n = file.info(path)$size), before)
   expect_snapshot(error = TRUE, read_investigation(path, max_bytes = 10))
+  expect_identical(read_investigation(path, max_bytes = Inf), saved)
   writeLines("not JSON", path)
   expect_snapshot(error = TRUE, read_investigation(path))
 })

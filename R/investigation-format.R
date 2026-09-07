@@ -17,6 +17,7 @@
 #' @param path Path to a local JSON file.
 #' @param overwrite Whether to replace an existing file. Defaults to `FALSE`.
 #' @param max_bytes Largest file to read, in bytes. Defaults to 50 MiB.
+#'   Use `Inf` to disable the size limit.
 #'
 #' @returns `write_investigation()` returns `x` invisibly.
 #'   `read_investigation()` returns a `scans_investigation` value.
@@ -87,10 +88,9 @@ read_investigation <- function(path, max_bytes = 50 * 1024^2) {
     !is.numeric(max_bytes) ||
       length(max_bytes) != 1L ||
       is.na(max_bytes) ||
-      !is.finite(max_bytes) ||
       max_bytes <= 0
   ) {
-    investigation_abort("{.arg max_bytes} must be one positive finite number.")
+    investigation_abort("{.arg max_bytes} must be one positive number or Inf.")
   }
   size <- file.info(path)$size
   if (is.na(size) || isTRUE(file.info(path)$isdir)) {

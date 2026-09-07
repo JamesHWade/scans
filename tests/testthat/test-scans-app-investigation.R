@@ -302,3 +302,26 @@ test_that("Connect apps forward the investigation opt-in without loading traces"
     class = "rlang_error"
   )
 })
+
+
+test_that("explicitly unlimited Shiny uploads can be read as investigations", {
+  withr::local_options(shiny.maxRequestSize = Inf)
+  saved <- investigation_snapshot(investigation_bundle_fixture())
+  path <- tempfile()
+  write_investigation(saved, path)
+  app <- scans_app(saved)
+  expect_null(app$onStart())
+  expect_identical(scans_app_investigation_max_bytes(), Inf)
+  expect_match(
+    as.character(scans_app_investigation_ui()),
+    "Upload limit: Unlimited"
+  )
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    session$setInputs(
+      scans_app_open_investigation = data.frame(datapath = path)
+    )
+    investigation_ack_inputs(session)
+    expect_identical(opened_investigation(), saved)
+  })
+})
