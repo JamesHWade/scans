@@ -41,6 +41,9 @@ test_that("selected application mappings preserve review history without other c
     write_review_examples(examples, path),
     class = "scans_error_review"
   )
+  writeLines("old contents", path)
+  write_review_examples(examples, path, overwrite = TRUE)
+  expect_identical(read_review_examples(path), examples)
   examples$inputs[[1L]]$question <- "edited"
   expect_error(
     review_dataset(examples, "dsprrr", "development"),

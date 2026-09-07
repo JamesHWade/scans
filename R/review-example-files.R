@@ -35,8 +35,10 @@ write_review_examples <- function(x, path, overwrite = FALSE) {
   if (file.exists(path) && !overwrite) {
     review_abort("The destination was created while writing.")
   }
-  if (!file.rename(temporary, path)) {
-    review_abort("Could not write the example set.")
+  if (!suppressWarnings(file.rename(temporary, path))) {
+    if (!overwrite || !file.copy(temporary, path, overwrite = TRUE)) {
+      review_abort("Could not write the example set.")
+    }
   }
   invisible(x)
 }
