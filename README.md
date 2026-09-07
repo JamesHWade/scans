@@ -119,7 +119,9 @@ The scan reports both the repeated request and its missing result.
 ## Save an investigation
 
 Keep the evidence and diagnostic results behind a review, including what was
-not captured. In the app, filter the trajectory list and choose **Save or open**
+not captured. Enable the controls with `scans_app(bundle, investigations = TRUE)`
+(or the same argument to `scans_app_connect()`). Then filter the trajectory list
+and choose **Save or open**
 then **Save visible trajectories**. The download preview explains which retained
 content goes into the file. Saving requires the optional `jsonlite` and `digest`
 packages.

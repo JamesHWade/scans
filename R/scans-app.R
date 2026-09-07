@@ -27,6 +27,8 @@
 #' loaded.
 #'
 #' @section Saved investigations:
+#' Set `investigations = TRUE` to enable save/open controls in a regular app.
+#' They are enabled by default when `x` is a single saved investigation.
 #' Save visible trajectories downloads the selected retained evidence, analysis,
 #' scanner settings, and browser state as JSON. The preview describes the
 #' content policy before download. Open an investigation restores a file in the
@@ -53,6 +55,10 @@
 #'   zero-argument function that returns one. Source names are shown in the
 #'   application switcher.
 #'
+#' @param investigations Whether to enable investigation save, upload, and
+#'   rescan controls. Defaults to `TRUE` for a single saved investigation and
+#'   `FALSE` for other inputs. Set explicitly for named sources or lazy loaders.
+#'
 #' @returns A [shiny::shinyApp()] object. Calling `scans_app()` at the console
 #'   launches the app; the returned object can also be served from an `app.R`.
 #'
@@ -75,15 +81,24 @@
 #'   ))
 #' }
 #' @export
-scans_app <- function(x, annotations = NULL) {
+scans_app <- function(
+  x,
+  annotations = NULL,
+  investigations = inherits(x, "scans_investigation")
+) {
   sources <- scans_app_sources(x)
   scans_app_check_packages()
   scans_app_check_annotations(annotations)
+  rlang::check_bool(investigations)
 
   shiny::shinyApp(
-    ui = scans_app_ui(sources, annotations),
-    server = scans_app_server(sources, annotations),
-    onStart = scans_app_investigation_start
+    ui = scans_app_ui(sources, annotations, investigations),
+    server = scans_app_server(
+      sources,
+      annotations,
+      investigations = investigations
+    ),
+    onStart = if (investigations) scans_app_investigation_start
   )
 }
 

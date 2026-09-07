@@ -155,7 +155,7 @@ Install the optional UI dependencies once, then open the same bundle:
 
 ```{r, eval=FALSE}
 pak::pak(c("shiny", "bslib", "htmltools", "commonmark", "xml2"))
-scans_app(list("Support assistant example" = bundle))
+scans_app(list("Support assistant example" = bundle), investigations = TRUE)
 ```
 
 The application overview uses these measurements. Select **suspicious tool

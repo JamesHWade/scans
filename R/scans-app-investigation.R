@@ -113,7 +113,8 @@ scans_app_investigation_view <- function(
   ids,
   selected,
   pattern,
-  annotated
+  annotated,
+  annotated_only
 ) {
   choices <- scans_app_filter_choices(data)
   source <- input$scans_app_source
@@ -137,7 +138,7 @@ scans_app_investigation_view <- function(
     source_type = source,
     status = status,
     findings_only = isTRUE(input$scans_app_findings_only),
-    annotated_only = isTRUE(input$scans_app_annotated_only),
+    annotated_only = annotated_only,
     annotation_ids = intersect(annotated, ids),
     pattern = pattern,
     sort = input$scans_app_sort %||% "newest",

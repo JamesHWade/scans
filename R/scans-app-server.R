@@ -7,7 +7,8 @@ scans_app_server <- function(
   cache_max_age = 30 * 60,
   clock = Sys.time,
   schedule = shiny::invalidateLater,
-  annotation_poll_interval = 2000
+  annotation_poll_interval = 2000,
+  investigations = FALSE
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -169,6 +170,7 @@ scans_app_server <- function(
     shiny::observeEvent(
       input$scans_app_open_investigation,
       {
+        shiny::req(investigations)
         file <- input$scans_app_open_investigation
         saved <- tryCatch(
           read_investigation(
@@ -195,6 +197,7 @@ scans_app_server <- function(
     shiny::observeEvent(
       input$scans_app_close_investigation,
       {
+        shiny::req(investigations)
         opened_investigation(NULL)
       },
       ignoreInit = TRUE
@@ -202,6 +205,7 @@ scans_app_server <- function(
     shiny::observeEvent(
       input$scans_app_rescan_investigation,
       {
+        shiny::req(investigations)
         rescan_investigation(TRUE)
       },
       ignoreInit = TRUE
@@ -213,13 +217,21 @@ scans_app_server <- function(
         !is.null(opened_investigation())
       )
     })
+    saved_annotation_filter <- shiny::reactive({
+      saved <- active()$investigation
+      !is.null(saved) &&
+        (length(saved$view$annotation_ids) > 0L || saved$view$annotated_only)
+    })
+    annotated_only <- shiny::reactive({
+      (!is.null(annotations) || saved_annotation_filter()) &&
+        isTRUE(
+          input$scans_app_annotated_only %||%
+            active()$investigation$view$annotated_only
+        )
+    })
     output$scans_app_snapshot_annotation_filter <- shiny::renderUI({
       saved <- active()$investigation
-      if (
-        is.null(annotations) &&
-          !is.null(saved) &&
-          (length(saved$view$annotation_ids) || saved$view$annotated_only)
-      ) {
+      if (is.null(annotations) && saved_annotation_filter()) {
         bslib::input_switch(
           "scans_app_annotated_only",
           "Annotated at save",
@@ -230,6 +242,7 @@ scans_app_server <- function(
     shiny::observeEvent(
       input$scans_app_save_investigation,
       {
+        shiny::req(investigations)
         current <- data()
         entry <- active()
         if (is.null(current) || is.null(entry$bundle) || !length(visible())) {
@@ -247,7 +260,8 @@ scans_app_server <- function(
           ids,
           selected_trajectory_id(),
           pattern_filter(),
-          current$info$trajectory_id[annotated()]
+          current$info$trajectory_id[annotated()],
+          annotated_only()
         )
         previous <- entry$investigation
         source <- if (is.null(previous)) {
@@ -301,6 +315,7 @@ scans_app_server <- function(
         )
       },
       content = function(file) {
+        shiny::req(investigations)
         write_investigation(pending_investigation(), file, overwrite = TRUE)
       },
       contentType = "application/json"
@@ -636,10 +651,7 @@ scans_app_server <- function(
         query = scans_app_input_or(input$scans_app_query, ""),
         findings_only = isTRUE(input$scans_app_findings_only),
         annotated = annotated(),
-        annotated_only = isTRUE(
-          input$scans_app_annotated_only %||%
-            active()$investigation$view$annotated_only
-        )
+        annotated_only = annotated_only()
       )
       pattern <- pattern_filter()
       if (!is.null(pattern)) {

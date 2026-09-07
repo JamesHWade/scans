@@ -4,7 +4,11 @@
 \alias{scans_app}
 \title{Explore trajectory diagnostics with the scans app}
 \usage{
-scans_app(x, annotations = NULL)
+scans_app(
+  x,
+  annotations = NULL,
+  investigations = inherits(x, "scans_investigation")
+)
 }
 \arguments{
 \item{x}{A \link{TrajectoryBundle}, a saved \code{\link[=investigation_snapshot]{investigation_snapshot()}}, or a named
@@ -18,6 +22,10 @@ reviewers write to that store. The store also supplies current annotation
 filter membership when opening a saved investigation. Without a store,
 saved membership is used and the app writes only explicitly requested
 investigation downloads.}
+
+\item{investigations}{Whether to enable investigation save, upload, and
+rescan controls. Defaults to \code{TRUE} for a single saved investigation and
+\code{FALSE} for other inputs. Set explicitly for named sources or lazy loaders.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console
@@ -53,6 +61,8 @@ loaded.
 }
 \section{Saved investigations}{
 
+Set \code{investigations = TRUE} to enable save/open controls in a regular app.
+They are enabled by default when \code{x} is a single saved investigation.
 Save visible trajectories downloads the selected retained evidence, analysis,
 scanner settings, and browser state as JSON. The preview describes the
 content policy before download. Open an investigation restores a file in the

@@ -59,7 +59,7 @@ scans_app_initial_choices <- function(source) {
   scans_app_filter_choices()
 }
 
-scans_app_ui <- function(sources, annotations = NULL) {
+scans_app_ui <- function(sources, annotations = NULL, investigations = FALSE) {
   choices <- scans_app_initial_choices(sources$sources[[1L]])
 
   page <- bslib::page_sidebar(
@@ -81,7 +81,7 @@ scans_app_ui <- function(sources, annotations = NULL) {
       width = 380,
       class = "scans-app-browser",
       scans_app_application_ui(sources),
-      scans_app_investigation_ui(),
+      if (investigations) scans_app_investigation_ui(),
       shiny::textInput(
         "scans_app_query",
         label = NULL,
