@@ -3,13 +3,14 @@
 #' `as_trajectory_deputy()` snapshots one or more completed
 #' `deputy::AgentResult` objects into a canonical [TrajectoryBundle]. It
 #' delegates model-visible turns to [as_trajectory_ellmer()] and adds ordered,
-#' namespaced Deputy lifecycle events.
+#' namespaced Deputy lifecycle events. Current S7 results and events are read
+#' through their public properties; earlier R6 results remain supported.
 #'
 #' Run, session, agent, delegation, usage, and immutable run-context values are
 #' retained as sanitized data. When a result's parent run occurs in the same
 #' input, the adapter resolves `parent_trajectory_id`. Otherwise it retains the
 #' parent run ID as metadata and records an adapter loss. Missing run identity
-#' is also explicit. The live R6 results, providers, tools, callbacks, and
+#' is also explicit. Source objects, providers, tools, callbacks, and
 #' credentials are never retained.
 #'
 #' `as_trajectory()` dispatches to this adapter for Deputy results and non-empty
@@ -33,7 +34,9 @@
 #'   rlang::is_installed("deputy", version = "0.0.0.9000") &&
 #'     rlang::is_installed("ellmer", version = "0.4.2")
 #' ) {
-#'   result <- deputy::AgentResult$new(
+#'   constructor <- deputy::AgentResult
+#'   if (!inherits(constructor, "S7_class")) constructor <- constructor$new
+#'   result <- constructor(
 #'     turns = list(
 #'       ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
 #'       ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))
@@ -280,6 +283,9 @@ deputy_resolve_parents <- function(info) {
 }
 
 deputy_is_result <- function(x) {
+  if (deputy_is_s7_value(x, "AgentResult")) {
+    return(TRUE)
+  }
   rlang::is_installed("deputy", version = "0.0.0.9000") &&
     inherits(x, "AgentResult") &&
     inherits(x, "R6") &&
@@ -311,7 +317,13 @@ deputy_result_snapshot <- function(x, call) {
     "usage"
   )
   values <- tryCatch(
-    lapply(fields, \(field) x[[field]]),
+    lapply(fields, function(field) {
+      if (deputy_is_s7_value(x, "AgentResult")) {
+        S7::prop(x, field)
+      } else {
+        x[[field]]
+      }
+    }),
     error = function(error) {
       scans_abort(
         c(
@@ -326,6 +338,7 @@ deputy_result_snapshot <- function(x, call) {
   )
   snapshot <- stats::setNames(values, fields)
   deputy_check_snapshot(snapshot, call)
+  snapshot$events <- lapply(snapshot$events, deputy_event_snapshot)
   snapshot
 }
 
@@ -648,7 +661,36 @@ deputy_canonical_number <- function(x) {
   as.double(x)
 }
 
+deputy_is_s7_value <- function(x, name) {
+  if (!inherits(x, "S7_object")) {
+    return(FALSE)
+  }
+  if (!rlang::is_installed("deputy")) {
+    return(FALSE)
+  }
+  class <- getExportedValue("deputy", name)
+  inherits(class, "S7_class") && S7::S7_inherits(x, class)
+}
+
+# Read the public event envelope and payload before using the shared list
+# projection. Older Deputy releases expose this projection directly.
+deputy_event_snapshot <- function(x) {
+  if (!deputy_is_s7_value(x, "AgentEvent")) {
+    return(x)
+  }
+  structure(
+    c(
+      list(type = S7::prop(x, "type"), timestamp = S7::prop(x, "timestamp")),
+      S7::prop(x, "data")
+    ),
+    class = "AgentEvent"
+  )
+}
+
 deputy_plain_value <- function(x) {
+  if (deputy_is_s7_value(x, "AgentUsage")) {
+    x <- S7::props(x)
+  }
   if (!is.list(x) || is.data.frame(x)) {
     return(x)
   }

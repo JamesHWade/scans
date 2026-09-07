@@ -37,6 +37,9 @@
 #'   reads the seven days ending at load time. Supply either bound as `NULL`
 #'   explicitly to leave that side of the window open.
 #'
+#' @param investigations Whether to enable investigation save/open controls,
+#'   forwarded to [scans_app()]. Defaults to `FALSE`.
+#'
 #' @returns A [shiny::shinyApp()] object.
 #'
 #' @examples
@@ -54,12 +57,14 @@ scans_app_connect <- function(
   to = NULL,
   reader = c("otel", "commons"),
   annotations = NULL,
-  jobs = TRUE
+  jobs = TRUE,
+  investigations = FALSE
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_bool(jobs)
+  rlang::check_bool(investigations)
   from <- connect_check_bound(from, "from")
   to <- connect_check_bound(to, "to")
   reader <- rlang::arg_match(reader)
@@ -68,6 +73,7 @@ scans_app_connect <- function(
   }
   scans_app(
     annotations = annotations,
+    investigations = investigations,
     x = scans_app_connect_loaders(
       x,
       n,
