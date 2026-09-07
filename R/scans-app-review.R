@@ -391,6 +391,10 @@ scans_app_review_server <- function(
     i <- suppressWarnings(as.integer(input$scans_app_imported_case))
     shiny::req(x, length(i) == 1L, !is.na(i), i >= 1L, i <= length(x$cases))
     case <- structure(x$cases[[i]], class = "scans_review_case")
+    case <- attempt(scans_app_review_reconcile(cases()[[case$case_id]], case))
+    if (is.null(case)) {
+      return()
+    }
     opened(review_evidence(case$evidence))
     for (kind in c("input", "target")) {
       fields <- x[[paste0(kind, "s")]][[i]]
@@ -516,4 +520,27 @@ scans_app_review_preview_ui <- function(x) {
     footer = shiny::modalButton("Close"),
     size = "l"
   )
+}
+
+
+scans_app_review_reconcile <- function(existing, incoming) {
+  if (is.null(existing)) {
+    return(incoming)
+  }
+  common <- min(length(existing$decisions), length(incoming$decisions))
+  if (
+    !identical(
+      existing$decisions[seq_len(common)],
+      incoming$decisions[seq_len(common)]
+    )
+  ) {
+    review_abort(
+      "This case has a divergent decision history in this session. Keep both exports and inspect them in separate sessions; neither history was replaced."
+    )
+  }
+  if (length(existing$decisions) >= length(incoming$decisions)) {
+    existing
+  } else {
+    incoming
+  }
 }

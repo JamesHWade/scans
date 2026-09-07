@@ -69,6 +69,8 @@ A scanner judgment describes whether a finding is valid. An application
 expectation describes what a future execution should do. They are separate:
 the rationale for an old output is not a score for a new prediction.
 
+Case identifiers exclude the evidence copy's creation time, so reviewing
+the same evidence selection again addresses the same case.
 Decisions have content identifiers. Independent decisions remain active
 until an adjudicator explicitly supersedes them. Multiple active decisions
 are disputed, even if they agree. Uncertain and insufficient-capture

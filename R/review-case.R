@@ -10,6 +10,8 @@
 #' expectation describes what a future execution should do. They are separate:
 #' the rationale for an old output is not a score for a new prediction.
 #'
+#' Case identifiers exclude the evidence copy's creation time, so reviewing
+#' the same evidence selection again addresses the same case.
 #' Decisions have content identifiers. Independent decisions remain active
 #' until an adjudicator explicitly supersedes them. Multiple active decisions
 #' are disputed, even if they agree. Uncertain and insufficient-capture
@@ -120,7 +122,7 @@ review_case <- function(
     turn_ids = turn_ids,
     decisions = list()
   )
-  out$case_id <- investigation_hash(out[setdiff(names(out), "decisions")])
+  out$case_id <- review_case_id(out)
   structure(out, class = "scans_review_case")
 }
 
@@ -190,6 +192,12 @@ review_status <- function(x) {
     )]]$judgment
   }
   list(status = status, decision_ids = ids)
+}
+
+review_case_id <- function(x) {
+  payload <- unclass(x)[setdiff(names(x), c("case_id", "decisions"))]
+  payload$evidence$manifest$created_at <- NULL
+  investigation_hash(payload)
 }
 
 review_active <- function(decisions) {
@@ -292,15 +300,7 @@ review_validate <- function(x) {
     "turn_id",
     x$trajectory_id
   )
-  if (
-    !identical(
-      x$case_id,
-      investigation_hash(unclass(x)[setdiff(
-        names(x),
-        c("case_id", "decisions")
-      )])
-    )
-  ) {
+  if (!identical(x$case_id, review_case_id(x))) {
     review_abort("The case identifier does not match its evidence.")
   }
   if (!is.list(x$decisions)) {

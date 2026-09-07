@@ -36,6 +36,10 @@ test_that("review controls are opt-in and decisions export selected content", {
     session$setInputs(scans_app_inspect = "otel/parallel")
     expect_null(review_state$current())
     expect_null(review_state$pending())
+    session$setInputs(scans_app_inspect = "otel/retry")
+    session$setInputs(scans_app_record_review = 2L)
+    expect_length(review_state$current()$decisions, 2L)
+    expect_identical(review_status(review_state$current())$status, "disputed")
     session$setInputs(
       scans_app_open_examples = data.frame(datapath = downloaded)
     )
@@ -51,8 +55,8 @@ test_that("review controls are opt-in and decisions export selected content", {
       example$cases[[1L]]$case_id
     )
     expect_identical(
-      review_state$current()$decisions,
-      example$cases[[1L]]$decisions
+      review_state$current()$decisions[[1L]],
+      example$cases[[1L]]$decisions[[1L]]
     )
     expect_identical(data()$info$trajectory_id, "otel/retry")
     session$setInputs(
@@ -60,9 +64,9 @@ test_that("review controls are opt-in and decisions export selected content", {
       scans_app_review_scan = "",
       scans_app_review_judgment = "rejected",
       scans_app_review_adjudicate = TRUE,
-      scans_app_record_review = 2L
+      scans_app_record_review = 3L
     )
-    expect_length(review_state$current()$decisions, 2L)
+    expect_length(review_state$current()$decisions, 3L)
     expect_identical(review_status(review_state$current())$status, "rejected")
     session$setInputs(scans_app_close_examples = 1L)
     expect_null(review_state$current())
@@ -89,4 +93,17 @@ test_that("Connect review controls are optional without reading traces", {
   expect_false(scans_app_connect(source))
   expect_true(scans_app_connect(source, reviews = TRUE))
   expect_error(scans_app_connect(source, reviews = NA), class = "rlang_error")
+})
+
+
+test_that("importing a divergent review never replaces the current history", {
+  case <- review_case(
+    investigation_snapshot(investigation_bundle_fixture()),
+    "otel/retry"
+  )
+  a <- review_decision(case, "confirmed", "A", "Repeated calls")
+  b <- review_decision(case, "rejected", "B", "Different inputs")
+  expect_error(scans_app_review_reconcile(a, b), class = "scans_error_review")
+  expect_identical(scans_app_review_reconcile(a, case), a)
+  expect_identical(scans_app_review_reconcile(case, a), a)
 })

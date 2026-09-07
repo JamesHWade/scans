@@ -205,7 +205,10 @@ input and one target field; use the R API for multi-field mappings and sets of
 many cases. **Open reviewed examples** accepts either kind of set and lets you
 choose a case to inspect. Exporting an imported case creates a new single-case
 version and retains the imported set's split history. Reviews are session-local;
-download before closing the app. Existing annotations remain a separate feature.
+download before closing the app. Opening an older case preserves newer compatible
+session decisions. Divergent histories are rejected without replacing either;
+keep both files and inspect them in separate sessions. Existing annotations remain
+a separate feature.
 
 ## Design references
 

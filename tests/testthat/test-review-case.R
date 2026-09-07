@@ -4,6 +4,10 @@ test_that("reviews bind to selected evidence and retain exact origin", {
   case <- review_case(saved, "otel/retry", finding)
   expect_identical(case$origin$revision_id, saved$manifest$revision_id)
   expect_identical(
+    review_case(saved, "otel/retry", finding)$case_id,
+    case$case_id
+  )
+  expect_identical(
     trajectory_info(review_evidence(case$evidence)$bundle)$trajectory_id,
     "otel/retry"
   )
