@@ -13,6 +13,9 @@ scans_app_server <- function(
   cache <- new.env(parent = emptyenv())
 
   function(input, output, session) {
+    opened_investigation <- shiny::reactiveVal(NULL)
+    pending_investigation <- shiny::reactiveVal(NULL)
+    rescan_investigation <- shiny::reactiveVal(FALSE)
     seen <- new.env(parent = emptyenv())
     revision <- shiny::reactiveVal(0L)
     reload_revision <- shiny::reactiveVal(0L)
@@ -21,7 +24,7 @@ scans_app_server <- function(
     pattern_filter <- shiny::reactiveVal(NULL)
 
     shiny::observeEvent(application(), {
-      pattern_filter(NULL)
+      if (is.null(active_source()$investigation)) pattern_filter(NULL)
     })
     shiny::observeEvent(input$scans_app_pattern, {
       pattern <- input$scans_app_pattern
@@ -49,6 +52,10 @@ scans_app_server <- function(
     })
 
     application <- shiny::reactive({
+      opened <- opened_investigation()
+      if (!is.null(opened)) {
+        return(opened$manifest$application)
+      }
       label <- scans_app_input_or(
         input$scans_app_application,
         sources$labels[[1L]]
@@ -60,6 +67,10 @@ scans_app_server <- function(
     })
 
     active_source <- shiny::reactive({
+      opened <- opened_investigation()
+      if (!is.null(opened)) {
+        return(scans_app_source(opened$manifest$application, opened))
+      }
       sources$sources[[match(application(), sources$labels)]]
     })
 
@@ -72,6 +83,14 @@ scans_app_server <- function(
 
     active <- shiny::reactive({
       revision()
+      opened <- opened_investigation()
+      if (!is.null(opened)) {
+        return(scans_app_load_entry(
+          active_source(),
+          application(),
+          clock = clock
+        ))
+      }
       label <- application()
       entry <- scans_app_cache_get(cache, label)
       if (!is.null(entry)) {
@@ -115,6 +134,10 @@ scans_app_server <- function(
     })
 
     scan_config <- shiny::reactive({
+      saved <- active()$investigation
+      if (!is.null(saved) && !rescan_investigation()) {
+        return(saved$settings)
+      }
       scans_app_scan_config(
         scans = input$scans_app_scans %||% character(),
         repeat_threshold = scans_app_threshold(
@@ -138,8 +161,147 @@ scans_app_server <- function(
       if (is.null(current$bundle)) {
         return(NULL)
       }
-      scans_app_data(current$bundle, scan_config())
+      saved <- current$investigation
+      analysis <- if (!is.null(saved) && !rescan_investigation()) saved$analysis
+      scans_app_data(current$bundle, scan_config(), analysis = analysis)
     })
+
+    shiny::observeEvent(
+      input$scans_app_open_investigation,
+      {
+        file <- input$scans_app_open_investigation
+        saved <- tryCatch(
+          read_investigation(file$datapath),
+          error = function(cnd) {
+            shiny::showNotification(
+              "Could not open this investigation. Check its format, size, and integrity.",
+              type = "error",
+              session = session
+            )
+            NULL
+          }
+        )
+        if (!is.null(saved)) {
+          opened_investigation(saved)
+          reload_revision(reload_revision() + 1L)
+          revision(revision() + 1L)
+        }
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$scans_app_close_investigation,
+      {
+        opened_investigation(NULL)
+      },
+      ignoreInit = TRUE
+    )
+    shiny::observeEvent(
+      input$scans_app_rescan_investigation,
+      {
+        rescan_investigation(TRUE)
+      },
+      ignoreInit = TRUE
+    )
+    output$scans_app_investigation_status <- shiny::renderUI({
+      scans_app_investigation_status_ui(
+        active()$investigation,
+        rescan_investigation(),
+        !is.null(opened_investigation())
+      )
+    })
+    output$scans_app_snapshot_annotation_filter <- shiny::renderUI({
+      saved <- active()$investigation
+      if (
+        is.null(annotations) &&
+          !is.null(saved) &&
+          (length(saved$view$annotation_ids) || saved$view$annotated_only)
+      ) {
+        bslib::input_switch(
+          "scans_app_annotated_only",
+          "Annotated at save",
+          value = saved$view$annotated_only
+        )
+      }
+    })
+    shiny::observeEvent(
+      input$scans_app_save_investigation,
+      {
+        current <- data()
+        entry <- active()
+        if (is.null(current) || is.null(entry$bundle) || !length(visible())) {
+          shiny::showNotification(
+            "Select at least one trajectory before saving.",
+            type = "message",
+            session = session
+          )
+          return()
+        }
+        ids <- current$info$trajectory_id[visible()]
+        view <- scans_app_investigation_view(
+          input,
+          current,
+          ids,
+          selected_trajectory_id(),
+          pattern_filter(),
+          current$info$trajectory_id[annotated()]
+        )
+        previous <- entry$investigation
+        source <- if (is.null(previous)) {
+          list(read_info = entry$read_info, loaded_at = entry$loaded_at)
+        } else {
+          previous$manifest$source
+        }
+        version <- if (!is.null(previous) && !rescan_investigation()) {
+          previous$manifest$package_version
+        } else {
+          as.character(utils::packageVersion("scans"))
+        }
+        saved <- tryCatch(
+          investigation_build(
+            entry$bundle,
+            ids,
+            application(),
+            source,
+            scan_config(),
+            view,
+            current[c("summaries", "findings", "assessments", "measures")],
+            previous = previous,
+            package_version = version
+          ),
+          error = function(cnd) {
+            shiny::showNotification(
+              "Could not prepare the snapshot. Its data may use an unsupported type.",
+              type = "error",
+              session = session
+            )
+            NULL
+          }
+        )
+        if (is.null(saved)) {
+          return()
+        }
+        pending_investigation(saved)
+        shiny::showModal(
+          scans_app_investigation_save_ui(saved),
+          session = session
+        )
+      },
+      ignoreInit = TRUE
+    )
+    output$scans_app_download_investigation <- shiny::downloadHandler(
+      filename = function() {
+        paste0(
+          "scans-",
+          substr(pending_investigation()$manifest$revision_id, 8, 19),
+          ".json"
+        )
+      },
+      content = function(file) {
+        write_investigation(pending_investigation(), file, overwrite = TRUE)
+      },
+      contentType = "application/json"
+    )
 
     available_patterns <- shiny::reactive({
       current <- data()
@@ -230,6 +392,10 @@ scans_app_server <- function(
       current <- data()
       if (is.null(current)) {
         return(logical())
+      }
+      saved <- active()$investigation
+      if (!is.null(saved)) {
+        return(current$info$trajectory_id %in% saved$view$annotation_ids)
       }
       current$info$trajectory_id %in% names(annotation_labels())
     })
@@ -379,7 +545,12 @@ scans_app_server <- function(
       ignoreNULL = TRUE,
       priority = 10L,
       {
-        key <- list(application(), reload_revision())
+        saved <- active()$investigation
+        key <- list(
+          application(),
+          reload_revision(),
+          saved$manifest$revision_id
+        )
         if (identical(key, reset_key())) {
           current <- data()
           trajectory_id <- selected_trajectory_id()
@@ -390,25 +561,39 @@ scans_app_server <- function(
           return()
         }
         reset_key(key)
+        rescan_investigation(FALSE)
         current <- data()
         if (is.null(current)) {
           selected(NULL)
           return()
         }
-        choices <- scans_app_filter_choices(current)
-        bslib::update_toolbar_input_select(
-          "scans_app_source",
-          choices = choices$source,
-          selected = choices$source_all,
-          session = session
-        )
-        bslib::update_toolbar_input_select(
-          "scans_app_status",
-          choices = choices$status,
-          selected = choices$status_all,
-          session = session
-        )
-        selected(NULL)
+        if (!is.null(saved)) {
+          scans_app_restore_investigation(saved, current, session)
+          pattern_filter(saved$view$pattern)
+          focus <- saved$view$selected_trajectory_id
+          selected(
+            if (is.null(focus)) {
+              NULL
+            } else {
+              match(focus, current$info$trajectory_id)
+            }
+          )
+        } else {
+          choices <- scans_app_filter_choices(current)
+          bslib::update_toolbar_input_select(
+            "scans_app_source",
+            choices = choices$source,
+            selected = choices$source_all,
+            session = session
+          )
+          bslib::update_toolbar_input_select(
+            "scans_app_status",
+            choices = choices$status,
+            selected = choices$status_all,
+            session = session
+          )
+          selected(NULL)
+        }
       }
     )
 
@@ -439,7 +624,10 @@ scans_app_server <- function(
         query = scans_app_input_or(input$scans_app_query, ""),
         findings_only = isTRUE(input$scans_app_findings_only),
         annotated = annotated(),
-        annotated_only = isTRUE(input$scans_app_annotated_only)
+        annotated_only = isTRUE(
+          input$scans_app_annotated_only %||%
+            active()$investigation$view$annotated_only
+        )
       )
       pattern <- pattern_filter()
       if (!is.null(pattern)) {
@@ -747,7 +935,8 @@ scans_app_load_entry <- function(
       data = NULL,
       error = NULL,
       loaded_at = loaded_at,
-      read_info = NULL
+      read_info = source$investigation$manifest$source$read_info,
+      investigation = source$investigation
     ))
   }
   load <- function() {
@@ -759,7 +948,8 @@ scans_app_load_entry <- function(
           data = NULL,
           error = NULL,
           loaded_at = clock(),
-          read_info = loaded$read_info
+          read_info = loaded$read_info,
+          investigation = loaded$investigation
         )
       },
       error = function(cnd) {

@@ -1,8 +1,9 @@
 #' Explore trajectory diagnostics with the scans app
 #'
-#' `scans_app()` launches a read-only Shiny app for exploring one or more
-#' [TrajectoryBundle] snapshots. A named list creates an application switcher;
-#' each entry can be a bundle or a zero-argument loader that returns one. Lazy
+#' `scans_app()` launches a Shiny app for exploring one or more
+#' [TrajectoryBundle] snapshots or saved [investigation_snapshot()] values.
+#' A named list creates an application switcher; each entry can be a bundle,
+#' saved investigation, or a zero-argument loader that returns either. Lazy
 #' loaders make it practical to review snapshots from multiple deployed apps
 #' without downloading every snapshot when the review app starts.
 #'
@@ -25,6 +26,14 @@
 #' computed with [scan_trajectories()] when each application snapshot is first
 #' loaded.
 #'
+#' @section Saved investigations:
+#' Save visible trajectories downloads the selected retained evidence, analysis,
+#' scanner settings, and browser state as JSON. The preview describes the
+#' content policy before download. Open an investigation restores a file in the
+#' current session. Saved diagnostics remain unchanged until the reviewer
+#' chooses Apply current scanners; saving again records a parent revision.
+#' Opening does not contact the original source. See [investigation_files()].
+#'
 #' @section Posit Connect:
 #' Use [scans_app_connect()] when Connect content observability is enabled. It
 #' reads native OTLP traces for named deployed applications and supplies the
@@ -33,10 +42,12 @@
 #'
 #' @param annotations Optional [scans_annotations()] store. When supplied, the
 #'   app shows an annotation panel for the selected trajectory and appends what
-#'   reviewers write to that store. Without one the app makes no writes at all.
-#' @param x A [TrajectoryBundle], or a named list of application sources. Each
-#'   source must be a `TrajectoryBundle` or a zero-argument function that
-#'   returns one. Source names are shown in the application switcher.
+#'   reviewers write to that store. Without one the app writes only explicitly
+#'   requested investigation downloads.
+#' @param x A [TrajectoryBundle], a saved [investigation_snapshot()], or a named
+#'   list of application sources. Each source can be either value or a
+#'   zero-argument function that returns one. Source names are shown in the
+#'   application switcher.
 #'
 #' @returns A [shiny::shinyApp()] object. Calling `scans_app()` at the console
 #'   launches the app; the returned object can also be served from an `app.R`.
@@ -89,6 +100,12 @@ scans_app_check_annotations <- function(
 }
 
 scans_app_sources <- function(x, call = rlang::caller_env()) {
+  if (inherits(x, "scans_investigation")) {
+    investigation_validate(x)
+    return(scans_app_source_catalog(list(
+      scans_app_source(x$manifest$application, x)
+    )))
+  }
   if (is_trajectory_bundle(x)) {
     return(scans_app_source_catalog(list(
       scans_app_source("Trajectories", x)
@@ -109,7 +126,11 @@ scans_app_sources <- function(x, call = rlang::caller_env()) {
 
   sources <- Map(
     function(label, value) {
-      if (!is_trajectory_bundle(value) && !is.function(value)) {
+      if (
+        !is_trajectory_bundle(value) &&
+          !inherits(value, "scans_investigation") &&
+          !is.function(value)
+      ) {
         scans_abort(
           c(
             "Application source {.val {label}} must be a {.cls TrajectoryBundle} or a function.",
@@ -195,6 +216,15 @@ scans_app_check_labels <- function(labels, class, call) {
 }
 
 scans_app_source <- function(label, value) {
+  if (inherits(value, "scans_investigation")) {
+    investigation_validate(value)
+    return(list(
+      label = label,
+      bundle = value$bundle,
+      investigation = value,
+      load = NULL
+    ))
+  }
   if (is_trajectory_bundle(value)) {
     return(list(label = label, bundle = value, load = NULL))
   }
@@ -241,6 +271,14 @@ scans_app_load_source <- function(source) {
     return(list(bundle = source$bundle, read_info = NULL))
   }
   loaded <- source$load()
+  if (inherits(loaded, "scans_investigation")) {
+    investigation_validate(loaded)
+    return(list(
+      bundle = loaded$bundle,
+      investigation = loaded,
+      read_info = loaded$manifest$source$read_info
+    ))
+  }
   if (inherits(loaded, "scans_app_loaded_source")) {
     bundle <- loaded$bundle
     read_info <- loaded$read_info

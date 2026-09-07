@@ -28,6 +28,7 @@ Suggests:
     commonmark,
     commons (>= 0.0.0.9002),
     deputy (>= 0.0.0.9000),
+    digest,
     dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.4.2),
     htmltools,

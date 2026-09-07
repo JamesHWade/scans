@@ -81,6 +81,7 @@ scans_app_ui <- function(sources, annotations = NULL) {
       width = 380,
       class = "scans-app-browser",
       scans_app_application_ui(sources),
+      scans_app_investigation_ui(),
       shiny::textInput(
         "scans_app_query",
         label = NULL,
@@ -105,7 +106,8 @@ scans_app_ui <- function(sources, annotations = NULL) {
               "Annotated"
             )
           }
-        )
+        ),
+        shiny::uiOutput("scans_app_snapshot_annotation_filter")
       ),
       htmltools::div(
         class = "scans-app-browser-entries",

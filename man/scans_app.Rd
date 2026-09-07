@@ -7,22 +7,25 @@
 scans_app(x, annotations = NULL)
 }
 \arguments{
-\item{x}{A \link{TrajectoryBundle}, or a named list of application sources. Each
-source must be a \code{TrajectoryBundle} or a zero-argument function that
-returns one. Source names are shown in the application switcher.}
+\item{x}{A \link{TrajectoryBundle}, a saved \code{\link[=investigation_snapshot]{investigation_snapshot()}}, or a named
+list of application sources. Each source can be either value or a
+zero-argument function that returns one. Source names are shown in the
+application switcher.}
 
 \item{annotations}{Optional \code{\link[=scans_annotations]{scans_annotations()}} store. When supplied, the
 app shows an annotation panel for the selected trajectory and appends what
-reviewers write to that store. Without one the app makes no writes at all.}
+reviewers write to that store. Without one the app writes only explicitly
+requested investigation downloads.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console
 launches the app; the returned object can also be served from an \code{app.R}.
 }
 \description{
-\code{scans_app()} launches a read-only Shiny app for exploring one or more
-\link{TrajectoryBundle} snapshots. A named list creates an application switcher;
-each entry can be a bundle or a zero-argument loader that returns one. Lazy
+\code{scans_app()} launches a Shiny app for exploring one or more
+\link{TrajectoryBundle} snapshots or saved \code{\link[=investigation_snapshot]{investigation_snapshot()}} values.
+A named list creates an application switcher; each entry can be a bundle,
+saved investigation, or a zero-argument loader that returns either. Lazy
 loaders make it practical to review snapshots from multiple deployed apps
 without downloading every snapshot when the review app starts.
 }
@@ -46,6 +49,16 @@ losses associated with the selected trajectory. Built-in findings are
 computed with \code{\link[=scan_trajectories]{scan_trajectories()}} when each application snapshot is first
 loaded.
 }
+\section{Saved investigations}{
+
+Save visible trajectories downloads the selected retained evidence, analysis,
+scanner settings, and browser state as JSON. The preview describes the
+content policy before download. Open an investigation restores a file in the
+current session. Saved diagnostics remain unchanged until the reviewer
+chooses Apply current scanners; saving again records a parent revision.
+Opening does not contact the original source. See \code{\link[=investigation_files]{investigation_files()}}.
+}
+
 \section{Posit Connect}{
 
 Use \code{\link[=scans_app_connect]{scans_app_connect()}} when Connect content observability is enabled. It

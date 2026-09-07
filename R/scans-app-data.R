@@ -11,20 +11,33 @@ scans_app_scan_config <- function(
   )
 }
 
-scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
+scans_app_data <- function(
+  x,
+  scan_config = scans_app_scan_config(),
+  analysis = NULL
+) {
   info <- trajectory_info(x)
   turns <- trajectory_turns(x)
   events <- trajectory_events(x)
   evaluations <- trajectory_evaluations(x)
   losses <- trajectory_losses(x)
-  assessment <- assess_trajectory_scans(
-    x,
-    scans = scan_config$scans,
-    repeat_threshold = scan_config$repeat_threshold,
-    loop_threshold = scan_config$loop_threshold
-  )
-  findings <- assessment$findings
-  summaries <- summarize_trajectories(x)
+  if (is.null(analysis)) {
+    assessment <- assess_trajectory_scans(
+      x,
+      scans = scan_config$scans,
+      repeat_threshold = scan_config$repeat_threshold,
+      loop_threshold = scan_config$loop_threshold
+    )
+    analysis <- c(
+      assessment,
+      list(
+        summaries = summarize_trajectories(x),
+        measures = measure_trajectories(x)
+      )
+    )
+  }
+  findings <- analysis$findings
+  summaries <- analysis$summaries
   loss_trajectory_ids <- scans_app_loss_trajectory_ids(losses, turns, events)
 
   list(
@@ -35,9 +48,9 @@ scans_app_data <- function(x, scan_config = scans_app_scan_config()) {
     losses = losses,
     loss_trajectory_ids = loss_trajectory_ids,
     findings = findings,
-    assessments = assessment$assessments,
+    assessments = analysis$assessments,
     summaries = summaries,
-    measures = measure_trajectories(x),
+    measures = analysis$measures,
     records = scans_app_records(
       info,
       turns,
