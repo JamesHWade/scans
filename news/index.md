@@ -56,6 +56,26 @@
   work, and time outside recorded work; unsupported first-token latency
   and comparable cost remain unavailable
   ([\#40](https://github.com/JamesHWade/scans/issues/40)).
+- [`review_case()`](https://jameshwade.github.io/scans/reference/review_case.md)
+  and
+  [`review_decision()`](https://jameshwade.github.io/scans/reference/review_case.md)
+  bind append-only human judgments and expectations to exact
+  investigation evidence.
+  [`review_examples()`](https://jameshwade.github.io/scans/reference/review_examples.md)
+  selects versioned application or scanner cases with explicit mappings,
+  provenance-preserving JSON files, and development/test group
+  isolation;
+  [`review_dataset()`](https://jameshwade.github.io/scans/reference/review_dataset.md)
+  supplies vitals and dsprrr inputs, and
+  [`validate_review_examples()`](https://jameshwade.github.io/scans/reference/validate_review_examples.md)
+  checks scanner predicates without converting uncertainty to negative
+  labels ([\#41](https://github.com/JamesHWade/scans/issues/41)).
+- [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  and
+  [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
+  offer optional session-local review and example export controls with
+  `reviews = TRUE`
+  ([\#41](https://github.com/JamesHWade/scans/issues/41)).
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   shows scanner assessment details and filtered coverage counts, keeps
   detector execution failures visible, and no longer presents missing

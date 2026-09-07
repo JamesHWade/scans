@@ -19,7 +19,8 @@ scans_app_connect(
   reader = c("otel", "commons"),
   annotations = NULL,
   jobs = TRUE,
-  investigations = FALSE
+  investigations = FALSE,
+  reviews = FALSE
 )
 ```
 
@@ -67,6 +68,12 @@ scans_app_connect(
 - investigations:
 
   Whether to enable investigation save/open controls, forwarded to
+  [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md).
+  Defaults to `FALSE`.
+
+- reviews:
+
+  Whether to enable session-local review/example controls, forwarded to
   [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md).
   Defaults to `FALSE`.
 

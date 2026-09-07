@@ -276,3 +276,18 @@ for the development workflow. Please note that scans is released with a
 [Contributor Code of
 Conduct](https://github.com/JamesHWade/scans/blob/main/.github/CODE_OF_CONDUCT.md).
 By contributing, you agree to abide by its terms.
+
+### Turn reviews into regression cases
+
+Freeze an investigation, record a decision against exact evidence, and
+select explicit examples for scanner validation, vitals evaluation, or
+dsprrr prompt optimization. Application targets remain separate from
+scanner judgments, and related cases cannot cross development/test
+splits. Enable the optional app controls with
+`scans_app(bundle, reviews = TRUE)`.
+
+See [Turn a review into an improvement
+example](https://jameshwade.github.io/scans/articles/reviewed-examples.html)
+for the review/export round trip and an offline recipe that runs public
+dsprrr and vitals producers and brings the resulting traces back into
+Scans.

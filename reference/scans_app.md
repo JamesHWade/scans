@@ -16,7 +16,8 @@ starts.
 scans_app(
   x,
   annotations = NULL,
-  investigations = inherits(x, "scans_investigation")
+  investigations = inherits(x, "scans_investigation"),
+  reviews = FALSE
 )
 ```
 
@@ -48,6 +49,12 @@ scans_app(
   Whether to enable investigation save, upload, and rescan controls.
   Defaults to `TRUE` for a single saved investigation and `FALSE` for
   other inputs. Set explicitly for named sources or lazy loaders.
+
+- reviews:
+
+  Whether to enable session-local evidence review and example export
+  controls. Defaults to `FALSE`. Download selected examples to keep them
+  after closing the session; no shared review store is written.
 
 ## Value
 

@@ -59,3 +59,19 @@
 - [`write_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
   [`read_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
   : Write or read a saved investigation
+
+## Reviewed examples
+
+- [`review_case()`](https://jameshwade.github.io/scans/reference/review_case.md)
+  [`review_decision()`](https://jameshwade.github.io/scans/reference/review_case.md)
+  [`review_status()`](https://jameshwade.github.io/scans/reference/review_case.md)
+  : Review exact trajectory evidence
+- [`review_examples()`](https://jameshwade.github.io/scans/reference/review_examples.md)
+  : Select versioned examples from reviewed evidence
+- [`review_dataset()`](https://jameshwade.github.io/scans/reference/review_dataset.md)
+  : Build explicitly mapped evaluation or optimization data
+- [`write_review_examples()`](https://jameshwade.github.io/scans/reference/review_example_files.md)
+  [`read_review_examples()`](https://jameshwade.github.io/scans/reference/review_example_files.md)
+  : Save or reopen selected review examples
+- [`validate_review_examples()`](https://jameshwade.github.io/scans/reference/validate_review_examples.md)
+  : Check reviewed scanner targets against retained evidence

@@ -8,5 +8,7 @@
   traces](https://jameshwade.github.io/scans/articles/connect.md):
 - [Investigate a support assistant
   offline](https://jameshwade.github.io/scans/articles/investigate.md):
+- [Turn a review into an improvement
+  example](https://jameshwade.github.io/scans/articles/reviewed-examples.md):
 - [Get started with
   scans](https://jameshwade.github.io/scans/articles/scans.md):

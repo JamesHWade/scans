@@ -10,6 +10,7 @@
 <url><loc>https://jameshwade.github.io/scans/articles/connect.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/index.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/investigate.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/articles/reviewed-examples.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/scans.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/authors.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/index.html</loc></url>
@@ -30,6 +31,10 @@
 <url><loc>https://jameshwade.github.io/scans/reference/investigation_snapshot.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/measure_trajectories.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/read_connect_traces.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/review_case.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/review_dataset.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/review_example_files.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/review_examples.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scan_registry.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scan_trajectories.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scans-package.html</loc></url>
@@ -38,5 +43,6 @@
 <url><loc>https://jameshwade.github.io/scans/reference/scans_app_connect.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/summarize_trajectories.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/trajectory_accessors.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/validate_review_examples.html</loc></url>
 </urlset>
 

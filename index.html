@@ -16,8 +16,8 @@
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Diagnose AI Agent Trajectories">
-<meta name="description" content="Provides tools to import, inspect, scan, and validate trajectories produced by artificial intelligence agents. Completed runs from ellmer chats, OpenTelemetry GenAI traces retained by Posit Connect, and related R agent frameworks are normalized into one validated trajectory structure. Complements outcome evaluation with post-run analysis of messages, tool calls, events, and multi-agent execution, deterministic scans for common failure patterns, and a read-only review app.">
-<meta property="og:description" content="Provides tools to import, inspect, scan, and validate trajectories produced by artificial intelligence agents. Completed runs from ellmer chats, OpenTelemetry GenAI traces retained by Posit Connect, and related R agent frameworks are normalized into one validated trajectory structure. Complements outcome evaluation with post-run analysis of messages, tool calls, events, and multi-agent execution, deterministic scans for common failure patterns, and a read-only review app.">
+<meta name="description" content="Provides tools to import, inspect, scan, and validate trajectories produced by artificial intelligence agents. Completed runs from ellmer chats, OpenTelemetry GenAI traces retained by Posit Connect, and related R agent frameworks are normalized into one validated trajectory structure. Complements outcome evaluation with post-run analysis of messages, tool calls, events, and multi-agent execution, deterministic scans for common failure patterns, and a review app with optional evidence-bound judgments and selected examples.">
+<meta property="og:description" content="Provides tools to import, inspect, scan, and validate trajectories produced by artificial intelligence agents. Completed runs from ellmer chats, OpenTelemetry GenAI traces retained by Posit Connect, and related R agent frameworks are normalized into one validated trajectory structure. Complements outcome evaluation with post-run analysis of messages, tool calls, events, and multi-agent execution, deterministic scans for common failure patterns, and a review app with optional evidence-bound judgments and selected examples.">
 <meta property="og:image" content="https://jameshwade.github.io/scans/logo.png">
 </head>
 <body>
@@ -45,6 +45,7 @@
 <li><a class="dropdown-item" href="articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="articles/connect.html">Reviewing Posit Connect traces</a></li>
     <li><a class="dropdown-item" href="articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
@@ -259,6 +260,12 @@
 <h2 id="getting-help-and-contributing">Getting help and contributing<a class="anchor" aria-label="anchor" href="#getting-help-and-contributing"></a>
 </h2>
 <p>See <a href="https://github.com/JamesHWade/scans/blob/main/.github/SUPPORT.md" class="external-link">SUPPORT.md</a> for where to ask questions and <a href="https://github.com/JamesHWade/scans/blob/main/.github/CONTRIBUTING.md" class="external-link">CONTRIBUTING.md</a> for the development workflow. Please note that scans is released with a <a href="https://github.com/JamesHWade/scans/blob/main/.github/CODE_OF_CONDUCT.md" class="external-link">Contributor Code of Conduct</a>. By contributing, you agree to abide by its terms.</p>
+<div class="section level3">
+<h3 id="turn-reviews-into-regression-cases">Turn reviews into regression cases<a class="anchor" aria-label="anchor" href="#turn-reviews-into-regression-cases"></a>
+</h3>
+<p>Freeze an investigation, record a decision against exact evidence, and select explicit examples for scanner validation, vitals evaluation, or dsprrr prompt optimization. Application targets remain separate from scanner judgments, and related cases cannot cross development/test splits. Enable the optional app controls with <code>scans_app(bundle, reviews = TRUE)</code>.</p>
+<p>See <a href="https://jameshwade.github.io/scans/articles/reviewed-examples.html">Turn a review into an improvement example</a> for the review/export round trip and an offline recipe that runs public dsprrr and vitals producers and brings the resulting traces back into Scans.</p>
+</div>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
