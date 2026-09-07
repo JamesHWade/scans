@@ -126,6 +126,10 @@ test_that("omitted parents remain explicit without importing their records", {
   expect_identical(saved$analysis$summaries$parent_trajectory_id, NA_character_)
   expect_identical(saved$analysis$summaries$trajectory_depth, 0L)
   expect_identical(saved$analysis$summaries$n_losses, 1L)
+  expect_identical(
+    unique(saved$analysis$measures$parent_trajectory_id),
+    NA_character_
+  )
   loss <- trajectory_losses(saved$bundle)
   expect_identical(loss$reason, "scans:selection_omission")
   expect_identical(loss$metadata[[1]]$parent_trajectory_id, "parent")
@@ -252,7 +256,48 @@ test_that("selection updates descendant depths without rerunning saved diagnosti
   )
   expect_identical(revised$analysis$summaries$trajectory_depth, c(0L, 1L))
   expect_identical(revised$analysis$summaries$n_losses, c(1L, 0L))
+  attribution <- unique(revised$analysis$measures[c(
+    "trajectory_id",
+    "parent_trajectory_id"
+  )])
+  expect_identical(attribution$trajectory_id, c("child", "grandchild"))
+  expect_identical(attribution$parent_trajectory_id, c(NA, "child"))
   path <- tempfile()
   write_investigation(revised, path)
   expect_identical(read_investigation(path), revised)
+})
+
+
+test_that("selection maps structural summaries by trajectory identity", {
+  bundle <- TrajectoryBundle(
+    data.frame(
+      trajectory_id = c("root", "child", "grandchild"),
+      parent_trajectory_id = c(NA, "root", "child"),
+      source_type = "manual"
+    ),
+    NULL,
+    NULL
+  )
+  saved <- investigation_snapshot(bundle)
+  analysis <- saved$analysis
+  analysis$summaries <- analysis$summaries[3:1, ]
+  revised <- investigation_build(
+    bundle,
+    c("child", "grandchild"),
+    "Trajectories",
+    list(),
+    saved$settings,
+    list(),
+    analysis
+  )
+  expect_identical(
+    revised$analysis$summaries$trajectory_id,
+    c("grandchild", "child")
+  )
+  expect_identical(
+    revised$analysis$summaries$parent_trajectory_id,
+    c("child", NA)
+  )
+  expect_identical(revised$analysis$summaries$trajectory_depth, c(1L, 0L))
+  expect_identical(revised$analysis$summaries$n_losses, c(0L, 1L))
 })

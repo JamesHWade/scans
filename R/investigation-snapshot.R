@@ -169,15 +169,21 @@ investigation_build <- function(
     table[table$trajectory_id %in% ids, , drop = FALSE]
   })
   selected_info <- trajectory_info(selected$bundle)
-  analysis$summaries$parent_trajectory_id <- selected_info$parent_trajectory_id
+  summary_rows <- match(analysis$summaries$trajectory_id, ids)
+  analysis$summaries$parent_trajectory_id <- selected_info$parent_trajectory_id[
+    summary_rows
+  ]
+  analysis$measures$parent_trajectory_id <- selected_info$parent_trajectory_id[
+    match(analysis$measures$trajectory_id, ids)
+  ]
   analysis$summaries$trajectory_depth <- scan_parent_depths(
     selected_info$trajectory_id,
     selected_info$parent_trajectory_id
-  )
+  )[summary_rows]
   analysis$summaries$n_losses <- tabulate(
     match(trajectory_losses(selected$bundle)$trajectory_id, ids),
     nbins = length(ids)
-  )
+  )[summary_rows]
   if (nrow(analysis$assessments)) {
     analysis$assessments$loss_rows <- lapply(
       analysis$assessments$loss_rows,
