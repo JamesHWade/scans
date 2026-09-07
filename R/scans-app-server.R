@@ -8,7 +8,8 @@ scans_app_server <- function(
   clock = Sys.time,
   schedule = shiny::invalidateLater,
   annotation_poll_interval = 2000,
-  investigations = FALSE
+  investigations = FALSE,
+  reviews = FALSE
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -166,6 +167,21 @@ scans_app_server <- function(
       analysis <- if (!is.null(saved) && !rescan_investigation()) saved$analysis
       scans_app_data(current$bundle, scan_config(), analysis = analysis)
     })
+
+    review_state <- if (reviews) {
+      scans_app_review_server(
+        input,
+        output,
+        session,
+        data,
+        active,
+        application,
+        scan_config,
+        selected_trajectory_id,
+        rescan_investigation,
+        opened_investigation
+      )
+    }
 
     shiny::observeEvent(
       input$scans_app_open_investigation,

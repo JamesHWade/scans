@@ -7,7 +7,8 @@
 scans_app(
   x,
   annotations = NULL,
-  investigations = inherits(x, "scans_investigation")
+  investigations = inherits(x, "scans_investigation"),
+  reviews = FALSE
 )
 }
 \arguments{
@@ -26,6 +27,10 @@ investigation downloads.}
 \item{investigations}{Whether to enable investigation save, upload, and
 rescan controls. Defaults to \code{TRUE} for a single saved investigation and
 \code{FALSE} for other inputs. Set explicitly for named sources or lazy loaders.}
+
+\item{reviews}{Whether to enable session-local evidence review and example
+export controls. Defaults to \code{FALSE}. Download selected examples to keep
+them after closing the session; no shared review store is written.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console

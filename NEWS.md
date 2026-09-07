@@ -1,5 +1,6 @@
 # scans 0.0.0.9000
 
+
 * A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (#45).
 * `as_trajectory_commons()` accepts current conversations with `turns` and `last_active` fields as well as earlier turn-list results. Provenance remains attached to the turns, and missing source descriptors are reported instead of inferred (#56).
 * `as_trajectory_deputy()` reads current Deputy S7 results, event payloads, and usage records through their public properties while preserving support for earlier R6 results.
@@ -8,6 +9,8 @@
 * `as_trajectory_tempest()` accepts the initial Tempest development version when its public review accessor and supported schema are available.
 * `investigation_snapshot()`, `write_investigation()`, and `read_investigation()` save and reopen selected evidence with its analysis, capture limits, scanner settings, view state, and revision identity. With `investigations = TRUE`, `scans_app()` and `scans_app_connect()` can download the visible selection and reopen a file without contacting its source or implicitly rerunning scanners. Files contain retained content and preserve existing redactions; they do not add anonymization (#44).
 * `measure_trajectories()` reports resource values with recording denominators, source units, attribution, and limitations while preserving `summarize_trajectories()` semantics. It normalizes ellmer's separate input/cache components when both are recorded and identifies known cache-inclusive totals. It distinguishes inclusive model/tool durations, overlap-aware recorded work, and time outside recorded work; unsupported first-token latency and comparable cost remain unavailable (#40).
+* `review_case()` and `review_decision()` bind append-only human judgments and expectations to exact investigation evidence. `review_examples()` selects versioned application or scanner cases with explicit mappings, provenance-preserving JSON files, and development/test group isolation; `review_dataset()` supplies vitals and dsprrr inputs, and `validate_review_examples()` checks scanner predicates without converting uncertainty to negative labels (#41).
+* `scans_app()` and `scans_app_connect()` offer optional session-local review and example export controls with `reviews = TRUE` (#41).
 * `scans_app()` shows scanner assessment details and filtered coverage counts, keeps detector execution failures visible, and no longer presents missing diagnostic evidence as a clean result (#52).
 * `scans_app()` uses the public resource measurements, shows where recorded time went, and exposes individual values and coverage in Resource measurements. Incomplete captured timestamps cannot establish conversation elapsed time, and partial recorded-work values are excluded from the overview's timing medians (#40).
 

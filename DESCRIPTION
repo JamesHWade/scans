@@ -10,7 +10,7 @@ Description: Provides tools to import, inspect, scan, and validate
     validated trajectory structure. Complements outcome evaluation with
     post-run analysis of messages, tool calls, events, and multi-agent
     execution, deterministic scans for common failure patterns, and a
-    read-only review app.
+    review app with optional evidence-bound judgments and selected examples.
 License: MIT + file LICENSE
 URL: https://jameshwade.github.io/scans/,
     https://github.com/JamesHWade/scans

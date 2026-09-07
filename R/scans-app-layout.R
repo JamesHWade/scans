@@ -59,7 +59,12 @@ scans_app_initial_choices <- function(source) {
   scans_app_filter_choices()
 }
 
-scans_app_ui <- function(sources, annotations = NULL, investigations = FALSE) {
+scans_app_ui <- function(
+  sources,
+  annotations = NULL,
+  investigations = FALSE,
+  reviews = FALSE
+) {
   choices <- scans_app_initial_choices(sources$sources[[1L]])
 
   page <- bslib::page_sidebar(
@@ -164,6 +169,7 @@ scans_app_ui <- function(sources, annotations = NULL, investigations = FALSE) {
             width = 340,
             class = "scans-app-evidence",
             scans_app_annotation_ui(annotations),
+            if (reviews) scans_app_review_ui(),
             shiny::uiOutput("scans_app_evidence")
           ),
           htmltools::tags$main(
