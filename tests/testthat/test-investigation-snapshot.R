@@ -123,6 +123,9 @@ test_that("omitted parents remain explicit without importing their records", {
     trajectory_info(saved$bundle)$parent_trajectory_id,
     NA_character_
   )
+  expect_identical(saved$analysis$summaries$parent_trajectory_id, NA_character_)
+  expect_identical(saved$analysis$summaries$trajectory_depth, 0L)
+  expect_identical(saved$analysis$summaries$n_losses, 1L)
   loss <- trajectory_losses(saved$bundle)
   expect_identical(loss$reason, "scans:selection_omission")
   expect_identical(loss$metadata[[1]]$parent_trajectory_id, "parent")
@@ -215,4 +218,41 @@ test_that("resaving a captured subset preserves prior omission counts", {
       class = "scans_error_investigation"
     )
   }
+})
+
+
+test_that("selection updates descendant depths without rerunning saved diagnostics", {
+  bundle <- TrajectoryBundle(
+    data.frame(
+      trajectory_id = c("root", "child", "grandchild"),
+      parent_trajectory_id = c(NA, "root", "child"),
+      source_type = "manual"
+    ),
+    NULL,
+    NULL
+  )
+  saved <- investigation_snapshot(bundle)
+  local_mocked_bindings(
+    summarize_trajectories = function(...) stop("Do not rerun saved summaries"),
+    assess_trajectory_scans = function(...) stop("Do not rerun saved scanners")
+  )
+  revised <- investigation_build(
+    saved$bundle,
+    c("child", "grandchild"),
+    saved$manifest$application,
+    saved$manifest$source,
+    saved$settings,
+    list(),
+    saved$analysis,
+    previous = saved
+  )
+  expect_identical(
+    revised$analysis$summaries$parent_trajectory_id,
+    c(NA, "child")
+  )
+  expect_identical(revised$analysis$summaries$trajectory_depth, c(0L, 1L))
+  expect_identical(revised$analysis$summaries$n_losses, c(1L, 0L))
+  path <- tempfile()
+  write_investigation(revised, path)
+  expect_identical(read_investigation(path), revised)
 })
