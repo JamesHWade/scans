@@ -161,7 +161,7 @@ investigation_build <- function(
     )
   }
   ids <- info$trajectory_id[info$trajectory_id %in% ids]
-  view <- investigation_view(view, ids)
+  view <- investigation_view(view, ids, settings$scans)
   selected <- investigation_select(x, ids)
   analysis <- lapply(analysis, function(table) {
     table[table$trajectory_id %in% ids, , drop = FALSE]
@@ -230,7 +230,7 @@ investigation_build <- function(
   out
 }
 
-investigation_view <- function(view, ids) {
+investigation_view <- function(view, ids, scans) {
   defaults <- list(
     query = "",
     source_type = NULL,
@@ -284,7 +284,7 @@ investigation_view <- function(view, ids) {
       !all(view$annotation_ids %in% ids) ||
       (!is.null(view$selected_trajectory_id) &&
         !view$selected_trajectory_id %in% ids) ||
-      (!is.null(view$pattern) && !view$pattern %in% scan_registry()$scan)
+      (!is.null(view$pattern) && !view$pattern %in% scans)
   ) {
     investigation_abort(
       "The investigation view has invalid filters or trajectory references."
@@ -371,16 +371,16 @@ investigation_validate <- function(x) {
       !is.character(settings$scans) ||
       anyNA(settings$scans) ||
       anyDuplicated(settings$scans) ||
-      !all(settings$scans %in% scan_registry()$scan)
+      !all(nzchar(settings$scans))
   ) {
     investigation_abort(
-      "The saved scanner settings are invalid or unsupported."
+      "The saved scanner settings are invalid."
     )
   }
   for (name in c("repeat_threshold", "loop_threshold")) {
     scan_check_threshold(settings[[name]], name, rlang::caller_env())
   }
-  if (!identical(x$view, investigation_view(x$view, ids))) {
+  if (!identical(x$view, investigation_view(x$view, ids, settings$scans))) {
     investigation_abort("The saved view is invalid.")
   }
   analysis <- x$analysis
@@ -482,6 +482,9 @@ investigation_validate <- function(x) {
   if (
     nrow(assessments) != expected ||
       anyDuplicated(assessments[c("trajectory_id", "scan")]) ||
+      anyNA(assessments$scan_version) ||
+      !all(nzchar(assessments$scan_version)) ||
+      anyDuplicated(unique(assessments[c("scan", "scan_version")])$scan) ||
       !all(
         assessments$status %in%
           c(

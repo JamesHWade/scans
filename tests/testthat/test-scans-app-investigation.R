@@ -137,3 +137,35 @@ test_that("app uploads can reopen investigations above Shiny's original default"
     expect_identical(active()$investigation, saved)
   })
 })
+
+test_that("removed scanners remain visible until an explicit current rescan", {
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    scans = "event_error",
+    view = list(pattern = "event_error")
+  )
+  registry <- scan_registry()
+  local_mocked_bindings(scan_registry = function() {
+    registry[registry$scan != "event_error", ]
+  })
+  app <- scans_app(saved)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    expect_identical(data()$findings, saved$analysis$findings)
+    expect_identical(pattern_filter(), "event_error")
+    expect_match(output$scans_app_scan_summary, "1 saved scan")
+    expect_match(
+      output$scans_app_investigation_status$html,
+      "unavailable in this installation"
+    )
+    session$setInputs(scans_app_save_investigation = 1L)
+    expect_identical(pending_investigation()$settings$scans, "event_error")
+    session$setInputs(scans_app_scans = "trajectory_error")
+    expect_identical(scan_config()$scans, "event_error")
+    session$setInputs(scans_app_rescan_investigation = 1L)
+    expect_identical(scan_config()$scans, "trajectory_error")
+    expect_null(pattern_filter())
+    expect_identical(nrow(data()$findings), 0L)
+  })
+})

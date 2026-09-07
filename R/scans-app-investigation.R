@@ -59,6 +59,11 @@ scans_app_investigation_status_ui <- function(saved, rescanned, uploaded) {
         )
       }
     ),
+    if (!rescanned && !all(saved$settings$scans %in% scan_registry()$scan)) {
+      htmltools::tags$p(
+        "Some saved scanners are unavailable in this installation. Saved results remain visible; choose current scanners below to run a new analysis."
+      )
+    },
     htmltools::tags$small(paste(
       "Snapshot",
       substr(saved$manifest$snapshot_id, 8, 19)

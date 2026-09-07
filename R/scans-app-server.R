@@ -511,6 +511,15 @@ scans_app_server <- function(
         return("No scans selected \u00b7 findings are hidden")
       }
       findings <- if (is.null(current)) 0L else nrow(current$findings)
+      if (!is.null(active()$investigation) && !rescan_investigation()) {
+        return(sprintf(
+          "%d saved scan%s \u00b7 %d finding%s",
+          selected,
+          if (selected == 1L) "" else "s",
+          findings,
+          if (findings == 1L) "" else "s"
+        ))
+      }
       sprintf(
         "%d of %d scans \u00b7 %d finding%s",
         selected,

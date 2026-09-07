@@ -27,7 +27,9 @@ read_investigation(path, max_bytes = 50 * 1024^2)
 \description{
 \code{write_investigation()} writes a value created by
 \code{\link[=investigation_snapshot]{investigation_snapshot()}}. \code{read_investigation()} validates and reopens it
-without contacting its source or rerunning scanners. Pass the result to
+without contacting its source or rerunning scanners. Saved scanner identities
+can be reopened even when they are absent from the installed registry.
+Pass the result to
 \code{\link[=scans_app]{scans_app()}} or inspect its \code{bundle}, \code{analysis}, \code{settings}, and \code{manifest}.
 }
 \details{

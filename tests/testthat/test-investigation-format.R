@@ -97,3 +97,17 @@ test_that("size limits and overwrite defaults protect existing files", {
   writeLines("not JSON", path)
   expect_snapshot(error = TRUE, read_investigation(path))
 })
+
+test_that("opening saved scanner identities does not consult the installed registry", {
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    scans = "event_error",
+    view = list(pattern = "event_error")
+  )
+  path <- tempfile()
+  write_investigation(saved, path)
+  local_mocked_bindings(scan_registry = function() {
+    stop("Must not use the current registry")
+  })
+  expect_identical(read_investigation(path), saved)
+})

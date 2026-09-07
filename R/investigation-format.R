@@ -2,7 +2,9 @@
 #'
 #' `write_investigation()` writes a value created by
 #' [investigation_snapshot()]. `read_investigation()` validates and reopens it
-#' without contacting its source or rerunning scanners. Pass the result to
+#' without contacting its source or rerunning scanners. Saved scanner identities
+#' can be reopened even when they are absent from the installed registry.
+#' Pass the result to
 #' [scans_app()] or inspect its `bundle`, `analysis`, `settings`, and `manifest`.
 #'
 #' Files use the versioned scans JSON format. They contain retained content,
