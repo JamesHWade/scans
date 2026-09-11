@@ -1,5 +1,6 @@
 test_that("Ask is optional and creates no shared conversation state", {
-  skip_if_not_installed("shinychat")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
   calls <- 0L
   shared <- scans_test_chat()
   shared$set_turns(list(ellmer::UserTurn(list(ellmer::ContentText(
@@ -33,7 +34,8 @@ test_that("Ask is optional and creates no shared conversation state", {
 })
 
 test_that("native streaming pins tools and evidence while navigation changes", {
-  skip_if_not_installed("shinychat")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
   control <- new.env(parent = emptyenv())
   control$hold <- TRUE
   app <- scans_app(scans_support_bundle(), chat_factory = function() {
@@ -80,7 +82,8 @@ test_that("native streaming pins tools and evidence while navigation changes", {
 })
 
 test_that("native cancellation stops the pending fixture stream", {
-  skip_if_not_installed("shinychat")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
   control <- new.env(parent = emptyenv())
   control$hold <- TRUE
   app <- scans_app(scans_support_bundle(), chat_factory = function() {
@@ -109,7 +112,8 @@ test_that("native cancellation stops the pending fixture stream", {
 })
 
 test_that("later questions change scope without importing earlier model context", {
-  skip_if_not_installed("shinychat")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
   app <- scans_app(scans_support_bundle(), chat_factory = scans_test_chat)
   shiny::testServer(app$serverFuncSource(), {
     session$setInputs(
@@ -139,7 +143,8 @@ test_that("later questions change scope without importing earlier model context"
 })
 
 test_that("old answer references restore retained evidence after a source change", {
-  skip_if_not_installed("shinychat")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
   app <- scans_app(
     list(
       "Support" = scans_support_bundle(),
@@ -170,4 +175,24 @@ test_that("old answer references restore retained evidence after a source change
     expect_identical(application(), "Other")
     expect_false(viewing_chat_snapshot())
   })
+})
+
+test_that("Ask rejects outdated ellmer before initializing a provider", {
+  check <- ellmer_check_installed
+  local_mocked_bindings(ellmer_check_installed = function(...) {
+    check(..., installed = function(pkg, version) {
+      numeric_version("0.4.2") >= numeric_version(version)
+    })
+  })
+  calls <- 0L
+  factory <- function() {
+    calls <<- calls + 1L
+    NULL
+  }
+  expect_error(
+    scans_app_check_chat_factory(factory),
+    regexp = "ellmer.*0[.]5[.]0",
+    class = "scans_error_missing_dependency"
+  )
+  expect_equal(calls, 0L)
 })

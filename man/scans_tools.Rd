@@ -41,7 +41,7 @@ To recompute them, explicitly create a new \code{\link[=investigation_snapshot]{
 its bundle and supply that separate investigation.
 }
 \examples{
-if (requireNamespace("ellmer", quietly = TRUE)) {
+if (rlang::is_installed("ellmer", version = "0.5.0")) {
   bundle <- TrajectoryBundle(
     data.frame(trajectory_id = "run-1", source_type = "manual"),
     data.frame(), data.frame()

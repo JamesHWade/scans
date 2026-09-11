@@ -27,7 +27,7 @@
 #'   `scans_get_findings`, and `scans_measure`.
 #' @export
 #' @examples
-#' if (requireNamespace("ellmer", quietly = TRUE)) {
+#' if (rlang::is_installed("ellmer", version = "0.5.0")) {
 #'   bundle <- TrajectoryBundle(
 #'     data.frame(trajectory_id = "run-1", source_type = "manual"),
 #'     data.frame(), data.frame()
@@ -40,7 +40,8 @@ scans_tools <- function(
   max_rows = 100L,
   max_chars = 4000L
 ) {
-  rlang::check_installed(c("ellmer", "jsonlite", "digest"))
+  ellmer_check_installed(version = "0.5.0")
+  rlang::check_installed(c("jsonlite", "digest"))
   scans_tools_integer(max_rows, "max_rows", 1L, 1000L)
   scans_tools_integer(max_chars, "max_chars", 100L, 16000L)
   context <- scans_tools_context(x, trajectory_ids)
@@ -150,6 +151,9 @@ scans_tools_rows <- function(data, max_chars, content_offset = 0L) {
   lapply(seq_len(nrow(data)), function(i) {
     row <- lapply(data, function(column) {
       value <- column[[i]]
+      if (is.null(value)) {
+        return(NULL)
+      }
       if (inherits(column, "POSIXt")) {
         return(
           if (is.na(value)) {
@@ -438,7 +442,16 @@ scans_tools_build <- function(
   ) {
     result <- rows_for(context$data$measures, trajectory_ids)
     if (!is.null(measures)) {
-      scans_tools_ids(measures, unique(context$data$measures$measure))
+      if (
+        !is.character(measures) ||
+          anyNA(measures) ||
+          !all(measures %in% context$data$measures$measure)
+      ) {
+        scans_abort(
+          "{.arg measures} must name retained resource measurements.",
+          class = "scans_error_tools_measure"
+        )
+      }
       result <- result[result$measure %in% measures, ]
     }
     groups <- split(result, result$measure)

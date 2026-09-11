@@ -1,5 +1,5 @@
 test_that("tools count the population and retain canonical evidence", {
-  skip_if_not_installed("ellmer")
+  skip_if_not_installed("ellmer", "0.5.0")
   bundle <- scans_support_bundle()
   tools <- scans_tools(bundle)
   summary <- scans_tool_result(tools$scans_summarize)
@@ -30,7 +30,7 @@ test_that("tools count the population and retain canonical evidence", {
 })
 
 test_that("scope cannot broaden through any tool", {
-  skip_if_not_installed("ellmer")
+  skip_if_not_installed("ellmer", "0.5.0")
   tools <- scans_tools(scans_support_bundle(), "otel/retry", max_rows = 2L)
   expect_equal(
     scans_tool_result(tools$scans_list_trajectories)$paging$total,
@@ -79,7 +79,7 @@ test_that("scope cannot broaden through any tool", {
 })
 
 test_that("saved analysis is retained and missing measurements stay unknown", {
-  skip_if_not_installed("ellmer")
+  skip_if_not_installed("ellmer", "0.5.0")
   bundle <- scans_support_bundle()
   saved <- investigation_snapshot(
     bundle,
@@ -114,7 +114,7 @@ test_that("saved analysis is retained and missing measurements stay unknown", {
 })
 
 test_that("oversized fields have retrievable slices and copies are immutable", {
-  skip_if_not_installed("ellmer")
+  skip_if_not_installed("ellmer", "0.5.0")
   bundle <- trajectory_fixture("simple_exchange")
   events <- trajectory_events(bundle)
   events$text[[1L]] <- paste(rep("abcdef", 100L), collapse = "")
@@ -166,7 +166,7 @@ test_that("oversized fields have retrievable slices and copies are immutable", {
 })
 
 test_that("measure comparisons distinguish partial and complete observations", {
-  skip_if_not_installed("ellmer")
+  skip_if_not_installed("ellmer", "0.5.0")
   tools <- scans_tools(scans_support_bundle())
   result <- scans_tool_result(tools$scans_measure, measures = "recorded_work")
   comparison <- result$comparison[[1L]]
@@ -178,7 +178,7 @@ test_that("measure comparisons distinguish partial and complete observations", {
 })
 
 test_that("tool and app text filtering and ordering agree", {
-  skip_if_not_installed("ellmer")
+  skip_if_not_installed("ellmer", "0.5.0")
   bundle <- scans_support_bundle()
   data <- scans_app_data(bundle)
   tools <- scans_tools(bundle)
@@ -195,4 +195,83 @@ test_that("tool and app text filtering and ordering agree", {
       data$records$trajectory_id[visible]
     )
   }
+})
+
+test_that("absent event values remain JSON null rather than recorded text", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  bundle <- trajectory_fixture("simple_exchange")
+  events <- trajectory_events(bundle)
+  events$value <- list(NULL, list(status = "null", optional = NULL))
+  events$metadata <- list(list(recorded = NULL), list())
+  bundle <- TrajectoryBundle(
+    trajectory_info(bundle),
+    trajectory_turns(bundle),
+    events
+  )
+  tools <- scans_tools(bundle)
+  result <- scans_tool_result(tools$scans_read_trajectory, "trajectory-simple")
+
+  expect_contains(names(result$data[[1L]]), c("value", "metadata"))
+  expect_null(result$data[[1L]]$value)
+  expect_equal(
+    jsonlite::fromJSON(result$data[[1L]]$metadata, simplifyVector = FALSE),
+    list(recorded = NULL)
+  )
+  expect_equal(
+    jsonlite::fromJSON(result$data[[2L]]$value, simplifyVector = FALSE),
+    list(status = "null", optional = NULL)
+  )
+  expect_identical(result$data[[2L]]$metadata, "[]")
+})
+
+test_that("invalid measure names receive a measurement diagnostic", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  tools <- scans_tools(scans_support_bundle())
+  for (measures in list("elasped", c("elapsed", NA_character_), 1L)) {
+    expect_error(
+      tools$scans_measure(measures = measures),
+      regexp = "measures.*resource measurements",
+      class = "scans_error_tools_measure"
+    )
+  }
+  result <- scans_tool_result(tools$scans_measure, measures = character())
+  expect_length(result$data, 0L)
+})
+
+test_that("missing string arguments receive the tools input condition", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  tools <- scans_tools(scans_support_bundle())
+  expect_error(
+    tools$scans_read_trajectory(NA_character_),
+    class = "scans_error_tools_input"
+  )
+  expect_error(
+    tools$scans_read_trajectory("otel/retry", event_id = NA_character_),
+    class = "scans_error_tools_input"
+  )
+  for (name in c("query", "role", "event_type", "tool", "status")) {
+    expect_error(
+      do.call(
+        tools$scans_find_events,
+        stats::setNames(list(NA_character_), name)
+      ),
+      class = "scans_error_tools_input"
+    )
+  }
+})
+
+test_that("tools require newer ellmer without raising the adapter minimum", {
+  check <- ellmer_check_installed
+  local_mocked_bindings(ellmer_check_installed = function(...) {
+    check(..., installed = function(pkg, version) {
+      numeric_version("0.4.2") >= numeric_version(version)
+    })
+  })
+
+  expect_no_error(ellmer_check_installed())
+  expect_error(
+    scans_tools(NULL),
+    regexp = "ellmer.*0[.]5[.]0",
+    class = "scans_error_missing_dependency"
+  )
 })

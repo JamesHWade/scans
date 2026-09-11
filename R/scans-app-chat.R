@@ -9,7 +9,8 @@ scans_app_check_chat_factory <- function(factory) {
     )
   }
   scans_app_check_loader(factory, "Ask", rlang::caller_env())
-  rlang::check_installed(c("ellmer", "jsonlite", "digest"))
+  ellmer_check_installed(version = "0.5.0")
+  rlang::check_installed(c("jsonlite", "digest"))
   if (!"history" %in% names(formals(shinychat::chat_server))) {
     scans_abort(
       "Ask requires a version of shinychat with session-local chat history controls. Update shinychat.",

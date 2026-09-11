@@ -1,8 +1,12 @@
-ellmer_check_installed <- function(call = rlang::caller_env()) {
-  if (!rlang::is_installed("ellmer", version = "0.4.2")) {
+ellmer_check_installed <- function(
+  call = rlang::caller_env(),
+  version = "0.4.2",
+  installed = rlang::is_installed
+) {
+  if (!installed("ellmer", version = version)) {
     scans_abort(
       c(
-        "Package {.pkg ellmer} 0.4.2 or later is required.",
+        "Package {.pkg ellmer} {version} or later is required.",
         "i" = "Install it with {.code install.packages('ellmer')}."
       ),
       class = "scans_error_missing_dependency",
