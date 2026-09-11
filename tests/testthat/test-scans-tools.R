@@ -238,6 +238,23 @@ test_that("invalid measure names receive a measurement diagnostic", {
   expect_length(result$data, 0L)
 })
 
+test_that("missing scalar payloads stay null and nested missing fields stay recorded", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  bundle <- trajectory_fixture("simple_exchange")
+  for (missing in list(NA, NA_integer_, NA_real_, NA_character_)) {
+    bundle@events$value <- list(missing, list(recorded = missing))
+    result <- scans_tool_result(
+      scans_tools(bundle)$scans_read_trajectory,
+      "trajectory-simple"
+    )
+    expect_null(result$data[[1L]]$value)
+    expect_equal(
+      jsonlite::fromJSON(result$data[[2L]]$value, simplifyVector = FALSE),
+      list(recorded = NULL)
+    )
+  }
+})
+
 test_that("missing string arguments receive the tools input condition", {
   skip_if_not_installed("ellmer", "0.5.0")
   tools <- scans_tools(scans_support_bundle())

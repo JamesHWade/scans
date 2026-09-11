@@ -151,7 +151,13 @@ scans_tools_rows <- function(data, max_chars, content_offset = 0L) {
   lapply(seq_len(nrow(data)), function(i) {
     row <- lapply(data, function(column) {
       value <- column[[i]]
-      if (is.null(value)) {
+      if (
+        is.null(value) ||
+          (is.atomic(value) &&
+            is.null(dim(value)) &&
+            length(value) == 1L &&
+            is.na(value))
+      ) {
         return(NULL)
       }
       if (inherits(column, "POSIXt")) {
