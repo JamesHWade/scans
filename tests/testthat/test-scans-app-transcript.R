@@ -60,3 +60,32 @@ test_that("event deep links retain canonical application and event identities", 
   ))
   expect_identical(before, after)
 })
+
+test_that("deep links preserve reserved characters and literal percent escapes", {
+  applications <- c(
+    "Support/assistant",
+    "Support?event=help",
+    "Support/%2F?event=#"
+  )
+  ids <- c("a/b c", "id?event=part#", "literal%2F/id?event=#")
+  event <- "event%2F/part?event=#"
+
+  for (application in applications) {
+    for (id in ids) {
+      hash <- paste0(
+        "#",
+        scans_app_hash(application, id),
+        "?event=",
+        utils::URLencode(event, reserved = TRUE, repeated = TRUE)
+      )
+      expect_identical(
+        scans_app_parse_hash(hash, applications),
+        list(application = application, trajectory_id = id, event_id = event)
+      )
+    }
+  }
+  expect_false(identical(
+    scans_app_event_dom_id("event/id"),
+    scans_app_event_dom_id("event%2Fid")
+  ))
+})

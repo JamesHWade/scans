@@ -301,7 +301,7 @@ scans_app_css_token <- function(x) {
 scans_app_event_dom_id <- function(row) {
   paste0(
     "scans-app-event-",
-    utils::URLencode(as.character(row), reserved = TRUE)
+    utils::URLencode(as.character(row), reserved = TRUE, repeated = TRUE)
   )
 }
 

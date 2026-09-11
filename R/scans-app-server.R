@@ -1281,8 +1281,8 @@ scans_app_hash <- function(application, trajectory_id) {
     return("")
   }
   paste(
-    utils::URLencode(application, reserved = TRUE),
-    utils::URLencode(trajectory_id, reserved = TRUE),
+    utils::URLencode(application, reserved = TRUE, repeated = TRUE),
+    utils::URLencode(trajectory_id, reserved = TRUE, repeated = TRUE),
     sep = "/"
   )
 }

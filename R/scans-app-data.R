@@ -296,8 +296,9 @@ scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
       }
       text <- scans_app_strip_markdown(events$text[[rows[[1L]]]])
       text <- gsub("\\s+", " ", trimws(text))
-      if (grepl("?", text, fixed = TRUE)) {
-        text <- sub("^(.*?\\?).*$", "\\1", text)
+      question <- regexpr("?", text, fixed = TRUE)[[1L]]
+      if (question > 0L) {
+        text <- substr(text, 1L, question)
       }
       scans_app_truncate(text, 90L)
     },
