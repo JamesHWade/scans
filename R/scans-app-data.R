@@ -40,6 +40,24 @@ scans_app_data <- function(
   summaries <- analysis$summaries
   loss_trajectory_ids <- scans_app_loss_trajectory_ids(losses, turns, events)
 
+  records <- scans_app_records(info, turns, events, findings, summaries)
+  records$elapsed <- analysis$measures$value[match(
+    paste(info$trajectory_id, "elapsed"),
+    paste(analysis$measures$trajectory_id, analysis$measures$measure)
+  )]
+  records$n_tool_errors <- tabulate(
+    match(
+      events$trajectory_id[
+        events$event_type %in%
+          c("tool_call", "tool_result") &
+          ((!is.na(events$error) & nzchar(events$error)) |
+            events$status %in% c("failed", "error"))
+      ],
+      info$trajectory_id
+    ),
+    nbins = nrow(info)
+  )
+
   list(
     info = info,
     turns = turns,
@@ -51,13 +69,7 @@ scans_app_data <- function(
     assessments = analysis$assessments,
     summaries = summaries,
     measures = analysis$measures,
-    records = scans_app_records(
-      info,
-      turns,
-      events,
-      findings,
-      summaries
-    )
+    records = records
   )
 }
 
@@ -180,7 +192,7 @@ scans_app_sort_choices <- c(
   "Newest first" = "newest",
   "Oldest first" = "oldest",
   "Most findings" = "findings",
-  "Longest" = "longest"
+  "Most events" = "longest"
 )
 
 # Ordering is applied to the visible indices, never to the records: the
@@ -283,7 +295,12 @@ scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
         rows <- user_rows
       }
       text <- scans_app_strip_markdown(events$text[[rows[[1L]]]])
-      scans_app_truncate(gsub("\\s+", " ", trimws(text)), 90L)
+      text <- gsub("\\s+", " ", trimws(text))
+      question <- regexpr("?", text, fixed = TRUE)[[1L]]
+      if (question > 0L) {
+        text <- substr(text, 1L, question)
+      }
+      scans_app_truncate(text, 90L)
     },
     character(1)
   )
@@ -327,7 +344,7 @@ scans_app_filter_records <- function(
   }
   query <- trimws(tolower(query))
   if (nzchar(query)) {
-    keep <- keep & grepl(query, records$search, fixed = TRUE)
+    keep <- keep & scans_query_text(records$search, query)
   }
   if (isTRUE(findings_only)) {
     keep <- keep & records$n_findings > 0L

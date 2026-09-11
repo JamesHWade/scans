@@ -1,3 +1,9 @@
+test_that("toolbar selects have explicit accessible names", {
+  skip_if_not_installed("bslib", "0.11.0")
+  control <- scans_app_toolbar_select("order", "Order", c("Newest" = "newest"))
+  expect_match(as.character(control), 'aria-label="Order"', fixed = TRUE)
+})
+
 test_that("scans_app() creates a read-only Shiny app", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("htmltools")
@@ -325,7 +331,7 @@ test_that("scans app enforces optional dependency minimum versions", {
     scans_app_check_packages(
       namespace_available = function(...) TRUE,
       package_version = function(package) {
-        versions <- c(bslib = "0.10.0", shiny = "1.10.0")
+        versions <- c(bslib = "0.10.0", shiny = "1.10.0", shinychat = "0.3.0")
         numeric_version(versions[[package]])
       }
     ),
@@ -695,7 +701,7 @@ test_that("scans app renders canonical text as text and links finding evidence",
 
   expect_match(transcript, "&lt;script&gt;", fixed = TRUE)
   expect_no_match(transcript, "<script>", fixed = TRUE)
-  expect_match(evidence, "#scans-app-event-3", fixed = TRUE)
+  expect_match(evidence, "#scans-app-event-error-event-3", fixed = TRUE)
   expect_match(evidence, "error-event-3", fixed = TRUE)
 })
 
@@ -1522,9 +1528,11 @@ test_that("scans app records carry user and model for the browser", {
     data$records[1L, , drop = FALSE],
     TRUE
   ))
-  expect_match(entry, "ada", fixed = TRUE)
+  expect_match(entry, "trajectory-simple", fixed = TRUE)
   header <- as.character(scans_app_header_ui(data, 1L))
-  expect_match(header, "scans-app-badge-user", fixed = TRUE)
+  expect_match(header, "Run details", fixed = TRUE)
+  context <- as.character(scans_app_context_ui(data$info[1L, , drop = FALSE]))
+  expect_match(context, "ada", fixed = TRUE)
   expect_identical(
     scans_app_metadata_user(list(otel = "legacy")),
     NA_character_

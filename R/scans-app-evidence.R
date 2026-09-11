@@ -6,43 +6,50 @@ scans_app_evidence_ui <- function(data, index) {
   finding_rows <- which(data$findings$trajectory_id == id)
   evaluation_rows <- which(data$evaluations$trajectory_id == id)
   loss_rows <- which(data$loss_trajectory_ids %in% id)
-  open <- c(
-    "assessments",
-    if (length(finding_rows) > 0L) "findings",
-    if (length(loss_rows) > 0L) "losses"
-  )
-  if (length(open) == 0L) {
-    open <- "context"
-  }
-
-  bslib::accordion(
-    open = open,
-    multiple = TRUE,
-    class = "scans-app-evidence-accordion",
-    bslib::accordion_panel(
-      "Scanner assessments",
-      value = "assessments",
-      scans_app_assessments_ui(data, id)
+  tool_errors <- data$records$n_tool_errors[[index]]
+  htmltools::tagList(
+    htmltools::div(
+      class = "scans-app-findings-summary",
+      htmltools::tags$h2("Recorded findings"),
+      htmltools::tags$p(
+        if (tool_errors > 0L) {
+          sprintf(
+            "%d tool events recorded errors. %d findings describe this trajectory.",
+            tool_errors,
+            length(finding_rows)
+          )
+        } else if (length(finding_rows)) {
+          sprintf("%d findings describe this trajectory.", length(finding_rows))
+        } else {
+          "No findings from the selected scans. Check coverage before drawing a conclusion."
+        }
+      )
     ),
-    bslib::accordion_panel(
-      paste0("Findings (", length(finding_rows), ")"),
-      value = "findings",
-      scans_app_findings_ui(data, finding_rows)
-    ),
-    bslib::accordion_panel(
-      paste0("Evaluations (", length(evaluation_rows), ")"),
-      value = "evaluations",
-      scans_app_evaluations_ui(data$evaluations, evaluation_rows)
-    ),
-    bslib::accordion_panel(
-      paste0("Losses (", length(loss_rows), ")"),
-      value = "losses",
-      scans_app_losses_ui(data, loss_rows)
-    ),
-    bslib::accordion_panel(
-      "Context",
-      value = "context",
-      scans_app_context_ui(data$info[index, , drop = FALSE])
+    scans_app_findings_ui(data, finding_rows),
+    bslib::accordion(
+      open = FALSE,
+      multiple = TRUE,
+      class = "scans-app-evidence-accordion",
+      bslib::accordion_panel(
+        "Evidence coverage",
+        value = "assessments",
+        scans_app_assessments_ui(data, id)
+      ),
+      bslib::accordion_panel(
+        paste0("Evaluations (", length(evaluation_rows), ")"),
+        value = "evaluations",
+        scans_app_evaluations_ui(data$evaluations, evaluation_rows)
+      ),
+      bslib::accordion_panel(
+        paste0("Losses (", length(loss_rows), ")"),
+        value = "losses",
+        scans_app_losses_ui(data, loss_rows)
+      ),
+      bslib::accordion_panel(
+        "Context",
+        value = "context",
+        scans_app_context_ui(data$info[index, , drop = FALSE])
+      )
     )
   )
 }
@@ -103,8 +110,15 @@ scans_app_event_links <- function(ids, events) {
   htmltools::tagList(Map(
     function(id, row) {
       htmltools::tags$a(
-        href = paste0("#", scans_app_event_dom_id(row)),
-        scans_app_truncate(id, 28L)
+        href = paste0("#", scans_app_event_dom_id(id)),
+        `data-scans-event` = id,
+        title = id,
+        paste0(
+          scans_app_first_string(events$name[[row]], events$event_type[[row]]),
+          " \u00b7 Event ",
+          events$event_index[[row]],
+          if (scans_app_has_string(events$error[[row]])) " \u00b7 error" else ""
+        )
       )
     },
     ids[keep],

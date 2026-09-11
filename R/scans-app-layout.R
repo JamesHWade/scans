@@ -63,151 +63,186 @@ scans_app_ui <- function(
   sources,
   annotations = NULL,
   investigations = FALSE,
-  reviews = FALSE
+  reviews = FALSE,
+  chat = FALSE
 ) {
   choices <- scans_app_initial_choices(sources$sources[[1L]])
-
   page <- bslib::page_sidebar(
+    window_title = "scans",
     title = htmltools::div(
-      class = "scans-app-brand",
-      htmltools::tags$span("scans"),
-      htmltools::tags$small("Trajectory diagnostics")
+      class = "scans-app-topbar",
+      htmltools::div(class = "scans-app-brand", htmltools::tags$span("scans")),
+      scans_app_application_ui(sources),
+      shiny::actionButton(
+        "scans_app_overview_action",
+        "Overview",
+        class = "btn-outline-secondary"
+      ),
+      bslib::popover(
+        shiny::actionButton(
+          "scans_app_options",
+          "Options",
+          icon = shiny::icon("ellipsis")
+        ),
+        title = "Snapshot options",
+        if (investigations) scans_app_investigation_ui(),
+        scans_app_scanner_ui()
+      )
     ),
-    theme = bslib::bs_theme(
-      version = 5,
-      bg = "#f6f7fb",
-      fg = "#1e2430",
-      primary = "#5356c9"
+    theme = shinychat::page_chat_theme(
+      primary = "#0d6efd",
+      fg = "#171c32",
+      bg = "#ffffff",
+      `primary-bg-subtle` = "#edf5ff",
+      `body-tertiary-bg` = "#f4f6f9",
+      `body-secondary-color` = "#667085",
+      `border-color` = "#dfe4ed",
+      `border-radius` = "0.4rem"
     ),
     fillable = TRUE,
-    class = "bslib-page-dashboard scans-app",
+    fillable_mobile = TRUE,
+    padding = 0,
+    gap = 0,
+    class = "scans-app-workspace-main",
     sidebar = bslib::sidebar(
-      title = NULL,
-      width = 380,
+      id = "scans_app_browser_pane",
+      title = "Trajectories",
+      width = 350,
+      open = list(desktop = "open", mobile = "closed"),
       class = "scans-app-browser",
-      scans_app_application_ui(sources),
-      if (investigations) scans_app_investigation_ui(),
-      shiny::textInput(
-        "scans_app_query",
-        label = NULL,
-        placeholder = "Search ID, user, model, or transcript",
-        width = "100%"
+      padding = c("0.5rem", "1.2rem", "1.2rem"),
+      gap = "1rem",
+      htmltools::div(
+        class = "scans-app-search",
+        shiny::textInput(
+          "scans_app_query",
+          label = "Search trajectories",
+          placeholder = "Search trajectories",
+          width = "100%"
+        )
       ),
-      scans_app_filter_toolbar(choices),
+      scans_app_filter_toolbar(choices, annotations),
       shiny::uiOutput("scans_app_pattern_filter"),
-      scans_app_scanner_ui(),
       htmltools::div(
         class = "scans-app-browser-count",
-        shiny::textOutput("scans_app_visible_count", inline = TRUE),
-        htmltools::div(
-          class = "scans-app-browser-toggles",
-          bslib::input_switch(
-            "scans_app_findings_only",
-            "With findings"
-          ),
-          if (!is.null(annotations)) {
-            bslib::input_switch(
-              "scans_app_annotated_only",
-              "Annotated"
-            )
-          }
-        ),
-        shiny::uiOutput("scans_app_snapshot_annotation_filter")
+        shiny::textOutput("scans_app_visible_count", inline = TRUE)
       ),
+      shiny::uiOutput("scans_app_snapshot_annotation_filter"),
       htmltools::div(
         class = "scans-app-browser-entries",
         shiny::uiOutput("scans_app_entries")
       )
     ),
     shiny::uiOutput("scans_app_load_error"),
-    bslib::navset_card_underline(
-      id = "scans_app_view",
-      selected = "application",
-      full_screen = TRUE,
-      wrapper = function(...) bslib::card_body(..., padding = 0),
-      bslib::nav_panel(
-        "Application overview",
-        value = "application",
-        bslib::card_body(
-          fill = FALSE,
-          class = "scans-app-performance-controls",
-          shiny::selectInput(
-            "scans_app_priority",
-            "Order trajectories by",
-            choices = c(
-              "Elapsed time" = "elapsed",
-              "Recorded tokens" = "tokens",
-              "Findings" = "findings"
-            ),
-            width = "220px"
-          )
-        ),
-        shiny::uiOutput("scans_app_performance")
-      ),
-      bslib::nav_panel(
-        "Trajectory",
-        value = "trajectory",
-        bslib::card_body(
-          fill = FALSE,
-          class = "scans-app-workspace-header",
-          htmltools::div(
-            class = "scans-app-workspace-bar",
-            shiny::uiOutput("scans_app_header"),
-            scans_app_workspace_toolbar()
-          ),
-          shiny::uiOutput("scans_app_overview")
-        ),
-        bslib::layout_sidebar(
-          fillable = TRUE,
-          border = FALSE,
-          border_radius = FALSE,
-          padding = 0,
-          gap = 0,
-          sidebar = bslib::sidebar(
-            title = NULL,
-            position = "right",
-            width = 340,
-            class = "scans-app-evidence",
+    shiny::uiOutput("scans_app_retained_notice"),
+    bslib::layout_sidebar(
+      fillable = TRUE,
+      border = FALSE,
+      border_radius = FALSE,
+      padding = 0,
+      gap = 0,
+      sidebar = bslib::sidebar(
+        id = "scans_app_investigation_pane",
+        title = NULL,
+        position = "right",
+        width = 460,
+        open = "closed",
+        fillable = TRUE,
+        class = "scans-app-evidence",
+        padding = c("0.4rem", "1.2rem", "1rem"),
+        gap = "0.7rem",
+        bslib::navset_underline(
+          id = "scans_app_investigation_tab",
+          selected = "findings",
+          bslib::nav_panel(
+            "Findings",
+            value = "findings",
+            shiny::uiOutput("scans_app_evidence"),
             scans_app_annotation_ui(annotations),
-            if (reviews) scans_app_review_ui(),
-            shiny::uiOutput("scans_app_evidence")
+            if (reviews) scans_app_review_ui()
+          ),
+          if (chat) bslib::nav_panel("Ask", value = "ask", scans_app_ask_ui())
+        )
+      ),
+      bslib::navset_hidden(
+        id = "scans_app_view",
+        selected = "application",
+        bslib::nav_panel_hidden(
+          "application",
+          shiny::uiOutput("scans_app_performance")
+        ),
+        bslib::nav_panel_hidden(
+          "trajectory",
+          htmltools::div(
+            class = "scans-app-workspace-header",
+            shiny::uiOutput("scans_app_header"),
+            htmltools::div(
+              class = "scans-app-workspace-bar",
+              htmltools::tags$strong("Transcript"),
+              scans_app_workspace_toolbar()
+            )
           ),
           htmltools::tags$main(
             class = "scans-app-transcript",
-            shiny::uiOutput("scans_app_resources"),
-            shiny::uiOutput("scans_app_transcript")
+            shiny::uiOutput("scans_app_transcript"),
+            shiny::uiOutput("scans_app_resources")
           )
         )
       )
     )
   )
+  page <- htmltools::tagQuery(page)$filter("body")$addClass(
+    "scans-app"
+  )$allTags()
   scans_app_attach_dependency(page)
 }
 
-scans_app_filter_toolbar <- function(choices) {
+scans_app_filter_toolbar <- function(choices, annotations = NULL) {
   bslib::toolbar(
     align = "left",
     width = "100%",
     class = "scans-app-filters",
-    bslib::toolbar_input_select(
-      "scans_app_source",
-      "Source",
-      choices = choices$source,
-      icon = shiny::icon("database")
+    bslib::popover(
+      shiny::actionButton(
+        "scans_app_filters",
+        "Filters",
+        icon = shiny::icon("filter")
+      ),
+      title = "Filter trajectories",
+      scans_app_toolbar_select(
+        "scans_app_source",
+        "Source",
+        choices = choices$source
+      ),
+      scans_app_toolbar_select(
+        "scans_app_status",
+        "Status",
+        choices = choices$status
+      ),
+      bslib::input_switch("scans_app_findings_only", "With findings"),
+      if (!is.null(annotations)) {
+        bslib::input_switch("scans_app_annotated_only", "Annotated")
+      }
     ),
-    bslib::toolbar_input_select(
-      "scans_app_status",
-      "Status",
-      choices = choices$status,
-      icon = shiny::icon("circle-check")
-    ),
-    bslib::toolbar_input_select(
+    scans_app_toolbar_select(
       "scans_app_sort",
       "Order",
       choices = scans_app_sort_choices,
-      icon = shiny::icon("arrow-down-wide-short")
+      selected = "findings"
     )
   )
+}
+
+scans_app_toolbar_select <- function(id, label, choices, selected = NULL) {
+  control <- bslib::toolbar_input_select(
+    id,
+    label,
+    choices,
+    selected = selected
+  )
+  htmltools::tagQuery(control)$find("select")$addAttrs(
+    `aria-label` = label
+  )$allTags()
 }
 
 # Tool disclosure controls are handled in the browser.

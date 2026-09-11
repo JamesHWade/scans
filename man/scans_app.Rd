@@ -8,7 +8,8 @@ scans_app(
   x,
   annotations = NULL,
   investigations = inherits(x, "scans_investigation"),
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 )
 }
 \arguments{
@@ -31,6 +32,11 @@ rescan controls. Defaults to \code{TRUE} for a single saved investigation and
 \item{reviews}{Whether to enable session-local evidence review and example
 export controls. Defaults to \code{FALSE}. Download selected examples to keep
 them after closing the session; no shared review store is written.}
+
+\item{chat_factory}{Optional zero-argument function returning an ellmer chat,
+for example \code{function() ellmer::chat_openai()}. Defaults to \code{NULL}, which
+omits Ask. Tools configured on this client are replaced with the bounded
+scans tools; its system prompt is retained with evidence instructions.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object. Calling \code{scans_app()} at the console
@@ -45,8 +51,8 @@ loaders make it practical to review snapshots from multiple deployed apps
 without downloading every snapshot when the review app starts.
 }
 \details{
-The scans app keeps the canonical bundle as its data boundary. It does not
-call a model, run tools, modify a bundle, or infer missing source facts.
+The scans app keeps the canonical bundle as its data boundary. Ordinary
+inspection does not call a model, replay tools, or modify a bundle.
 Caller-supplied loaders are invoked only when their application is first
 selected in a session or explicitly reloaded.
 
@@ -64,6 +70,23 @@ losses associated with the selected trajectory. Built-in findings are
 computed with \code{\link[=scan_trajectories]{scan_trajectories()}} when each application snapshot is first
 loaded.
 }
+\section{Ask about the evidence}{
+
+Supply \code{chat_factory} to enable an optional Ask tab beside Findings. It must
+return an ellmer chat configured with your chosen provider. Each session
+clones the client, clears its prior turns and tools, and registers only
+\code{\link[=scans_tools]{scans_tools()}}. Provider requests begin when the user submits a question.
+The permitted trajectories and snapshot are fixed at submission; browsing
+while a response streams cannot change them. Changing scope starts fresh
+model context while keeping earlier answers and drafts visible. Links in
+older answers open their retained snapshot, with a return-to-source action.
+Chat history and evidence references last only for the current session.
+The provider receives the submitted question and any retained evidence its
+tools read. Existing redactions remain intact; no new anonymization occurs.
+A recent shinychat with \code{page_chat_theme()} and
+\code{chat_server()$set_client()} is required for this surface.
+}
+
 \section{Saved investigations}{
 
 Set \code{investigations = TRUE} to enable save/open controls in a regular app.

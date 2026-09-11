@@ -13,7 +13,8 @@ scans_app_connect(
   annotations = NULL,
   jobs = TRUE,
   investigations = FALSE,
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 )
 }
 \arguments{
@@ -44,6 +45,11 @@ forwarded to \code{\link[=scans_app]{scans_app()}}. Defaults to \code{FALSE}.}
 
 \item{reviews}{Whether to enable session-local review/example controls,
 forwarded to \code{\link[=scans_app]{scans_app()}}. Defaults to \code{FALSE}.}
+
+\item{chat_factory}{Optional zero-argument function returning an ellmer chat,
+for example \code{function() ellmer::chat_openai()}. Defaults to \code{NULL}, which
+omits Ask. Tools configured on this client are replaced with the bounded
+scans tools; its system prompt is retained with evidence instructions.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.

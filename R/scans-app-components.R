@@ -30,70 +30,36 @@ scans_app_entry_id <- function(index) {
 }
 
 scans_app_entry_ui <- function(record, selected, annotation = NULL) {
-  findings <- record$n_findings[[1L]]
-  errors <- record$n_errors[[1L]]
-  tone <- if (errors > 0L) {
-    "danger"
-  } else if (findings > 0L) {
-    "warning"
+  errors <- record$n_tool_errors[[1L]] %||% 0L
+  summary <- if (record$n_events[[1L]] == 0L && record$n_turns[[1L]] == 0L) {
+    "No transcript recorded"
+  } else if (errors > 0L) {
+    sprintf("%d tool error%s", errors, if (errors == 1L) "" else "s")
+  } else if (record$n_findings[[1L]] > 0L) {
+    sprintf("%d findings", record$n_findings[[1L]])
   } else {
-    "quiet"
+    "No findings"
   }
-  facts <- c(
-    scans_app_short_time(record$started_at[[1L]]),
-    if (scans_app_has_string(record$user[[1L]])) record$user[[1L]],
-    if (scans_app_has_string(record$model[[1L]])) record$model[[1L]]
-  )
-
+  elapsed <- record$elapsed[[1L]] %||% NA_real_
+  if (!is.na(elapsed)) {
+    summary <- paste(summary, scans_app_seconds(elapsed), sep = " \u00b7 ")
+  }
   shiny::actionLink(
     scans_app_entry_id(record$index[[1L]]),
     label = htmltools::tagList(
+      htmltools::div(class = "scans-app-entry-title", record$title[[1L]]),
+      htmltools::div(class = "scans-app-entry-facts", summary),
       htmltools::div(
-        class = "scans-app-entry-heading",
-        htmltools::tags$span(
-          class = "scans-app-entry-title",
-          record$title[[1L]]
-        ),
-        if (findings > 0L) {
-          scans_app_badge(
-            sprintf(
-              "%d finding%s",
-              findings,
-              if (findings == 1L) "" else "s"
-            ),
-            tone
-          )
-        },
-        if (scans_app_has_string(annotation)) {
-          scans_app_badge(annotation, "annotation")
-        }
+        class = "scans-app-entry-time",
+        scans_app_short_time(record$started_at[[1L]])
       ),
-      if (length(facts) > 0L) {
-        htmltools::div(
-          class = "scans-app-entry-facts",
-          htmltools::tagList(lapply(facts, htmltools::tags$span))
-        )
-      },
-      htmltools::div(
-        class = "scans-app-entry-meta",
-        scans_app_badge(record$source_type[[1L]], "source"),
-        scans_app_notable_status_badge(record$status[[1L]]),
-        htmltools::tags$span(
-          sprintf(
-            "%d turns \u00b7 %d events",
-            record$n_turns[[1L]],
-            record$n_events[[1L]]
-          )
-        ),
-        htmltools::tags$span(
-          class = "scans-app-entry-id",
-          record$trajectory_id[[1L]]
-        )
-      )
+      if (scans_app_has_string(annotation)) {
+        scans_app_badge(annotation, "annotation")
+      }
     ),
+    title = record$trajectory_id[[1L]],
     class = paste(
       "scans-app-entry",
-      paste0("scans-app-entry-", tone),
       if (selected) "scans-app-entry-selected" else ""
     ),
     `aria-current` = if (selected) "true" else NULL
@@ -184,38 +150,37 @@ scans_app_overview_ui <- function(data, index) {
 
 scans_app_header_ui <- function(data, index) {
   if (is.null(index)) {
-    return(htmltools::div(
-      class = "scans-app-heading",
-      htmltools::tags$strong("No trajectory selected")
-    ))
+    return(scans_app_empty_ui("No trajectory selected"))
   }
-  info <- data$info[index, , drop = FALSE]
   record <- data$records[index, , drop = FALSE]
+  status <- data$info$status[[index]]
+  status <- if (scans_app_has_string(status)) {
+    paste("Run", status)
+  } else {
+    "Run status unknown"
+  }
   htmltools::div(
     class = "scans-app-heading",
-    htmltools::tags$strong(record$title[[1L]]),
+    htmltools::tags$h1(record$title[[1L]]),
     htmltools::div(
-      class = "scans-app-heading-badges",
-      scans_app_badge(info$source_type[[1L]], "source"),
-      scans_app_status_badge(info$status[[1L]]),
-      if (scans_app_has_string(record$user[[1L]])) {
-        scans_app_badge(
-          paste0("\U0001F464 ", record$user[[1L]]),
-          "user"
-        )
+      class = "scans-app-heading-summary",
+      status,
+      if (record$n_tool_errors[[1L]] > 0L) {
+        paste0(" \u00b7 ", record$n_tool_errors[[1L]], " tool errors")
       },
-      if (scans_app_has_string(info$model[[1L]])) {
-        scans_app_badge(info$model[[1L]], "quiet")
-      },
-      htmltools::tags$span(
-        class = "scans-app-heading-id",
-        info$trajectory_id[[1L]]
-      )
+      if (!is.na(record$elapsed[[1L]])) {
+        paste0(" \u00b7 ", scans_app_seconds(record$elapsed[[1L]]))
+      }
+    ),
+    htmltools::tags$details(
+      class = "scans-app-run-details",
+      htmltools::tags$summary("Run details"),
+      htmltools::tags$code(record$trajectory_id[[1L]]),
+      scans_app_overview_ui(data, index)
     )
   )
 }
 
-# Keep the read window and capture limits visible beside the loaded data.
 scans_app_load_info_ui <- function(entry, reloadable = FALSE) {
   info <- if (is.list(entry$read_info)) entry$read_info else NULL
   loaded_at <- entry$loaded_at

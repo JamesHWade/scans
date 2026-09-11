@@ -1,7 +1,55 @@
 // Browser-side behaviour for the scans app: selection highlight without a
 // list re-render, keyboard navigation, and the tool expand/collapse toggle.
 (function () {
-  var state = { selected: null };
+  var state = { selected: null, pendingEvidence: null, returnTo: null };
+
+  function setMobilePane(id, open) {
+    if (!window.matchMedia('(max-width: 1199px)').matches) return;
+    var pane = document.getElementById(id);
+    var toggle = pane && pane.parentElement.querySelector(':scope > .collapse-toggle');
+    if (toggle && (toggle.getAttribute('aria-expanded') === 'true') !== open) toggle.click();
+  }
+
+  function revealEvidence() {
+    var pending = state.pendingEvidence;
+    if (!pending) return;
+    var target = document.getElementById(pending.id);
+    if (!target) return;
+    document.querySelectorAll('.scans-app-evidence-active').forEach(function (node) {
+      node.classList.remove('scans-app-evidence-active');
+    });
+    var node = target;
+    while (node) {
+      if (node.tagName === 'DETAILS') node.open = true;
+      node = node.parentElement;
+    }
+    if (!target.getClientRects().length) return;
+    setMobilePane('scans_app_browser_pane', false);
+    setMobilePane('scans_app_investigation_pane', false);
+    target.classList.add('scans-app-evidence-active');
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    if (state.returnTo && document.contains(state.returnTo)) {
+      var back = document.getElementById('scans-app-return-to-evidence');
+      if (back) back.remove();
+      back = document.createElement('button');
+      back.id = 'scans-app-return-to-evidence';
+      back.type = 'button';
+      back.className = 'btn btn-sm btn-link';
+      back.textContent = 'Return to finding';
+      back.addEventListener('click', function () {
+        setMobilePane('scans_app_investigation_pane', true);
+        state.returnTo.focus();
+        state.returnTo.scrollIntoView({ block: 'nearest' });
+      });
+      target.appendChild(back);
+    }
+    var base = window.location.hash.split('?event=')[0];
+    if (base && base.indexOf('/') !== -1 && pending.event_id) {
+      window.history.replaceState(null, '', base + '?event=' + encodeURIComponent(pending.event_id));
+    }
+    state.pendingEvidence = null;
+  }
 
   function applySelection() {
     var entries = document.querySelectorAll(".scans-app-entry");
@@ -48,12 +96,32 @@
 
   ready(function () {
     if (!window.Shiny) return;
+    var smallScreen = window.matchMedia('(max-width: 1199px)');
+    function reportScreenSize() {
+      Shiny.setInputValue('scans_app_small_screen', smallScreen.matches);
+    }
+    $(document).on('shiny:connected', reportScreenSize);
+    smallScreen.addEventListener('change', reportScreenSize);
+    ['scans_app_browser_pane', 'scans_app_investigation_pane'].forEach(function (id) {
+      var pane = document.getElementById(id);
+      var toggle = pane && pane.parentElement.querySelector(':scope > .collapse-toggle');
+      if (!toggle) return;
+      var label = id === 'scans_app_browser_pane' ? 'Trajectories' :
+        (document.getElementById('scans_app_ask_scope') ? 'Findings / Ask' : 'Findings');
+      toggle.setAttribute('aria-label', 'Toggle ' + label.toLowerCase());
+      toggle.setAttribute('title', label);
+      toggle.dataset.scansLabel = label;
+    });
 
     Shiny.addCustomMessageHandler("scans-app-select", function (message) {
       state.selected = message && message.id ? message.id : null;
       applySelection();
+      if (state.selected) setMobilePane('scans_app_browser_pane', false);
       // Keep the URL pointing at the selected trajectory so it can be shared.
       var hash = message && message.hash ? "#" + message.hash : "";
+      if (hash && window.location.hash.split('?event=')[0] === hash) {
+        hash = window.location.hash;
+      }
       if (hash !== window.location.hash && window.history.replaceState) {
         window.history.replaceState(
           null,
@@ -61,6 +129,21 @@
           window.location.pathname + window.location.search + hash
         );
       }
+      setTimeout(revealEvidence, 0);
+    });
+
+    Shiny.addCustomMessageHandler('scans-app-reveal', function (message) {
+      state.pendingEvidence = message;
+      state.returnTo = null;
+      setTimeout(revealEvidence, 0);
+    });
+    Shiny.addCustomMessageHandler('scans-app-evidence-unavailable', function (message) {
+      document.querySelectorAll('a[href^="#scans-evidence="]').forEach(function (link) {
+        if (link.getAttribute('href') === '#scans-evidence=' + message.key) {
+          link.classList.add('scans-app-unsupported-evidence');
+          link.title = 'Unsupported evidence reference';
+        }
+      });
     });
 
     function sendHash() {
@@ -77,7 +160,9 @@
       if (event.name === "scans_app_entries") {
         setTimeout(applySelection, 0);
       }
+      if (event.name === 'scans_app_transcript') setTimeout(revealEvidence, 0);
     });
+    $(document).on('shown.bs.tab', function () { setTimeout(revealEvidence, 0); });
 
     document.addEventListener("keydown", function (event) {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) {
@@ -97,6 +182,20 @@
     });
 
     document.addEventListener("click", function (event) {
+      var link = event.target.closest('a');
+      if (link && (link.getAttribute('href') || '').indexOf('#scans-evidence=') === 0) {
+        event.preventDefault();
+        Shiny.setInputValue('scans_app_chat_evidence', link.getAttribute('href').slice(16), {priority:'event'});
+        return;
+      }
+      var evidence = event.target.closest('[data-scans-event]');
+      if (evidence) {
+        event.preventDefault();
+        state.returnTo = evidence;
+        state.pendingEvidence = { id: evidence.getAttribute('href').slice(1), event_id: evidence.dataset.scansEvent };
+        revealEvidence();
+        return;
+      }
       var pattern = event.target.closest("[data-scans-pattern]");
       if (pattern) {
         Shiny.setInputValue("scans_app_pattern", pattern.dataset.scansPattern, {

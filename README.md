@@ -10,7 +10,8 @@
 Inspect completed R agent and chat runs to find failed tools, repeated
 requests, and changes in recorded resource use. scans imports the captured
 record, returns summaries and diagnostic findings as tibbles, and opens the
-same evidence in a Shiny review app. It does not call the model or tools again.
+same evidence in a Shiny review app. Ordinary inspection does not call a model
+or replay the original tools.
 
 Use scans to investigate how a run unfolded. Use outcome evaluations from
 vitals to assess the result. Findings identify behavior to review; an empty
@@ -27,6 +28,8 @@ pak::pak("JamesHWade/scans")
 
 The core analysis layer depends on cli, rlang, S7, tibble, and vctrs. Adapters
 and the review app use optional packages that are loaded when you need them.
+This development version requires ellmer 0.5.0 and pins a compatible shinychat
+revision in `DESCRIPTION`; `pak::pak()` resolves these dependencies.
 
 ## Try the offline example
 
@@ -221,6 +224,38 @@ bundle |>
 bundle |>
   scan_trajectories(scans = "repeated_tool_call")
 ```
+
+## Ask about retained evidence
+
+The app opens with patterns and a suggested trajectory. Findings link directly
+to expanded events; detailed measurements and coverage stay available on demand.
+To add a small chat beside the findings, supply a factory for your chosen ellmer
+provider:
+
+```r
+scans_app(bundle, chat_factory = function() ellmer::chat_openai())
+```
+
+Each question is bound to **This trajectory** or **Filtered trajectories** and
+the snapshot visible at submission. Earlier answers keep their evidence links.
+Changing scope starts fresh model context. Chat is session-local, and the
+configured provider receives only submitted questions and evidence read through
+the tools. Use a recent shinychat with `page_chat_theme()` and
+`chat_server()$set_client()`.
+
+The same tools work outside the app:
+
+```r
+tools <- scans_tools(bundle, trajectory_ids = trajectory_info(bundle)$trajectory_id[1])
+chat <- ellmer::chat_openai()
+chat$set_tools(tools)
+```
+
+`scans_tools()` returns ordinary ellmer tools with bounded pages, evidence
+identities, exact R-computed summaries, and explicit missing-data and content
+limits. Saved investigations retain their saved findings and settings. The tools
+cannot replay agent actions, execute arbitrary code, fetch sources, or write
+reviews. See [the tool reference](https://jameshwade.github.io/scans/reference/scans_tools.html).
 
 ## Scope
 

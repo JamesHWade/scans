@@ -7,8 +7,8 @@
 #' loaders make it practical to review snapshots from multiple deployed apps
 #' without downloading every snapshot when the review app starts.
 #'
-#' The scans app keeps the canonical bundle as its data boundary. It does not
-#' call a model, run tools, modify a bundle, or infer missing source facts.
+#' The scans app keeps the canonical bundle as its data boundary. Ordinary
+#' inspection does not call a model, replay tools, or modify a bundle.
 #' Caller-supplied loaders are invoked only when their application is first
 #' selected in a session or explicitly reloaded.
 #'
@@ -25,6 +25,21 @@
 #' losses associated with the selected trajectory. Built-in findings are
 #' computed with [scan_trajectories()] when each application snapshot is first
 #' loaded.
+#'
+#' @section Ask about the evidence:
+#' Supply `chat_factory` to enable an optional Ask tab beside Findings. It must
+#' return an ellmer chat configured with your chosen provider. Each session
+#' clones the client, clears its prior turns and tools, and registers only
+#' [scans_tools()]. Provider requests begin when the user submits a question.
+#' The permitted trajectories and snapshot are fixed at submission; browsing
+#' while a response streams cannot change them. Changing scope starts fresh
+#' model context while keeping earlier answers and drafts visible. Links in
+#' older answers open their retained snapshot, with a return-to-source action.
+#' Chat history and evidence references last only for the current session.
+#' The provider receives the submitted question and any retained evidence its
+#' tools read. Existing redactions remain intact; no new anonymization occurs.
+#' A recent shinychat with `page_chat_theme()` and
+#' `chat_server()$set_client()` is required for this surface.
 #'
 #' @section Saved investigations:
 #' Set `investigations = TRUE` to enable save/open controls in a regular app.
@@ -62,6 +77,10 @@
 #' @param investigations Whether to enable investigation save, upload, and
 #'   rescan controls. Defaults to `TRUE` for a single saved investigation and
 #'   `FALSE` for other inputs. Set explicitly for named sources or lazy loaders.
+#' @param chat_factory Optional zero-argument function returning an ellmer chat,
+#'   for example `function() ellmer::chat_openai()`. Defaults to `NULL`, which
+#'   omits Ask. Tools configured on this client are replaced with the bounded
+#'   scans tools; its system prompt is retained with evidence instructions.
 #'
 #' @returns A [shiny::shinyApp()] object. Calling `scans_app()` at the console
 #'   launches the app; the returned object can also be served from an `app.R`.
@@ -89,21 +108,30 @@ scans_app <- function(
   x,
   annotations = NULL,
   investigations = inherits(x, "scans_investigation"),
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 ) {
   sources <- scans_app_sources(x)
   scans_app_check_packages()
   scans_app_check_annotations(annotations)
   rlang::check_bool(investigations)
   rlang::check_bool(reviews)
+  scans_app_check_chat_factory(chat_factory)
 
   shiny::shinyApp(
-    ui = scans_app_ui(sources, annotations, investigations, reviews),
+    ui = scans_app_ui(
+      sources,
+      annotations,
+      investigations,
+      reviews,
+      chat = !is.null(chat_factory)
+    ),
     server = scans_app_server(
       sources,
       annotations,
       investigations = investigations,
-      reviews = reviews
+      reviews = reviews,
+      chat_factory = chat_factory
     ),
     onStart = if (investigations || reviews) scans_app_investigation_start
   )
@@ -330,8 +358,13 @@ scans_app_check_packages <- function(
   namespace_available = requireNamespace,
   package_version = utils::packageVersion
 ) {
-  packages <- c("bslib", "htmltools", "shiny")
-  minimum <- c(bslib = "0.11.0", htmltools = NA, shiny = "1.11.1")
+  packages <- c("bslib", "htmltools", "shiny", "shinychat")
+  minimum <- c(
+    bslib = "0.11.0",
+    htmltools = NA,
+    shiny = "1.11.1",
+    shinychat = "0.5.0"
+  )
   available <- vapply(
     packages,
     namespace_available,
@@ -357,6 +390,12 @@ scans_app_check_packages <- function(
     )
   }
   problems <- c(packages[!available], version_problems)
+  if (
+    available[["shinychat"]] &&
+      !"page_chat_theme" %in% getNamespaceExports("shinychat")
+  ) {
+    problems <- c(problems, "shinychat (with page_chat_theme())")
+  }
   if (length(problems) == 0L) {
     return(invisible(packages))
   }

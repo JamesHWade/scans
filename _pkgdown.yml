@@ -29,6 +29,7 @@ reference:
   - scans_annotations
   - scans_app
   - scans_app_connect
+  - scans_tools
 
 - title: Saved investigations
   contents:
