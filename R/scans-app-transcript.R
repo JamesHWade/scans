@@ -24,6 +24,10 @@ scans_app_transcript_ui <- function(data, index) {
     return(scans_app_empty_ui("This trajectory has no turns or events."))
   }
 
+  all_event_rows <- event_rows
+  pairs <- scans_app_tool_pairs(data$events, event_rows)
+  event_rows <- setdiff(event_rows, unname(pairs))
+
   blocks <- list()
   known_turn_ids <- data$turns$turn_id[turn_rows]
   event_turn_ids <- data$events$turn_id[event_rows]
@@ -49,7 +53,9 @@ scans_app_transcript_ui <- function(data, index) {
           ui = scans_app_turn_ui(
             data$turns[turn_row, , drop = FALSE],
             data$events,
-            rows
+            rows,
+            pairs,
+            data$turns
           )
         ))
       }
@@ -59,12 +65,14 @@ scans_app_transcript_ui <- function(data, index) {
         ui = scans_app_event_group_ui(
           if (length(turn_rows) == 0L) "Event stream" else "Run events",
           data$events,
-          rows
+          rows,
+          pairs,
+          data$turns
         )
       )
     })
   }
-  turns_with_events <- unique(event_turn_ids[known_event_turns])
+  turns_with_events <- unique(data$events$turn_id[all_event_rows])
   eventless_turn_rows <- turn_rows[
     !data$turns$turn_id[turn_rows] %in% turns_with_events
   ]
@@ -124,18 +132,94 @@ scans_app_insert_eventless_turn <- function(blocks, block) {
   append(blocks, list(block), after = 0L)
 }
 
-scans_app_event_group_ui <- function(title, events, rows) {
+scans_app_tool_pairs <- function(events, rows) {
+  pairs <- integer()
+  if (length(rows) < 2L) {
+    return(pairs)
+  }
+  calls <- events$call_id[rows]
+  for (i in seq_len(length(rows) - 1L)) {
+    first <- rows[[i]]
+    second <- rows[[i + 1L]]
+    call <- events$call_id[[first]]
+    if (
+      !scans_app_has_string(call) ||
+        !identical(events$event_type[[first]], "tool_call") ||
+        !identical(events$event_type[[second]], "tool_result") ||
+        !identical(call, events$call_id[[second]]) ||
+        sum(calls %in% call) != 2L
+    ) {
+      next
+    }
+    first_name <- events$name[[first]]
+    second_name <- events$name[[second]]
+    if (
+      scans_app_has_string(first_name) &&
+        scans_app_has_string(second_name) &&
+        first_name != second_name
+    ) {
+      next
+    }
+    pairs[as.character(first)] <- second
+  }
+  pairs
+}
+
+scans_app_event_rows_ui <- function(
+  events,
+  rows,
+  pairs = integer(),
+  turns = NULL
+) {
+  htmltools::tagList(lapply(rows, function(row) {
+    result <- unname(pairs[as.character(row)])
+    ui <- scans_app_event_ui(events[row, , drop = FALSE], row)
+    if (!length(result) || is.na(result)) {
+      return(ui)
+    }
+    result_event <- events[result, , drop = FALSE]
+    turn <- if (!is.null(turns)) match(result_event$turn_id, turns$turn_id)
+    recorded_result <- htmltools::tags$details(
+      id = scans_app_event_dom_id(result_event$event_id[[1L]]),
+      tabindex = "-1",
+      class = "scans-app-event scans-app-recorded-result",
+      htmltools::tags$summary("Recorded result"),
+      scans_app_event_meta_ui(result_event),
+      if (scans_app_has_string(result_event$text[[1L]])) {
+        htmltools::tags$pre(scans_app_bounded_text(result_event$text[[1L]]))
+      },
+      scans_app_event_value_ui(result_event),
+      scans_app_event_error_ui(result_event),
+      if (length(turn) && !is.na(turn)) {
+        scans_app_turn_meta(turns[turn, , drop = FALSE])
+      }
+    )
+    htmltools::tagAppendChild(ui, recorded_result)
+  }))
+}
+
+scans_app_event_group_ui <- function(
+  title,
+  events,
+  rows,
+  pairs = integer(),
+  turns = NULL
+) {
   htmltools::tags$section(
     class = "scans-app-event-group",
     htmltools::tags$h2(title),
-    htmltools::tagList(lapply(rows, function(row) {
-      scans_app_event_ui(events[row, , drop = FALSE], row)
-    }))
+    scans_app_event_rows_ui(events, rows, pairs, turns)
   )
 }
 
 # Collapse the system prompt; show turn metadata below the content.
-scans_app_turn_ui <- function(turn, events, rows) {
+scans_app_turn_ui <- function(
+  turn,
+  events,
+  rows,
+  pairs = integer(),
+  turns = NULL
+) {
   role <- scans_app_first_string(turn$role[[1L]], "unknown")
   token <- scans_app_css_token(role)
   # A turn whose events are all tool traffic is machinery, not speech. commons
@@ -154,9 +238,7 @@ scans_app_turn_ui <- function(turn, events, rows) {
         compact = TRUE
       )
     } else {
-      htmltools::tagList(lapply(rows, function(row) {
-        scans_app_event_ui(events[row, , drop = FALSE], row)
-      }))
+      scans_app_event_rows_ui(events, rows, pairs, turns)
     }
   )
   meta <- scans_app_turn_meta(turn)
@@ -269,7 +351,7 @@ scans_app_content_event_ui <- function(event, row) {
   content_type <- scans_app_first_string(event$content_type[[1L]], "text")
   if (identical(content_type, "thinking")) {
     return(htmltools::tags$details(
-      id = scans_app_event_dom_id(row),
+      id = scans_app_event_dom_id(event$event_id[[1L]]),
       tabindex = "-1",
       class = "scans-app-event scans-app-event-thinking",
       htmltools::tags$summary("Thinking"),
@@ -277,7 +359,7 @@ scans_app_content_event_ui <- function(event, row) {
     ))
   }
   htmltools::tags$article(
-    id = scans_app_event_dom_id(row),
+    id = scans_app_event_dom_id(event$event_id[[1L]]),
     tabindex = "-1",
     class = "scans-app-event scans-app-event-content",
     content
@@ -289,7 +371,7 @@ scans_app_tool_event_ui <- function(event, row, type) {
   label <- if (identical(type, "tool_call")) "Called" else "Returned"
   failed <- scans_app_has_string(event$error[[1L]])
   htmltools::tags$details(
-    id = scans_app_event_dom_id(row),
+    id = scans_app_event_dom_id(event$event_id[[1L]]),
     tabindex = "-1",
     class = paste(
       "scans-app-event scans-app-tool",
@@ -297,6 +379,7 @@ scans_app_tool_event_ui <- function(event, row, type) {
       if (failed) "scans-app-tool-failed" else ""
     ),
     htmltools::tags$summary(
+      shiny::icon("chevron-right", class = "scans-app-tool-chevron"),
       htmltools::tags$span(class = "scans-app-tool-label", label),
       htmltools::tags$code(class = "scans-app-tool-name", name),
       scans_app_notable_status_badge(event$status[[1L]])
@@ -322,7 +405,7 @@ scans_app_aside_event_ui <- function(event, row, type) {
     heading <- paste(heading, event$name[[1L]], sep = " \u00b7 ")
   }
   htmltools::tags$article(
-    id = scans_app_event_dom_id(row),
+    id = scans_app_event_dom_id(event$event_id[[1L]]),
     tabindex = "-1",
     class = paste(
       "scans-app-event scans-app-aside",
@@ -378,7 +461,7 @@ scans_app_event_meta_ui <- function(event) {
 }
 
 scans_app_event_meta <- function(event) {
-  values <- character()
+  values <- event$event_id[[1L]]
   if (scans_app_has_string(event$call_id[[1L]])) {
     values <- c(values, paste("Call", event$call_id[[1L]]))
   }

@@ -1,5 +1,9 @@
 # scans 0.0.0.9000
 
+* `scans_app()` now leads with patterns and a suggested trajectory, uses the shinychat theme, places findings before detailed coverage, and reveals cited events with stable links and keyboard focus. Unambiguous recorded call/result pairs share a disclosure.
+* `scans_app()` and `scans_app_connect()` accept an optional `chat_factory` for session-local Ask with native streaming and cancellation, fixed per-question scope, and links back to retained evidence.
+* `scans_tools()` creates six bounded, read-only ellmer tools for searching trajectories, reading events, inspecting findings and coverage, and computing resource comparisons from an immutable bundle or saved investigation.
+
 
 * A bundled, provider-free support-assistant investigation demonstrates repeated failures, overlapping tools, conversation pauses, and incomplete capture through public functions. The new article includes a capture table and instructions for using the same evidence in the app (#45).
 * `as_trajectory_commons()` accepts current conversations with `turns` and `last_active` fields as well as earlier turn-list results. Provenance remains attached to the turns, and missing source descriptors are reported instead of inferred (#56).

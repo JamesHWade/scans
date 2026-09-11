@@ -12,3 +12,6 @@
 ^pkgdown$
 ^tools/hex-sticker$
 ^_site$
+^tools/ux-preview$
+^artifacts$
+^design-qa\.md$

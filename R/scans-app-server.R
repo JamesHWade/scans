@@ -9,7 +9,8 @@ scans_app_server <- function(
   schedule = shiny::invalidateLater,
   annotation_poll_interval = 2000,
   investigations = FALSE,
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -679,7 +680,7 @@ scans_app_server <- function(
       scans_app_order_records(
         current$records,
         indices,
-        scans_app_input_or(input$scans_app_sort, "newest")
+        scans_app_input_or(input$scans_app_sort, "findings")
       )
     })
 
@@ -742,7 +743,11 @@ scans_app_server <- function(
       session$sendCustomMessage(
         "scans-app-select",
         list(
-          id = if (is.null(index)) NULL else scans_app_entry_id(index),
+          id = if (is.null(index) || !showing_trajectory) {
+            NULL
+          } else {
+            scans_app_entry_id(index)
+          },
           hash = scans_app_hash(
             if (is.null(index) || !showing_trajectory) {
               NULL
@@ -787,7 +792,58 @@ scans_app_server <- function(
         selected(index)
         bslib::nav_select("scans_app_view", "trajectory", session = session)
       }
+      if (
+        !is.na(index) &&
+          scans_app_has_string(target$event_id) &&
+          target$event_id %in%
+            current$events$event_id[
+              current$events$trajectory_id == target$trajectory_id
+            ]
+      ) {
+        session$sendCustomMessage(
+          "scans-app-reveal",
+          list(
+            id = scans_app_event_dom_id(target$event_id),
+            event_id = target$event_id
+          )
+        )
+      }
       pending_hash(NULL)
+    })
+
+    shiny::observeEvent(input$scans_app_overview_action, {
+      bslib::nav_select("scans_app_view", "application", session = session)
+      bslib::toggle_sidebar(
+        "scans_app_investigation_pane",
+        open = FALSE,
+        session = session
+      )
+    })
+    shiny::observeEvent(input$scans_app_view, {
+      if (
+        identical(input$scans_app_view, "trajectory") &&
+          !isTRUE(input$scans_app_small_screen)
+      ) {
+        bslib::toggle_sidebar(
+          "scans_app_investigation_pane",
+          open = TRUE,
+          session = session
+        )
+      }
+    })
+    shiny::observeEvent(input$scans_app_ask_overview, {
+      shiny::req(!is.null(chat_factory))
+      shiny::updateSelectInput(
+        session,
+        "scans_app_ask_scope",
+        selected = "filtered"
+      )
+      bslib::toggle_sidebar(
+        "scans_app_investigation_pane",
+        open = TRUE,
+        session = session
+      )
+      bslib::nav_select("scans_app_investigation_tab", "ask", session = session)
     })
 
     entry_observers <- new.env(parent = emptyenv())
@@ -856,7 +912,8 @@ scans_app_server <- function(
       htmltools::tagList(lapply(indices, function(index) {
         scans_app_entry_ui(
           current$records[index, , drop = FALSE],
-          selected = identical(chosen, index),
+          selected = identical(chosen, index) &&
+            !identical(shiny::isolate(input$scans_app_view), "application"),
           annotation = labels[current$info$trajectory_id[[index]]]
         )
       }))
@@ -894,8 +951,143 @@ scans_app_server <- function(
         current,
         application(),
         input$scans_app_priority %||% "elapsed",
-        scan_config()$scans
+        scan_config()$scans,
+        chat = !is.null(chat_factory)
       )
+    })
+
+    chat_snapshot <- shiny::reactive({
+      entry <- active()
+      shiny::req(!is.null(entry$bundle))
+      if (!is.null(entry$investigation) && !rescan_investigation()) {
+        return(entry$investigation)
+      }
+      current <- data()
+      investigation_build(
+        entry$bundle,
+        NULL,
+        application(),
+        list(read_info = entry$read_info, loaded_at = entry$loaded_at),
+        scan_config(),
+        list(),
+        current[c("summaries", "findings", "assessments", "measures")],
+        previous = entry$investigation
+      )
+    })
+    chat_scope <- shiny::reactive({
+      current <- data()
+      one <- identical(input$scans_app_ask_scope, "trajectory") &&
+        identical(input$scans_app_view, "trajectory") &&
+        !is.null(selected())
+      ids <- if (one) {
+        current$info$trajectory_id[[selected()]]
+      } else {
+        current$info$trajectory_id[visible()]
+      }
+      list(
+        ids = ids,
+        label = if (one) {
+          paste("This trajectory:", current$records$title[[selected()]])
+        } else {
+          sprintf("Filtered trajectories (%d)", length(ids))
+        }
+      )
+    })
+    if (!is.null(chat_factory)) {
+      previous_chat_view <- NULL
+      shiny::observe({
+        one <- identical(input$scans_app_view, "trajectory") &&
+          !is.null(selected())
+        choices <- c(
+          if (one) c("This trajectory" = "trajectory"),
+          stats::setNames(
+            "filtered",
+            sprintf("Filtered trajectories (%d)", length(visible()))
+          )
+        )
+        chosen <- shiny::isolate(input$scans_app_ask_scope)
+        if (one && !identical(previous_chat_view, "trajectory")) {
+          chosen <- "trajectory"
+        }
+        previous_chat_view <<- input$scans_app_view
+        if (is.null(chosen) || !chosen %in% choices) {
+          chosen <- unname(choices[[1L]])
+        }
+        shiny::updateSelectInput(
+          session,
+          "scans_app_ask_scope",
+          choices = choices,
+          selected = chosen
+        )
+      })
+    }
+    chat_target <- shiny::reactiveVal(NULL)
+    viewing_chat_snapshot <- shiny::reactiveVal(FALSE)
+    chat_state <- if (!is.null(chat_factory)) {
+      scans_app_chat_server(
+        input,
+        output,
+        session,
+        chat_factory,
+        chat_snapshot,
+        chat_scope,
+        navigate = function(snapshot, reference) {
+          current <- chat_snapshot()
+          if (
+            !identical(
+              current$manifest$revision_id,
+              snapshot$manifest$revision_id
+            )
+          ) {
+            opened_investigation(snapshot)
+            viewing_chat_snapshot(TRUE)
+          }
+          chat_target(reference)
+        }
+      )
+    }
+    shiny::observe({
+      target <- chat_target()
+      current <- data()
+      if (is.null(target) || is.null(current)) {
+        return()
+      }
+      if (
+        !identical(chat_snapshot()$manifest$revision_id, target$revision_id)
+      ) {
+        return()
+      }
+      index <- match(target$trajectory_id, current$info$trajectory_id)
+      if (is.na(index)) {
+        return()
+      }
+      selected(index)
+      bslib::nav_select("scans_app_view", "trajectory", session = session)
+      if (scans_app_has_string(target$event_id)) {
+        session$sendCustomMessage(
+          "scans-app-reveal",
+          list(
+            id = scans_app_event_dom_id(target$event_id),
+            event_id = target$event_id
+          )
+        )
+      }
+      chat_target(NULL)
+    })
+    output$scans_app_retained_notice <- shiny::renderUI({
+      if (!viewing_chat_snapshot()) {
+        return(NULL)
+      }
+      htmltools::div(
+        class = "scans-app-retained-notice",
+        role = "status",
+        "Viewing the retained snapshot cited in Ask. ",
+        shiny::actionLink("scans_app_return_source", "Return to current source")
+      )
+    })
+    shiny::observeEvent(input$scans_app_return_source, {
+      opened_investigation(NULL)
+      viewing_chat_snapshot(FALSE)
     })
 
     output$scans_app_overview <- shiny::renderUI({
@@ -1100,6 +1292,8 @@ scans_app_parse_hash <- function(hash, labels) {
     return(NULL)
   }
   hash <- sub("^#", "", hash)
+  event_parts <- strsplit(hash, "?event=", fixed = TRUE)[[1L]]
+  hash <- event_parts[[1L]]
   parts <- strsplit(hash, "/", fixed = TRUE)[[1L]]
   if (length(parts) < 2L) {
     return(NULL)
@@ -1109,5 +1303,9 @@ scans_app_parse_hash <- function(hash, labels) {
   if (!application %in% labels || !nzchar(trajectory_id)) {
     return(NULL)
   }
-  list(application = application, trajectory_id = trajectory_id)
+  target <- list(application = application, trajectory_id = trajectory_id)
+  if (length(event_parts) == 2L) {
+    target$event_id <- utils::URLdecode(event_parts[[2L]])
+  }
+  target
 }

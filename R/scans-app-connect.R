@@ -41,6 +41,7 @@
 #'   forwarded to [scans_app()]. Defaults to `FALSE`.
 #' @param investigations Whether to enable investigation save/open controls,
 #'   forwarded to [scans_app()]. Defaults to `FALSE`.
+#' @inheritParams scans_app
 #'
 #' @returns A [shiny::shinyApp()] object.
 #'
@@ -61,7 +62,8 @@ scans_app_connect <- function(
   annotations = NULL,
   jobs = TRUE,
   investigations = FALSE,
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
@@ -79,6 +81,7 @@ scans_app_connect <- function(
     annotations = annotations,
     investigations = investigations,
     reviews = reviews,
+    chat_factory = chat_factory,
     x = scans_app_connect_loaders(
       x,
       n,

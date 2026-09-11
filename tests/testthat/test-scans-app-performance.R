@@ -129,6 +129,20 @@ test_that("application overview follows filters and opens exact evidence without
   )
 })
 
+test_that("overview evidence states the recorded pattern without double counting", {
+  data <- scans_app_data(scans_support_bundle())
+  overview <- scans_app_performance_data(data, seq_len(nrow(data$info)))
+  expect_equal(
+    overview$patterns$evidence,
+    c(
+      "3 events report errors",
+      "Same request made 3 times",
+      "3 consecutive identical requests"
+    )
+  )
+  expect_equal(overview$n_findings, 1L)
+})
+
 test_that("application overview handles the public Tempest review fixture", {
   skip_if_not_installed("htmltools")
   bundle <- as_trajectory_tempest(tempest_review_fixture())
@@ -145,7 +159,7 @@ test_that("application overview handles the public Tempest review fixture", {
     "elapsed",
     scan_registry()$scan
   ))
-  expect_match(html, "Evidence available", fixed = TRUE)
+  expect_match(html, "Evidence coverage", fixed = TRUE)
   expect_match(html, "adapter losses", fixed = TRUE)
   expect_no_match(html, "NaN|Inf")
 })

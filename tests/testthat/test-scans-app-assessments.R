@@ -5,14 +5,18 @@ test_that("app uses the public assessment result and links findings to evidence"
   expect_identical(data$assessments, result$assessments)
   expect_identical(data$findings, result$findings)
   html <- as.character(scans_app_evidence_ui(data, 1L))
-  expect_match(html, "Scanner assessments", fixed = TRUE)
+  expect_match(html, "Evidence coverage", fixed = TRUE)
   expect_match(html, "Assessed: findings", fixed = TRUE)
   expect_match(html, "Insufficient evidence", fixed = TRUE)
   expect_match(html, "Scanner version", fixed = TRUE)
   expect_match(html, "repeat_threshold", fixed = TRUE)
   expect_match(html, 'href="#scans-app-finding-1"', fixed = TRUE)
   expect_match(html, 'id="scans-app-finding-1"', fixed = TRUE)
-  expect_match(html, 'href="#scans-app-event-1"', fixed = TRUE)
+  expect_match(
+    html,
+    paste0('href="#', scans_app_event_dom_id(data$events$event_id[[1L]]), '"'),
+    fixed = TRUE
+  )
 })
 
 test_that("app never describes missing evidence or execution failure as clean", {
