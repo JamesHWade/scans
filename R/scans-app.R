@@ -363,7 +363,7 @@ scans_app_check_packages <- function(
     bslib = "0.11.0",
     htmltools = NA,
     shiny = "1.11.1",
-    shinychat = "0.4.0.9000"
+    shinychat = "0.5.0"
   )
   available <- vapply(
     packages,
