@@ -20,7 +20,8 @@ scans_app_connect(
   annotations = NULL,
   jobs = TRUE,
   investigations = FALSE,
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 )
 ```
 
@@ -76,6 +77,13 @@ scans_app_connect(
   Whether to enable session-local review/example controls, forwarded to
   [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md).
   Defaults to `FALSE`.
+
+- chat_factory:
+
+  Optional zero-argument function returning an ellmer chat, for example
+  `function() ellmer::chat_openai()`. Defaults to `NULL`, which omits
+  Ask. Tools configured on this client are replaced with the bounded
+  scans tools; its system prompt is retained with evidence instructions.
 
 ## Value
 

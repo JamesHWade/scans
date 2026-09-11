@@ -65,7 +65,8 @@ without downloading every snapshot when the review app starts.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  annotations <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  investigations <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">x</span>, <span class="st">"scans_investigation"</span><span class="op">)</span>,</span>
-<span>  reviews <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  reviews <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  chat_factory <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -100,6 +101,13 @@ rescan controls. Defaults to <code>TRUE</code> for a single saved investigation 
 export controls. Defaults to <code>FALSE</code>. Download selected examples to keep
 them after closing the session; no shared review store is written.</p></dd>
 
+
+<dt id="arg-chat-factory">chat_factory<a class="anchor" aria-label="anchor" href="#arg-chat-factory"></a></dt>
+<dd><p>Optional zero-argument function returning an ellmer chat,
+for example <code>function() ellmer::chat_openai()</code>. Defaults to <code>NULL</code>, which
+omits Ask. Tools configured on this client are replaced with the bounded
+scans tools; its system prompt is retained with evidence instructions.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -108,8 +116,8 @@ launches the app; the returned object can also be served from an <code>app.R</co
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>The scans app keeps the canonical bundle as its data boundary. It does not
-call a model, run tools, modify a bundle, or infer missing source facts.
+    <p>The scans app keeps the canonical bundle as its data boundary. Ordinary
+inspection does not call a model, replay tools, or modify a bundle.
 Caller-supplied loaders are invoked only when their application is first
 selected in a session or explicitly reloaded.</p>
 <p>The app opens with an application overview of the filtered trajectories:
@@ -124,6 +132,24 @@ transcript and event stream, and the findings, evaluations, and adapter
 losses associated with the selected trajectory. Built-in findings are
 computed with <code><a href="scan_trajectories.html">scan_trajectories()</a></code> when each application snapshot is first
 loaded.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="ask-about-the-evidence">Ask about the evidence<a class="anchor" aria-label="anchor" href="#ask-about-the-evidence"></a></h2>
+
+
+<p>Supply <code>chat_factory</code> to enable an optional Ask tab beside Findings. It must
+return an ellmer chat configured with your chosen provider. Each session
+clones the client, clears its prior turns and tools, and registers only
+<code><a href="scans_tools.html">scans_tools()</a></code>. Provider requests begin when the user submits a question.
+The permitted trajectories and snapshot are fixed at submission; browsing
+while a response streams cannot change them. Changing scope starts fresh
+model context while keeping earlier answers and drafts visible. Links in
+older answers open their retained snapshot, with a return-to-source action.
+Chat history and evidence references last only for the current session.
+The provider receives the submitted question and any retained evidence its
+tools read. Existing redactions remain intact; no new anonymization occurs.
+A recent shinychat with <code>page_chat_theme()</code> and
+<code>chat_server()$set_client()</code> is required for this surface.</p>
     </div>
     <div class="section level2">
     <h2 id="saved-investigations">Saved investigations<a class="anchor" aria-label="anchor" href="#saved-investigations"></a></h2>

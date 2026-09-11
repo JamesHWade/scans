@@ -2,20 +2,42 @@
 
 ## scans 0.0.0.9000
 
+- [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  now leads with patterns and a suggested trajectory, uses the shinychat
+  theme, places findings before detailed coverage, and reveals cited
+  events with stable links and keyboard focus. Unambiguous recorded
+  call/result pairs share a disclosure.
+
+- [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  and
+  [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
+  accept an optional `chat_factory` for session-local Ask with native
+  streaming and cancellation, fixed per-question scope, and links back
+  to retained evidence.
+
+- [`scans_tools()`](https://jameshwade.github.io/scans/reference/scans_tools.md)
+  creates six bounded, read-only ellmer tools for searching
+  trajectories, reading events, inspecting findings and coverage, and
+  computing resource comparisons from an immutable bundle or saved
+  investigation.
+
 - A bundled, provider-free support-assistant investigation demonstrates
   repeated failures, overlapping tools, conversation pauses, and
   incomplete capture through public functions. The new article includes
   a capture table and instructions for using the same evidence in the
   app ([\#45](https://github.com/JamesHWade/scans/issues/45)).
+
 - [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md)
   accepts current conversations with `turns` and `last_active` fields as
   well as earlier turn-list results. Provenance remains attached to the
   turns, and missing source descriptors are reported instead of inferred
   ([\#56](https://github.com/JamesHWade/scans/issues/56)).
+
 - [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
   reads current Deputy S7 results, event payloads, and usage records
   through their public properties while preserving support for earlier
   R6 results.
+
 - [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
   reports each selected built-in scanner as assessed with or without
   findings, insufficient evidence, not applicable, or execution failure,
@@ -24,14 +46,17 @@
   [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
   retains its findings-only contract
   ([\#52](https://github.com/JamesHWade/scans/issues/52)).
+
 - [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
   retains bounded resource aggregates across distinct captured calls,
   including coverage and a versioned adapter contract. Duplicate spans
   in pre-grouped conversations no longer inflate resources
   ([\#40](https://github.com/JamesHWade/scans/issues/40)).
+
 - [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md)
   accepts the initial Tempest development version when its public review
   accessor and supported schema are available.
+
 - [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md),
   [`write_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md),
   and
@@ -46,6 +71,7 @@
   contacting its source or implicitly rerunning scanners. Files contain
   retained content and preserve existing redactions; they do not add
   anonymization ([\#44](https://github.com/JamesHWade/scans/issues/44)).
+
 - [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
   reports resource values with recording denominators, source units,
   attribution, and limitations while preserving
@@ -56,6 +82,7 @@
   work, and time outside recorded work; unsupported first-token latency
   and comparable cost remain unavailable
   ([\#40](https://github.com/JamesHWade/scans/issues/40)).
+
 - [`review_case()`](https://jameshwade.github.io/scans/reference/review_case.md)
   and
   [`review_decision()`](https://jameshwade.github.io/scans/reference/review_case.md)
@@ -70,17 +97,20 @@
   [`validate_review_examples()`](https://jameshwade.github.io/scans/reference/validate_review_examples.md)
   checks scanner predicates without converting uncertainty to negative
   labels ([\#41](https://github.com/JamesHWade/scans/issues/41)).
+
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   and
   [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
   offer optional session-local review and example export controls with
   `reviews = TRUE`
   ([\#41](https://github.com/JamesHWade/scans/issues/41)).
+
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   shows scanner assessment details and filtered coverage counts, keeps
   detector execution failures visible, and no longer presents missing
   diagnostic evidence as a clean result
   ([\#52](https://github.com/JamesHWade/scans/issues/52)).
+
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   uses the public resource measurements, shows where recorded time went,
   and exposes individual values and coverage in Resource measurements.

@@ -51,6 +51,8 @@
   : Explore trajectory diagnostics with the scans app
 - [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
   : Review Posit Connect traces with the scans app
+- [`scans_tools()`](https://jameshwade.github.io/scans/reference/scans_tools.md)
+  : Create tools for exploring retained trajectories
 
 ## Saved investigations
 

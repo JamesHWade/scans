@@ -17,7 +17,8 @@ scans_app(
   x,
   annotations = NULL,
   investigations = inherits(x, "scans_investigation"),
-  reviews = FALSE
+  reviews = FALSE,
+  chat_factory = NULL
 )
 ```
 
@@ -56,6 +57,13 @@ scans_app(
   controls. Defaults to `FALSE`. Download selected examples to keep them
   after closing the session; no shared review store is written.
 
+- chat_factory:
+
+  Optional zero-argument function returning an ellmer chat, for example
+  `function() ellmer::chat_openai()`. Defaults to `NULL`, which omits
+  Ask. Tools configured on this client are replaced with the bounded
+  scans tools; its system prompt is retained with evidence instructions.
+
 ## Value
 
 A [`shiny::shinyApp()`](https://rdrr.io/pkg/shiny/man/shinyApp.html)
@@ -64,10 +72,10 @@ returned object can also be served from an `app.R`.
 
 ## Details
 
-The scans app keeps the canonical bundle as its data boundary. It does
-not call a model, run tools, modify a bundle, or infer missing source
-facts. Caller-supplied loaders are invoked only when their application
-is first selected in a session or explicitly reloaded.
+The scans app keeps the canonical bundle as its data boundary. Ordinary
+inspection does not call a model, replay tools, or modify a bundle.
+Caller-supplied loaders are invoked only when their application is first
+selected in a session or explicitly reloaded.
 
 The app opens with an application overview of the filtered trajectories:
 recurring findings, elapsed-time quantiles, recorded token usage, and
@@ -83,6 +91,24 @@ losses associated with the selected trajectory. Built-in findings are
 computed with
 [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
 when each application snapshot is first loaded.
+
+## Ask about the evidence
+
+Supply `chat_factory` to enable an optional Ask tab beside Findings. It
+must return an ellmer chat configured with your chosen provider. Each
+session clones the client, clears its prior turns and tools, and
+registers only
+[`scans_tools()`](https://jameshwade.github.io/scans/reference/scans_tools.md).
+Provider requests begin when the user submits a question. The permitted
+trajectories and snapshot are fixed at submission; browsing while a
+response streams cannot change them. Changing scope starts fresh model
+context while keeping earlier answers and drafts visible. Links in older
+answers open their retained snapshot, with a return-to-source action.
+Chat history and evidence references last only for the current session.
+The provider receives the submitted question and any retained evidence
+its tools read. Existing redactions remain intact; no new anonymization
+occurs. A recent shinychat with `page_chat_theme()` and
+`chat_server()$set_client()` is required for this surface.
 
 ## Saved investigations
 

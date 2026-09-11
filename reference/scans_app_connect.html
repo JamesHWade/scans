@@ -67,7 +67,8 @@ is thirty minutes old or <strong>Reload traces</strong> fetches it again.</p>
 <span>  annotations <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  jobs <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  investigations <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  reviews <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  reviews <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  chat_factory <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -117,6 +118,13 @@ forwarded to <code><a href="scans_app.html">scans_app()</a></code>. Defaults to 
 <dt id="arg-reviews">reviews<a class="anchor" aria-label="anchor" href="#arg-reviews"></a></dt>
 <dd><p>Whether to enable session-local review/example controls,
 forwarded to <code><a href="scans_app.html">scans_app()</a></code>. Defaults to <code>FALSE</code>.</p></dd>
+
+
+<dt id="arg-chat-factory">chat_factory<a class="anchor" aria-label="anchor" href="#arg-chat-factory"></a></dt>
+<dd><p>Optional zero-argument function returning an ellmer chat,
+for example <code>function() ellmer::chat_openai()</code>. Defaults to <code>NULL</code>, which
+omits Ask. Tools configured on this client are replaced with the bounded
+scans tools; its system prompt is retained with evidence instructions.</p></dd>
 
 </dl></div>
     <div class="section level2">
