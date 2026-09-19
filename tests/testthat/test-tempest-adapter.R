@@ -34,7 +34,6 @@ test_that("Tempest reviews become complete canonical product trajectories", {
       "tempest:deputy_run",
       "tempest:program",
       "tempest:knowledge",
-      "tempest:accepted_revision",
       "tempest:evidence",
       "tempest:join",
       "tempest:finding"
@@ -85,7 +84,6 @@ test_that("Tempest authority, identities, and findings remain distinct", {
   joins <- events[events$event_type == "tempest:join", ]
   programs <- events[events$event_type == "tempest:program", ]
   knowledge <- events[events$event_type == "tempest:knowledge", ]
-  revisions <- events[events$event_type == "tempest:accepted_revision", ]
   evidence <- events[events$event_type == "tempest:evidence", ]
   finding <- events[events$event_type == "tempest:finding", ]
   stages <- events[grepl("^tempest:stage_", events$event_type), ]
@@ -106,6 +104,7 @@ test_that("Tempest authority, identities, and findings remain distinct", {
       "executed_as",
       "correlated_with",
       "proposed_as",
+      "published_as",
       "accepted_as"
     )
   )
@@ -119,19 +118,14 @@ test_that("Tempest authority, identities, and findings remain distinct", {
   expect_identical(programs$value[[1L]]$stage, "perspectives")
   expect_identical(knowledge$name, "accepted")
   expect_named(
-    knowledge$value[[1L]]$acceptance$record_revisions,
-    c("total", "retained", "omitted", "digest")
+    knowledge$value[[1L]]$acceptance,
+    c("decision_id", "stream", "sequence", "selection_id", "purpose")
   )
-  expect_true(all(grepl(
-    "^graft:",
-    vapply(
-      revisions$value,
-      `[[`,
-      character(1),
-      "revision_id"
-    )
-  )))
-  expect_in("Claim", revisions$name)
+  expect_identical(
+    knowledge$value[[1L]]$acceptance$selection_id,
+    knowledge$value[[1L]]$proposal$selection_id
+  )
+  expect_null(knowledge$value[[1L]]$acceptance$record_revisions)
   expect_true(all(nzchar(vapply(
     evidence$value,
     `[[`,
@@ -298,4 +292,50 @@ test_that("Tempest adapter enforces scans-owned trajectory ID bounds", {
     error = TRUE,
     as_trajectory_tempest(tempest_review_fixture(), trajectory_id = "   ")
   )
+})
+
+test_that("Tempest input artifact rows and omissions remain separate from acceptance", {
+  review <- tempest_review_fixture()
+  projection <- tempest::tempest_trajectory_review_data(review)
+  record <- list(
+    record_id = "source:prior",
+    revision_id = "v1",
+    class = "Source",
+    sha256 = strrep("a", 64L)
+  )
+  projection$knowledge$input_selection <- list(
+    selection_id = "prior-selection",
+    purpose = "briefing",
+    digest = strrep("b", 64L),
+    reported_decision = NULL,
+    records = list(
+      total = 251L,
+      retained = 250L,
+      omitted = 1L,
+      digest = paste0("sha256:", strrep("c", 64L)),
+      items = lapply(seq_len(250L), function(i) {
+        item <- record
+        item$record_id <- paste0("source:prior-", i)
+        item
+      })
+    )
+  )
+  local_mocked_bindings(tempest_review_snapshot = function(x, call) projection)
+  bundle <- as_trajectory_tempest(review)
+  events <- trajectory_events(bundle)
+  input <- events[events$event_type == "tempest:input_artifact", ]
+  expect_identical(input$name, rep("Source", 250L))
+  expect_identical(
+    input$value,
+    projection$knowledge$input_selection$records$items
+  )
+  knowledge <- events[events$event_type == "tempest:knowledge", ]$value[[1L]]
+  expect_identical(knowledge$input_selection$selection_id, "prior-selection")
+  expect_identical(
+    knowledge$acceptance$selection_id,
+    projection$knowledge$proposal$selection_id
+  )
+  expect_null(knowledge$input_selection$records$items)
+  losses <- trajectory_losses(bundle)
+  expect_in("knowledge$input_selection$records$items", losses$field)
 })

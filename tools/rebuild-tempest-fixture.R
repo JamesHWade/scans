@@ -20,19 +20,25 @@ rebuild_tempest_fixture <- function() {
     env = helpers
   ))
   fixture <- helpers$test_promotion_bundle()
-  store <- graft::graft_open(
-    tempest_graft_schema(),
-    ":memory:",
-    okf = "disabled"
+  store <- graft::graft_artifact_store(tempfile(), create = TRUE)
+  selection <- tempest_publish_artifact_research(fixture$research, store)
+  accepted <- graft::graft_artifact_decide(
+    store,
+    "research",
+    "review-1",
+    NULL,
+    selection,
+    "accept",
+    "host",
+    "Reviewed",
+    "briefing"
   )
-  on.exit(graft::graft_close(store), add = TRUE)
-  plan <- tempest_graft_plan(store, fixture$bundle)
-  commit <- graft::graft_commit(store, plan)
-  receipt <- tempest_promotion_receipt(store, fixture$bundle, plan, commit)
   review <- tempest_trajectory_review(
     fixture$research,
-    promotion_bundle = fixture$bundle,
-    promotion_receipt = receipt
+    store = store,
+    selection = selection,
+    stream = "research",
+    decision = accepted$id
   )
   invisible(tempest_trajectory_review_data(review))
   saveRDS(review, "tests/testthat/fixtures/tempest-review.rds", version = 3L)

@@ -10,7 +10,9 @@
 #' preserved before the review's canonical-set lanes. Product stages, Deputy
 #' agent runs, programs, knowledge, evidence identities, join proofs, and
 #' findings remain distinguishable through namespaced events and structured
-#' values. In particular, `authority_validated`, `exact_identity`, and
+#' values. Schema 2 retains input artifact identities separately from output
+#' publication and recorded acceptance. Historical acceptance never grants
+#' current reuse permission. Schema 1 is no longer accepted. In particular, `authority_validated`, `exact_identity`, and
 #' `correlation_only` proof kinds are retained without reinterpretation.
 #'
 #' The Tempest review deliberately excludes prompts, responses, source
@@ -192,7 +194,7 @@ tempest_review_snapshot <- function(x, call) {
       )
     }
   )
-  if (!identical(review$schema_version, 1L)) {
+  if (!identical(review$schema_version, 2L)) {
     tempest_review_abort(
       "Tempest trajectory review schema {review$schema_version} is unsupported.",
       call
@@ -374,13 +376,11 @@ tempest_review_events <- function(review, trajectory_id, call) {
   }
 
   knowledge <- review$knowledge
-  revisions <- list()
-  if (!is.null(knowledge$acceptance)) {
-    revisions <- knowledge$acceptance$record_revisions$items
-    knowledge$acceptance$record_revisions <-
-      knowledge$acceptance$record_revisions[
-        c("total", "retained", "omitted", "digest")
-      ]
+  input_records <- knowledge$input_selection$records$items %||% list()
+  if (!is.null(knowledge$input_selection)) {
+    knowledge$input_selection$records <- knowledge$input_selection$records[
+      c("total", "retained", "omitted", "digest")
+    ]
   }
   add(
     event_type = "tempest:knowledge",
@@ -388,16 +388,12 @@ tempest_review_events <- function(review, trajectory_id, call) {
     value = knowledge,
     field = "knowledge"
   )
-  for (index in seq_along(revisions)) {
+  for (index in seq_along(input_records)) {
     add(
-      event_type = "tempest:accepted_revision",
-      name = revisions[[index]]$class,
-      value = revisions[[index]],
-      field = paste0(
-        "knowledge$acceptance$record_revisions$items[[",
-        index,
-        "]]"
-      )
+      event_type = "tempest:input_artifact",
+      name = input_records[[index]]$class,
+      value = input_records[[index]],
+      field = paste0("knowledge$input_selection$records$items[[", index, "]]")
     )
   }
 
@@ -631,26 +627,26 @@ tempest_review_omission_losses <- function(review, ids) {
       )
     }
   }
-  acceptance <- review$knowledge$acceptance
-  if (!is.null(acceptance)) {
-    revisions <- acceptance$record_revisions
-    if (revisions$omitted > 0L) {
+  input <- review$knowledge$input_selection
+  if (!is.null(input)) {
+    records <- input$records
+    if (records$omitted > 0L) {
       losses <- c(
         losses,
         list(trajectory_new_loss(
           ids,
-          "knowledge$acceptance$record_revisions$items",
+          "knowledge$input_selection$records$items",
           "truncated",
           paste0(
             "TempestTrajectoryReview retained ",
-            revisions$retained,
+            records$retained,
             " of ",
-            revisions$total,
-            " accepted revision records"
+            records$total,
+            " input artifact records"
           ),
           list(
             source = "tempest_trajectory_review",
-            complete_digest = revisions$digest
+            complete_digest = records$digest
           )
         ))
       )
