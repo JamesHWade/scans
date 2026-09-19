@@ -149,14 +149,14 @@ bundle <- as_trajectory_tempest(review)
 filter_trajectory_events(bundle, event_type = "tempest:join")
 ```
 
-The adapter accepts Tempest review schema 2. Input selections and their
+The adapter accepts Tempest review schema 3. Input selections and their
 bounded artifact identity rows remain separate from output publications
 and verified acceptance decisions. Input `reported_decision` metadata is
 explicitly unverified host provenance; it never establishes
 authenticated acceptance. An old acceptance is historical evidence, not
 current reuse permission. Omitted input rows are reported as adapter
-losses. Schema 1 reviews must be regenerated with the current Tempest
-package.
+losses. Reviews using any other schema, including schemas 1 and 2, must
+be regenerated with the current Tempest package.
 
 The product is one trajectory. Stage order is authoritative; agent runs,
 programs, knowledge, evidence identities, joins, and findings keep their

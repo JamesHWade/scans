@@ -3,9 +3,10 @@
 ## scans 0.0.0.9000
 
 - [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md)
-  now reads schema 2 reviews, keeping input artifact identities distinct
-  from output publication and historical acceptance decisions; schema 1
-  is no longer accepted.
+  now requires Tempest trajectory schema 3, keeping input artifact
+  identities distinct from output publication and historical acceptance
+  decisions without native graph snapshots. Reviews using any other
+  schema, including schemas 1 and 2, must be regenerated.
 
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   now leads with patterns and a suggested trajectory, uses the shinychat
