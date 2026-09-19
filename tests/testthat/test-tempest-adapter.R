@@ -339,3 +339,17 @@ test_that("Tempest input artifact rows and omissions remain separate from accept
   losses <- trajectory_losses(bundle)
   expect_in("knowledge$input_selection$records$items", losses$field)
 })
+
+test_that("completed research reviews compose with scans diagnostics", {
+  review <- tempest_review_fixture()
+  data <- tempest::tempest_trajectory_review_data(review)
+  expect_identical(data$schema_version, 3L)
+  expect_named(
+    data$knowledge,
+    c("input_selection", "promotion_state", "proposal", "acceptance")
+  )
+  trajectory <- as_trajectory_tempest(review)
+  expect_identical(trajectory_info(trajectory)$source_type, "tempest")
+  expect_s3_class(summarize_trajectories(trajectory), "data.frame")
+  expect_s3_class(scan_trajectories(trajectory), "data.frame")
+})

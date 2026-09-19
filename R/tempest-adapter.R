@@ -10,9 +10,10 @@
 #' preserved before the review's canonical-set lanes. Product stages, Deputy
 #' agent runs, programs, knowledge, evidence identities, join proofs, and
 #' findings remain distinguishable through namespaced events and structured
-#' values. Schema 2 retains input artifact identities separately from output
+#' values. Schema 3 retains input artifact identities separately from output
 #' publication and recorded acceptance. Historical acceptance never grants
-#' current reuse permission. Schema 1 is no longer accepted. In particular, `authority_validated`, `exact_identity`, and
+#' current reuse permission. Every other schema version is rejected. The
+#' `authority_validated`, `exact_identity`, and
 #' `correlation_only` proof kinds are retained without reinterpretation.
 #'
 #' The Tempest review deliberately excludes prompts, responses, source
@@ -194,7 +195,7 @@ tempest_review_snapshot <- function(x, call) {
       )
     }
   )
-  if (!identical(review$schema_version, 2L)) {
+  if (!identical(review$schema_version, 3L)) {
     tempest_review_abort(
       "Tempest trajectory review schema {review$schema_version} is unsupported.",
       call
