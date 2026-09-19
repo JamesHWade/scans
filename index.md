@@ -208,7 +208,7 @@ data.
 | Deputy agent results | [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md) | Run lifecycle, tool timing, delegation between runs |
 | dsprrr modules and traces | [`as_trajectory_dsprrr()`](https://jameshwade.github.io/scans/reference/as_trajectory_dsprrr.md) | Semantic turns, metrics, program artifact identity |
 | commons conversations | [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md) | Provenance tags and citation decisions |
-| Tempest product reviews | [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md) | Stage order, agent runs, evidence joins, findings |
+| Tempest product reviews | [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md) | Stage order, agent runs, input artifacts, publication decisions, evidence joins |
 | Your own rectangular data | [`TrajectoryBundle()`](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md) | Whatever you supply; empty tables are valid |
 
 Every adapter records what it could not carry over as an explicit loss

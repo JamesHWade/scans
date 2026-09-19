@@ -96,7 +96,7 @@ explicitly to leave that side of the window open.</p></dd>
 
 <dt id="arg-reader">reader<a class="anchor" aria-label="anchor" href="#arg-reader"></a></dt>
 <dd><p>Which trace reader to use: <code>"otel"</code> (the default) for this
-package's native reader, or <code>"commons"</code> for <code><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code>.</p></dd>
+package's native reader, or <code>"commons"</code> for <code><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code>.</p></dd>
 
 
 <dt id="arg-annotations">annotations<a class="anchor" aria-label="anchor" href="#arg-annotations"></a></dt>
@@ -137,7 +137,7 @@ scans tools; its system prompt is retained with evidence instructions.</p></dd>
 <code><a href="read_connect_traces.html">read_connect_traces()</a></code> with <code><a href="as_trajectory_otel.html">as_trajectory_otel()</a></code>: it needs no other
 package, falls back to Connect's per-job trace endpoint when the aggregate
 one fails, and keeps the per-call tool timings and failures the span
-history carries. <code>"commons"</code> routes through <code><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code>
+history carries. <code>"commons"</code> routes through <code><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code>
 and <code><a href="as_trajectory_commons.html">as_trajectory_commons()</a></code> instead, which suits agents built with
 commons because it also recovers their provenance records.</p>
 <p>Connect trace access requires <code>CONNECT_SERVER</code>, <code>CONNECT_API_KEY</code>, and

@@ -52,7 +52,7 @@ does not read files, connect to Posit Connect, or parse trace records itself."><
 
     <div class="ref-description section level2">
     <p><code>as_trajectory_commons()</code> converts the already-read result of
-<code><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code> into one canonical <a href="TrajectoryBundle.html">TrajectoryBundle</a>. Each
+<code><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code> into one canonical <a href="TrajectoryBundle.html">TrajectoryBundle</a>. Each
 named conversation becomes one trajectory. Both current records with <code>turns</code>
 and <code>last_active</code> fields and older attributed turn lists are accepted.
 Model-visible turns are delegated to <code><a href="as_trajectory_ellmer.html">as_trajectory_ellmer()</a></code>. The adapter
@@ -70,7 +70,7 @@ does not read files, connect to Posit Connect, or parse trace records itself.</p
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
 <dd><p>An already-read, named list returned by
-<code><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code>.</p></dd>
+<code><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code>.</p></dd>
 
 
 <dt id="arg-trajectory-id">trajectory_id<a class="anchor" aria-label="anchor" href="#arg-trajectory-id"></a></dt>
@@ -99,7 +99,7 @@ expose an exchange-to-turn key, provenance events retain their source index
 without inferring a <code>turn_id</code>. Missing or malformed source facts are reported
 as adapter losses. Extra record fields and turn attributes are retained as
 sanitized metadata. A missing outer source descriptor remains a loss.</p>
-<p>Because <code><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code> returns an ordinary list without a
+<p>Because <code><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">commons::trajectory_read()</a></code> returns an ordinary list without a
 discriminating class, use this explicit adapter instead of
 <code><a href="as_trajectory.html">as_trajectory()</a></code>.</p>
     </div>

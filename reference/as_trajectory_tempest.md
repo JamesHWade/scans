@@ -52,9 +52,11 @@ One review becomes one product trajectory. Authoritative stage order is
 preserved before the review's canonical-set lanes. Product stages,
 Deputy agent runs, programs, knowledge, evidence identities, join
 proofs, and findings remain distinguishable through namespaced events
-and structured values. In particular, `authority_validated`,
-`exact_identity`, and `correlation_only` proof kinds are retained
-without reinterpretation.
+and structured values. Schema 2 retains input artifact identities
+separately from output publication and recorded acceptance. Historical
+acceptance never grants current reuse permission. Schema 1 is no longer
+accepted. In particular, `authority_validated`, `exact_identity`, and
+`correlation_only` proof kinds are retained without reinterpretation.
 
 The Tempest review deliberately excludes prompts, responses, source
 content, local paths, credentials, and live runtime objects. Those

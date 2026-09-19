@@ -49,7 +49,7 @@ scans_app_connect(
 
   Which trace reader to use: `"otel"` (the default) for this package's
   native reader, or `"commons"` for
-  [`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html).
+  [`commons::trajectory_read()`](https://posit-dev.github.io/commons/r/reference/trajectory_read.html).
 
 - annotations:
 
@@ -101,7 +101,7 @@ it needs no other package, falls back to Connect's per-job trace
 endpoint when the aggregate one fails, and keeps the per-call tool
 timings and failures the span history carries. `"commons"` routes
 through
-[`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html)
+[`commons::trajectory_read()`](https://posit-dev.github.io/commons/r/reference/trajectory_read.html)
 and
 [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md)
 instead, which suits agents built with commons because it also recovers

@@ -190,7 +190,7 @@ not return an outer source descriptor, so scans reports that missing
 fact without inferring where the conversation came from. Read through
 commons, then convert the settled value:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">conversations</span> <span class="op">&lt;-</span> <span class="fu">commons</span><span class="fu">::</span><span class="fu"><a href="https://posit-dev.github.io/commons/reference/trajectory_read.html" class="external-link">trajectory_read</a></span><span class="op">(</span><span class="st">"path/to/otel-traces"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">conversations</span> <span class="op">&lt;-</span> <span class="fu">commons</span><span class="fu">::</span><span class="fu"><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">trajectory_read</a></span><span class="op">(</span><span class="st">"path/to/otel-traces"</span><span class="op">)</span></span>
 <span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_commons.html">as_trajectory_commons</a></span><span class="op">(</span><span class="va">conversations</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/filter_trajectory_events.html">filter_trajectory_events</a></span><span class="op">(</span><span class="va">bundle</span>, event_type <span class="op">=</span> <span class="st">"commons:provenance"</span><span class="op">)</span></span></code></pre></div>
 <p>Model-visible turns reuse the ellmer adapter. Activity time remains
@@ -210,6 +210,14 @@ rather than re-deriving it:</p>
 <code class="sourceCode R"><span><span class="va">review</span> <span class="op">&lt;-</span> <span class="fu">tempest</span><span class="fu">::</span><span class="fu"><a href="https://jameshwade.github.io/tempest/reference/tempest_trajectory_review.html" class="external-link">tempest_trajectory_review</a></span><span class="op">(</span><span class="va">result</span><span class="op">)</span></span>
 <span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_tempest.html">as_trajectory_tempest</a></span><span class="op">(</span><span class="va">review</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/filter_trajectory_events.html">filter_trajectory_events</a></span><span class="op">(</span><span class="va">bundle</span>, event_type <span class="op">=</span> <span class="st">"tempest:join"</span><span class="op">)</span></span></code></pre></div>
+<p>The adapter accepts Tempest review schema 2. Input selections and
+their bounded artifact identity rows remain separate from output
+publications and verified acceptance decisions. Input
+<code>reported_decision</code> metadata is explicitly unverified host
+provenance; it never establishes authenticated acceptance. An old
+acceptance is historical evidence, not current reuse permission. Omitted
+input rows are reported as adapter losses. Schema 1 reviews must be
+regenerated with the current Tempest package.</p>
 <p>The product is one trajectory. Stage order is authoritative; agent
 runs, programs, knowledge, evidence identities, joins, and findings keep
 their source order. Prompts, responses, source content, paths, and

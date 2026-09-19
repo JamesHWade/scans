@@ -1,7 +1,7 @@
 # Convert completed commons conversations
 
 `as_trajectory_commons()` converts the already-read result of
-[`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html)
+[`commons::trajectory_read()`](https://posit-dev.github.io/commons/r/reference/trajectory_read.html)
 into one canonical
 [TrajectoryBundle](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md).
 Each named conversation becomes one trajectory. Both current records
@@ -22,7 +22,7 @@ as_trajectory_commons(x, trajectory_id = NULL, metadata = list())
 - x:
 
   An already-read, named list returned by
-  [`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html).
+  [`commons::trajectory_read()`](https://posit-dev.github.io/commons/r/reference/trajectory_read.html).
 
 - trajectory_id:
 
@@ -54,7 +54,7 @@ are retained as sanitized metadata. A missing outer source descriptor
 remains a loss.
 
 Because
-[`commons::trajectory_read()`](https://posit-dev.github.io/commons/reference/trajectory_read.html)
+[`commons::trajectory_read()`](https://posit-dev.github.io/commons/r/reference/trajectory_read.html)
 returns an ordinary list without a discriminating class, use this
 explicit adapter instead of
 [`as_trajectory()`](https://jameshwade.github.io/scans/reference/as_trajectory.md).
