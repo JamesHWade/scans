@@ -52,7 +52,7 @@ Remotes:
     posit-dev/shinychat/pkg-r@826c799994c32611629236bbc73516dbc14ff2ab,
     JamesHWade/deputy,
     JamesHWade/dsprrr,
-    JamesHWade/tempest@f83f0609ed4cb3ee8c3d53ba57cc118acd880f7c
+    JamesHWade/tempest@430c6c4ab0513cf68d53138f58e3ac096bd6d103
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.1.0

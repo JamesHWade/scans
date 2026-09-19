@@ -306,22 +306,29 @@ test_that("Tempest input artifact rows and omissions remain separate from accept
   projection$knowledge$input_selection <- list(
     selection_id = "prior-selection",
     purpose = "briefing",
-    digest = paste0("sha256:", strrep("b", 64L)),
+    digest = strrep("b", 64L),
     decision = NULL,
     records = list(
-      total = 2L,
-      retained = 1L,
+      total = 251L,
+      retained = 250L,
       omitted = 1L,
       digest = paste0("sha256:", strrep("c", 64L)),
-      items = list(record)
+      items = lapply(seq_len(250L), function(i) {
+        item <- record
+        item$record_id <- paste0("source:prior-", i)
+        item
+      })
     )
   )
   local_mocked_bindings(tempest_review_snapshot = function(x, call) projection)
   bundle <- as_trajectory_tempest(review)
   events <- trajectory_events(bundle)
   input <- events[events$event_type == "tempest:input_artifact", ]
-  expect_identical(input$name, "Source")
-  expect_identical(input$value[[1L]], record)
+  expect_identical(input$name, rep("Source", 250L))
+  expect_identical(
+    input$value,
+    projection$knowledge$input_selection$records$items
+  )
   knowledge <- events[events$event_type == "tempest:knowledge", ]$value[[1L]]
   expect_identical(knowledge$input_selection$selection_id, "prior-selection")
   expect_identical(
