@@ -307,7 +307,7 @@ test_that("Tempest input artifact rows and omissions remain separate from accept
     selection_id = "prior-selection",
     purpose = "briefing",
     digest = strrep("b", 64L),
-    decision = NULL,
+    reported_decision = NULL,
     records = list(
       total = 251L,
       retained = 250L,
