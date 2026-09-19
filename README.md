@@ -187,7 +187,7 @@ the explicit functions accept unclassed data.
 | Deputy agent results | `as_trajectory_deputy()` | Run lifecycle, tool timing, delegation between runs |
 | dsprrr modules and traces | `as_trajectory_dsprrr()` | Semantic turns, metrics, program artifact identity |
 | commons conversations | `as_trajectory_commons()` | Provenance tags and citation decisions |
-| Tempest product reviews | `as_trajectory_tempest()` | Stage order, agent runs, evidence joins, findings |
+| Tempest product reviews | `as_trajectory_tempest()` | Stage order, agent runs, input artifacts, publication decisions, evidence joins |
 | Your own rectangular data | `TrajectoryBundle()` | Whatever you supply; empty tables are valid |
 
 Every adapter records what it could not carry over as an explicit loss in

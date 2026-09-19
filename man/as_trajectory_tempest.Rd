@@ -39,7 +39,9 @@ One review becomes one product trajectory. Authoritative stage order is
 preserved before the review's canonical-set lanes. Product stages, Deputy
 agent runs, programs, knowledge, evidence identities, join proofs, and
 findings remain distinguishable through namespaced events and structured
-values. In particular, \code{authority_validated}, \code{exact_identity}, and
+values. Schema 2 retains input artifact identities separately from output
+publication and recorded acceptance. Historical acceptance never grants
+current reuse permission. Schema 1 is no longer accepted. In particular, \code{authority_validated}, \code{exact_identity}, and
 \code{correlation_only} proof kinds are retained without reinterpretation.
 
 The Tempest review deliberately excludes prompts, responses, source

@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+- `as_trajectory_tempest()` now reads schema 2 reviews, keeping input artifact identities distinct from output publication and historical acceptance decisions; schema 1 is no longer accepted.
+
 * `scans_app()` now leads with patterns and a suggested trajectory, uses the shinychat theme, places findings before detailed coverage, and reveals cited events with stable links and keyboard focus. Unambiguous recorded call/result pairs share a disclosure.
 * `scans_app()` and `scans_app_connect()` accept an optional `chat_factory` for session-local Ask with native streaming and cancellation, fixed per-question scope, and links back to retained evidence.
 * `scans_tools()` creates six bounded, read-only ellmer tools for searching trajectories, reading events, inspecting findings and coverage, and computing resource comparisons from an immutable bundle or saved investigation.
