@@ -33,10 +33,9 @@ the source tree and during `R CMD check` without network access.
 
 `tempest-review.rds` was produced by the installed Tempest 0.0.0.9000 public
 `tempest_trajectory_review()` function from Tempest's provider-free STORM
-promotion fixture. On 2026-09-05 the unchanged fixture was verified with
-Tempest source commits `bfc32f6cd387ac64aa628301e110396b668d69a7` and
-`3d8d64aefaa2cb9498ebcafa9e590510926b97e9` (the revision selected by Scans'
-`Remotes` branch at that time). Tests read that authoritative result and project it through
+promotion fixture, rebuilt on 2026-09-19 using Tempest source commit
+`9e195c5130cd7be2c662db259de8090bc4c6d953` (the producer pinned in
+`Remotes`). Tests read that authoritative result and project it through
 Tempest's exported accessor; they do not reproduce Tempest classes or digest
 contracts. After installing a matching Tempest checkout, run from the scans root:
 
@@ -44,7 +43,8 @@ contracts. After installing a matching Tempest checkout, run from the scans root
 Rscript tools/rebuild-tempest-fixture.R /path/to/matching/tempest-checkout
 ```
 
-The fixture includes a host-accepted promotion receipt from a real Graft store.
+The fixture includes a host decision accepting an exact artifact selection.
+It uses Tempest trajectory schema 3, which contains no native graph snapshot.
 A stale installed Tempest can reject the proposal's schema digest even when its
 package version matches a current checkout. Before rebuilding, verify the
 installed source revision against the supported producer. Do not repair digests

@@ -1,5 +1,8 @@
 # scans 0.0.0.9000
 
+* `as_trajectory_tempest()` now requires Tempest trajectory schema 3, with artifact selections and host decisions and no native graph snapshot projection.
+
+
 - `as_trajectory_tempest()` now reads schema 2 reviews, keeping input artifact identities distinct from output publication and historical acceptance decisions; schema 1 is no longer accepted.
 
 * `scans_app()` now leads with patterns and a suggested trajectory, uses the shinychat theme, places findings before detailed coverage, and reveals cited events with stable links and keyboard focus. Unambiguous recorded call/result pairs share a disclosure.
