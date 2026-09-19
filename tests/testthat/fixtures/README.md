@@ -34,8 +34,9 @@ the source tree and during `R CMD check` without network access.
 `tempest-review.rds` was produced by the installed Tempest 0.0.0.9000 public
 `tempest_trajectory_review()` function from Tempest's provider-free STORM
 promotion fixture, rebuilt on 2026-09-19 using Tempest source commit
-`9e195c5130cd7be2c662db259de8090bc4c6d953` (the producer pinned in
-`Remotes`). Tests read that authoritative result and project it through
+`9e195c5130cd7be2c662db259de8090bc4c6d953`. It is verified against
+`e4928b54cdb778728ec0a1c2882accd1b2e9278e`, the producer pinned in
+`Remotes`; intervening changes affect release notes and validation messages. Tests read that authoritative result and project it through
 Tempest's exported accessor; they do not reproduce Tempest classes or digest
 contracts. After installing a matching Tempest checkout, run from the scans root:
 
