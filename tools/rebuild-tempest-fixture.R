@@ -1,5 +1,6 @@
 rebuild_tempest_fixture <- function() {
-  # Run with Tempest installed and its matching source checkout as the argument.
+  # Run with the Tempest and Graft versions from Remotes installed and the
+  # matching Tempest source checkout as the argument.
   args <- commandArgs(trailingOnly = TRUE)
   if (length(args) != 1L) {
     cli::cli_abort(
@@ -20,27 +21,41 @@ rebuild_tempest_fixture <- function() {
     env = helpers
   ))
   fixture <- helpers$test_promotion_bundle()
-  store <- graft::graft_artifact_store(tempfile(), create = TRUE)
+  store_path <- tempfile()
+  store <- graft::graft_store(store_path, create = TRUE)
+  on.exit(unlink(store_path, recursive = TRUE), add = TRUE)
   selection <- tempest_publish_artifact_research(fixture$research, store)
-  accepted <- graft::graft_artifact_decide(
-    store,
-    "research",
-    "review-1",
-    NULL,
-    selection,
-    "accept",
-    "host",
-    "Reviewed",
-    "briefing"
+  exact_selection <- graft::graft_read_selection(store, selection)
+  accepted <- graft::graft_accept(
+    store = store,
+    x = exact_selection,
+    stream = "research",
+    expected = NULL,
+    key = "review-1",
+    actor = "host",
+    reason = "Reviewed",
+    purpose = "briefing"
   )
+  if (!identical(accepted@selection, selection)) {
+    cli::cli_abort("The accepted decision does not retain the exact selection.")
+  }
   review <- tempest_trajectory_review(
     fixture$research,
     store = store,
     selection = selection,
     stream = "research",
-    decision = accepted$id
+    decision = accepted@id
   )
-  invisible(tempest_trajectory_review_data(review))
+  projection <- tempest_trajectory_review_data(review)
+  if (
+    !identical(projection$knowledge$proposal$selection_id, selection) ||
+      !identical(projection$knowledge$acceptance$selection_id, selection) ||
+      !identical(projection$knowledge$acceptance$decision_id, accepted@id)
+  ) {
+    cli::cli_abort(
+      "The Tempest review does not retain the exact publication and acceptance."
+    )
+  }
   saveRDS(review, "tests/testthat/fixtures/tempest-review.rds", version = 3L)
 }
 
