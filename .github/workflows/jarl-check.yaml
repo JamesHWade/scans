@@ -17,3 +17,5 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: etiennebacher/setup-jarl@v0.1.1
+        with:
+          version: "0.6.0"
