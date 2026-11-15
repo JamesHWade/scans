@@ -32,6 +32,7 @@ Suggests:
     digest,
     dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.5.0),
+    graft (>= 0.0.0.9000),
     htmltools,
     httr2 (>= 1.1.1),
     jsonlite,
@@ -52,7 +53,8 @@ Remotes:
     posit-dev/shinychat/pkg-r@826c799994c32611629236bbc73516dbc14ff2ab,
     JamesHWade/deputy,
     JamesHWade/dsprrr,
-    JamesHWade/tempest@e4928b54cdb778728ec0a1c2882accd1b2e9278e
+    JamesHWade/graft,
+    JamesHWade/tempest@de2d3ddde4022648f70e6cd985d114690b1ff67a
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
 Config/roxygen2/version: 8.1.0

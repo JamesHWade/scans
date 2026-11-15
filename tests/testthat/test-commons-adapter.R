@@ -430,8 +430,12 @@ test_that("commons record fields and turn attributes retain safe provenance", {
   bundle <- as_trajectory_commons(source)
   metadata <- trajectory_info(bundle)$metadata[[1L]]
   expect_identical(
-    metadata$conversation_fields,
+    metadata$conversation_fields[c("revision", "api_key")],
     list(revision = 2L, api_key = "<redacted>")
+  )
+  expect_identical(
+    metadata$conversation_fields[["user"]],
+    source[[1L]][["user"]]
   )
   expect_identical(
     metadata$conversation_attributes$revision,
@@ -475,7 +479,10 @@ test_that("extra Commons fields cannot partially match last activity", {
   info <- trajectory_info(bundle)
   expect_identical(info$completed_at, as.POSIXct(NA, tz = "UTC"))
   expect_in("last_active", trajectory_losses(bundle)$field)
-  expect_named(info$metadata[[1L]]$conversation_fields, "last_active_at")
+  expect_identical(
+    info$metadata[[1L]]$conversation_fields[["last_active_at"]],
+    active
+  )
 
   source[[1L]][["last_active"]] <- active
   bundle <- as_trajectory_commons(source)

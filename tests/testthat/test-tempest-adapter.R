@@ -117,13 +117,20 @@ test_that("Tempest authority, identities, and findings remain distinct", {
   expect_identical(programs$name[[1L]], "perspectives")
   expect_identical(programs$value[[1L]]$stage, "perspectives")
   expect_identical(knowledge$name, "accepted")
+  proposal <- knowledge$value[[1L]]$proposal
+  acceptance <- knowledge$value[[1L]]$acceptance
   expect_named(
-    knowledge$value[[1L]]$acceptance,
+    acceptance,
     c("decision_id", "stream", "sequence", "selection_id", "purpose")
   )
+  expect_match(proposal$selection_id, "^[a-f0-9]{64}$")
+  expect_match(acceptance$decision_id, "^[a-f0-9]{64}$")
+  expect_identical(acceptance$stream, "research")
+  expect_identical(acceptance$sequence, 1L)
+  expect_identical(acceptance$purpose, "briefing")
   expect_identical(
-    knowledge$value[[1L]]$acceptance$selection_id,
-    knowledge$value[[1L]]$proposal$selection_id
+    acceptance$selection_id,
+    proposal$selection_id
   )
   expect_null(knowledge$value[[1L]]$acceptance$record_revisions)
   expect_true(all(nzchar(vapply(

@@ -31,14 +31,19 @@ populate every canonical schema column and exercise every core loss reason.
 Fixtures are loaded through `testthat::test_path()`, so adapter tests work from
 the source tree and during `R CMD check` without network access.
 
-`tempest-review.rds` was produced by the installed Tempest 0.0.0.9000 public
-`tempest_trajectory_review()` function from Tempest's provider-free STORM
-promotion fixture, rebuilt on 2026-09-19 using Tempest source commit
-`9e195c5130cd7be2c662db259de8090bc4c6d953`. It is verified against
-`e4928b54cdb778728ec0a1c2882accd1b2e9278e`, the producer pinned in
-`Remotes`; intervening changes affect release notes and validation messages. Tests read that authoritative result and project it through
-Tempest's exported accessor; they do not reproduce Tempest classes or digest
-contracts. After installing a matching Tempest checkout, run from the scans root:
+`tempest-review.rds` was produced through Tempest's public
+`tempest_trajectory_review()` function using its provider-free STORM promotion
+fixture. It was rebuilt on 2026-11-15 with Tempest source commit
+`de2d3ddde4022648f70e6cd985d114690b1ff67a`, pinned in `Remotes`. The producer
+publishes the exact promotion bundle through Graft API4, accepts the retained
+selection with a host-supplied predecessor and review metadata, and records the
+exact selection and decision in the review. This build used Graft source commit
+`ad0ab921a02df602bb3687649e48b2e470cf23d6` and dsprrr source commit
+`a0a372d515cc32ab9296fad8f91440bba84d187e`; their `Remotes` entries remain
+unpinned. Tests read the authoritative review and project it through Tempest's
+exported accessor; they do not reproduce Tempest classes or digest contracts.
+Install the Tempest revision and current Graft and dsprrr versions into an
+isolated R library, then run from the scans root:
 
 ```sh
 Rscript tools/rebuild-tempest-fixture.R /path/to/matching/tempest-checkout
@@ -46,10 +51,19 @@ Rscript tools/rebuild-tempest-fixture.R /path/to/matching/tempest-checkout
 
 The fixture includes a host decision accepting an exact artifact selection.
 It uses Tempest trajectory schema 3, which contains no native graph snapshot.
-A stale installed Tempest can reject the proposal's schema digest even when its
-package version matches a current checkout. Before rebuilding, verify the
-installed source revision against the supported producer. Do not repair digests
-inside serialized reviews or skip a test because a producer rejects the value.
+Tempest's promotion-bundle format changed after the previous fixture was
+generated, while the trajectory review remains schema 3. Before rebuilding,
+verify that the installed Tempest source revision matches the supported
+producer. Do not repair digests inside serialized reviews or skip a test
+because a producer rejects the value.
+
+The Tempest fixture constructors assign current `created_at` values to the
+synthetic claim and evidence span. Those provenance values contribute to the
+stage-output digests, so rebuilding can change the bundle, selection, decision,
+review IDs, and RDS bytes while preserving the same semantic fixture. Tests
+check the review fields and exact selection/decision binding within each
+fixture; they do not compare serialized bytes across rebuilds. Do not replace
+the creation times or rewrite their digests to make the file byte-identical.
 
 `commons/trace-0.jsonl` is a static OTLP envelope. Commons tests obtain their
 source by passing its directory to `commons::trajectory_read()`. The dsprrr
