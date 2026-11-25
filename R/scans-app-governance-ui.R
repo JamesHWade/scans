@@ -16,7 +16,7 @@ scans_app_run_ending <- function(metadata) {
   }
   cut_off <- scan_is_cut_off(ending)
   text <- if (cut_off) {
-    paste(c("Answer cut off", detail("finish_reason")), collapse = " · ")
+    paste(c("Answer cut off", detail("finish_reason")), collapse = " \u00b7 ")
   } else if (class %in% "RunEndingAnswered") {
     "Answered"
   } else if (class %in% "RunEndingStopped") {
@@ -31,7 +31,7 @@ scans_app_run_ending <- function(metadata) {
         detail("field"),
         if (isTRUE(scan_ending_flag(ending, "wrapped_up"))) "wrapped up"
       ),
-      collapse = " · "
+      collapse = " \u00b7 "
     )
   } else if (class %in% "RunEndingFailed") {
     paste("Failed in", detail("phase") %||% "an unrecorded phase")
@@ -249,7 +249,7 @@ scans_app_provenance_ui <- function(
           htmltools::tags$span(
             class = "scans-app-tile-note",
             sprintf(
-              "of %s · %s · in %s",
+              "of %s \u00b7 %s \u00b7 in %s",
               scans_app_plural(total, "exchange"),
               scans_app_percent(row$share),
               scans_app_n(row$trajectories, noun)
@@ -279,7 +279,7 @@ scans_app_route_ui <- function(signature) {
           htmltools::tags$span(
             class = "scans-app-route-step-sep",
             `aria-hidden` = "true",
-            "→"
+            "\u2192"
           )
         },
         htmltools::tags$span(class = "scans-app-mono", steps[[i]])
@@ -460,7 +460,7 @@ scans_app_exchange_chips <- function(data, id) {
         class = paste0("scans-app-swatch scans-app-series-", class)
       ),
       sprintf(
-        "Exchange %d · %s",
+        "Exchange %d \u00b7 %s",
         rows$exchange_index[[i]],
         cohort_provenance_classes[[class]]
       )

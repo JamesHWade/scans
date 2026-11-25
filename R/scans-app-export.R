@@ -426,14 +426,17 @@ export_report <- function(
             scans_app_n(attr(cohort$provenance, "total_trajectories"), noun)
           ),
           "",
-          export_md_table(tibble::tibble(
-            Class = cohort$provenance$label,
-            Exchanges = sprintf(
-              "%d of %d",
-              cohort$provenance$exchanges,
-              attr(cohort$provenance, "total_exchanges")
+          export_md_table(stats::setNames(
+            tibble::tibble(
+              Class = cohort$provenance$label,
+              Exchanges = sprintf(
+                "%d of %d",
+                cohort$provenance$exchanges,
+                attr(cohort$provenance, "total_exchanges")
+              ),
+              In = cohort$provenance$trajectories
             ),
-            !!scans_app_title_case(noun$many) := cohort$provenance$trajectories
+            c("Class", "Exchanges", scans_app_title_case(noun$many))
           ))
         )
       )
@@ -444,14 +447,21 @@ export_report <- function(
         c(
           "Recurring exploratory tool routes that could become governed measures.",
           "",
-          export_md_table(tibble::tibble(
-            Route = paste0("`", cohort$candidates$route_signature, "`"),
-            !!scans_app_title_case(
-              noun$many
-            ) := cohort$candidates$n_trajectories,
-            Exchanges = cohort$candidates$n_exchanges,
-            Users = cohort$candidates$n_users,
-            Basis = cohort$candidates$candidate_basis
+          export_md_table(stats::setNames(
+            tibble::tibble(
+              Route = paste0("`", cohort$candidates$route_signature, "`"),
+              In = cohort$candidates$n_trajectories,
+              Exchanges = cohort$candidates$n_exchanges,
+              Users = cohort$candidates$n_users,
+              Basis = cohort$candidates$candidate_basis
+            ),
+            c(
+              "Route",
+              scans_app_title_case(noun$many),
+              "Exchanges",
+              "Users",
+              "Basis"
+            )
           ))
         )
       )
