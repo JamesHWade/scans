@@ -379,3 +379,24 @@ test_that("candidate evidence passes into review cases and regression data", {
     "Answer with call_measure(\"revenue_share_by_region\")."
   )
 })
+
+test_that("route analysis classifies commons exchanges read from OpenTelemetry", {
+  skip_if_not_installed("jsonlite")
+  bundle <- as_trajectory_otel(read_otel_traces(
+    test_path("fixtures", "commons", "otel", "r")
+  ))
+  exchanges <- route_exchanges(bundle)
+  provenance <- trajectory_events(bundle)
+  provenance <- provenance[provenance$event_type == "commons:provenance", ]
+
+  expect_equal(nrow(exchanges), nrow(provenance))
+  expect_false("not_applicable" %in% exchanges$provenance_class)
+  expect_equal(exchanges$exchange_basis, rep("round_index", nrow(exchanges)))
+  expect_true(all(
+    unlist(exchanges$provenance_event_ids) %in% provenance$event_id
+  ))
+  expect_false(anyNA(exchanges$timestamp))
+
+  counts <- route_summary(bundle)
+  expect_equal(sum(counts$n_exchanges), nrow(exchanges))
+})
