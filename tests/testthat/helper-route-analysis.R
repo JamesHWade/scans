@@ -218,13 +218,13 @@ route_commons_cohort <- function() {
 }
 
 route_commons_bundle <- function() {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   as_trajectory_commons(route_commons_cohort())
 }
 
 # Two plain ellmer chats with the same two-step route and no provenance.
 route_ellmer_bundle <- function() {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   chat <- function(id) {
     lookup <- ellmer::ContentToolRequest(
       paste0(id, "-lookup"),

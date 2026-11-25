@@ -43,7 +43,7 @@ test_that("exchanges take provenance only from recorded commons events", {
 })
 
 test_that("unknown provenance stays unclassified and plain sources are not applicable", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   source <- route_commons_cohort()["conversation-001"]
   attr(source[[1L]]$turns, "provenance") <- NULL
   commons <- route_exchanges(as_trajectory_commons(source))
