@@ -356,14 +356,23 @@ scans_tools_build <- function(
     )
     scalar <- summary[
       !names(summary) %in%
-        c("total", "patterns", "trajectories", "assessment_coverage")
+        c(
+          "total",
+          "patterns",
+          "trajectories",
+          "assessment_coverage",
+          "cohort"
+        )
     ]
     reply(
       tibble::as_tibble(scalar),
       limit = 1L,
       evidence = FALSE,
       extra = list(
-        patterns = scans_tools_rows(summary$patterns, max_chars),
+        patterns = scans_tools_rows(
+          summary$patterns[c("scan", "trajectories", "findings", "evidence")],
+          max_chars
+        ),
         assessment_coverage = scans_tools_rows(
           summary$assessment_coverage,
           max_chars

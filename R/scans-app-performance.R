@@ -1,67 +1,44 @@
 # Application measures use the same visible trajectory identities as the
 # browser. Findings count affected trajectories, not repeated detector hits.
-scans_app_performance_data <- function(data, indices) {
+# `activity_indices` is the same cohort without the time facet, so the chart
+# keeps its other buckets when one is selected.
+scans_app_performance_data <- function(
+  data,
+  indices,
+  activity_indices = indices
+) {
   summaries <- data$summaries[indices, , drop = FALSE]
   ids <- summaries$trajectory_id
-  findings <- data$findings[
-    data$findings$trajectory_id %in% ids,
-    ,
-    drop = FALSE
-  ]
-  patterns <- sort(unique(findings$scan))
-  evidence <- vapply(
-    patterns,
-    function(scan) {
-      scans_app_pattern_evidence(findings[findings$scan == scan, ])
-    },
-    character(1),
-    USE.NAMES = FALSE
+  trajectories <- cohort_trajectories(data, ids)
+  calls <- cohort_tool_calls(data, ids)
+  activity <- cohort_activity(
+    data,
+    data$info$trajectory_id[activity_indices]
   )
-  patterns <- tibble::tibble(
-    scan = patterns,
-    trajectories = vapply(
-      patterns,
-      function(scan) {
-        length(unique(findings$trajectory_id[findings$scan == scan]))
-      },
-      integer(1),
-      USE.NAMES = FALSE
-    ),
-    findings = vapply(
-      patterns,
-      function(scan) {
-        sum(findings$scan == scan)
-      },
-      integer(1),
-      USE.NAMES = FALSE
-    ),
-    evidence = evidence
-  )
-  patterns <- patterns[order(-patterns$trajectories, patterns$scan), ]
+  patterns <- cohort_patterns(data, ids, trajectories, activity)
+  headline <- cohort_headline(data, ids, trajectories, calls)
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
   summaries$n_tool_errors <- data$records$n_tool_errors[indices]
-  summaries$elapsed <- scans_app_measure_rows(data, ids, "elapsed")$value
-  usage <- scans_app_token_usage(data, ids)
-  summaries$tokens <- rowSums(usage, na.rm = TRUE)
-  summaries$tokens[rowSums(!is.na(usage)) == 0L] <- NA_real_
+  summaries$elapsed <- trajectories$elapsed
+  summaries$tokens <- trajectories$tokens
   work <- scans_app_measure_rows(data, ids, "recorded_work")
   gap <- scans_app_measure_rows(data, ids, "unattributed_elapsed")
 
   list(
-    total = nrow(data$info),
-    n = length(ids),
-    n_findings = length(unique(findings$trajectory_id)),
+    total = headline$total,
+    n = headline$n,
+    n_findings = headline$n_findings,
     n_evaluated = sum(ids %in% data$evaluations$trajectory_id),
     n_losses = sum(ids %in% data$loss_trajectory_ids),
     unassigned_losses = sum(is.na(data$loss_trajectory_ids)),
     n_children = sum(!is.na(summaries$parent_trajectory_id)),
-    n_timed = sum(!is.na(summaries$elapsed)),
-    n_tokens = sum(!is.na(summaries$tokens)),
-    median_elapsed = scans_app_median(summaries$elapsed),
-    p95_elapsed = scans_app_quantile(summaries$elapsed, 0.95),
-    median_tokens = scans_app_median(summaries$tokens),
+    n_timed = headline$n_timed,
+    n_tokens = headline$n_tokens,
+    median_elapsed = headline$median_elapsed,
+    p95_elapsed = headline$p95_elapsed,
+    median_tokens = headline$median_tokens,
     n_work = sum(work$coverage == "complete"),
     n_work_partial = sum(work$coverage == "partial"),
     median_work = scans_app_median(work$value[work$coverage == "complete"]),
@@ -72,6 +49,13 @@ scans_app_performance_data <- function(data, indices) {
       drop = FALSE
     ]),
     patterns = patterns,
+    cohort = list(
+      headline = headline,
+      activity = activity,
+      tools = cohort_tools(data, ids, calls),
+      models = cohort_breakdown(data, ids, "model", trajectories, calls),
+      users = cohort_breakdown(data, ids, "user", trajectories, calls)
+    ),
     trajectories = summaries
   )
 }
