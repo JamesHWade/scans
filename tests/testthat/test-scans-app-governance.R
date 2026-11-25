@@ -88,16 +88,18 @@ test_that("Deputy runs are queued with their recorded interventions", {
   )
 })
 
-test_that("a token total counts a delegated run once, through its lead", {
+test_that("a token total counts a delegated run a trace records apart", {
   data <- governance_deputy_data()
   ids <- data$info$trajectory_id
   team <- ids[startsWith(ids, "otel/c_team")]
   tokens <- cohort_trajectories(data, team)$tokens
 
   expect_identical(tokens, c(30, 15))
+  # A trace records each run's own model calls, so the lead's usage does not
+  # hold its delegated run's and both are counted.
   together <- cohort_headline(data, team)
-  expect_identical(together$total_tokens, 30)
-  expect_identical(together$n_tokens_counted, 1L)
+  expect_identical(together$total_tokens, 45)
+  expect_identical(together$n_tokens_counted, 2L)
   expect_identical(together$n_delegated, 1L)
   expect_identical(together$median_tokens, 22.5)
 
@@ -136,6 +138,12 @@ test_that("a token total leaves out a run any included ancestor accounts for", {
   absent <- data
   absent$records$parent_trajectory_id[[2L]] <- "deputy/absent"
   expect_identical(total(absent, ids[c(1L, 3L)]), c(18, 2, 0))
+  # A run with no recorded usage accounts for nothing beneath it.
+  unknown <- data
+  unknown$measures$value[
+    unknown$measures$trajectory_id == ids[[1L]]
+  ] <- NA_real_
+  expect_identical(total(unknown, ids[c(1L, 3L)]), c(7, 1, 1))
   cycle <- data
   cycle$records$parent_trajectory_id[[1L]] <- ids[[3L]]
   expect_identical(total(cycle, ids[[3L]]), c(7, 1, 0))

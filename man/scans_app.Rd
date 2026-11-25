@@ -102,8 +102,9 @@ they reopen the same scope. No export contains credentials.
 For Deputy runs the header states the recorded run ending, including an
 answer the provider cut short on a run whose status is still completed,
 and links a delegated run to its lead through the recorded lineage. The
-overview lists run interventions by kind. A lead run's usage includes its
-delegated runs, so token totals count each delegated run once. For sources
+overview lists run interventions by kind. A Deputy result's usage includes
+its delegated runs at every level, while a trace records each run's own
+model calls; token totals count each delegated run once either way. For sources
 that record commons provenance, the overview counts exchanges as trusted,
 cited, untrusted, or unclassified, and ranks recurring exploratory tool
 routes as candidates for governed measures, with the recorded tool input

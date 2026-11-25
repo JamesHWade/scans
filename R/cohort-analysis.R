@@ -385,10 +385,17 @@ cohort_headline <- function(
   calls = cohort_tool_calls(data, ids)
 ) {
   started <- trajectories$at[!is.na(trajectories$at)]
-  # A lead run's usage already includes its delegated runs at every level, so
-  # a total leaves out a run with any ancestor in the cohort.
-  delegated <- cohort_has_ancestor(data, ids, ids)
-  counted <- !delegated & !is.na(trajectories$tokens)
+  # Deputy adds a delegated run's usage to its parent's at every level, so a
+  # run with Deputy's run usage accounts for all of its descendants and a
+  # total leaves those out. Usage read from a trace is each run's own calls.
+  usage <- data$measures[
+    data$measures$measure %in%
+      c("input_tokens", "output_tokens") &
+      data$measures$source %in% "deputy_run_usage" &
+      !is.na(data$measures$value),
+  ]
+  counted <- !is.na(trajectories$tokens) &
+    !cohort_has_ancestor(data, ids, intersect(ids, usage$trajectory_id))
   tibble::tibble(
     n = length(ids),
     total = nrow(data$info),
@@ -430,7 +437,7 @@ cohort_headline <- function(
       NA_real_
     },
     n_tokens_counted = sum(counted),
-    n_delegated = sum(delegated)
+    n_delegated = sum(cohort_has_ancestor(data, ids, ids))
   )
 }
 
