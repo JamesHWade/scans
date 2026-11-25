@@ -112,6 +112,91 @@ test_that("review-state filters narrow the browser and keep progress honest", {
   })
 })
 
+test_that("an exported link carries the review filter and reopens it", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = c("tool failure", "looks right")
+  )
+  store$append("Cohort", "c", label = "tool failure", note = NULL)
+  sent <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    updateSelectInput = function(session, inputId, ..., selected = NULL) {
+      sent[[inputId]] <- selected
+    },
+    showNotification = function(ui, ...) {
+      sent$notice <- c(sent$notice, ui)
+    },
+    .package = "shiny"
+  )
+
+  shiny::testServer(review_queue_server(store), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(
+      scans_app_review_state = "reviewed",
+      scans_app_review_label = "tool failure"
+    )
+    hash <- sub("^[^#]*#", "", link()())
+    expect_identical(
+      hash,
+      "Cohort/?scope=review=reviewed&review_label=tool%20failure"
+    )
+    session$setInputs(
+      scans_app_review_state = "all",
+      scans_app_review_label = ""
+    )
+
+    session$setInputs(scans_app_hash = hash)
+    expect_identical(sent$scans_app_review_state, "reviewed")
+    expect_identical(sent$scans_app_review_label, "tool failure")
+    expect_null(sent$notice)
+
+    # A scope without a review filter clears the one in force.
+    session$setInputs(scans_app_hash = "Cohort/?scope=findings=TRUE")
+    expect_identical(sent$scans_app_review_state, "all")
+    expect_identical(sent$scans_app_review_label, "")
+
+    # A label this store does not offer cannot be selected, and says so.
+    session$setInputs(
+      scans_app_hash = "Cohort/?scope=review=needs&review_label=retired"
+    )
+    expect_identical(sent$scans_app_review_state, "needs")
+    expect_identical(sent$scans_app_review_label, "")
+    expect_length(sent$notice, 1L)
+    expect_match(sent$notice, "Label: retired", fixed = TRUE)
+    expect_match(sent$notice, "wider cohort", fixed = TRUE)
+  })
+})
+
+test_that("a review-filtered link opened without a store says what it dropped", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  sent <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    showNotification = function(ui, ...) {
+      sent$notice <- c(sent$notice, ui)
+    },
+    .package = "shiny"
+  )
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(
+      scans_app_hash = "Cohort/?scope=review=reviewed&model=large"
+    )
+    expect_identical(facets(), list(model = "large"))
+    expect_length(sent$notice, 1L)
+    expect_match(sent$notice, "Reviewed", fixed = TRUE)
+    expect_match(sent$notice, "no annotation store", fixed = TRUE)
+
+    session$setInputs(scans_app_hash = "Cohort/?scope=model=small")
+    expect_length(sent$notice, 1L)
+  })
+})
+
 test_that("without a store the queue is ranked and nothing claims a state", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")

@@ -65,8 +65,8 @@ scans_app_navigation_server <- function(
     if (!identical(target$application, state$application())) {
       return()
     }
-    # A link that names a scope replaces the pattern, facets, and findings
-    # switch; one without leaves the current filters alone.
+    # A link that names a scope replaces the pattern, facets, findings
+    # switch, and review filter; one without leaves the current filters alone.
     scope <- target$scope
     if (length(scope)) {
       state$facets(scans_app_facet_validate(
@@ -82,6 +82,31 @@ scans_app_navigation_server <- function(
         value = isTRUE(scope$findings),
         session = session
       )
+      review <- scans_app_scope_review(
+        scope,
+        state$has_store,
+        state$review_labels
+      )
+      if (state$has_store) {
+        shiny::updateSelectInput(
+          session,
+          "scans_app_review_state",
+          selected = review$state %||% "all"
+        )
+        shiny::updateSelectInput(
+          session,
+          "scans_app_review_label",
+          selected = review$label %||% ""
+        )
+      }
+      if (!is.null(review$notice)) {
+        shiny::showNotification(
+          review$notice,
+          duration = NULL,
+          type = "warning",
+          session = session
+        )
+      }
     }
     index <- match(target$trajectory_id %||% NA, current$info$trajectory_id)
     if (!is.na(index)) {
@@ -144,6 +169,50 @@ scans_app_navigation_server <- function(
     )
     bslib::nav_select("scans_app_investigation_tab", "ask", session = session)
   })
+}
+
+# The review filter a link's scope asks for, as far as this app can apply
+# it. Review state lives in the annotation store of whoever opens the link,
+# so a part that cannot be applied is named in `notice` rather than dropped
+# quietly: the cohort on screen is then wider than the one the link describes.
+scans_app_scope_review <- function(scope, has_store, labels = NULL) {
+  asked <- c(
+    if (!is.null(scope$review)) {
+      c(
+        state = switch(
+          scope$review,
+          needs = "Needs review",
+          reviewed = "Reviewed",
+          paste("Review state:", scope$review)
+        )
+      )
+    },
+    if (!is.null(scope$review_label)) {
+      c(label = paste("Label:", scope$review_label))
+    }
+  )
+  review <- list()
+  if (has_store && isTRUE(scope$review %in% c("needs", "reviewed"))) {
+    review$state <- scope$review
+  }
+  if (
+    has_store && isTRUE(scope$review_label %in% c(labels, scans_app_no_label))
+  ) {
+    review$label <- scope$review_label
+  }
+  dropped <- asked[setdiff(names(asked), names(review))]
+  if (length(dropped)) {
+    review$notice <- sprintf(
+      "This link filters by review (%s), which %s. That filter is not applied, so this is a wider cohort than the link describes.",
+      paste(dropped, collapse = ", "),
+      if (has_store) {
+        "this app's annotation store does not offer"
+      } else {
+        "cannot be applied because this app has no annotation store"
+      }
+    )
+  }
+  review
 }
 
 scans_app_hash <- function(application, trajectory_id) {

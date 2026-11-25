@@ -23,6 +23,8 @@ test_that("deep links carry the scope and old hashes still parse", {
   scope <- list(
     pattern = "event_error",
     findings = TRUE,
+    review = "reviewed",
+    review_label = "(no label)",
     day = "2026-10-03",
     tool = "look/up & co",
     tool_failed = TRUE,

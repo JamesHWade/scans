@@ -135,7 +135,9 @@ scans_app_export_server <- function(input, output, session, state) {
       c(
         list(
           pattern = state$pattern_filter(),
-          findings = if (isTRUE(input$scans_app_findings_only)) TRUE
+          findings = if (isTRUE(input$scans_app_findings_only)) TRUE,
+          review = state$review_filter()$state,
+          review_label = state$review_filter()$label
         ),
         state$facets()
       )

@@ -4,11 +4,13 @@
 # and the R snippet names environment variables without their values.
 
 # A shareable hash: "<application>/<trajectory_id>", optionally followed by
-# "?scope=key=value&..." naming the pattern, facets, and findings switch.
-# Older hashes have no scope and parse as before.
+# "?scope=key=value&..." naming the pattern, facets, findings switch, and
+# review filter. Older hashes have no scope and parse as before.
 scans_app_scope_keys <- c(
   "pattern",
   "findings",
+  "review",
+  "review_label",
   "day",
   "tool",
   "tool_failed",
