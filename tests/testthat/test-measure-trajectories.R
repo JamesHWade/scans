@@ -329,7 +329,7 @@ test_that("dsprrr ellmer turns retain their separate cache component semantics",
 
 test_that("Deputy run usage covers compacted turns while turn evidence remains", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   # Compaction left one of four model responses in the result's turns.
   compacted <- deputy::AgentResult(
