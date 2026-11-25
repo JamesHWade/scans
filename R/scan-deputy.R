@@ -51,7 +51,71 @@ scan_is_deputy_event <- function(event_type) {
 scan_has_deputy_evidence <- function(info, events) {
   identical(info$source_type, "deputy") ||
     !is.null(scan_run_ending(info$metadata[[1L]])) ||
+    !is.null(scan_delegation(info$metadata[[1L]])) ||
     any(scan_is_deputy_event(events$event_type))
+}
+
+# The delegation record on a child trajectory converted from a Deputy
+# delegation view, or NULL for any other trajectory.
+scan_delegation <- function(metadata) {
+  delegation <- if (is.list(metadata)) metadata$delegation
+  if (!is.list(delegation) || is.null(names(delegation))) {
+    return(NULL)
+  }
+  delegation
+}
+
+scan_delegation_claims <- c(
+  delegation_missing_evidence = "missing_evidence",
+  delegation_unresolved_work = "unresolved_work"
+)
+
+# Each claim is Deputy's newline-joined string: "" when the subagent reported
+# none, NA when it did not report.
+scan_delegation_claim <- function(delegation, name) {
+  claims <- delegation$claims
+  if (!is.list(claims)) NA_character_ else scan_ending_string(claims, name)
+}
+
+scan_delegation_findings <- function(info_row, scan_id) {
+  metadata <- info_row$metadata[[1L]]
+  delegation <- scan_delegation(metadata)
+  if (is.null(delegation)) {
+    return(list())
+  }
+  labels <- c(
+    delegation_missing_evidence = "Delegation missing evidence",
+    delegation_unresolved_work = "Delegation unresolved work"
+  )
+  explanations <- c(
+    delegation_missing_evidence = "The subagent reported evidence it could not find.",
+    delegation_unresolved_work = "The subagent reported work it left unfinished."
+  )
+  findings <- list()
+  for (kind in names(scan_delegation_claims)) {
+    claim <- scan_delegation_claim(delegation, scan_delegation_claims[[kind]])
+    if (!scan_has_value(claim)) {
+      next
+    }
+    findings <- c(
+      findings,
+      list(scan_intervention_record_finding(
+        scan_id,
+        info_row$trajectory_id[[1L]],
+        labels[[kind]],
+        explanations[[kind]],
+        list(
+          kind = kind,
+          parent_trajectory_id = info_row$parent_trajectory_id[[1L]] %||%
+            NA_character_,
+          delegation_id = scan_ending_string(metadata, "delegation_id"),
+          claim = claim
+        ),
+        scan_order = 4L
+      ))
+    )
+  }
+  findings
 }
 
 scan_deputy_findings <- function(info_row, events, scan_id) {
@@ -81,7 +145,29 @@ scan_deputy_findings <- function(info_row, events, scan_id) {
   }
   c(
     findings,
+    scan_delegation_findings(info_row, scan_id),
     scan_intervention_findings(events, ending, trajectory_id, scan_id)
+  )
+}
+
+scan_intervention_record_finding <- function(
+  scan_id,
+  trajectory_id,
+  label,
+  explanation,
+  value,
+  scan_order
+) {
+  scan_new_record_finding(
+    scan_id = scan_id,
+    scan = "run_intervention",
+    trajectory_id = trajectory_id,
+    turn_id = NA_character_,
+    severity = "warning",
+    label = label,
+    explanation = explanation,
+    value = value,
+    scan_order = scan_order
   )
 }
 
@@ -116,22 +202,38 @@ scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
   findings <- list()
 
   wrap_up <- which(type == "deputy:limit_wrap_up")
-  ended_wrapped <- !is.null(ending) &&
-    identical(scan_ending_string(ending, "class"), "RunEndingLimit") &&
-    isTRUE(scan_ending_flag(ending, "wrapped_up"))
-  if (length(wrap_up) > 0L || ended_wrapped) {
-    explanation <- paste(
-      "A usage limit was reached, so the model gave its answer in one more",
-      "request without tools."
-    )
-    value <- list(
-      kind = "limit_wrap_up",
+  limited <- !is.null(ending) &&
+    identical(scan_ending_string(ending, "class"), "RunEndingLimit")
+  wrapped_up <- if (limited) scan_ending_flag(ending, "wrapped_up") else NA
+  limit_value <- function(kind) {
+    list(
+      kind = kind,
       reason = scan_ending_string(ending, "reason"),
       field = scan_ending_string(ending, "field"),
       actual = scan_ending_number(ending, "actual"),
       limit = scan_ending_number(ending, "limit"),
       wrapped_up = scan_ending_flag(ending, "wrapped_up")
     )
+  }
+  if (length(wrap_up) == 0L && isFALSE(wrapped_up)) {
+    findings <- c(
+      findings,
+      list(scan_intervention_record_finding(
+        scan_id,
+        trajectory_id,
+        "Limit stop",
+        "A usage limit stopped the run before the model gave an answer.",
+        limit_value("limit_stop"),
+        scan_order = 3L
+      ))
+    )
+  }
+  if (length(wrap_up) > 0L || isTRUE(wrapped_up)) {
+    explanation <- paste(
+      "A usage limit was reached, so the model gave its answer in one more",
+      "request without tools."
+    )
+    value <- limit_value("limit_wrap_up")
     if (length(wrap_up) > 0L) {
       if (is.na(value$reason)) {
         value$reason <- as.character(meta(wrap_up[[1L]], "reason"))
@@ -150,15 +252,12 @@ scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
     } else {
       findings <- c(
         findings,
-        list(scan_new_record_finding(
-          scan_id = scan_id,
-          scan = "run_intervention",
-          trajectory_id = trajectory_id,
-          turn_id = NA_character_,
-          severity = "warning",
-          label = "Limit wrap-up",
-          explanation = explanation,
-          value = value,
+        list(scan_intervention_record_finding(
+          scan_id,
+          trajectory_id,
+          "Limit wrap-up",
+          explanation,
+          value,
           scan_order = 3L
         ))
       )

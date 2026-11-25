@@ -32,14 +32,18 @@ leaves other groups and trajectories available, and displays a fixed reason
 without copying arbitrary condition messages into the result or browser.
 
 The Deputy scans (`cut_off_answer`, `run_intervention`, issue #72) apply when a
-trajectory records Deputy run evidence: `metadata$ending`, any `deputy:*`
-event, or a `"deputy"` source type. Applicability does not depend on the
+trajectory records Deputy run evidence: `metadata$ending`,
+`metadata$delegation`, any `deputy:*` event, or a `"deputy"` source type. Applicability does not depend on the
 source type alone, so an OTel projection of `deputy.run` spans with the same
 ending and events is assessed identically. A cut-off assessment needs the
 ending's `cut_off` or `finish_reason`. An intervention assessment needs
 recorded `deputy:*` events: captured events with no intervention are a clean
 negative, while a capture with no lifecycle events is insufficient unless the
-ending itself shows a limit wrap-up, which is then a qualified positive. The
+ending itself shows a limit, which is then a qualified positive. A delegation
+child has no lifecycle events by design, so it is assessed from the subagent's
+claims: any reported claim (`""` means none) is assessable, and two unreported
+(`NA`) claims are insufficient. Lifecycle interventions are not ruled out for
+a child, and a claim Deputy truncated is a qualified positive. The
 repeated-compaction threshold (2) is fixed and recorded in `settings` until it
 can be configured end to end alongside the other thresholds.
 

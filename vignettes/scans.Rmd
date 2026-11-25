@@ -142,11 +142,11 @@ scan_registry()
 | `turn_error` | A turn has a failed status, error text, or a truncating finish reason such as a token limit. |
 | `trajectory_error` | The run itself ended with a failed status or an error, even when no event recorded it. |
 | `cut_off_answer` | The provider cut the run's final answer short (`max_tokens`, `context_window`, or `content_filter`), although its status can still be `"completed"`. |
-| `run_intervention` | The agent runtime intervened in the run. `value$kind` says how: `limit_wrap_up`, `provider_fallback`, `compaction_failure`, `repeated_compaction` (two or more compactions in one run), `permission_denied`, or `approval_pending`. |
+| `run_intervention` | The agent runtime intervened in the run. `value$kind` says how: `limit_wrap_up`, `limit_stop`, `provider_fallback`, `compaction_failure`, `repeated_compaction` (two or more compactions in one run), `permission_denied`, `approval_pending`, or, on a delegated subagent's trajectory, `delegation_missing_evidence` and `delegation_unresolved_work`. |
 
-The last two read the run ending in `metadata$ending` and `deputy:*` lifecycle
-events, so they apply to any trajectory that records Deputy run evidence and
-are `not_applicable` elsewhere. A failed compaction or denied permission is
+The last two read the run ending in `metadata$ending`, a delegation's claims in
+`metadata$delegation`, and `deputy:*` lifecycle events, so they apply to any
+trajectory that records Deputy run evidence and are `not_applicable` elsewhere. A failed compaction or denied permission is
 also a failed event, so `event_error` reports the same event: one finding
 records that the event failed, the other what that meant for the run.
 

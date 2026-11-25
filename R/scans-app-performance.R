@@ -115,19 +115,25 @@ scans_app_pattern_evidence <- function(findings) {
 scans_app_intervention_evidence <- function(findings) {
   singular <- c(
     limit_wrap_up = "limit wrap-up",
+    limit_stop = "limit stop",
     provider_fallback = "provider fallback",
     compaction_failure = "failed compaction",
     repeated_compaction = "run with repeated compaction",
     permission_denied = "denied permission",
-    approval_pending = "pending approval"
+    approval_pending = "pending approval",
+    delegation_missing_evidence = "delegation missing evidence",
+    delegation_unresolved_work = "delegation with unresolved work"
   )
   plural <- c(
     limit_wrap_up = "limit wrap-ups",
+    limit_stop = "limit stops",
     provider_fallback = "provider fallbacks",
     compaction_failure = "failed compactions",
     repeated_compaction = "runs with repeated compaction",
     permission_denied = "denied permissions",
-    approval_pending = "pending approvals"
+    approval_pending = "pending approvals",
+    delegation_missing_evidence = "delegations missing evidence",
+    delegation_unresolved_work = "delegations with unresolved work"
   )
   kinds <- vapply(
     findings$value,

@@ -34,13 +34,15 @@
 #' recorded parent links cannot establish the absence of an error chain.
 #'
 #' The Deputy scans apply to trajectories that record Deputy run evidence: a
-#' run ending in `metadata$ending`, any `deputy:*` event, or a `"deputy"`
-#' source type. Other trajectories are `not_applicable`. `cut_off_answer`
+#' run ending in `metadata$ending`, a delegation in `metadata$delegation`, any
+#' `deputy:*` event, or a `"deputy"` source type. Other trajectories are `not_applicable`. `cut_off_answer`
 #' needs the ending's `cut_off` or `finish_reason`; `run_intervention` needs
 #' recorded `deputy:*` events. A capture with events but none of an
 #' intervention's types is assessed with no findings; a capture without any
 #' lifecycle events has insufficient evidence unless the run ending itself
-#' shows a limit wrap-up. `settings` records the fixed repeated-compaction
+#' shows a limit. A delegation child has no lifecycle events by design: it is
+#' assessed from its reported claims, and has insufficient evidence when the
+#' subagent reported neither. `settings` records the fixed repeated-compaction
 #' threshold.
 #'
 #' Built-ins execute in tool, event, record, and Deputy groups. A group failure affects
@@ -206,7 +208,7 @@ scan_required_evidence <- function(scan) {
     turn_error = "Recorded semantic turn status, finish reason, or explicit error.",
     trajectory_error = "Recorded trajectory status or explicit error.",
     cut_off_answer = "A Deputy run ending with cut_off or the final finish reason.",
-    run_intervention = "Recorded Deputy lifecycle events; the run ending for limit wrap-ups."
+    run_intervention = "Recorded Deputy lifecycle events; the run ending for limits; a delegation's reported claims."
   )
 }
 
@@ -256,13 +258,49 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       complete <- !is.null(ending) &&
         (!is.na(scan_ending_flag(ending, "cut_off")) ||
           scan_has_value(scan_ending_string(ending, "finish_reason")))
-      relevant_loss <- capture_loss ||
+      # A withheld transcript leaves the recorded run ending intact.
+      relevant_loss <- any(
+        grepl("^(read_info|capture)($|[.$])", fields) &
+          fields != "capture$transcript"
+      ) ||
         any(
           grepl("^metadata(\\$ending($|\\$)|$)", fields) &
             is.na(losses$event_id) &
             is.na(losses$turn_id)
         )
       missing <- "The run ending records neither cut_off nor a final finish reason."
+    } else if (
+      !any(scan_is_deputy_event(events$event_type)) &&
+        !is.null(scan_delegation(info$metadata[[1L]]))
+    ) {
+      # A delegation view never carries lifecycle events, so its recorded
+      # claims are the evidence; transcript redaction does not affect them.
+      delegation <- scan_delegation(info$metadata[[1L]])
+      claims <- vapply(
+        scan_delegation_claims,
+        \(name) scan_delegation_claim(delegation, name),
+        character(1)
+      )
+      complete <- !all(is.na(claims))
+      relevant_loss <- FALSE
+      missing <- "The delegated subagent did not report missing evidence or unresolved work."
+      limitations <- c(
+        limitations,
+        "Delegation views record no lifecycle events; only the subagent's claims and run ending were assessed.",
+        if (complete && anyNA(claims)) {
+          paste0(
+            "The subagent did not report ",
+            paste(
+              gsub("_", " ", unname(scan_delegation_claims[is.na(claims)])),
+              collapse = " or "
+            ),
+            "."
+          )
+        },
+        if (any(grepl("^metadata\\$delegation\\$claims\\$", fields))) {
+          "Deputy bounded the subagent's claims; omitted entries are not retained."
+        }
+      )
     } else {
       complete <- any(scan_is_deputy_event(events$event_type))
       relevant_loss <- event_loss

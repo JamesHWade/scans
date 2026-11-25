@@ -7,15 +7,19 @@
 #' regard to key order.
 #'
 #' Two scans read Deputy run evidence: the run ending in
-#' `metadata$ending` and `deputy:*` lifecycle events, from any adapter that
-#' records them. `cut_off_answer` reports a final answer the provider cut
+#' `metadata$ending`, a delegation in `metadata$delegation`, and `deputy:*`
+#' lifecycle events, from any adapter that records them. `cut_off_answer` reports a final answer the provider cut
 #' short (`cut_off`, or a `max_tokens`, `context_window`, or `content_filter`
 #' finish reason), which a `"completed"` status does not reveal.
 #' `run_intervention` reports, with a `kind` in `value`: `limit_wrap_up` (a
-#' usage limit made the model answer without tools), `provider_fallback`,
+#' usage limit made the model answer without tools), `limit_stop` (a usage
+#' limit stopped the run with no answer), `provider_fallback`,
 #' `compaction_failure`, `repeated_compaction` (at least two `deputy:compaction`
-#' events in one run), `permission_denied`, and `approval_pending` (an approval
-#' with no later decision or tool execution in the run). A failed compaction
+#' events in one run), `permission_denied`, `approval_pending` (an approval
+#' with no later decision or tool execution in the run), and
+#' `delegation_missing_evidence` or `delegation_unresolved_work` (a delegated
+#' subagent's reported claims, on the child trajectory, with the claim text,
+#' `delegation_id`, and `parent_trajectory_id`). A failed compaction
 #' or denied permission is also a failed event, so `event_error` reports the
 #' same event: one finding records the failure, the other what it means for
 #' the run.
@@ -48,8 +52,8 @@
 #'   `event_ids`: character vector of every supporting event identifier. A
 #'   `trajectory_error` or `cut_off_answer` finding has no turn or event, and a
 #'   `turn_error` finding no event, because the evidence is recorded on the
-#'   record itself. A limit wrap-up known only from the run ending also has no
-#'   event.
+#'   record itself. Limit and delegation-claim interventions known only from
+#'   the trajectory record also have no event.
 #' - `severity`: `warning` for tool-pattern findings and run interventions, or
 #'   `error` for failures and cut-off answers;
 #'   `label` and `explanation`: concise human-readable descriptions.
@@ -164,8 +168,9 @@ scan_registry <- function() {
       "The trajectory ended with a failed status or an error.",
       "The provider cut the run's final answer short.",
       paste(
-        "The agent runtime intervened: a limit wrap-up, provider fallback,",
-        "failed or repeated compaction, denied permission, or pending approval."
+        "The agent runtime intervened: a limit wrap-up or stop, provider",
+        "fallback, failed or repeated compaction, denied permission, pending",
+        "approval, or a delegation's reported missing evidence or unfinished work."
       )
     )
   )

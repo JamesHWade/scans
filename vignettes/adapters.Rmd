@@ -103,9 +103,10 @@ ending[c("class", "finish_reason", "cut_off")]
 ```
 
 `scan_trajectories()` reports such an answer as a `cut_off_answer` finding,
-and limit wrap-ups, provider fallbacks, compaction trouble, denied
+and limit wrap-ups and stops, provider fallbacks, compaction trouble, denied
 permissions, and pending approvals as `run_intervention` findings with the
-event that recorded them.
+event that recorded them. A delegated subagent's reported missing evidence or
+unresolved work is a `run_intervention` finding on its own trajectory.
 
 `measure_trajectories()` reports Deputy's run-level usage and duration, which
 still count turns that compaction removed from the result.

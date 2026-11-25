@@ -416,20 +416,136 @@ test_that("Deputy scan assessments separate inapplicable, missing, and clean evi
     )$assessments$status,
     "assessed_no_findings"
   )
-  unwrapped <- deputy_limit_ending()
-  unwrapped$wrapped_up <- FALSE
+  answered <- deputy_limit_ending()
+  answered[c("class", "wrapped_up")] <- list("RunEndingAnswered", NA)
   expect_identical(
-    deputy_scan_status(deputy_projected_bundle(unwrapped))[[
+    deputy_scan_status(deputy_projected_bundle(answered))[[
       "run_intervention"
     ]],
     "insufficient_evidence"
   )
   expect_identical(
     assess_trajectory_scans(
-      deputy_projected_bundle(unwrapped),
+      deputy_projected_bundle(answered),
       scans = "run_intervention"
     )$assessments$settings,
     list(list(compaction_threshold = 2L))
+  )
+})
+
+test_that("a limit that stopped the run without an answer is a limit stop", {
+  stopped <- deputy_limit_ending()
+  stopped$wrapped_up <- FALSE
+  findings <- scan_trajectories(
+    deputy_projected_bundle(stopped),
+    scans = "run_intervention"
+  )
+
+  expect_identical(findings$trajectory_id, "otel/run-001")
+  expect_true(is.na(findings$event_id))
+  expect_identical(
+    findings$value[[1L]][c("kind", "field", "wrapped_up")],
+    list(kind = "limit_stop", field = "max_requests", wrapped_up = FALSE)
+  )
+})
+
+test_that("reported delegation claims are findings on the child trajectory", {
+  skip_if_not_installed("deputy", "0.0.0.9007")
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  fixture <- deputy_delegation_fixture()
+  bundle <- as_trajectory_deputy(fixture$lead, delegations = fixture$history)
+  findings <- scan_trajectories(bundle, scans = "run_intervention")
+
+  expect_identical(findings$trajectory_id, "deputy/run-child-001")
+  expect_true(is.na(findings$event_id))
+  expect_identical(findings$event_ids, list(character()))
+  expect_identical(
+    findings$value[[1L]],
+    list(
+      kind = "delegation_missing_evidence",
+      parent_trajectory_id = "deputy/run-001",
+      delegation_id = "delegation-001",
+      claim = "No 2024 figures were available"
+    )
+  )
+
+  expect_identical(
+    assess_trajectory_scans(
+      bundle,
+      scans = "cut_off_answer"
+    )$assessments$status,
+    rep("assessed_no_findings", 3L)
+  )
+  assessments <- assess_trajectory_scans(
+    bundle,
+    scans = "run_intervention"
+  )$assessments
+  expect_identical(
+    stats::setNames(assessments$status, assessments$trajectory_id),
+    c(
+      "deputy/run-001" = "assessed_no_findings",
+      "deputy/run-child-001" = "assessed_with_findings",
+      "deputy/run-child-002" = "assessed_no_findings"
+    )
+  )
+  expect_match(
+    assessments$limitations[[2L]],
+    "did not report unresolved work",
+    all = FALSE
+  )
+  expect_match(
+    assessments$limitations[[3L]],
+    "did not report missing evidence",
+    all = FALSE
+  )
+})
+
+test_that("unreported and truncated delegation claims stay qualified", {
+  skip_if_not_installed("deputy", "0.0.0.9007")
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  child <- function(claims) {
+    deputy_export_child(
+      "delegation-001",
+      "run-child-001",
+      NULL,
+      claims = claims
+    )
+  }
+  silent <- as_trajectory_deputy(deputy_read_history(deputy_export_fixture(
+    list(child(list(missing_evidence = NULL, unresolved_work = NULL)))
+  )))
+  expect_identical(
+    nrow(scan_trajectories(silent, scans = "run_intervention")),
+    0L
+  )
+  expect_identical(
+    deputy_scan_status(silent)[["run_intervention"]],
+    "insufficient_evidence"
+  )
+
+  view <- deputy_read_history(deputy_export_fixture(list(child(list(
+    missing_evidence = NULL,
+    unresolved_work = "Verify the totals"
+  )))))[[1L]]
+  view$outcome$runtime$claim_omissions <- list(
+    unresolved_work = list(omitted_entries = 2L, text_truncated = FALSE)
+  )
+  bounded <- as_trajectory_deputy(list(view))
+  expect_identical(
+    trajectory_losses(bounded)$field,
+    "metadata$delegation$claims$unresolved_work"
+  )
+  findings <- scan_trajectories(bounded, scans = "run_intervention")
+  expect_identical(findings$value[[1L]]$kind, "delegation_unresolved_work")
+  expect_identical(findings$value[[1L]]$claim, "Verify the totals")
+  result <- assess_trajectory_scans(bounded, scans = "run_intervention")
+  expect_identical(result$assessments$status, "assessed_with_findings")
+  expect_match(
+    result$assessments$limitations[[1L]],
+    "Deputy bounded the subagent's claims",
+    all = FALSE
   )
 })
 
@@ -446,6 +562,19 @@ test_that("the overview names each intervention kind", {
   expect_identical(
     scans_app_pattern_evidence(findings),
     "2 provider fallbacks, 1 run with repeated compaction, 1 denied permission"
+  )
+  delegations <- tibble::tibble(
+    scan = "run_intervention",
+    value = list(
+      list(kind = "delegation_unresolved_work"),
+      list(kind = "delegation_missing_evidence"),
+      list(kind = "delegation_missing_evidence"),
+      list(kind = "limit_stop")
+    )
+  )
+  expect_identical(
+    scans_app_pattern_evidence(delegations),
+    "1 limit stop, 2 delegations missing evidence, 1 delegation with unresolved work"
   )
   expect_identical(
     scans_app_pattern_evidence(tibble::tibble(
