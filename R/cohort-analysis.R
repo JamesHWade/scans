@@ -195,7 +195,11 @@ cohort_bucket_seconds <- c(hour = 3600, day = 86400)
 
 cohort_bucket <- function(time, unit) {
   width <- cohort_bucket_seconds[[unit]]
-  as.POSIXct(floor(as.numeric(time) / width) * width, tz = "UTC")
+  as.POSIXct(
+    floor(as.numeric(time) / width) * width,
+    origin = "1970-01-01",
+    tz = "UTC"
+  )
 }
 
 # The key a `day` facet carries. Its format states the unit, so a saved key
@@ -222,7 +226,7 @@ cohort_activity <- function(
   }
   unit <- rlang::arg_match0(unit, names(cohort_bucket_seconds))
   if (!any(known)) {
-    buckets <- as.POSIXct(numeric(), tz = "UTC")
+    buckets <- as.POSIXct(numeric(), origin = "1970-01-01", tz = "UTC")
   } else {
     span <- range(cohort_bucket(started[known], unit))
     buckets <- seq(span[[1L]], span[[2L]], by = cohort_bucket_seconds[[unit]])
@@ -283,12 +287,12 @@ cohort_patterns <- function(
       first_seen = if (length(started)) {
         min(started)
       } else {
-        as.POSIXct(NA_real_, tz = "UTC")
+        as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
       },
       last_seen = if (length(started)) {
         max(started)
       } else {
-        as.POSIXct(NA_real_, tz = "UTC")
+        as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
       },
       series = list(tabulate(
         match(
@@ -393,12 +397,12 @@ cohort_headline <- function(
     first_started = if (length(started)) {
       min(started)
     } else {
-      as.POSIXct(NA_real_, tz = "UTC")
+      as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
     },
     last_started = if (length(started)) {
       max(started)
     } else {
-      as.POSIXct(NA_real_, tz = "UTC")
+      as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
     },
     n_undated = sum(is.na(trajectories$started_at))
   )
