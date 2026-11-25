@@ -63,7 +63,8 @@ The Deputy scans apply to trajectories that record Deputy run evidence: a
 run ending in \code{metadata$ending}, a delegation in \code{metadata$delegation}, any
 \verb{deputy:*} event, or a \code{"deputy"} source type. Other trajectories are \code{not_applicable}. \code{cut_off_answer}
 needs the ending's \code{cut_off} or \code{finish_reason}; \code{run_intervention} needs
-recorded \verb{deputy:*} events. A capture with events but none of an
+recorded \verb{deputy:*} events, with a recorded status on each permission and
+approval event. A capture with events but none of an
 intervention's types is assessed with no findings; a capture without any
 lifecycle events has insufficient evidence unless the run ending itself
 shows a limit. A delegation child has no lifecycle events by design: it is

@@ -433,6 +433,73 @@ test_that("Deputy scan assessments separate inapplicable, missing, and clean evi
   )
 })
 
+test_that("permission and approval assessments need recorded event status", {
+  projected <- function(types, statuses) {
+    deputy_projected_bundle(
+      events = tibble::tibble(
+        trajectory_id = "otel/run-001",
+        event_id = sprintf("otel/run-001/event-%06d", seq_along(types)),
+        event_index = seq_along(types),
+        event_type = paste0("deputy:", types),
+        status = statuses
+      )
+    )
+  }
+  assess <- function(bundle) {
+    assess_trajectory_scans(bundle, scans = "run_intervention")
+  }
+  lose <- function(bundle, field, event) {
+    bundle@losses <- trajectory_loss_table(list(trajectory_new_loss(
+      trajectory_ids(
+        "otel/run-001",
+        NA_character_,
+        trajectory_events(bundle)$event_id[[event]]
+      ),
+      field,
+      "truncated",
+      "Field truncated"
+    )))
+    bundle
+  }
+
+  for (type in c("permission", "approval")) {
+    unrecorded <- assess(projected(c("start", type), c("completed", NA)))
+    expect_identical(
+      unrecorded$assessments$status,
+      "insufficient_evidence",
+      info = type
+    )
+    expect_match(unrecorded$assessments$reason, "status", info = type)
+  }
+
+  decided <- projected(c("start", "permission"), c("completed", "completed"))
+  expect_identical(assess(decided)$assessments$status, "assessed_no_findings")
+  expect_identical(
+    assess(lose(decided, "status", 1L))$assessments$status,
+    "assessed_no_findings"
+  )
+  for (field in c("status", "events[[2]]$status")) {
+    expect_identical(
+      assess(lose(decided, field, 2L))$assessments$status,
+      "insufficient_evidence",
+      info = field
+    )
+  }
+  expect_identical(
+    assess(lose(decided, "event_type", 1L))$assessments$status,
+    "insufficient_evidence"
+  )
+
+  denied <- assess(projected(c("permission", "permission"), c("failed", NA)))
+  expect_identical(denied$assessments$status, "assessed_with_findings")
+  expect_identical(denied$findings$value[[1L]]$kind, "permission_denied")
+  expect_match(
+    denied$assessments$limitations[[1L]],
+    "prevents ruling out others",
+    all = FALSE
+  )
+})
+
 test_that("a limit that stopped the run without an answer is a limit stop", {
   stopped <- deputy_limit_ending()
   stopped$wrapped_up <- FALSE

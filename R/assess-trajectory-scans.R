@@ -37,7 +37,8 @@
 #' run ending in `metadata$ending`, a delegation in `metadata$delegation`, any
 #' `deputy:*` event, or a `"deputy"` source type. Other trajectories are `not_applicable`. `cut_off_answer`
 #' needs the ending's `cut_off` or `finish_reason`; `run_intervention` needs
-#' recorded `deputy:*` events. A capture with events but none of an
+#' recorded `deputy:*` events, with a recorded status on each permission and
+#' approval event. A capture with events but none of an
 #' intervention's types is assessed with no findings; a capture without any
 #' lifecycle events has insufficient evidence unless the run ending itself
 #' shows a limit. A delegation child has no lifecycle events by design: it is
@@ -305,6 +306,32 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       complete <- any(scan_is_deputy_event(events$event_type))
       relevant_loss <- event_loss
       missing <- "Deputy lifecycle events are not recorded, so interventions cannot be ruled out."
+      # A denial is a failed permission and a pending approval is read from
+      # its status, so an event of either type is not evidence without one.
+      gated <- events[
+        events$event_type %in% c("deputy:permission", "deputy:approval"),
+        ,
+        drop = FALSE
+      ]
+      unowned <- is.na(losses$event_id) &
+        (event_fields != fields |
+          (is.na(losses$turn_id) & is.na(losses$trajectory_id)))
+      status_loss <- nrow(gated) > 0L &&
+        any(
+          event_fields == "status" &
+            (losses$event_id %in% gated$event_id | unowned)
+        )
+      type_loss <- any(
+        event_fields == "event_type" &
+          (losses$event_id %in% events$event_id | unowned)
+      )
+      if (!all(scan_status_recorded(gated$status)) || status_loss) {
+        relevant_loss <- TRUE
+        missing <- "Permission or approval events lack recorded status, so denials and pending approvals cannot be ruled out."
+      } else if (complete && type_loss) {
+        relevant_loss <- TRUE
+        missing <- "Capture losses affect Deputy lifecycle event types, so interventions cannot be ruled out."
+      }
       if (info$source_type %in% "otel") {
         # Deputy's trace allowlist omits these lifecycle events, so a span
         # capture can show them only through the run ending.
