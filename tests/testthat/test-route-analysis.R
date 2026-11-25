@@ -143,6 +143,43 @@ test_that("cohort counts keep unclassified separate with explicit denominators",
   )
 })
 
+test_that("the event window runs to the latest recorded event in scope", {
+  bundle <- route_ellmer_bundle()
+  events <- trajectory_events(bundle)
+  first <- events$trajectory_id == "ellmer-1"
+  start <- as.POSIXct("2026-11-01 10:00:00", tz = "UTC")
+  events$timestamp[first] <- start + 60 * (seq_len(sum(first)) - 1)
+  events$timestamp[which(first)[[2L]]] <- NA
+  bundle <- TrajectoryBundle(
+    trajectory_info(bundle),
+    trajectory_turns(bundle),
+    events
+  )
+  end <- start + 60 * (sum(first) - 1)
+
+  exchanges <- route_exchanges(bundle)
+  unknown <- as.POSIXct(NA, tz = "UTC")
+  expect_identical(exchanges$timestamp, c(start, unknown))
+  expect_identical(exchanges$timestamp_end, c(end, unknown))
+
+  scoped <- route_summary(bundle, trajectory_ids = "ellmer-1")
+  expect_identical(unique(scoped$event_window_start), start)
+  expect_identical(unique(scoped$event_window_end), end)
+
+  overall <- route_summary(bundle)
+  expect_identical(unique(overall$n_timestamped_exchanges), 1L)
+  expect_identical(unique(overall$event_window_end), end)
+
+  counts <- scans_tool_result(
+    scans_tools(bundle)$scans_route_counts,
+    trajectory_ids = "ellmer-1"
+  )
+  expect_false(identical(
+    counts$denominators$event_window_start,
+    counts$denominators$event_window_end
+  ))
+})
+
 test_that("promotion candidates rank recurring exploratory routes with evidence", {
   bundle <- route_commons_bundle()
   candidates <- route_candidates(bundle)

@@ -28,7 +28,8 @@ route_no_tools <- "(none)"
 #'   (a provenance record names an exchange with no retained turns).
 #' - `source_type`, `user` (`metadata$otel$user`, `NA` when unknown),
 #'   `trajectory_completed_at` (conversation time, not answer time), and
-#'   `timestamp` (earliest recorded event time in the exchange, often `NA`).
+#'   `timestamp` and `timestamp_end` (earliest and latest recorded event time
+#'   in the exchange, often `NA`).
 #' - `turn_ids`, `n_turns`, `n_assistant_turns`.
 #' - `provenance_class`: one of `route_classes`. `provenance_reason`:
 #'   `"recorded"`, `"missing_event"`, `"missing_tag"`, `"conflicting_tags"`,
@@ -83,6 +84,7 @@ route_exchange_template <- function() {
     user = character(),
     trajectory_completed_at = as.POSIXct(character(), tz = "UTC"),
     timestamp = as.POSIXct(character(), tz = "UTC"),
+    timestamp_end = as.POSIXct(character(), tz = "UTC"),
     turn_ids = list(),
     n_turns = integer(),
     n_assistant_turns = integer(),
@@ -140,6 +142,13 @@ route_trajectory_exchanges <- function(
     class <- route_exchange_class(records, provenance_source)
     event_ids <- c(turn_events$event_id, records$event_id)
     timestamps <- c(turn_events$timestamp, records$timestamp)
+    recorded <- function(fun) {
+      if (all(is.na(timestamps))) {
+        as.POSIXct(NA, tz = "UTC")
+      } else {
+        fun(timestamps, na.rm = TRUE)
+      }
+    }
     tibble::tibble(
       trajectory_id = id,
       exchange_index = as.integer(index),
@@ -152,11 +161,8 @@ route_trajectory_exchanges <- function(
       source_type = info$source_type[[1L]],
       user = user,
       trajectory_completed_at = info$completed_at[[1L]],
-      timestamp = if (all(is.na(timestamps))) {
-        as.POSIXct(NA, tz = "UTC")
-      } else {
-        min(timestamps, na.rm = TRUE)
-      },
+      timestamp = recorded(min),
+      timestamp_end = recorded(max),
       turn_ids = list(exchange_turns$turn_id),
       n_turns = nrow(exchange_turns),
       n_assistant_turns = sum(exchange_turns$role %in% "assistant"),
@@ -490,7 +496,7 @@ route_summary_overall <- function(info, exchanges) {
     n_unknown_user_trajectories = sum(is.na(info$user)),
     n_timestamped_exchanges = sum(!is.na(exchanges$timestamp)),
     event_window_start = window(exchanges$timestamp, min),
-    event_window_end = window(exchanges$timestamp, max),
+    event_window_end = window(exchanges$timestamp_end, max),
     trajectory_window_start = window(bounds, min),
     trajectory_window_end = window(bounds, max)
   )
