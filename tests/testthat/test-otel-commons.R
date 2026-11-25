@@ -421,3 +421,73 @@ test_that("a turn reached through unexposed ancestors keeps its record", {
   bundle <- as_trajectory_otel(c(spans, list(wrapper)))
   expect_identical(provenance_events(bundle)$value[[1L]]$provenance_tag, "A")
 })
+
+test_that("an edited part outside the known types is not a matching history", {
+  skip_if_not_installed("jsonlite")
+  question <- function(reasoning) {
+    list(
+      role = "user",
+      parts = list(
+        list(type = "text", content = "Q1"),
+        list(type = "reasoning", content = reasoning)
+      )
+    )
+  }
+  a1 <- reply_message("A1")
+  first <- commons_otel_turn(
+    "1",
+    list(question("before")),
+    list(a1),
+    start = 100,
+    tag = "A"
+  )
+  latest <- commons_otel_turn(
+    "2",
+    list(question("after"), a1, user_message("Q2")),
+    list(reply_message("A2")),
+    start = 200,
+    tag = "B"
+  )
+  provenance <- provenance_events(as_trajectory_otel(c(first, latest)))
+
+  expect_identical(
+    vapply(provenance$value, `[[`, character(1), "provenance_tag"),
+    c(NA, "B")
+  )
+})
+
+test_that("generic parts match on the class they record", {
+  skip_if_not_installed("jsonlite")
+  question <- function(class) {
+    list(
+      role = "user",
+      parts = list(
+        list(type = "text", content = "Q1"),
+        list(type = "generic", class = class)
+      )
+    )
+  }
+  first <- commons_otel_turn(
+    "1",
+    list(question("ContentImageInline")),
+    list(reply_message("A1")),
+    start = 100,
+    tag = "A"
+  )
+  latest <- function(class) {
+    commons_otel_turn(
+      "2",
+      list(question(class), reply_message("A1"), user_message("Q2")),
+      list(reply_message("A2")),
+      start = 200,
+      tag = "B"
+    )
+  }
+  tags <- function(spans) {
+    provenance <- provenance_events(as_trajectory_otel(spans))
+    vapply(provenance$value, `[[`, character(1), "provenance_tag")
+  }
+
+  expect_identical(tags(c(first, latest("ContentPDF"))), c(NA, "B"))
+  expect_identical(tags(c(first, latest("ContentImageInline"))), c("A", "B"))
+})

@@ -265,7 +265,7 @@ otel_part_signature <- function(part) {
       id = part$id,
       response = otel_canonical_value(part$response)
     ),
-    list(type = type)
+    otel_canonical_value(part)
   )
 }
 
