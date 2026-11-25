@@ -22,10 +22,11 @@ with \code{content_offset} to retrieve subsequent slices.}
 \value{
 A named list of ellmer tools: \code{scans_list_trajectories},
 \code{scans_summarize}, \code{scans_read_trajectory}, \code{scans_find_events},
-\code{scans_get_findings}, and \code{scans_measure}.
+\code{scans_get_findings}, \code{scans_measure}, \code{scans_route_counts}, and
+\code{scans_route_candidates}.
 }
 \description{
-\code{scans_tools()} creates six read-only ellmer tools backed by deterministic
+\code{scans_tools()} creates eight read-only ellmer tools backed by deterministic
 scans queries. The tools inspect a fixed copy of the supplied evidence; they
 cannot fetch sources, replay recorded tools, execute R, or write reviews.
 Register the returned tools with an ellmer chat using \code{chat$set_tools()}.
@@ -40,6 +41,13 @@ When any retained trajectory records a Deputy run ending, trajectory
 listings add \code{run_ending}, \code{ending_reason}, \code{finish_reason}, \code{cut_off}, and
 \code{wrapped_up}, so a cut-off answer is visible even though its status is
 \code{"completed"}. Findings can be narrowed to named scans.
+
+\code{scans_route_counts} counts exchanges by recorded provenance class:
+\code{trusted}, \code{cited}, and \code{untrusted} map commons tags A, B, and C;
+\code{unclassified} marks absent or conflicting tags; \code{not_applicable} marks
+sources that record no provenance. \code{scans_route_candidates} ranks recurring
+exploratory tool routes and returns the recorded tool inputs and outputs
+behind one route. Neither runs captured SQL or R.
 
 A saved investigation retains its saved diagnostics and scanner settings.
 To recompute them, explicitly create a new \code{\link[=investigation_snapshot]{investigation_snapshot()}} from

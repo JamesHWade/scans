@@ -270,6 +270,74 @@ test_that("sources without provenance yield labelled multi-step candidates", {
   expect_identical(unique(overall$n_unknown_user_trajectories), 2L)
 })
 
+test_that("route tools compute counts and candidates in the permitted scope", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  bundle <- route_commons_bundle()
+  tools <- scans_tools(bundle)
+
+  counts <- scans_tool_result(tools$scans_route_counts)
+  expect_equal(
+    vapply(counts$data, function(x) x$n_exchanges, numeric(1)),
+    c(1, 3, 3, 2, 0)
+  )
+  expect_equal(counts$denominators$total_exchanges, 9)
+  expect_equal(counts$denominators$n_unknown_user_trajectories, 1)
+  expect_null(counts$denominators$event_window_start)
+
+  paged <- scans_tool_result(
+    tools$scans_route_counts,
+    by = "trajectory",
+    limit = 1L
+  )
+  expect_equal(paged$paging$total, 4L)
+  expect_equal(paged$denominators$total_exchanges, 9)
+  expect_identical(
+    paged$evidence[[1L]]$trajectory_id,
+    paged$data[[1L]]$trajectory_id
+  )
+
+  candidates <- scans_tool_result(tools$scans_route_candidates)
+  expect_identical(
+    vapply(candidates$data, function(x) x$route_signature, character(1)),
+    c("describe_table > run_sql > run_r", "run_sql")
+  )
+  expect_null(candidates$data[[1L]]$snippets)
+
+  evidence <- scans_tool_result(
+    tools$scans_route_candidates,
+    signature = "run_sql"
+  )
+  expect_equal(evidence$paging$total, 2L)
+  expect_identical(
+    vapply(evidence$evidence, function(x) x$event_id, character(1)),
+    vapply(evidence$data, function(x) x$event_id, character(1))
+  )
+  expect_error(
+    tools$scans_route_candidates(signature = "call_measure"),
+    class = "scans_error_tools_input"
+  )
+
+  scoped <- scans_tools(bundle, "commons/conversation-003", max_rows = 2L)
+  result <- scans_tool_result(scoped$scans_route_counts)
+  expect_equal(result$denominators$total_exchanges, 3)
+  expect_equal(result$scope$trajectories, 1L)
+  expect_length(scans_tool_result(scoped$scans_route_candidates)$data, 0L)
+  for (name in c("scans_route_counts", "scans_route_candidates")) {
+    expect_error(
+      scoped[[name]](trajectory_ids = "commons/conversation-001"),
+      class = "scans_error_tools_scope"
+    )
+  }
+  expect_error(
+    scoped$scans_route_counts(limit = 3L),
+    class = "scans_error_tools_limit"
+  )
+  expect_error(
+    scoped$scans_route_candidates(min_exchanges = 0L),
+    class = "scans_error_tools_limit"
+  )
+})
+
 test_that("candidate evidence passes into review cases and regression data", {
   bundle <- route_commons_bundle()
   candidate <- route_candidates(bundle)[1L, ]

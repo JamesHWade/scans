@@ -1,6 +1,6 @@
 #' Create tools for exploring retained trajectories
 #'
-#' `scans_tools()` creates six read-only ellmer tools backed by deterministic
+#' `scans_tools()` creates eight read-only ellmer tools backed by deterministic
 #' scans queries. The tools inspect a fixed copy of the supplied evidence; they
 #' cannot fetch sources, replay recorded tools, execute R, or write reviews.
 #' Register the returned tools with an ellmer chat using `chat$set_tools()`.
@@ -14,6 +14,13 @@
 #' listings add `run_ending`, `ending_reason`, `finish_reason`, `cut_off`, and
 #' `wrapped_up`, so a cut-off answer is visible even though its status is
 #' `"completed"`. Findings can be narrowed to named scans.
+#'
+#' `scans_route_counts` counts exchanges by recorded provenance class:
+#' `trusted`, `cited`, and `untrusted` map commons tags A, B, and C;
+#' `unclassified` marks absent or conflicting tags; `not_applicable` marks
+#' sources that record no provenance. `scans_route_candidates` ranks recurring
+#' exploratory tool routes and returns the recorded tool inputs and outputs
+#' behind one route. Neither runs captured SQL or R.
 #'
 #' A saved investigation retains its saved diagnostics and scanner settings.
 #' To recompute them, explicitly create a new [investigation_snapshot()] from
@@ -29,7 +36,8 @@
 #'   with `content_offset` to retrieve subsequent slices.
 #' @returns A named list of ellmer tools: `scans_list_trajectories`,
 #'   `scans_summarize`, `scans_read_trajectory`, `scans_find_events`,
-#'   `scans_get_findings`, and `scans_measure`.
+#'   `scans_get_findings`, `scans_measure`, `scans_route_counts`, and
+#'   `scans_route_candidates`.
 #' @export
 #' @examples
 #' if (rlang::is_installed("ellmer", version = "0.5.0")) {
@@ -523,7 +531,7 @@ scans_tools_build <- function(
       annotations = list(readOnlyHint = TRUE)
     )
   }
-  list(
+  tools <- list(
     scans_list_trajectories = definition(
       list_runs,
       "scans_list_trajectories",
@@ -608,6 +616,18 @@ scans_tools_build <- function(
         ),
         paging
       )
+    )
+  )
+  c(
+    tools,
+    scans_tools_routes(
+      context,
+      reply,
+      ids,
+      definition,
+      paging,
+      max_rows,
+      max_chars
     )
   )
 }
