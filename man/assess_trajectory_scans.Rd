@@ -59,7 +59,17 @@ require explicit status or failure evidence. Recognized status labels are
 other labels do not establish status coverage. Multiple failed events without
 recorded parent links cannot establish the absence of an error chain.
 
-Built-ins execute in tool, event, and record groups. A group failure affects
+The Deputy scans apply to trajectories that record Deputy run evidence: a
+run ending in \code{metadata$ending}, any \verb{deputy:*} event, or a \code{"deputy"}
+source type. Other trajectories are \code{not_applicable}. \code{cut_off_answer}
+needs the ending's \code{cut_off} or \code{finish_reason}; \code{run_intervention} needs
+recorded \verb{deputy:*} events. A capture with events but none of an
+intervention's types is assessed with no findings; a capture without any
+lifecycle events has insufficient evidence unless the run ending itself
+shows a limit wrap-up. \code{settings} records the fixed repeated-compaction
+threshold.
+
+Built-ins execute in tool, event, record, and Deputy groups. A group failure affects
 its selected scanners on that trajectory; other groups continue. Failure
 reasons omit arbitrary condition messages. Finding identifiers are local to
 the run and can change if a previously failed group later succeeds.

@@ -9,7 +9,9 @@ test_that("the registry advertises built-in names and severities", {
     event_error = "error",
     error_chain = "error",
     turn_error = "error",
-    trajectory_error = "error"
+    trajectory_error = "error",
+    cut_off_answer = "error",
+    run_intervention = "warning"
   )
 
   expect_setequal(registry$scan, names(expected))

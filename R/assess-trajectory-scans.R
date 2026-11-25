@@ -33,7 +33,17 @@
 #' other labels do not establish status coverage. Multiple failed events without
 #' recorded parent links cannot establish the absence of an error chain.
 #'
-#' Built-ins execute in tool, event, and record groups. A group failure affects
+#' The Deputy scans apply to trajectories that record Deputy run evidence: a
+#' run ending in `metadata$ending`, any `deputy:*` event, or a `"deputy"`
+#' source type. Other trajectories are `not_applicable`. `cut_off_answer`
+#' needs the ending's `cut_off` or `finish_reason`; `run_intervention` needs
+#' recorded `deputy:*` events. A capture with events but none of an
+#' intervention's types is assessed with no findings; a capture without any
+#' lifecycle events has insufficient evidence unless the run ending itself
+#' shows a limit wrap-up. `settings` records the fixed repeated-compaction
+#' threshold.
+#'
+#' Built-ins execute in tool, event, record, and Deputy groups. A group failure affects
 #' its selected scanners on that trajectory; other groups continue. Failure
 #' reasons omit arbitrary condition messages. Finding identifiers are local to
 #' the run and can change if a previously failed group later succeeds.
@@ -110,6 +120,9 @@ assess_trajectory_scans <- function(
         scan,
         repeated_tool_call = list(repeat_threshold = repeat_threshold),
         suspicious_tool_loop = list(loop_threshold = loop_threshold),
+        run_intervention = list(
+          compaction_threshold = scan_compaction_threshold
+        ),
         list()
       )
       assessments[[length(assessments) + 1L]] <- tibble::tibble(
@@ -174,6 +187,9 @@ scan_assessment_group <- function(scan) {
   if (scan %in% c("event_error", "error_chain")) {
     return("event")
   }
+  if (scan %in% c("cut_off_answer", "run_intervention")) {
+    return("deputy")
+  }
   "tool"
 }
 
@@ -188,7 +204,9 @@ scan_required_evidence <- function(scan) {
     event_error = "Recorded event status or explicit failure evidence.",
     error_chain = "Event failure evidence and recorded causal parent relationships.",
     turn_error = "Recorded semantic turn status, finish reason, or explicit error.",
-    trajectory_error = "Recorded trajectory status or explicit error."
+    trajectory_error = "Recorded trajectory status or explicit error.",
+    cut_off_answer = "A Deputy run ending with cut_off or the final finish reason.",
+    run_intervention = "Recorded Deputy lifecycle events; the run ending for limit wrap-ups."
   )
 }
 
@@ -223,6 +241,44 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
   event_loss <- capture_loss ||
     any(fields %in% c("events", "messages", "parts"))
   group <- scan_assessment_group(scan)
+  if (group == "deputy") {
+    # Applicability follows recorded Deputy run evidence, not the source type,
+    # so other adapters that project the same ending and events qualify.
+    if (!scan_has_deputy_evidence(info, events)) {
+      return(list(
+        status = "not_applicable",
+        reason = "No Deputy run ending or deputy lifecycle events are recorded.",
+        limitations = limitations
+      ))
+    }
+    if (scan == "cut_off_answer") {
+      ending <- scan_run_ending(info$metadata[[1L]])
+      complete <- !is.null(ending) &&
+        (!is.na(scan_ending_flag(ending, "cut_off")) ||
+          scan_has_value(scan_ending_string(ending, "finish_reason")))
+      relevant_loss <- capture_loss ||
+        any(
+          grepl("^metadata(\\$ending($|\\$)|$)", fields) &
+            is.na(losses$event_id) &
+            is.na(losses$turn_id)
+        )
+      missing <- "The run ending records neither cut_off nor a final finish reason."
+    } else {
+      complete <- any(scan_is_deputy_event(events$event_type))
+      relevant_loss <- event_loss
+      missing <- "Deputy lifecycle events are not recorded, so interventions cannot be ruled out."
+    }
+    if (!complete || relevant_loss) {
+      if (!positive) {
+        return(insufficient(missing))
+      }
+      limitations <- c(
+        limitations,
+        "Positive findings are recorded, but missing or lost run evidence prevents ruling out others."
+      )
+    }
+    return(list(status = status, reason = reason, limitations = limitations))
+  }
   if (group == "tool") {
     tools <- events$event_type %in% c("tool_call", "tool_result")
     calls <- events$event_type %in% "tool_call"

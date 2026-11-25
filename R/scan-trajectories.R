@@ -6,6 +6,20 @@
 #' and causal error chains. Named tool-argument mappings are compared without
 #' regard to key order.
 #'
+#' Two scans read Deputy run evidence: the run ending in
+#' `metadata$ending` and `deputy:*` lifecycle events, from any adapter that
+#' records them. `cut_off_answer` reports a final answer the provider cut
+#' short (`cut_off`, or a `max_tokens`, `context_window`, or `content_filter`
+#' finish reason), which a `"completed"` status does not reveal.
+#' `run_intervention` reports, with a `kind` in `value`: `limit_wrap_up` (a
+#' usage limit made the model answer without tools), `provider_fallback`,
+#' `compaction_failure`, `repeated_compaction` (at least two `deputy:compaction`
+#' events in one run), `permission_denied`, and `approval_pending` (an approval
+#' with no later decision or tool execution in the run). A failed compaction
+#' or denied permission is also a failed event, so `event_error` reports the
+#' same event: one finding records the failure, the other what it means for
+#' the run.
+#'
 #' Finding identifiers are deterministic for an unchanged bundle, argument set,
 #' and `scan_id`. The default `scan_id` is snapshot-local and is not intended as
 #' a globally unique persistent identifier.
@@ -28,13 +42,16 @@
 #'   caller-supplied diagnostic-run identifier.
 #' - `scan`: one of `ambiguous_tool_correlation`, `unresolved_tool_call`,
 #'   `unmatched_tool_result`, `repeated_tool_call`, `suspicious_tool_loop`,
-#'   `event_error`, `error_chain`, `turn_error`, or `trajectory_error`;
-#'   `scan_version`: detector version.
+#'   `event_error`, `error_chain`, `turn_error`, `trajectory_error`,
+#'   `cut_off_answer`, or `run_intervention`; `scan_version`: detector version.
 #' - `trajectory_id`, `turn_id`, and `event_id`: primary evidence identities;
 #'   `event_ids`: character vector of every supporting event identifier. A
-#'   `trajectory_error` finding has no turn or event, and a `turn_error`
-#'   finding no event, because the failure is recorded on the record itself.
-#' - `severity`: `warning` for tool-pattern findings or `error` for failures;
+#'   `trajectory_error` or `cut_off_answer` finding has no turn or event, and a
+#'   `turn_error` finding no event, because the evidence is recorded on the
+#'   record itself. A limit wrap-up known only from the run ending also has no
+#'   event.
+#' - `severity`: `warning` for tool-pattern findings and run interventions, or
+#'   `error` for failures and cut-off answers;
 #'   `label` and `explanation`: concise human-readable descriptions.
 #' - `value`: scan-specific structured details; `metadata`: a named extension
 #'   list, currently empty for built-in scans.
@@ -115,7 +132,9 @@ scan_registry <- function() {
       "event_error",
       "error_chain",
       "turn_error",
-      "trajectory_error"
+      "trajectory_error",
+      "cut_off_answer",
+      "run_intervention"
     ),
     severity = c(
       "warning",
@@ -126,7 +145,9 @@ scan_registry <- function() {
       "error",
       "error",
       "error",
-      "error"
+      "error",
+      "error",
+      "warning"
     ),
     description = c(
       "A call identifier matches more than one call or result.",
@@ -140,7 +161,12 @@ scan_registry <- function() {
         "A turn ended with a failed status, an error, or a truncating",
         "finish reason."
       ),
-      "The trajectory ended with a failed status or an error."
+      "The trajectory ended with a failed status or an error.",
+      "The provider cut the run's final answer short.",
+      paste(
+        "The agent runtime intervened: a limit wrap-up, provider fallback,",
+        "failed or repeated compaction, denied permission, or pending approval."
+      )
     )
   )
 }

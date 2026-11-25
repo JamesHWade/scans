@@ -36,13 +36,16 @@ A tibble with one row per finding and these columns:
 caller-supplied diagnostic-run identifier.
 \item \code{scan}: one of \code{ambiguous_tool_correlation}, \code{unresolved_tool_call},
 \code{unmatched_tool_result}, \code{repeated_tool_call}, \code{suspicious_tool_loop},
-\code{event_error}, \code{error_chain}, \code{turn_error}, or \code{trajectory_error};
-\code{scan_version}: detector version.
+\code{event_error}, \code{error_chain}, \code{turn_error}, \code{trajectory_error},
+\code{cut_off_answer}, or \code{run_intervention}; \code{scan_version}: detector version.
 \item \code{trajectory_id}, \code{turn_id}, and \code{event_id}: primary evidence identities;
 \code{event_ids}: character vector of every supporting event identifier. A
-\code{trajectory_error} finding has no turn or event, and a \code{turn_error}
-finding no event, because the failure is recorded on the record itself.
-\item \code{severity}: \code{warning} for tool-pattern findings or \code{error} for failures;
+\code{trajectory_error} or \code{cut_off_answer} finding has no turn or event, and a
+\code{turn_error} finding no event, because the evidence is recorded on the
+record itself. A limit wrap-up known only from the run ending also has no
+event.
+\item \code{severity}: \code{warning} for tool-pattern findings and run interventions, or
+\code{error} for failures and cut-off answers;
 \code{label} and \code{explanation}: concise human-readable descriptions.
 \item \code{value}: scan-specific structured details; \code{metadata}: a named extension
 list, currently empty for built-in scans.
@@ -58,6 +61,20 @@ and causal error chains. Named tool-argument mappings are compared without
 regard to key order.
 }
 \details{
+Two scans read Deputy run evidence: the run ending in
+\code{metadata$ending} and \verb{deputy:*} lifecycle events, from any adapter that
+records them. \code{cut_off_answer} reports a final answer the provider cut
+short (\code{cut_off}, or a \code{max_tokens}, \code{context_window}, or \code{content_filter}
+finish reason), which a \code{"completed"} status does not reveal.
+\code{run_intervention} reports, with a \code{kind} in \code{value}: \code{limit_wrap_up} (a
+usage limit made the model answer without tools), \code{provider_fallback},
+\code{compaction_failure}, \code{repeated_compaction} (at least two \code{deputy:compaction}
+events in one run), \code{permission_denied}, and \code{approval_pending} (an approval
+with no later decision or tool execution in the run). A failed compaction
+or denied permission is also a failed event, so \code{event_error} reports the
+same event: one finding records the failure, the other what it means for
+the run.
+
 Finding identifiers are deterministic for an unchanged bundle, argument set,
 and \code{scan_id}. The default \code{scan_id} is snapshot-local and is not intended as
 a globally unique persistent identifier.

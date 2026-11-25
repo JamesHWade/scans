@@ -133,7 +133,10 @@ test_that("omitted parents remain explicit without importing their records", {
   loss <- trajectory_losses(saved$bundle)
   expect_identical(loss$reason, "scans:selection_omission")
   expect_identical(loss$metadata[[1]]$parent_trajectory_id, "parent")
-  expect_identical(saved$analysis$assessments$loss_rows, rep(list(1L), 9))
+  expect_identical(
+    saved$analysis$assessments$loss_rows,
+    rep(list(1L), nrow(scan_registry()))
+  )
   path <- tempfile()
   write_investigation(saved, path)
   expect_identical(read_investigation(path), saved)
@@ -180,7 +183,10 @@ test_that("selection remaps scoped losses while retaining capture-wide limits", 
     trajectory_losses(saved$bundle)$detail,
     c("Retained loss", "Capture-wide limit")
   )
-  expect_identical(saved$analysis$assessments$loss_rows, rep(list(1:2), 9))
+  expect_identical(
+    saved$analysis$assessments$loss_rows,
+    rep(list(1:2), nrow(scan_registry()))
+  )
   path <- tempfile()
   write_investigation(saved, path)
   expect_identical(read_investigation(path), saved)
