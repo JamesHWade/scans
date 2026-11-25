@@ -148,7 +148,7 @@ scans_app_scope_chips_ui <- function(labels) {
         htmltools::tags$span(
           class = "scans-app-chip-x",
           `aria-hidden` = "true",
-          "×"
+          "\u00d7"
         )
       )
     }),

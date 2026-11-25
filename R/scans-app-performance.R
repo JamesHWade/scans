@@ -181,14 +181,19 @@ scans_app_seconds <- function(x) {
   sprintf("%.1f h", x / 3600)
 }
 
+# `scope` carries what narrowed the cohort (facets, pattern, findings switch)
+# so the overview can name it and mark the matching controls as active.
 scans_app_performance_ui <- function(
   data,
   application,
   priority,
   scans,
-  chat = FALSE
+  chat = FALSE,
+  scope = list()
 ) {
   n <- data$n
+  cohort <- data$cohort
+  facets <- scope$facets %||% list()
   next_run <- if (n > 0L) {
     scans_app_performance_order(data$trajectories, "findings")[1L, ]
   }
@@ -207,33 +212,34 @@ scans_app_performance_ui <- function(
         )
       }
     ),
-    htmltools::tags$p(sprintf(
-      "%d of %d captured trajectories match your filters.",
-      n,
-      data$total
-    )),
+    scans_app_scope_sentence_ui(
+      cohort$headline,
+      scans_app_scope_labels(facets, scope$pattern, scope$findings_only)
+    ),
     if (n == 0L) {
       scans_app_empty_ui(
         "No trajectories match these filters. Broaden the filters to continue."
       )
     } else {
       htmltools::tagList(
-        htmltools::tags$p(
-          class = "scans-app-scope-facts",
-          if (!length(scans)) "Scans off \u00b7 ",
-          sprintf(
-            "%d with findings \u00b7 %d with recorded timing \u00b7 %d without a transcript",
-            data$n_findings,
-            data$n_timed,
-            sum(
-              data$trajectories$n_turns == 0 & data$trajectories$n_events == 0
-            )
-          )
+        scans_app_tiles_ui(
+          cohort$headline,
+          n_empty = sum(
+            data$trajectories$n_turns == 0 & data$trajectories$n_events == 0
+          ),
+          scans_on = length(scans) > 0L,
+          facets = facets,
+          findings_only = isTRUE(scope$findings_only)
+        ),
+        htmltools::tags$section(
+          class = "scans-app-performance-section",
+          htmltools::tags$h2("Activity"),
+          scans_app_activity_ui(cohort$activity, facets$day)
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
           htmltools::tags$h2("Patterns to investigate"),
-          scans_app_patterns_ui(data$patterns, n, scans),
+          scans_app_patterns_ui(data$patterns, n, scans, scope$pattern),
           htmltools::tags$p(
             class = "scans-app-pattern-overlap",
             if (nrow(data$patterns) > 1L && data$n_findings == 1L) {
@@ -242,6 +248,18 @@ scans_app_performance_ui <- function(
               "A trajectory can appear in more than one pattern."
             }
           )
+        ),
+        if (nrow(cohort$tools) > 0L) {
+          htmltools::tags$section(
+            class = "scans-app-performance-section",
+            htmltools::tags$h2("Tools"),
+            scans_app_tools_ui(cohort$tools, facets)
+          )
+        },
+        htmltools::div(
+          class = "scans-app-breakdowns",
+          scans_app_models_ui(cohort$models, n, facets),
+          scans_app_users_ui(cohort$users, n, facets)
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
@@ -358,7 +376,17 @@ scans_app_performance_ui <- function(
   )
 }
 
-scans_app_patterns_ui <- function(patterns, n, scans) {
+scans_app_pattern_label <- function(scan) {
+  switch(
+    scan,
+    event_error = "Event errors",
+    repeated_tool_call = "Repeated tool calls",
+    suspicious_tool_loop = "Suspicious tool loop",
+    scans_app_title_case(gsub("_", " ", scan))
+  )
+}
+
+scans_app_patterns_ui <- function(patterns, n, scans, selected = NULL) {
   if (length(scans) == 0L) {
     return(scans_app_empty_ui(
       "No scans selected. Enable scans in Options to see diagnostic patterns.",
@@ -371,33 +399,70 @@ scans_app_patterns_ui <- function(patterns, n, scans) {
       compact = TRUE
     ))
   }
+  users_known <- !all(is.na(patterns$users))
   htmltools::div(
-    class = "scans-app-patterns",
+    class = paste(
+      "scans-app-patterns",
+      if (!users_known) "scans-app-patterns-anonymous"
+    ),
     htmltools::div(
       class = "scans-app-pattern-head",
+      `aria-hidden` = "true",
+      htmltools::tags$span("Severity"),
       htmltools::tags$span("Pattern"),
-      htmltools::tags$span("Affected trajectories"),
-      htmltools::tags$span("Recorded evidence")
+      htmltools::tags$span("Affected"),
+      if (users_known) htmltools::tags$span("Users"),
+      htmltools::tags$span("Last seen"),
+      htmltools::tags$span("Over time"),
+      htmltools::tags$span()
     ),
     lapply(seq_len(nrow(patterns)), function(i) {
-      label <- switch(
-        patterns$scan[[i]],
-        event_error = "Event errors",
-        repeated_tool_call = "Repeated tool calls",
-        suspicious_tool_loop = "Suspicious tool loop",
-        scans_app_title_case(gsub("_", " ", patterns$scan[[i]]))
-      )
+      row <- patterns[i, ]
+      label <- scans_app_pattern_label(row$scan)
       htmltools::tags$button(
         type = "button",
         class = "scans-app-pattern",
-        `data-scans-pattern` = patterns$scan[[i]],
-        htmltools::tags$strong(label),
-        htmltools::tags$span(sprintf(
-          "%d of %d",
-          patterns$trajectories[[i]],
-          n
-        )),
-        htmltools::tags$span(patterns$evidence[[i]]),
+        `data-scans-pattern` = row$scan,
+        `aria-pressed` = if (identical(selected, row$scan)) "true" else "false",
+        `aria-label` = sprintf(
+          "%s, %s: %d of %d conversations. %s. Show these conversations.",
+          label,
+          row$severity,
+          row$trajectories,
+          n,
+          row$evidence
+        ),
+        htmltools::tags$span(
+          scans_app_badge(scans_app_title_case(row$severity), row$severity)
+        ),
+        htmltools::tags$span(
+          class = "scans-app-pattern-name",
+          htmltools::tags$strong(label),
+          htmltools::tags$small(row$evidence)
+        ),
+        htmltools::tags$span(
+          class = "scans-app-cell-meter",
+          sprintf("%d of %d", row$trajectories, n),
+          scans_app_meter(row$share, row$severity)
+        ),
+        if (users_known) {
+          htmltools::tags$span(
+            class = "scans-app-pattern-users",
+            scans_app_count(row$users)
+          )
+        },
+        htmltools::tags$span(
+          class = "scans-app-pattern-seen",
+          if (is.na(row$last_seen)) {
+            htmltools::tags$span(class = "scans-app-unknown", "Unknown")
+          } else {
+            format(row$last_seen, "%b %d", tz = "UTC")
+          }
+        ),
+        htmltools::tags$span(
+          class = "scans-app-pattern-trend",
+          scans_app_sparkline(row$series[[1L]], row$severity)
+        ),
         shiny::icon("chevron-right")
       )
     })
