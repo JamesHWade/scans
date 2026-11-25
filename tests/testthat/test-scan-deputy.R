@@ -369,6 +369,61 @@ test_that("repeated compaction is counted within each Deputy run", {
   expect_identical(one_run$findings$value[[1L]]$count, 2L)
 })
 
+test_that("an approval stays pending until a decision is recorded", {
+  assess <- function(type, status) {
+    assess_trajectory_scans(
+      deputy_projected_bundle(
+        events = deputy_projected_events(
+          c("approval", type),
+          c("pending", status),
+          call_id = "call-001"
+        )
+      ),
+      scans = "run_intervention"
+    )
+  }
+  undecided <- list(
+    c("approval", NA),
+    c("approval", "running"),
+    c("approval", "interrupted"),
+    c("permission", NA)
+  )
+  for (later in undecided) {
+    result <- assess(later[[1L]], later[[2L]])
+    expect_identical(
+      result$findings$event_id,
+      "otel/run-001/event-000001",
+      info = later
+    )
+    expect_identical(
+      result$findings$value[[1L]]$kind,
+      "approval_pending",
+      info = later
+    )
+    expect_identical(
+      result$assessments$status,
+      "assessed_with_findings",
+      info = later
+    )
+  }
+  unrecorded <- assess("approval", NA)$assessments$limitations[[1L]]
+  expect_match(unrecorded, "prevents ruling out others", all = FALSE)
+
+  decided <- list(
+    c("approval", "completed"),
+    c("approval", "failed"),
+    c("permission", "completed"),
+    c("tool_start", NA)
+  )
+  for (later in decided) {
+    expect_identical(
+      nrow(assess(later[[1L]], later[[2L]])$findings),
+      0L,
+      info = later
+    )
+  }
+})
+
 test_that("Deputy scans key on projected run evidence, not the source type", {
   wrapped <- deputy_projected_bundle(deputy_limit_ending(
     cut_off = TRUE,

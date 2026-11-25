@@ -405,8 +405,16 @@ scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
   findings
 }
 
+# Deputy records an approval event only when a run suspends, always as
+# pending; `as_trajectory_deputy()` gives any other approval or permission
+# event a completed or failed status.
+scan_decided_statuses <- c("completed", "failed", "cancelled")
+
 # Only later lifecycle events count: the adapter places content events before
 # lifecycle events, so their order relative to an approval is not recorded.
+# The call starting or ending shows it was decided; a later approval or
+# permission event does only with a recorded decision, not an unrecorded,
+# running, or pending status.
 scan_approval_resolved <- function(events, index) {
   call_id <- events$call_id[[index]]
   if (is.na(call_id)) {
@@ -415,8 +423,9 @@ scan_approval_resolved <- function(events, index) {
   later <- seq_len(nrow(events)) > index &
     events$call_id %in% call_id &
     (events$event_type %in%
-      c("deputy:permission", "deputy:tool_start", "deputy:tool_end") |
-      (events$event_type == "deputy:approval" &
-        !events$status %in% "pending"))
+      c("deputy:tool_start", "deputy:tool_end") |
+      (events$event_type %in%
+        c("deputy:permission", "deputy:approval") &
+        events$status %in% scan_decided_statuses))
   any(later)
 }
