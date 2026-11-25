@@ -385,10 +385,10 @@ cohort_headline <- function(
   calls = cohort_tool_calls(data, ids)
 ) {
   started <- trajectories$at[!is.na(trajectories$at)]
-  # A lead run's usage already includes its delegated runs, so a total counts
-  # a child only when its parent is outside the cohort.
-  counted <- !trajectories$parent_trajectory_id %in% ids &
-    !is.na(trajectories$tokens)
+  # A lead run's usage already includes its delegated runs at every level, so
+  # a total leaves out a run with any ancestor in the cohort.
+  delegated <- cohort_has_ancestor(data, ids, ids)
+  counted <- !delegated & !is.na(trajectories$tokens)
   tibble::tibble(
     n = length(ids),
     total = nrow(data$info),
@@ -430,7 +430,35 @@ cohort_headline <- function(
       NA_real_
     },
     n_tokens_counted = sum(counted),
-    n_delegated = sum(trajectories$parent_trajectory_id %in% ids)
+    n_delegated = sum(delegated)
+  )
+}
+
+# Whether each trajectory descends from one of `among`, following recorded
+# parents through the whole snapshot so a run between the two need not be in
+# the cohort. A parent the snapshot does not hold ends the walk, as does a
+# cycle.
+cohort_has_ancestor <- function(data, ids, among) {
+  known <- data$records$trajectory_id
+  parents <- data$records$parent_trajectory_id %||%
+    rep(NA_character_, length(known))
+  vapply(
+    ids,
+    function(id) {
+      seen <- id
+      repeat {
+        id <- parents[match(id, known)]
+        if (is.na(id) || id %in% seen) {
+          return(FALSE)
+        }
+        if (id %in% among) {
+          return(TRUE)
+        }
+        seen <- c(seen, id)
+      }
+    },
+    logical(1),
+    USE.NAMES = FALSE
   )
 }
 

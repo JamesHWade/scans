@@ -111,6 +111,36 @@ test_that("a token total counts a delegated run once, through its lead", {
   )
 })
 
+test_that("a token total leaves out a run any included ancestor accounts for", {
+  skip_if_not_installed("deputy", "0.0.0.9007")
+  skip_if_not_installed("ellmer", "0.5.0")
+
+  fixture <- deputy_delegation_fixture()
+  data <- scans_app_data(
+    as_trajectory_deputy(fixture$lead, delegations = fixture$history)
+  )
+  ids <- data$info$trajectory_id
+  expect_identical(cohort_trajectories(data, ids)$tokens, c(11, 7, 7))
+  total <- function(data, ids) {
+    headline <- cohort_headline(data, ids)
+    c(headline$total_tokens, headline$n_tokens_counted, headline$n_delegated)
+  }
+
+  expect_identical(total(data, ids), c(11, 1, 2))
+  # The lead and its grandchild, without the run between them.
+  expect_identical(total(data, ids[c(1L, 3L)]), c(11, 1, 1))
+  expect_identical(total(data, ids[2:3]), c(7, 1, 1))
+  expect_identical(total(data, ids[[3L]]), c(7, 1, 0))
+
+  # A parent the snapshot does not hold ends the walk, and so does a cycle.
+  absent <- data
+  absent$records$parent_trajectory_id[[2L]] <- "deputy/absent"
+  expect_identical(total(absent, ids[c(1L, 3L)]), c(18, 2, 0))
+  cycle <- data
+  cycle$records$parent_trajectory_id[[1L]] <- ids[[3L]]
+  expect_identical(total(cycle, ids[[3L]]), c(7, 1, 0))
+})
+
 test_that("provenance counts keep unclassified apart from untrusted", {
   skip_if_not_installed("ellmer", "0.5.0")
   data <- scans_app_data(governance_commons_bundle())
