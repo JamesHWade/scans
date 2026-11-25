@@ -2,49 +2,62 @@
 % Please edit documentation in R/deputy-adapter.R
 \name{as_trajectory_deputy}
 \alias{as_trajectory_deputy}
-\title{Convert completed Deputy agent results}
+\title{Convert completed Deputy agent results and delegations}
 \usage{
 as_trajectory_deputy(
   x,
   trajectory_id = NULL,
   source_uri = NULL,
-  metadata = list()
+  metadata = list(),
+  delegations = NULL
 )
 }
 \arguments{
-\item{x}{A completed \code{deputy::AgentResult}, or a non-empty list of completed
-results.}
+\item{x}{A completed \code{deputy::AgentResult}, a non-empty list of completed
+results, or a list of disclosed delegation views on its own.}
 
 \item{trajectory_id}{A bundle-unique trajectory ID. When \code{NULL}, a stable ID
-is derived from the Deputy run ID. It must be \code{NULL} when \code{x} contains
-multiple results.}
+is derived from the Deputy run ID (or, for a delegation that never ran,
+its delegation ID). It must be \code{NULL} when the input holds several runs.}
 
 \item{source_uri}{An optional source locator. Credentials, query parameters,
 and fragments are removed.}
 
 \item{metadata}{A uniquely named list of safe application metadata, applied
-to every result. Sensitive fields are redacted and recorded as losses.}
+to every trajectory. Sensitive fields are redacted and recorded as losses.}
+
+\item{delegations}{Optional disclosed delegation views to convert beside
+the results in \code{x}, usually the lead result's own delegations. Use the
+value of \code{deputy::delegation_history()} or of
+\code{lead$inspect_subagents(transcript = TRUE)}. A raw \verb{$export_subagents()}
+snapshot is an error: read it with \code{deputy::delegation_history()} first,
+so Deputy checks your \code{DelegationDisclosure} again.}
 }
 \value{
 A \link{TrajectoryBundle}.
 }
 \description{
 \code{as_trajectory_deputy()} snapshots one or more completed
-\code{deputy::AgentResult} objects into a canonical \link{TrajectoryBundle}. It
-delegates model-visible turns to \code{\link[=as_trajectory_ellmer]{as_trajectory_ellmer()}} and adds ordered,
+\code{deputy::AgentResult} objects, and the disclosed delegation views of a
+\code{deputy::LeadAgent}, into a canonical \link{TrajectoryBundle}. It delegates
+model-visible turns to \code{\link[=as_trajectory_ellmer]{as_trajectory_ellmer()}} and adds ordered,
 namespaced Deputy lifecycle events. Results and events are read through
 their public S7 properties.
 }
 \details{
 Run, session, agent, delegation, usage, ending, and immutable run-context
-values are retained as sanitized data. When a result's parent run occurs in
-the same input, the adapter resolves \code{parent_trajectory_id}. Otherwise it
-retains the parent run ID as metadata and records an adapter loss. Missing
-run identity is also explicit. Source objects, providers, tools, callbacks,
-and credentials are never retained.
+values are retained as sanitized data. When a run's parent occurs in the
+same input, the adapter resolves \code{parent_trajectory_id} from Deputy's
+lineage: the parent run ID, then, for a nested delegation, the parent
+delegation ID. Otherwise it retains the parent IDs as metadata, leaves
+\code{parent_trajectory_id} missing, and records an adapter loss. Missing run
+identity is also explicit. Source objects, providers, tools, callbacks, and
+credentials are never retained.
 
 \code{as_trajectory()} dispatches to this adapter for Deputy results and non-empty
-lists containing only Deputy results when Deputy is installed.
+lists containing only Deputy results when Deputy is installed. Delegation
+views are plain lists without a class of their own, so they need this
+function.
 }
 \section{Run ending}{
 The trajectory \code{status} follows the result's \code{RunEnding}:
@@ -101,6 +114,60 @@ decision; and \code{"completed"} otherwise. \code{name} and \code{call_id} carry
 \code{warning} message.
 }
 
+\section{Delegation views}{
+Each view becomes one trajectory with \code{source_type = "deputy"}. Its turns
+are the view's replayed ellmer \code{turns}; a view has no lifecycle events,
+timestamps, or run context. \code{status} follows \code{outcome$runtime$status}:
+\code{"completed"} and \code{"failed"} keep their names, \code{"stopped"} and
+\code{"suspended"} are \code{"interrupted"}, and \code{"not_started"} is \code{"cancelled"}.
+As with results, \code{"completed"} means the run ended normally, not that the
+task succeeded. \code{metadata$ending} has the ten fields above, with only
+\code{finish_reason} and \code{cut_off} set.
+
+The view's metadata keeps the result keys \code{session_id}, \code{agent_id},
+\code{parent_agent_id}, \code{parent_run_id}, \code{delegation_id}, \code{usage} (the
+delegation's \code{AgentUsage} fields), and \code{stop_reason}, adds
+\code{parent_delegation_id}, and sets \code{source_class} to \code{"delegation_view"}.
+\code{metadata$delegation} holds:
+\itemize{
+\item \code{task} (character): the delegated task label.
+\item \code{answer} (character): the subagent's final reply, which Deputy cuts to
+8 KiB.
+\item \code{claims$missing_evidence}, \code{claims$unresolved_work} (each \code{character(1)}):
+what the subagent reported in its structured output, entries joined by
+newlines. \code{""} means it reported none; \code{NA} means it did not report, not
+that nothing is missing.
+\item \code{references} (list): one record per saved artifact, with \code{reference},
+\code{source} (\code{"tool_result"} or \code{"delegation_answer"}), \code{tool_call_id}, and
+\code{availability}: \code{"available"} or \code{"missing"} from a live
+\verb{$inspect_subagents()} view, or \code{"unresolved"} from
+\code{delegation_history()}, whose saved status may be stale. References are
+never read.
+\item \code{manifest} (list or \code{NULL}): the \code{DelegationManifest} fields
+\code{schema_version}, \code{definition_id}, \code{provider}, \code{model}, \code{params},
+\code{tools}, \code{policies}, and \code{size}. The manifest's task, evidence, prompt,
+and message text are not copied.
+\item \code{runtime} (list): Deputy's whole runtime record, including \code{depth},
+\code{root_agent_id}, \code{answer_truncated}, and \code{claim_omissions}.
+\item \code{cumulative_usage}, \code{errors}, and \code{retention}, as in the view.
+}
+}
+
+\section{Delegation losses}{
+\itemize{
+\item \code{capture$transcript} is \code{"redacted"} when disclosure withheld a
+delegation's transcript, so its turns and tool activity are absent, and
+\code{"unsupported"} when the view was read without one.
+\item \code{contents$value} is \code{"externalized"} on each tool result, in a result or
+a view, that Deputy moved out of the model context: the event holds only a
+preview, and the loss metadata holds its \code{reference}.
+\item \code{metadata$delegation$answer} and \verb{metadata$delegation$claims$<name>} are
+\code{"truncated"} when Deputy bounded them.
+\item \code{parent_run_id} or \code{parent_delegation_id} is \code{"unsupported"} when the
+parent is not in the same call.
+}
+}
+
 \examples{
 if (
   rlang::is_installed("deputy", version = "0.0.0.9007") &&
@@ -118,5 +185,11 @@ if (
   bundle <- as_trajectory_deputy(result)
   trajectory_events(bundle)
   trajectory_info(bundle)$metadata[[1]]$ending
+
+  # With a LeadAgent `lead`, convert its delegations beside its result:
+  # history <- deputy::delegation_history(
+  #   lead$export_subagents("reviewer"), "reviewer", disclosure, scope
+  # )
+  # as_trajectory_deputy(result, delegations = history)
 }
 }
