@@ -50,8 +50,21 @@ test_that("deep links carry the scope and old hashes still parse", {
     scans_app_parse_hash("My%20app/otel%2Fa", "My app"),
     list(application = "My app", trajectory_id = "otel/a")
   )
-  expect_null(scans_app_parse_hash("My%20app/", "My app"))
-  expect_null(scans_app_parse_hash("My%20app/?scope=unknown=1", "My app"))
+  # An application alone, with or without a scope, names its overview.
+  expect_identical(
+    scans_app_parse_hash("#My%20app/", "My app"),
+    list(application = "My app")
+  )
+  expect_identical(
+    scans_app_parse_hash("My%20app/?scope=unknown=1", "My app"),
+    list(application = "My app")
+  )
+  expect_identical(
+    scans_app_parse_hash(scans_app_scope_hash("A (b)"), c("Other", "A (b)")),
+    list(application = "A (b)")
+  )
+  expect_null(scans_app_parse_hash("My%20app", "My app"))
+  expect_null(scans_app_parse_hash("Other/", "My app"))
   expect_identical(
     scans_app_parse_scope("tool_failed=FALSE&findings=TRUE&agent=x"),
     list(findings = TRUE)
@@ -502,5 +515,43 @@ test_that("a scoped link reopens the same cohort and exports follow it", {
     session$setInputs(scans_app_hash = scans_app_hash("Cohort", "d"))
     expect_identical(selected_trajectory_id(), "d")
     expect_identical(facets(), list(day = "2026-10-01"))
+  })
+})
+
+test_that("an application link selects that application and its overview", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  loads <- new.env(parent = emptyenv())
+  loads$n <- 0L
+  app <- scans_app(list(
+    Other = performance_fixture(),
+    Cohort = function() {
+      loads$n <- loads$n + 1L
+      cohort_fixture()
+    }
+  ))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(scans_app_hash = "Cohort/")
+    expect_identical(pending_hash(), list(application = "Cohort"))
+    expect_identical(loads$n, 0L)
+    # The browser acknowledges the selector update the server asked for.
+    session$setInputs(scans_app_application = "Cohort")
+    expect_identical(application(), "Cohort")
+    expect_identical(loads$n, 1L)
+    expect_null(pending_hash())
+    expect_length(visible(), 5L)
+    expect_identical(facets(), list())
+
+    session$setInputs(scans_app_hash = "Other/?scope=model=large")
+    session$setInputs(scans_app_application = "Other")
+    expect_identical(application(), "Other")
+    expect_identical(facets(), list(model = "large"))
+    expect_null(pending_hash())
+
+    session$setInputs(scans_app_hash = "Missing/")
+    expect_null(pending_hash())
+    expect_identical(application(), "Other")
   })
 })

@@ -87,6 +87,9 @@ scans_app_navigation_server <- function(
     if (!is.na(index)) {
       state$selected(index)
       bslib::nav_select("scans_app_view", "trajectory", session = session)
+    } else if (is.null(target$trajectory_id)) {
+      # A link to an application alone opens its overview.
+      bslib::nav_select("scans_app_view", "application", session = session)
     }
     if (
       !is.na(index) &&
@@ -166,13 +169,14 @@ scans_app_parse_hash <- function(hash, labels) {
   }
   hash <- scope_parts[[1L]]
   parts <- strsplit(hash, "/", fixed = TRUE)[[1L]]
-  if (length(parts) < 2L && !(length(scope) && endsWith(hash, "/"))) {
+  # "<application>/" names an application's overview; the slash is required
+  # so that an arbitrary fragment is never read as an application.
+  if (length(parts) < 2L && !endsWith(hash, "/")) {
     return(NULL)
   }
   application <- utils::URLdecode(parts[[1L]])
   trajectory_id <- utils::URLdecode(paste(parts[-1L], collapse = "/"))
-  # A scope alone reopens the overview; anything else needs a trajectory.
-  if (!application %in% labels || (!nzchar(trajectory_id) && !length(scope))) {
+  if (!application %in% labels) {
     return(NULL)
   }
   target <- list(application = application)
