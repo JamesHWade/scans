@@ -236,3 +236,144 @@ scans_app_chat_server <- function(
   })
   list(module = mod, pinned = function() state$pinned, references = references)
 }
+
+scans_app_ask_server <- function(
+  input,
+  output,
+  session,
+  state,
+  chat_factory
+) {
+  chat_snapshot <- shiny::reactive({
+    entry <- state$active()
+    shiny::req(!is.null(entry$bundle))
+    if (!is.null(entry$investigation) && !state$rescan_investigation()) {
+      return(entry$investigation)
+    }
+    current <- state$data()
+    investigation_build(
+      entry$bundle,
+      NULL,
+      state$application(),
+      list(read_info = entry$read_info, loaded_at = entry$loaded_at),
+      state$scan_config(),
+      list(),
+      current[c("summaries", "findings", "assessments", "measures")],
+      previous = entry$investigation
+    )
+  })
+  chat_scope <- shiny::reactive({
+    current <- state$data()
+    one <- identical(input$scans_app_ask_scope, "trajectory") &&
+      identical(input$scans_app_view, "trajectory") &&
+      !is.null(state$selected())
+    ids <- if (one) {
+      current$info$trajectory_id[[state$selected()]]
+    } else {
+      current$info$trajectory_id[state$visible()]
+    }
+    list(
+      ids = ids,
+      label = if (one) {
+        paste("This trajectory:", current$records$title[[state$selected()]])
+      } else {
+        sprintf("Filtered trajectories (%d)", length(ids))
+      }
+    )
+  })
+  if (!is.null(chat_factory)) {
+    chat_view <- new.env(parent = emptyenv())
+    chat_view$previous <- NULL
+    shiny::observe({
+      one <- identical(input$scans_app_view, "trajectory") &&
+        !is.null(state$selected())
+      choices <- c(
+        if (one) c("This trajectory" = "trajectory"),
+        stats::setNames(
+          "filtered",
+          sprintf("Filtered trajectories (%d)", length(state$visible()))
+        )
+      )
+      chosen <- shiny::isolate(input$scans_app_ask_scope)
+      if (one && !identical(chat_view$previous, "trajectory")) {
+        chosen <- "trajectory"
+      }
+      chat_view$previous <- input$scans_app_view
+      if (is.null(chosen) || !chosen %in% choices) {
+        chosen <- unname(choices[[1L]])
+      }
+      shiny::updateSelectInput(
+        session,
+        "scans_app_ask_scope",
+        choices = choices,
+        selected = chosen
+      )
+    })
+  }
+  chat_target <- shiny::reactiveVal(NULL)
+  state$viewing_chat_snapshot <- shiny::reactiveVal(FALSE)
+  state$chat_state <- if (!is.null(chat_factory)) {
+    scans_app_chat_server(
+      input,
+      output,
+      session,
+      chat_factory,
+      chat_snapshot,
+      chat_scope,
+      navigate = function(snapshot, reference) {
+        current <- chat_snapshot()
+        if (
+          !identical(
+            current$manifest$revision_id,
+            snapshot$manifest$revision_id
+          )
+        ) {
+          state$opened_investigation(snapshot)
+          state$viewing_chat_snapshot(TRUE)
+        }
+        chat_target(reference)
+      }
+    )
+  }
+  shiny::observe({
+    target <- chat_target()
+    current <- state$data()
+    if (is.null(target) || is.null(current)) {
+      return()
+    }
+    if (!identical(chat_snapshot()$manifest$revision_id, target$revision_id)) {
+      return()
+    }
+    index <- match(target$trajectory_id, current$info$trajectory_id)
+    if (is.na(index)) {
+      return()
+    }
+    state$selected(index)
+    bslib::nav_select("scans_app_view", "trajectory", session = session)
+    if (scans_app_has_string(target$event_id)) {
+      session$sendCustomMessage(
+        "scans-app-reveal",
+        list(
+          id = scans_app_event_dom_id(target$event_id),
+          event_id = target$event_id
+        )
+      )
+    }
+    chat_target(NULL)
+  })
+  output$scans_app_retained_notice <- shiny::renderUI({
+    if (!state$viewing_chat_snapshot()) {
+      return(NULL)
+    }
+    htmltools::div(
+      class = "scans-app-retained-notice",
+      role = "status",
+      "Viewing the retained snapshot cited in Ask. ",
+      shiny::actionLink("scans_app_return_source", "Return to current source")
+    )
+  })
+  shiny::observeEvent(input$scans_app_return_source, {
+    state$opened_investigation(NULL)
+    state$viewing_chat_snapshot(FALSE)
+  })
+}

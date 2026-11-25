@@ -231,3 +231,146 @@ scans_app_restore_investigation <- function(saved, data, session) {
   )
   bslib::nav_select("scans_app_view", view$tab, session = session)
 }
+
+scans_app_investigation_server <- function(
+  input,
+  output,
+  session,
+  state,
+  investigations
+) {
+  shiny::observeEvent(
+    input$scans_app_open_investigation,
+    {
+      shiny::req(investigations)
+      file <- input$scans_app_open_investigation
+      saved <- tryCatch(
+        read_investigation(
+          file$datapath,
+          max_bytes = scans_app_investigation_max_bytes()
+        ),
+        error = function(cnd) {
+          shiny::showNotification(
+            "Could not open this investigation. Check its format, size, and integrity.",
+            type = "error",
+            session = session
+          )
+          NULL
+        }
+      )
+      if (!is.null(saved)) {
+        state$opened_investigation(saved)
+        state$reload_revision(state$reload_revision() + 1L)
+        state$revision(state$revision() + 1L)
+      }
+    },
+    ignoreInit = TRUE
+  )
+  shiny::observeEvent(
+    input$scans_app_close_investigation,
+    {
+      shiny::req(investigations)
+      state$opened_investigation(NULL)
+    },
+    ignoreInit = TRUE
+  )
+  shiny::observeEvent(
+    input$scans_app_rescan_investigation,
+    {
+      shiny::req(investigations)
+      state$rescan_investigation(TRUE)
+    },
+    ignoreInit = TRUE
+  )
+  output$scans_app_investigation_status <- shiny::renderUI({
+    scans_app_investigation_status_ui(
+      state$active()$investigation,
+      state$rescan_investigation(),
+      !is.null(state$opened_investigation())
+    )
+  })
+
+  shiny::observeEvent(
+    input$scans_app_save_investigation,
+    {
+      shiny::req(investigations)
+      current <- state$data()
+      entry <- state$active()
+      if (
+        is.null(current) || is.null(entry$bundle) || !length(state$visible())
+      ) {
+        shiny::showNotification(
+          "Select at least one trajectory before saving.",
+          type = "message",
+          session = session
+        )
+        return()
+      }
+      ids <- current$info$trajectory_id[state$visible()]
+      view <- scans_app_investigation_view(
+        input,
+        current,
+        ids,
+        state$selected_trajectory_id(),
+        state$pattern_filter(),
+        current$info$trajectory_id[state$annotated()],
+        state$annotated_only()
+      )
+      previous <- entry$investigation
+      source <- if (is.null(previous)) {
+        list(read_info = entry$read_info, loaded_at = entry$loaded_at)
+      } else {
+        previous$manifest$source
+      }
+      version <- if (!is.null(previous) && !state$rescan_investigation()) {
+        previous$manifest$package_version
+      } else {
+        as.character(utils::packageVersion("scans"))
+      }
+      saved <- tryCatch(
+        investigation_build(
+          entry$bundle,
+          ids,
+          state$application(),
+          source,
+          state$scan_config(),
+          view,
+          current[c("summaries", "findings", "assessments", "measures")],
+          previous = previous,
+          package_version = version
+        ),
+        error = function(cnd) {
+          shiny::showNotification(
+            "Could not prepare the snapshot. Its data may use an unsupported type.",
+            type = "error",
+            session = session
+          )
+          NULL
+        }
+      )
+      if (is.null(saved)) {
+        return()
+      }
+      state$pending_investigation(saved)
+      shiny::showModal(
+        scans_app_investigation_save_ui(saved),
+        session = session
+      )
+    },
+    ignoreInit = TRUE
+  )
+  output$scans_app_download_investigation <- shiny::downloadHandler(
+    filename = function() {
+      paste0(
+        "scans-",
+        substr(state$pending_investigation()$manifest$revision_id, 8, 19),
+        ".json"
+      )
+    },
+    content = function(file) {
+      shiny::req(investigations)
+      write_investigation(state$pending_investigation(), file, overwrite = TRUE)
+    },
+    contentType = "application/json"
+  )
+}
