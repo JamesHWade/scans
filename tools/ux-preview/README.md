@@ -6,10 +6,21 @@ From the package checkout, run:
 shiny::runApp("tools/ux-preview", port = 7452, launch.browser = TRUE)
 ```
 
-This uses the bundled support-assistant recording, the real scans tools, and a
-deterministic chat fixture. The Ask pane labels its responses as fixture output;
-it makes no model requests. It exercises native shinychat streaming, suggestions,
-tool disclosure, and evidence navigation.
+The preview serves two sources, a deterministic chat fixture, and the real scans
+tools. The Ask pane labels its responses as fixture output; it makes no model
+requests.
+
+- **Support assistant** is the demo cohort from `cohort.R`: 240 authored,
+  provider-free conversations over a fortnight, shaped like the OpenTelemetry
+  GenAI spans a deployed ellmer app writes to Posit Connect. Its overview should
+  make three things obvious: an order-service outage on Nov 19 and 20
+  (`lookup_order` timeouts and retry loops), an intermittently failing
+  `refund_status`, and a model change on Nov 18 that raises token use. Select a
+  bar, a tool, a user, or a model to narrow the overview and the browser
+  together; the chips above the trajectory list remove each filter.
+- **Small example** is the bundled support-assistant recording. It exercises
+  native shinychat streaming, suggestions, tool disclosure, and evidence
+  navigation, and shows how the overview degrades for a handful of trajectories.
 
 For a configured provider, load the checkout and use the public API:
 
