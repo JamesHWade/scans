@@ -132,7 +132,11 @@ scans_app_browser_server <- function(
     if (is.null(current)) {
       return(NULL)
     }
-    scans_app_performance_data(current, state$visible())
+    scans_app_performance_data(
+      current,
+      state$visible(),
+      state$activity_scope()
+    )
   })
   output$scans_app_performance <- shiny::renderUI({
     current <- state$performance()

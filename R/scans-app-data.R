@@ -62,6 +62,7 @@ scans_app_data <- function(
     assessments = analysis$assessments,
     summaries = summaries,
     measures = analysis$measures,
+    tool_calls = tool_calls,
     records = records
   )
 }

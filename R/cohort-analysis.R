@@ -223,7 +223,7 @@ cohort_patterns <- function(
   ]
   scans <- sort(unique(findings$scan))
   unit <- attr(activity, "unit")
-  users_known <- any(!is.na(trajectories$user))
+  users_known <- !all(is.na(trajectories$user))
   rows <- lapply(scans, function(scan) {
     rows <- findings[findings$scan == scan, , drop = FALSE]
     affected <- trajectories[
