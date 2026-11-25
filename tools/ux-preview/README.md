@@ -36,7 +36,6 @@ The package also exports `scans_tools(bundle)` for use in an ellmer chat outside
 the app. It binds a copy of the evidence and computes summaries over the selected
 population, independently of result pagination.
 
-Validation evidence and visual comparisons are in `../../artifacts/ux-review/`.
 The full package check used a temporary library containing the matching Tempest
 source: the normally installed Tempest has an older promotion schema digest and
 cannot validate the repository's existing review fixture. No regular library or
