@@ -10,6 +10,11 @@
 #' and descriptive statistics are computed over the requested population in R,
 #' not over the returned page. Missing values remain JSON `null`.
 #'
+#' When any retained trajectory records a Deputy run ending, trajectory
+#' listings add `run_ending`, `ending_reason`, `finish_reason`, `cut_off`, and
+#' `wrapped_up`, so a cut-off answer is visible even though its status is
+#' `"completed"`. Findings can be narrowed to named scans.
+#'
 #' A saved investigation retains its saved diagnostics and scanner settings.
 #' To recompute them, explicitly create a new [investigation_snapshot()] from
 #' its bundle and supply that separate investigation.
@@ -231,6 +236,7 @@ scans_tools_build <- function(
     scans_tools_ids(requested, context$ids)
     unique(requested)
   }
+  endings <- scans_tools_run_endings(context$data$info)
   rows_for <- function(table, requested) {
     table[table$trajectory_id %in% ids(requested), , drop = FALSE]
   }
@@ -326,12 +332,13 @@ scans_tools_build <- function(
     )
     indices <- indices[records$trajectory_id[indices] %in% context$ids]
     indices <- scans_app_order_records(records, indices, sort)
-    reply(
-      records[indices, setdiff(names(records), c("search", "index"))],
-      offset,
-      limit,
-      content_offset
-    )
+    rows <- records[indices, setdiff(names(records), c("search", "index"))]
+    if (!is.null(endings)) {
+      rows[names(endings)] <- endings[
+        match(rows$trajectory_id, context$data$info$trajectory_id),
+      ]
+    }
+    reply(rows, offset, limit, content_offset)
   }
   summarize <- function(trajectory_ids = NULL) {
     selected <- ids(trajectory_ids)
@@ -418,13 +425,19 @@ scans_tools_build <- function(
   findings <- function(
     trajectory_ids = NULL,
     table = "findings",
+    scans = NULL,
     offset = 0L,
     limit = min(25L, max_rows),
     content_offset = 0L
   ) {
     table <- rlang::arg_match(table, c("findings", "assessments"))
+    result <- rows_for(context$data[[table]], trajectory_ids)
+    if (!is.null(scans)) {
+      scans <- scan_check_selection(unlist(scans), rlang::current_env())
+      result <- result[result$scan %in% scans, , drop = FALSE]
+    }
     reply(
-      rows_for(context$data[[table]], trajectory_ids),
+      result,
       offset,
       limit,
       content_offset,
@@ -567,13 +580,16 @@ scans_tools_build <- function(
     scans_get_findings = definition(
       findings,
       "scans_get_findings",
-      "Read findings or scanner assessments, including saved settings and coverage. No rescan.",
+      "Read findings or scanner assessments, optionally for named scans, including saved settings and coverage. No rescan.",
       c(
         list(
           trajectory_ids = array("Optional narrower trajectory scope."),
           table = ellmer::type_enum(
             c("findings", "assessments"),
             required = FALSE
+          ),
+          scans = array(
+            "Optional exact scan names, such as cut_off_answer or run_intervention."
           )
         ),
         paging
@@ -593,6 +609,27 @@ scans_tools_build <- function(
         paging
       )
     )
+  )
+}
+
+# Run-ending columns for trajectory listings, or NULL when no trajectory in the
+# snapshot records a run ending, so other sources keep their listing shape.
+scans_tools_run_endings <- function(info) {
+  endings <- lapply(info$metadata, scan_run_ending)
+  if (all(vapply(endings, is.null, logical(1)))) {
+    return(NULL)
+  }
+  tibble::tibble(
+    run_ending = vapply(endings, scan_ending_string, character(1), "class"),
+    ending_reason = vapply(endings, scan_ending_string, character(1), "reason"),
+    finish_reason = vapply(
+      endings,
+      scan_ending_string,
+      character(1),
+      "finish_reason"
+    ),
+    cut_off = vapply(endings, scan_ending_flag, logical(1), "cut_off"),
+    wrapped_up = vapply(endings, scan_ending_flag, logical(1), "wrapped_up")
   )
 }
 

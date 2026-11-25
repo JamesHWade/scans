@@ -97,7 +97,64 @@ scans_app_pattern_evidence <- function(findings) {
       ))
     }
   }
+  if (scan == "cut_off_answer") {
+    return(sprintf(
+      "%d final answer%s cut off",
+      nrow(findings),
+      if (nrow(findings) == 1L) "" else "s"
+    ))
+  }
+  if (scan == "run_intervention") {
+    return(scans_app_intervention_evidence(findings))
+  }
   sprintf("%d finding%s", nrow(findings), if (nrow(findings) == 1L) "" else "s")
+}
+
+# One count per intervention kind, in a fixed order, so the overview says
+# what happened rather than only how often.
+scans_app_intervention_evidence <- function(findings) {
+  singular <- c(
+    limit_wrap_up = "limit wrap-up",
+    provider_fallback = "provider fallback",
+    compaction_failure = "failed compaction",
+    repeated_compaction = "run with repeated compaction",
+    permission_denied = "denied permission",
+    approval_pending = "pending approval"
+  )
+  plural <- c(
+    limit_wrap_up = "limit wrap-ups",
+    provider_fallback = "provider fallbacks",
+    compaction_failure = "failed compactions",
+    repeated_compaction = "runs with repeated compaction",
+    permission_denied = "denied permissions",
+    approval_pending = "pending approvals"
+  )
+  kinds <- vapply(
+    findings$value,
+    function(value) {
+      kind <- value$kind
+      if (rlang::is_string(kind) && kind %in% names(singular)) kind else NA
+    },
+    character(1)
+  )
+  counts <- table(factor(kinds, levels = names(singular)))
+  counts <- counts[counts > 0L]
+  if (!length(counts)) {
+    return(sprintf(
+      "%d finding%s",
+      nrow(findings),
+      if (nrow(findings) == 1L) "" else "s"
+    ))
+  }
+  kinds <- names(counts)
+  paste(
+    sprintf(
+      "%d %s",
+      counts,
+      ifelse(counts == 1L, singular[kinds], plural[kinds])
+    ),
+    collapse = ", "
+  )
 }
 
 scans_app_median <- function(x) {
