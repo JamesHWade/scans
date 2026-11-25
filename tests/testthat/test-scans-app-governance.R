@@ -368,3 +368,67 @@ test_that("provenance and candidates render with denominators and inert snippets
     fixed = TRUE
   )
 })
+
+test_that("the timeline has one linked mark per timed event and shortens idle gaps", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  expect_identical(nrow(cohort_timeline(data, "a")), 0L)
+  expect_null(scans_app_timeline_ui(cohort_timeline(data, "a")))
+
+  timed <- data$events$trajectory_id == "a"
+  data$events$timestamp[timed] <- as.POSIXct(
+    "2026-10-01 10:00:00",
+    tz = "UTC"
+  ) +
+    c(0, 1, 200, 204)
+  marks <- cohort_timeline(data, "a")
+
+  expect_identical(marks$event_id, c("a-1", "a-2", "a-3", "a-4"))
+  expect_identical(marks$lane, rep("tool", 4L))
+  expect_identical(marks$duration, c(1, NA, 4, NA))
+  expect_identical(marks$failed, c(FALSE, FALSE, TRUE, TRUE))
+  expect_identical(is.na(marks$width), c(FALSE, TRUE, FALSE, TRUE))
+  expect_equal(range(marks$x), c(0, 1))
+  breaks <- attr(marks, "breaks")
+  expect_identical(nrow(breaks), 1L)
+  expect_identical(breaks$seconds, 199)
+  expect_lt(marks$x[[3L]] - marks$x[[2L]], 0.1)
+  expect_identical(
+    nrow(attr(cohort_timeline(data, "a", max_gap = 300), "breaks")),
+    0L
+  )
+
+  ui <- htmltools::tagQuery(scans_app_timeline_ui(marks))
+  links <- ui$find("a.scans-app-timeline-mark")$selectedTags()
+  expect_length(links, 4L)
+  expect_identical(
+    unname(vapply(links, htmltools::tagGetAttribute, "", "data-scans-event")),
+    marks$event_id
+  )
+  expect_identical(
+    htmltools::tagGetAttribute(links[[3L]], "aria-label"),
+    "Tools: lookup, failed at 10:03:20, 4.0 s"
+  )
+  expect_match(
+    htmltools::tagGetAttribute(links[[2L]], "class"),
+    "scans-app-timeline-tick",
+    fixed = TRUE
+  )
+  expect_equal(ui$find(".scans-app-timeline-list li")$length(), 4L)
+  expect_match(
+    as.character(scans_app_timeline_ui(marks)),
+    "1 idle gap shortened",
+    fixed = TRUE
+  )
+  expect_null(scans_app_timeline_ui(marks[1L, ]))
+
+  deputy <- governance_deputy_data()
+  lifecycle <- cohort_timeline(deputy, "otel/c_review")
+  expect_identical(unique(lifecycle$lane), "lifecycle")
+  expect_true(all(is.na(lifecycle$width)))
+  expect_match(
+    as.character(scans_app_transcript_ui(deputy, 2L)),
+    "scans-app-timeline",
+    fixed = TRUE
+  )
+})

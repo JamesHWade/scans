@@ -106,9 +106,12 @@ scans_app_ui <- function(
     class = "scans-app-workspace-main",
     sidebar = bslib::sidebar(
       id = "scans_app_browser_pane",
-      title = shiny::textOutput(
-        "scans_app_browser_title",
-        container = function(...) htmltools::tags$span(..., "Trajectories")
+      title = htmltools::tags$header(
+        class = "sidebar-title",
+        shiny::textOutput(
+          "scans_app_browser_title",
+          container = function(...) htmltools::tags$span(..., "Trajectories")
+        )
       ),
       width = 350,
       open = list(desktop = "open", mobile = "closed"),

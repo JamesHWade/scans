@@ -113,9 +113,12 @@ scans_app_transcript_ui <- function(data, index) {
   }
   blocks <- lapply(ordered_blocks, `[[`, "ui")
 
-  htmltools::div(
-    class = "scans-app-path scans-app-chat",
-    htmltools::tagList(blocks)
+  htmltools::tagList(
+    scans_app_timeline_ui(cohort_timeline(data, id)),
+    htmltools::div(
+      class = "scans-app-path scans-app-chat",
+      htmltools::tagList(blocks)
+    )
   )
 }
 

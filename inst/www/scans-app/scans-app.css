@@ -2022,26 +2022,46 @@ td.scans-app-cell-meter .scans-app-meter { margin-left: auto; }
   .scans-app-candidate-row > :nth-child(n + 3) { display: none; }
 }
 
-/* Review bar: marks and state on the left, navigation on the right, on one
-   row until the pane is narrow. The status line fades after a few seconds
-   and stays in the accessibility tree. */
-.scans-app-review-controls { flex-wrap: nowrap; gap: .5rem; }
-.scans-app-review-controls > .shiny-html-output { flex: 1 1 0; }
-.scans-app-review-bar { flex-wrap: nowrap; gap: .25rem; min-width: 0; font-size: .8rem; }
+/* Review bar: marks on the left, navigation on the right, on one row. The
+   state sits between them when the pane is wide enough and on a short line
+   below when it is not. The status line covers the state for a few seconds,
+   then fades; it stays in the accessibility tree. */
+.scans-app-review-host { container-type: inline-size; }
+.scans-app-review-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "marks options" "note note"; align-items: center; gap: .25rem .3rem; }
+.scans-app-review-controls > .shiny-html-output { display: contents; }
+.scans-app-review-bar { grid-area: marks; display: flex; flex-wrap: wrap; align-items: center; gap: .15rem; min-width: 0; }
 .scans-app-review-bar-label { display: none; }
-.scans-app-disposition { flex: none; padding: .15rem .4rem; font-size: .78rem; white-space: nowrap; }
-.scans-app-review-note { position: relative; flex: 1 1 0; min-width: 0; margin-left: .4rem; }
+.scans-app-disposition { flex: none; gap: .18rem; padding: .1rem .2rem; font-size: .72rem; white-space: nowrap; }
+.scans-app-disposition kbd { padding: 0 .15rem; font-size: .66rem; }
+.scans-app-review-options { grid-area: options; gap: .15rem; font-size: .72rem; white-space: nowrap; }
+.scans-app-review-options .btn { padding: .1rem .3rem; font-size: .72rem; }
+.scans-app-review-options .checkbox label { display: inline-flex; align-items: center; gap: .3rem; }
+.scans-app-review-options .shiny-input-container { width: auto; }
+.scans-app-review-note { grid-area: note; position: relative; min-width: 0; font-size: .8rem; }
 .scans-app-review-state { display: block; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scans-app-review-status { position: absolute; inset: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--bs-body-bg); animation: scans-app-status-fade 5s ease-in forwards; }
 .scans-app-review-status:empty { display: none; }
 @keyframes scans-app-status-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
-.scans-app-review-options { flex: none; gap: .35rem; font-size: .78rem; white-space: nowrap; }
-.scans-app-review-options .btn { padding: .15rem .45rem; font-size: .78rem; }
-.scans-app-review-options .checkbox label { display: inline-flex; align-items: center; gap: .3rem; }
+@keyframes scans-app-status-hide { to { opacity: 0; } }
+@container (min-width: 820px) {
+  .scans-app-review-controls { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "marks note options"; }
+}
 @media (prefers-reduced-motion: reduce) {
   .scans-app-review-status { animation: scans-app-status-hide 0s linear 5s forwards; }
-  @keyframes scans-app-status-hide { to { opacity: 0; } }
 }
-@media (max-width: 1100px) {
-  .scans-app-review-controls, .scans-app-review-bar { flex-wrap: wrap; }
-}
+
+/* Trajectory timeline. */
+.scans-app-timeline { margin: 0 0 1.4rem; padding: .7rem .9rem .6rem; border: 1px solid var(--scans-app-line); border-radius: .4rem; }
+.scans-app-timeline-lanes { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .25rem .7rem; }
+.scans-app-timeline-label { color: var(--scans-app-muted); font-size: .76rem; white-space: nowrap; }
+.scans-app-timeline-lane { display: block; width: 100%; height: 14px; overflow: visible; background: linear-gradient(var(--scans-app-line), var(--scans-app-line)) center / 100% 1px no-repeat; }
+.scans-app-timeline-mark rect { fill: var(--scans-app-series-clean); }
+.scans-app-timeline-model rect { fill: var(--scans-app-primary); }
+.scans-app-timeline-lifecycle rect { fill: var(--scans-app-series-warning); }
+.scans-app-timeline-provenance rect { fill: var(--scans-app-series-trusted); }
+.scans-app-timeline-failed rect { fill: var(--scans-app-series-error); }
+.scans-app-timeline-mark:hover rect, .scans-app-timeline-mark:focus rect { stroke: var(--scans-app-ink); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.scans-app-timeline-mark:focus { outline: none; }
+.scans-app-timeline-break { fill: var(--bs-body-bg); stroke: var(--scans-app-muted); stroke-width: 1px; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
+.scans-app-timeline-axis { display: flex; justify-content: space-between; gap: 1rem; margin-top: .4rem; color: var(--scans-app-muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.scans-app-timeline-list { margin: .4rem 0 0; padding-left: 1.4rem; }

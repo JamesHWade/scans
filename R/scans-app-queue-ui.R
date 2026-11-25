@@ -173,6 +173,28 @@ scans_app_review_state_text <- function(queue, now = Sys.time()) {
 scans_app_review_bar_ui <- function(queue, labels, status = "") {
   id <- queue$trajectory_id[[1L]]
   keys <- utils::head(seq_along(labels), 9L)
+  # The note is a sibling of the buttons, not a child, so the layout can put
+  # it beside them or on its own line.
+  htmltools::tagList(
+    scans_app_review_marks_ui(id, queue, labels, keys),
+    htmltools::tags$span(
+      class = "scans-app-review-note",
+      htmltools::tags$span(
+        class = "scans-app-review-state",
+        title = scans_app_review_state_text(queue),
+        scans_app_review_state_text(queue)
+      ),
+      htmltools::tags$span(
+        class = "scans-app-review-status",
+        role = "status",
+        `aria-live` = "polite",
+        status
+      )
+    )
+  )
+}
+
+scans_app_review_marks_ui <- function(id, queue, labels, keys) {
   htmltools::div(
     class = "scans-app-review-bar",
     role = "group",
@@ -208,20 +230,6 @@ scans_app_review_bar_ui <- function(queue, labels, status = "") {
       title = "Mark reviewed without a label (key E)",
       htmltools::tags$kbd("E"),
       "Reviewed"
-    ),
-    htmltools::tags$span(
-      class = "scans-app-review-note",
-      htmltools::tags$span(
-        class = "scans-app-review-state",
-        title = scans_app_review_state_text(queue),
-        scans_app_review_state_text(queue)
-      ),
-      htmltools::tags$span(
-        class = "scans-app-review-status",
-        role = "status",
-        `aria-live` = "polite",
-        status
-      )
     )
   )
 }
@@ -256,21 +264,30 @@ scans_app_review_controls_ui <- function(annotations) {
     return(NULL)
   }
   htmltools::div(
-    class = "scans-app-review-controls",
+    class = "scans-app-review-host",
+    htmltools::div(
+      class = "scans-app-review-controls",
+      scans_app_review_controls_inner(annotations)
+    )
+  )
+}
+
+scans_app_review_controls_inner <- function(annotations) {
+  htmltools::tagList(
     shiny::uiOutput("scans_app_review_bar"),
     htmltools::div(
       class = "scans-app-review-options",
-      shiny::checkboxInput(
-        "scans_app_advance",
-        "Auto-advance",
-        value = TRUE
+      htmltools::tagAppendAttributes(
+        shiny::checkboxInput("scans_app_advance", "Advance", value = TRUE),
+        title = "After marking, open the next unreviewed"
       ),
       htmltools::tagAppendAttributes(
         shiny::actionButton(
           "scans_app_next_unreviewed",
-          "Next unreviewed",
+          "Next",
           class = "btn-sm btn-default",
-          title = "Next unreviewed (key U)"
+          title = "Next unreviewed (key U)",
+          `aria-label` = "Next unreviewed"
         ),
         `data-scans-key` = "u"
       ),

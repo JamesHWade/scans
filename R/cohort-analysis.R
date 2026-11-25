@@ -795,3 +795,84 @@ cohort_review_next <- function(queue, findings, patterns, n = 5L) {
   out$pattern <- c(pattern, rep(NA_character_, length(rest)))
   out
 }
+
+cohort_timeline_lanes <- c(
+  model = "Model",
+  tool = "Tools",
+  lifecycle = "Run events",
+  provenance = "Provenance",
+  other = "Other"
+)
+
+# One mark per timed event of a trajectory, placed on a compressed time axis.
+# An idle gap longer than `max_gap` seconds (elapsed time includes user
+# pauses) is shortened to a fixed break so the recorded work stays readable;
+# `breaks` records where. A mark with no recorded duration is a tick, never a
+# zero-length bar. Positions `x` and `width` are fractions of the axis.
+cohort_timeline <- function(data, id, max_gap = 30) {
+  events <- data$events[
+    data$events$trajectory_id %in% id & !is.na(data$events$timestamp),
+    ,
+    drop = FALSE
+  ]
+  events <- events[
+    order(events$timestamp, events$event_index, method = "radix"),
+    ,
+    drop = FALSE
+  ]
+  type <- events$event_type
+  lane <- ifelse(
+    type %in% c("tool_call", "tool_result"),
+    "tool",
+    ifelse(
+      scan_is_deputy_event(type),
+      "lifecycle",
+      ifelse(
+        type %in% "commons:provenance",
+        "provenance",
+        ifelse(type %in% "content", "model", "other")
+      )
+    )
+  )
+  turn <- match(events$turn_id, data$turns$turn_id)
+  first_in_turn <- !duplicated(events$turn_id) & !is.na(events$turn_id)
+  duration <- ifelse(
+    lane == "model" & first_in_turn & is.na(events$duration),
+    data$turns$duration[turn],
+    events$duration
+  )
+  duration[!is.na(duration) & duration <= 0] <- NA_real_
+  calls <- data$tool_calls
+  start <- as.numeric(events$timestamp)
+  end <- start + ifelse(is.na(duration), 0, duration)
+  covered <- cummax(end)
+  gap <- c(0, start[-1L] - covered[-length(covered)])
+  gap[gap < 0] <- 0
+  long <- gap > max_gap
+  active <- if (length(start)) max(end) - min(start) - sum(gap[long]) else 0
+  break_width <- if (any(long)) max(active, 1) * 0.06 else 0
+  shift <- cumsum(ifelse(long, gap - break_width, 0))
+  total <- max(active + sum(long) * break_width, .Machine$double.eps)
+  position <- (start - min(start, Inf) - shift) / total
+  out <- tibble::tibble(
+    event_id = events$event_id,
+    lane = lane,
+    label = ifelse(
+      is.na(events$name),
+      gsub("^deputy:|^commons:", "", type),
+      events$name
+    ),
+    timestamp = events$timestamp,
+    duration = duration,
+    failed = cohort_event_failed(events) |
+      events$event_id %in% calls$event_id[calls$failed],
+    x = position,
+    width = ifelse(is.na(duration), NA_real_, duration / total)
+  )
+  attr(out, "breaks") <- tibble::tibble(
+    x = (position[long] - break_width / total),
+    width = rep(break_width / total, sum(long)),
+    seconds = gap[long]
+  )
+  out
+}
