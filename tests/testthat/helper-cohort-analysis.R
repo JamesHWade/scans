@@ -68,3 +68,15 @@ cohort_fixture <- function() {
 cohort_fixture_data <- function() {
   scans_app_data(cohort_fixture())
 }
+
+# c has a labelled record followed by a note; b has a note only.
+cohort_fixture_annotations <- function() {
+  tibble::tibble(
+    application = "Cohort",
+    trajectory_id = c("c", "c", "b"),
+    label = c("tool failure", NA, NA),
+    note = c(NA, "Checked the retry", "Fine"),
+    author = c("ada", "bo", "ada"),
+    created_at = as.POSIXct("2026-10-05", tz = "UTC") + c(0, 60, 120)
+  )
+}

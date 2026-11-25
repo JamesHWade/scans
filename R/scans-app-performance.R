@@ -69,6 +69,50 @@ scans_app_performance_data <- function(data, indices, scopes = list()) {
   )
 }
 
+# One wording per scan: `label` names the pattern in the overview, `reason`
+# is the short fact shown on a queue entry. A scan not listed here falls back
+# to its own name.
+cohort_scan_wording <- tibble::tibble(
+  scan = c(
+    "trajectory_error",
+    "turn_error",
+    "error_chain",
+    "event_error",
+    "suspicious_tool_loop",
+    "repeated_tool_call",
+    "unresolved_tool_call",
+    "unmatched_tool_result",
+    "ambiguous_tool_correlation"
+  ),
+  label = c(
+    "Trajectory error",
+    "Turn error",
+    "Error chain",
+    "Event errors",
+    "Suspicious tool loop",
+    "Repeated tool calls",
+    "Unresolved tool call",
+    "Unmatched tool result",
+    "Ambiguous tool correlation"
+  ),
+  reason = c(
+    "Run failed",
+    "Turn failed",
+    "Error chain",
+    "Event errors",
+    "Tool loop",
+    "Repeated tool call",
+    "Call without result",
+    "Result without call",
+    "Ambiguous call ids"
+  )
+)
+
+cohort_scan_word <- function(scan, column) {
+  word <- cohort_scan_wording[[column]][match(scan, cohort_scan_wording$scan)]
+  ifelse(is.na(word), scans_app_title_case(gsub("_", " ", scan)), word)
+}
+
 scans_app_pattern_evidence <- function(findings) {
   scan <- findings$scan[[1L]]
   if (scan == "event_error") {
@@ -392,13 +436,7 @@ scans_app_performance_ui <- function(
 }
 
 scans_app_pattern_label <- function(scan) {
-  switch(
-    scan,
-    event_error = "Event errors",
-    repeated_tool_call = "Repeated tool calls",
-    suspicious_tool_loop = "Suspicious tool loop",
-    scans_app_title_case(gsub("_", " ", scan))
-  )
+  cohort_scan_word(scan, "label")
 }
 
 scans_app_patterns_ui <- function(
