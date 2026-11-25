@@ -1,5 +1,9 @@
 # scans 0.0.0.9000
 
+* New `read_otel_traces()` reads local OTLP NDJSON trace files from otelsdk's file exporter, as written by `commons::agent(log = TRUE)` or by deputy and ellmer apps. It returns conversations for `as_trajectory_otel()` with the same `n`, `from`, `to`, and `max_spans` handling as `read_connect_traces()`, and reads each span once even when `trace-latest.jsonl` duplicates a rotated file (#71).
+* `as_trajectory_otel()` no longer rebuilds a conversation from a shinychat title call that started last. Title-call usage stays in the totals and is reported in `metadata$otel$title_calls` (#71).
+* `as_trajectory_otel()` recovers earlier turns when the latest model call omitted `gen_ai.input.messages`, and records `capture$input` or `capture$tool_result` losses for what it could not recover (#71).
+
 * Internal: `scans_app_server()` and the Posit Connect trace reader are split into single-purpose files, and `<<-` super-assignments are replaced with explicit state environments. No user-visible changes. CI now lints with Jarl 0.7.1 (#74, #64).
 
 * The minimum ellmer version is now consistently 0.5.0 across adapter checks and examples, and the deputy and commons adapters require deputy 0.0.0.9007 and commons 0.2.0. One-off UX review screenshots and notes were removed from the repository, and the ellmerverse integration audit was refreshed for those versions (#73).
