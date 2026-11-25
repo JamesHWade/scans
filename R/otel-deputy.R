@@ -95,12 +95,15 @@ otel_deputy_parts <- function(spans) {
 
   lead <- spans[owner == "lead"]
   attr(lead, "otel_context") <- context
-  parts <- list(list(
-    spans = lead,
-    runs = runs[!child],
-    run_id = NULL,
-    unassigned = sum(unassigned)
-  ))
+  # A read holding only delegated runs has no lead to describe.
+  parts <- if (length(lead) > 0L) {
+    list(list(
+      spans = lead,
+      runs = runs[!child],
+      run_id = NULL,
+      unassigned = sum(unassigned)
+    ))
+  }
   for (position in seq_along(child_keys)) {
     part <- spans[owner == child_keys[[position]]]
     attr(part, "otel_context") <- context

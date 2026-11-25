@@ -343,3 +343,22 @@ test_that("run assignment survives ancestry kept only for context", {
   )
   expect_identical(nrow(trajectory_losses(bundle)), 0L)
 })
+
+test_that("a subagent read without its lead adds no lead trajectory", {
+  skip_if_not_installed("jsonlite")
+  child <- deputy_run_spans(
+    "child",
+    list(
+      "deputy.stop_reason" = "complete",
+      "deputy.parent.run.id" = "lead"
+    )
+  )
+  info <- trajectory_info(as_trajectory_otel(child))
+
+  expect_identical(info$trajectory_id, "otel/conv-1/child")
+  expect_identical(info$run_id, "child")
+  expect_identical(
+    trajectory_info(as_trajectory_otel(child, trajectory_id = "one"))$run_id,
+    "child"
+  )
+})
