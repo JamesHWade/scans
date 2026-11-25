@@ -32,27 +32,42 @@ scans_app_annotation_server <- function(
   state$annotation_revision <- shiny::reactiveVal(0L)
   annotation_status <- shiny::reactiveVal("")
 
-  annotation_records <- if (is.null(annotations)) {
-    function() NULL
-  } else {
+  # The poll only watches for writes by other sessions. A write from this
+  # session bumps `annotation_revision`, so it shows without waiting.
+  annotation_file <- if (!is.null(annotations)) {
     shiny::reactivePoll(
       intervalMillis = annotation_poll_interval,
       session = session,
-      checkFunc = function() {
-        list(
-          application = state$application(),
-          local_revision = state$annotation_revision(),
-          file_revision = annotations_file_revision(annotations$path)
-        )
-      },
-      valueFunc = function() {
-        tryCatch(
-          annotations$read(application = state$application()),
-          error = function(cnd) NULL
-        )
-      }
+      checkFunc = function() annotations_file_revision(annotations$path),
+      valueFunc = function() annotations_file_revision(annotations$path)
     )
   }
+  annotation_records <- shiny::reactive({
+    if (is.null(annotations)) {
+      return(NULL)
+    }
+    state$annotation_revision()
+    annotation_file()
+    tryCatch(
+      annotations$read(application = state$application()),
+      error = function(cnd) NULL
+    )
+  })
+  state$annotation_records <- annotation_records
+
+  # The queue ranks every trajectory once per snapshot and annotation change;
+  # filters only subset it, which keeps the relative order.
+  state$queue <- shiny::reactive({
+    current <- state$data()
+    if (is.null(current)) {
+      return(NULL)
+    }
+    cohort_review_queue(
+      current,
+      current$info$trajectory_id,
+      annotation_records()
+    )
+  })
 
   # The latest label (or "Note") per annotated trajectory of the current
   # application, so the browser can mark and filter reviewed entries.
@@ -153,6 +168,112 @@ scans_app_annotation_server <- function(
   )
 
   output$scans_app_annotation_status <- shiny::renderText(annotation_status())
+
+  # Dispositions: one annotation record per click or key, on the selected
+  # trajectory only. The request names the trajectory the reviewer was
+  # looking at, so a key pressed while the next one is still loading is
+  # dropped rather than applied to it.
+  disposition_status <- shiny::reactiveVal("")
+  next_unreviewed <- function(order, from = NULL) {
+    queue <- state$queue()
+    pending <- queue$index[!queue$reviewed %in% TRUE]
+    position <- match(from, order)
+    if (!is.null(from) && !is.na(position)) {
+      order <- c(order[-seq_len(position)], order[seq_len(position - 1L)])
+    }
+    candidates <- order[order %in% pending]
+    if (length(candidates)) candidates[[1L]] else NULL
+  }
+  shiny::observeEvent(input$scans_app_disposition, {
+    request <- input$scans_app_disposition
+    target <- selected_annotation_target()
+    label <- request$label %||% ""
+    if (
+      is.null(annotations) ||
+        is.null(target) ||
+        !identical(request$trajectory_id, target$trajectory_id) ||
+        !is.character(label) ||
+        length(label) != 1L ||
+        !label %in% c("", annotations$labels)
+    ) {
+      return()
+    }
+    author <- annotations_default_author(session)
+    name <- if (nzchar(label)) label else "reviewed"
+    records <- annotation_records()
+    latest <- records[
+      records$trajectory_id %in% target$trajectory_id,
+      ,
+      drop = FALSE
+    ]
+    if (
+      !is.null(records) &&
+        nrow(latest) > 0L &&
+        identical(latest$author[[1L]], author) &&
+        identical(
+          latest$label[[1L]],
+          if (nzchar(label)) label else NA_character_
+        ) &&
+        (nzchar(label) || identical(latest$note[[1L]], "Reviewed"))
+    ) {
+      disposition_status(sprintf("Already marked %s.", name))
+      return()
+    }
+    order <- state$visible()
+    index <- state$selected()
+    written <- tryCatch(
+      {
+        annotations$append(
+          application = target$application,
+          trajectory_id = target$trajectory_id,
+          label = label,
+          note = if (nzchar(label)) NULL else "Reviewed",
+          author = author
+        )
+        TRUE
+      },
+      error = function(cnd) {
+        disposition_status(scans_app_annotation_error(cnd))
+        FALSE
+      }
+    )
+    if (!isTRUE(written)) {
+      return()
+    }
+    state$annotation_revision(state$annotation_revision() + 1L)
+    message <- sprintf("Marked %s.", name)
+    if (!isFALSE(input$scans_app_advance)) {
+      following <- next_unreviewed(order, index)
+      if (is.null(following)) {
+        message <- paste(message, "Queue done: nothing left to review here.")
+      } else {
+        state$selected(following)
+        message <- paste(message, "Opened the next unreviewed.")
+      }
+    }
+    disposition_status(message)
+  })
+  shiny::observeEvent(input$scans_app_next_unreviewed, ignoreInit = TRUE, {
+    following <- next_unreviewed(state$visible(), state$selected())
+    if (is.null(following)) {
+      disposition_status("Queue done: nothing left to review here.")
+    } else {
+      disposition_status("")
+      state$selected(following)
+    }
+  })
+  output$scans_app_review_bar <- shiny::renderUI({
+    target <- selected_annotation_target()
+    queue <- state$queue()
+    if (is.null(annotations) || is.null(target) || is.null(queue)) {
+      return(NULL)
+    }
+    scans_app_review_bar_ui(
+      queue[match(target$trajectory_id, queue$trajectory_id), ],
+      annotations$labels,
+      disposition_status()
+    )
+  })
 
   output$scans_app_annotation_log <- shiny::renderUI({
     if (is.null(annotations)) {

@@ -3,7 +3,15 @@
 # `scopes` holds, per facet, the same cohort without that facet. The chart and
 # each breakdown use theirs, so a selected bar, tool, user, or model stays
 # next to the rows it can be compared with.
-scans_app_performance_data <- function(data, indices, scopes = list()) {
+# `queue` is the review queue for the whole snapshot and `progress` the review
+# progress of the cohort before review-state filters; both are optional.
+scans_app_performance_data <- function(
+  data,
+  indices,
+  scopes = list(),
+  queue = NULL,
+  progress = NULL
+) {
   summaries <- data$summaries[indices, , drop = FALSE]
   ids <- summaries$trajectory_id
   trajectories <- cohort_trajectories(data, ids)
@@ -21,6 +29,28 @@ scans_app_performance_data <- function(data, indices, scopes = list()) {
   activity <- cohort_activity(data, scope_ids("day"))
   patterns <- cohort_patterns(data, ids, trajectories, activity)
   headline <- cohort_headline(data, ids, trajectories, calls)
+  queue <- if (is.null(queue)) {
+    cohort_review_queue(data, ids, trajectories = trajectories)
+  } else {
+    queue[queue$trajectory_id %in% ids, , drop = FALSE]
+  }
+  queue$title <- data$records$title[queue$index]
+  queue$started_at <- data$records$started_at[queue$index]
+  queue$user <- data$records$user[queue$index]
+  reviewed <- queue$trajectory_id[queue$reviewed %in% TRUE]
+  patterns$reviewed <- if (anyNA(queue$reviewed)) {
+    rep(NA_integer_, nrow(patterns))
+  } else {
+    vapply(
+      patterns$scan,
+      function(scan) {
+        affected <- data$findings$trajectory_id[data$findings$scan == scan]
+        length(intersect(unique(affected), reviewed))
+      },
+      integer(1),
+      USE.NAMES = FALSE
+    )
+  }
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
@@ -63,6 +93,8 @@ scans_app_performance_data <- function(data, indices, scopes = list()) {
       },
       models = breakdown("model"),
       users = breakdown("user"),
+      queue = queue,
+      progress = progress %||% cohort_review_progress(queue),
       noun = data$noun %||% scans_app_noun(data$info$source_type)
     ),
     trajectories = summaries
@@ -248,9 +280,6 @@ scans_app_performance_ui <- function(
   cohort <- data$cohort
   noun <- cohort$noun
   facets <- scope$facets %||% list()
-  next_run <- if (n > 0L) {
-    scans_app_performance_order(data$trajectories, "findings")[1L, ]
-  }
   htmltools::div(
     class = "scans-app-performance",
     `aria-label` = paste("Overview for", application),
@@ -288,7 +317,8 @@ scans_app_performance_ui <- function(
           scans_on = length(scans) > 0L,
           facets = facets,
           findings_only = isTRUE(scope$findings_only),
-          noun = noun
+          noun = noun,
+          progress = cohort$progress
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
@@ -322,31 +352,8 @@ scans_app_performance_ui <- function(
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
-          htmltools::tags$h2("Suggested next step"),
-          htmltools::div(
-            class = "scans-app-next-step",
-            htmltools::div(
-              htmltools::tags$strong(next_run$title[[1L]]),
-              if (next_run$n_tool_errors[[1L]] > 0L) {
-                htmltools::tags$p(sprintf(
-                  "%d tool errors recorded in this trajectory.",
-                  next_run$n_tool_errors[[1L]]
-                ))
-              },
-              htmltools::tags$p(sprintf(
-                "%d findings \u00b7 %s elapsed",
-                next_run$n_findings[[1L]],
-                scans_app_seconds(next_run$elapsed[[1L]])
-              ))
-            ),
-            htmltools::tags$button(
-              type = "button",
-              class = "btn btn-primary",
-              `data-scans-trajectory` = next_run$trajectory_id[[1L]],
-              "Inspect trajectory ",
-              shiny::icon("arrow-right")
-            )
-          )
+          htmltools::tags$h2("Review next"),
+          scans_app_review_next_ui(cohort$queue, noun)
         ),
         htmltools::tags$details(
           class = "scans-app-overview-disclosure",
@@ -459,10 +466,11 @@ scans_app_patterns_ui <- function(
     ))
   }
   users_known <- !all(is.na(patterns$users))
+  reviews_known <- !is.null(patterns$reviewed) && !anyNA(patterns$reviewed)
   htmltools::div(
-    class = paste(
-      "scans-app-patterns",
-      if (!users_known) "scans-app-patterns-anonymous"
+    class = paste0(
+      "scans-app-patterns scans-app-patterns-extra-",
+      users_known + reviews_known
     ),
     htmltools::div(
       class = "scans-app-pattern-head",
@@ -470,9 +478,14 @@ scans_app_patterns_ui <- function(
       htmltools::tags$span("Severity"),
       htmltools::tags$span("Pattern"),
       htmltools::tags$span("Affected"),
-      if (users_known) htmltools::tags$span("Users"),
-      htmltools::tags$span("Last seen"),
-      htmltools::tags$span("Over time"),
+      if (users_known) {
+        htmltools::tags$span(class = "scans-app-pattern-users", "Users")
+      },
+      if (reviews_known) {
+        htmltools::tags$span(class = "scans-app-pattern-reviewed", "Reviewed")
+      },
+      htmltools::tags$span(class = "scans-app-pattern-seen", "Last seen"),
+      htmltools::tags$span(class = "scans-app-pattern-trend", "Over time"),
       htmltools::tags$span()
     ),
     lapply(seq_len(nrow(patterns)), function(i) {
@@ -510,6 +523,12 @@ scans_app_patterns_ui <- function(
           htmltools::tags$span(
             class = "scans-app-pattern-users",
             scans_app_count(row$users)
+          )
+        },
+        if (reviews_known) {
+          htmltools::tags$span(
+            class = "scans-app-pattern-reviewed",
+            sprintf("%d of %d", row$reviewed, row$trajectories)
           )
         },
         htmltools::tags$span(

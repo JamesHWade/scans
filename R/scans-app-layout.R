@@ -127,6 +127,7 @@ scans_app_ui <- function(
         class = "scans-app-browser-count",
         shiny::textOutput("scans_app_visible_count", inline = TRUE)
       ),
+      if (!is.null(annotations)) shiny::uiOutput("scans_app_review_progress"),
       shiny::uiOutput("scans_app_snapshot_annotation_filter"),
       htmltools::div(
         class = "scans-app-browser-entries",
@@ -176,6 +177,7 @@ scans_app_ui <- function(
           htmltools::div(
             class = "scans-app-workspace-header",
             shiny::uiOutput("scans_app_header"),
+            scans_app_review_controls_ui(annotations),
             htmltools::div(
               class = "scans-app-workspace-bar",
               htmltools::tags$strong("Transcript"),
@@ -221,14 +223,38 @@ scans_app_filter_toolbar <- function(choices, annotations = NULL) {
       ),
       bslib::input_switch("scans_app_findings_only", "With findings"),
       if (!is.null(annotations)) {
-        bslib::input_switch("scans_app_annotated_only", "Annotated")
+        htmltools::tagList(
+          bslib::input_switch("scans_app_annotated_only", "Annotated"),
+          shiny::selectInput(
+            "scans_app_review_state",
+            "Review state",
+            choices = c(
+              "All" = "all",
+              "Needs review" = "needs",
+              "Reviewed" = "reviewed"
+            ),
+            selectize = FALSE,
+            width = "100%"
+          ),
+          shiny::selectInput(
+            "scans_app_review_label",
+            "Label",
+            choices = c(
+              "Any label" = "",
+              annotations$labels,
+              scans_app_no_label
+            ),
+            selectize = FALSE,
+            width = "100%"
+          )
+        )
       }
     ),
     scans_app_toolbar_select(
       "scans_app_sort",
       "Order",
-      choices = scans_app_sort_choices,
-      selected = "findings"
+      choices = scans_app_browser_sort_choices,
+      selected = if (is.null(annotations)) "findings" else "review"
     )
   )
 }

@@ -164,6 +164,23 @@ scans_app_tiles_ui <- function(
         )
       )
     },
+    if (!is.null(progress) && !is.na(progress$flagged_reviewed)) {
+      flagged <- progress$flagged > 0L
+      scans_app_tile(
+        "Reviewed",
+        scans_app_count(
+          if (flagged) progress$flagged_reviewed else progress$reviewed
+        ),
+        if (flagged) {
+          paste("of", scans_app_count(progress$flagged), "flagged")
+        } else {
+          sprintf(
+            "of %s \u00b7 none flagged",
+            scans_app_n(progress$total, noun)
+          )
+        }
+      )
+    },
     scans_app_tile(
       "Elapsed, median",
       if (headline$n_timed == 0L) {

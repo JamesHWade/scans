@@ -190,6 +190,13 @@ scans_app_sort_choices <- c(
   "Most events" = "longest"
 )
 
+# The browser adds the review queue order, which needs annotation state and
+# so is not offered to the Ask tools or saved with an investigation.
+scans_app_browser_sort_choices <- c(
+  "Needs review" = "review",
+  scans_app_sort_choices
+)
+
 # Ordering is applied to the visible indices, never to the records: the
 # index is the trajectory's identity in the browser and in the selection.
 scans_app_order_records <- function(records, indices, sort = "newest") {

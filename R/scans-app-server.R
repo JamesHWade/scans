@@ -29,6 +29,8 @@ scans_app_server <- function(
     selected_trajectory_id <- shiny::reactiveVal(NULL)
     pattern_filter <- shiny::reactiveVal(NULL)
     facets <- shiny::reactiveVal(list())
+    has_store <- !is.null(annotations)
+    default_sort <- if (has_store) "review" else "findings"
 
     scans_app_loading_server(
       input,

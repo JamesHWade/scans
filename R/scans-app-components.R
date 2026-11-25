@@ -29,43 +29,6 @@ scans_app_entry_id <- function(index) {
   paste0("scans_app_entry_", index)
 }
 
-scans_app_entry_ui <- function(record, selected, annotation = NULL) {
-  errors <- record$n_tool_errors[[1L]] %||% 0L
-  summary <- if (record$n_events[[1L]] == 0L && record$n_turns[[1L]] == 0L) {
-    "No transcript recorded"
-  } else if (errors > 0L) {
-    sprintf("%d tool error%s", errors, if (errors == 1L) "" else "s")
-  } else if (record$n_findings[[1L]] > 0L) {
-    sprintf("%d findings", record$n_findings[[1L]])
-  } else {
-    "No findings"
-  }
-  elapsed <- record$elapsed[[1L]] %||% NA_real_
-  if (!is.na(elapsed)) {
-    summary <- paste(summary, scans_app_seconds(elapsed), sep = " \u00b7 ")
-  }
-  shiny::actionLink(
-    scans_app_entry_id(record$index[[1L]]),
-    label = htmltools::tagList(
-      htmltools::div(class = "scans-app-entry-title", record$title[[1L]]),
-      htmltools::div(class = "scans-app-entry-facts", summary),
-      htmltools::div(
-        class = "scans-app-entry-time",
-        scans_app_short_time(record$started_at[[1L]])
-      ),
-      if (scans_app_has_string(annotation)) {
-        scans_app_badge(annotation, "annotation")
-      }
-    ),
-    title = record$trajectory_id[[1L]],
-    class = paste(
-      "scans-app-entry",
-      if (selected) "scans-app-entry-selected" else ""
-    ),
-    `aria-current` = if (selected) "true" else NULL
-  )
-}
-
 scans_app_short_time <- function(time) {
   if (length(time) == 0L || is.na(time)) {
     return(NULL)

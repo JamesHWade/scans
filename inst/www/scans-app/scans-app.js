@@ -178,6 +178,19 @@
         event.preventDefault();
         return;
       }
+      // Review shortcuts are declared on the controls they trigger.
+      if (!event.repeat) {
+        var key = event.key.length === 1 ? event.key.toLowerCase() : null;
+        var control = key && Array.prototype.find.call(
+          document.querySelectorAll("[data-scans-key]"),
+          function (node) { return node.dataset.scansKey === key && node.getClientRects().length; }
+        );
+        if (control) {
+          event.preventDefault();
+          control.click();
+          return;
+        }
+      }
       var direction = null;
       if (event.key === "ArrowDown" || event.key === "j") direction = "next";
       if (event.key === "ArrowUp" || event.key === "k") direction = "prev";
@@ -207,6 +220,20 @@
       }
       // The innermost facet wins, so a failed-calls cell inside a tool row
       // applies its own, narrower filter.
+      var disposition = event.target.closest("[data-scans-disposition]");
+      if (disposition) {
+        var bar = disposition.closest("[data-scans-target]");
+        Shiny.setInputValue(
+          "scans_app_disposition",
+          {
+            label: disposition.dataset.scansDisposition,
+            trajectory_id: bar ? bar.dataset.scansTarget : null,
+            nonce: Date.now()
+          },
+          { priority: "event" }
+        );
+        return;
+      }
       var expand = event.target.closest("[data-scans-expand]");
       if (expand) {
         var open = expand.getAttribute("aria-expanded") !== "true";
