@@ -102,6 +102,11 @@ ending <- trajectory_info(bundle)$metadata[[1]]$ending
 ending[c("class", "finish_reason", "cut_off")]
 ```
 
+`scan_trajectories()` reports such an answer as a `cut_off_answer` finding,
+and limit wrap-ups, provider fallbacks, compaction trouble, denied
+permissions, and pending approvals as `run_intervention` findings with the
+event that recorded them.
+
 `measure_trajectories()` reports Deputy's run-level usage and duration, which
 still count turns that compaction removed from the result.
 
