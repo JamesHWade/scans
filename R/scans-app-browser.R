@@ -60,6 +60,18 @@ scans_app_browser_server <- function(
     }
   })
 
+  # The search box names what it searches once the snapshot says what that is.
+  shiny::observe({
+    current <- state$data()
+    shiny::req(current)
+    label <- paste("Search", current$noun$many)
+    shiny::updateTextInput(
+      session,
+      "scans_app_query",
+      label = label,
+      placeholder = label
+    )
+  })
   output$scans_app_browser_title <- shiny::renderText({
     current <- state$data()
     scans_app_title_case(

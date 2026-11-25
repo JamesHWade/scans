@@ -59,6 +59,17 @@ scans_app_initial_choices <- function(source) {
   scans_app_filter_choices()
 }
 
+# What the first application's records are called, when that is known before
+# the server loads anything; the server corrects it for lazy sources.
+scans_app_initial_noun <- function(source) {
+  types <- if (!is.null(source$data)) {
+    source$data$info$source_type
+  } else if (!is.null(source$bundle)) {
+    trajectory_info(source$bundle)$source_type
+  }
+  scans_app_noun(types %||% NA_character_)
+}
+
 scans_app_ui <- function(
   sources,
   annotations = NULL,
@@ -67,6 +78,7 @@ scans_app_ui <- function(
   chat = FALSE
 ) {
   choices <- scans_app_initial_choices(sources$sources[[1L]])
+  noun <- scans_app_initial_noun(sources$sources[[1L]])
   page <- bslib::page_sidebar(
     window_title = "scans",
     title = htmltools::div(
@@ -110,7 +122,9 @@ scans_app_ui <- function(
         class = "sidebar-title",
         shiny::textOutput(
           "scans_app_browser_title",
-          container = function(...) htmltools::tags$span(..., "Trajectories")
+          container = function(...) {
+            htmltools::tags$span(..., scans_app_title_case(noun$many))
+          }
         )
       ),
       width = 350,
@@ -122,8 +136,8 @@ scans_app_ui <- function(
         class = "scans-app-search",
         shiny::textInput(
           "scans_app_query",
-          label = "Search trajectories",
-          placeholder = "Search trajectories",
+          label = paste("Search", noun$many),
+          placeholder = paste("Search", noun$many),
           width = "100%"
         )
       ),

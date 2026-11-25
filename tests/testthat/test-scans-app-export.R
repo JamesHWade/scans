@@ -67,6 +67,14 @@ test_that("deep links carry the scope and old hashes still parse", {
   )
   expect_null(scans_app_parse_hash("My%20app", "My app"))
   expect_null(scans_app_parse_hash("Other/", "My app"))
+
+  expect_identical(scans_app_view_hash("My app", "t/1", TRUE), "My%20app/t%2F1")
+  expect_identical(
+    scans_app_view_hash("My app", "t/1", FALSE),
+    "My%20app/t%2F1"
+  )
+  expect_identical(scans_app_view_hash("My app", NULL, TRUE), "My%20app/")
+  expect_identical(scans_app_view_hash("My app", NULL, FALSE), "")
   expect_identical(
     scans_app_parse_scope("tool_failed=FALSE&findings=TRUE&agent=x"),
     list(findings = TRUE)
