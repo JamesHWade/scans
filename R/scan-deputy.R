@@ -146,7 +146,13 @@ scan_deputy_findings <- function(info_row, events, scan_id) {
   c(
     findings,
     scan_delegation_findings(info_row, scan_id),
-    scan_intervention_findings(events, ending, trajectory_id, scan_id)
+    scan_intervention_findings(
+      events,
+      ending,
+      trajectory_id,
+      scan_id,
+      run_id = info_row$run_id[[1L]]
+    )
   )
 }
 
@@ -165,20 +171,24 @@ scan_event_run <- function(events) {
   )
 }
 
-# Compaction events grouped by the run they belong to. A trajectory can hold
-# several runs (the root runs of one traced conversation), so its compactions
-# count toward the threshold only within a run. When several runs are
-# recorded, a compaction without a run ID belongs to none of them; `unknown`
-# says such events could still complete a repeat.
-scan_compaction_runs <- function(events) {
+# A trajectory can hold several runs: the root runs of one traced conversation
+# stay together, with their lifecycle events in one sequence.
+scan_has_several_runs <- function(events) {
   type <- events$event_type
-  compactions <- which(type %in% "deputy:compaction")
-  run <- scan_event_run(events)
-  several <- length(unique(stats::na.omit(run[scan_is_deputy_event(type)]))) >
-    1L ||
+  run <- scan_event_run(events)[scan_is_deputy_event(type)]
+  length(unique(run[!is.na(run)])) > 1L ||
     sum(type %in% "deputy:start") > 1L ||
     sum(type %in% "deputy:stop") > 1L
-  if (!several) {
+}
+
+# Compaction events grouped by the run they belong to, so they count toward
+# the threshold only within a run. When several runs are recorded, a
+# compaction without a run ID belongs to none of them; `unknown` says such
+# events could still complete a repeat.
+scan_compaction_runs <- function(events) {
+  compactions <- which(events$event_type %in% "deputy:compaction")
+  run <- scan_event_run(events)
+  if (!scan_has_several_runs(events)) {
     return(list(runs = list(compactions), unknown = FALSE))
   }
   known <- compactions[!is.na(run[compactions])]
@@ -231,7 +241,13 @@ scan_intervention_finding <- function(
   )
 }
 
-scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
+scan_intervention_findings <- function(
+  events,
+  ending,
+  trajectory_id,
+  scan_id,
+  run_id = NA_character_
+) {
   type <- events$event_type
   status <- events$status
   meta <- function(index, name) {
@@ -241,10 +257,18 @@ scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
   findings <- list()
 
   wrap_up <- which(type == "deputy:limit_wrap_up")
+  # The ending is the latest run's. A wrap-up recorded for another run did not
+  # wrap up that ending and has none of its limit figures.
+  earlier <- if (is.na(run_id)) {
+    integer()
+  } else {
+    wrap_up[!scan_event_run(events)[wrap_up] %in% c(NA, run_id)]
+  }
+  wrap_up <- setdiff(wrap_up, earlier)
   limited <- !is.null(ending) &&
     identical(scan_ending_string(ending, "class"), "RunEndingLimit")
   wrapped_up <- if (limited) scan_ending_flag(ending, "wrapped_up") else NA
-  limit_value <- function(kind) {
+  limit_value <- function(kind, ending) {
     list(
       kind = kind,
       reason = scan_ending_string(ending, "reason"),
@@ -262,17 +286,33 @@ scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
         trajectory_id,
         "Limit stop",
         "A usage limit stopped the run before the model gave an answer.",
-        limit_value("limit_stop"),
+        limit_value("limit_stop", ending),
         scan_order = 3L
       ))
     )
   }
-  if (length(wrap_up) > 0L || isTRUE(wrapped_up)) {
-    explanation <- paste(
-      "A usage limit was reached, so the model gave its answer in one more",
-      "request without tools."
+  explanation <- paste(
+    "A usage limit was reached, so the model gave its answer in one more",
+    "request without tools."
+  )
+  for (index in earlier) {
+    value <- limit_value("limit_wrap_up", NULL)
+    value$reason <- as.character(meta(index, "reason"))
+    value$wrapped_up <- TRUE
+    findings <- c(
+      findings,
+      list(scan_intervention_finding(
+        scan_id,
+        events,
+        index,
+        "Limit wrap-up",
+        explanation,
+        value
+      ))
     )
-    value <- limit_value("limit_wrap_up")
+  }
+  if (length(wrap_up) > 0L || isTRUE(wrapped_up)) {
+    value <- limit_value("limit_wrap_up", ending)
     if (length(wrap_up) > 0L) {
       if (is.na(value$reason)) {
         value$reason <- as.character(meta(wrap_up[[1L]], "reason"))

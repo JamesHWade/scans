@@ -72,7 +72,11 @@ deputy_lifecycle_fixture <- function() {
 }
 
 # A bundle from another adapter that projects the same Deputy run evidence.
-deputy_projected_bundle <- function(ending = NULL, events = NULL) {
+deputy_projected_bundle <- function(
+  ending = NULL,
+  events = NULL,
+  run_id = NA_character_
+) {
   metadata <- if (is.null(ending)) list() else list(ending = ending)
   if (is.null(events)) {
     events <- tibble::tibble(
@@ -85,6 +89,7 @@ deputy_projected_bundle <- function(ending = NULL, events = NULL) {
   TrajectoryBundle(
     tibble::tibble(
       trajectory_id = "otel/run-001",
+      run_id = run_id,
       source_type = "otel",
       status = "interrupted",
       metadata = list(metadata)
@@ -350,10 +355,13 @@ test_that("repeated compaction is counted within each Deputy run", {
   expect_identical(apart$assessments$status, "assessed_no_findings")
 
   repeated <- assess(types, c("run-a", "run-a", "run-b", "run-b", "run-b"))
-  expect_identical(repeated$findings$value, list(list(
-    kind = "repeated_compaction",
-    count = 2L
-  )))
+  expect_identical(
+    repeated$findings$value,
+    list(list(
+      kind = "repeated_compaction",
+      count = 2L
+    ))
+  )
   expect_identical(
     repeated$findings$event_ids,
     list(sprintf("otel/run-001/event-%06d", 3:4))
@@ -622,6 +630,51 @@ test_that("a limit that stopped the run without an answer is a limit stop", {
   expect_identical(
     findings$value[[1L]][c("kind", "field", "wrapped_up")],
     list(kind = "limit_stop", field = "max_requests", wrapped_up = FALSE)
+  )
+})
+
+test_that("an earlier run's wrap-up is kept apart from the latest run's ending", {
+  stopped <- deputy_limit_ending()
+  stopped$wrapped_up <- FALSE
+  bundle <- deputy_projected_bundle(
+    stopped,
+    deputy_projected_events(
+      c("limit_wrap_up", "stop", "stop"),
+      run_id = c("run-a", "run-a", "run-b")
+    ),
+    run_id = "run-b"
+  )
+  result <- assess_trajectory_scans(
+    bundle,
+    scans = c("cut_off_answer", "run_intervention")
+  )
+  findings <- result$findings
+
+  expect_identical(
+    lapply(findings$value, \(value) value[c("kind", "field", "wrapped_up")]),
+    list(
+      list(kind = "limit_stop", field = "max_requests", wrapped_up = FALSE),
+      list(kind = "limit_wrap_up", field = NA_character_, wrapped_up = TRUE)
+    )
+  )
+  expect_identical(
+    findings$event_id,
+    c(NA, "otel/run-001/event-000001")
+  )
+  for (limitations in result$assessments$limitations) {
+    expect_match(limitations, "only the latest run's ending", all = FALSE)
+  }
+
+  same_run <- deputy_projected_bundle(
+    deputy_limit_ending(),
+    deputy_projected_events(c("limit_wrap_up", "stop"), run_id = "run-b"),
+    run_id = "run-b"
+  )
+  same_run <- assess_trajectory_scans(same_run, scans = "run_intervention")
+  expect_identical(same_run$findings$value[[1L]]$field, "max_requests")
+  expect_no_match(
+    same_run$assessments$limitations[[1L]],
+    "only the latest run's ending"
   )
 })
 

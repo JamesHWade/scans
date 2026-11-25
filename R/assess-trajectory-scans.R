@@ -345,6 +345,12 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
         )
       }
     }
+    if (scan_has_several_runs(events)) {
+      limitations <- c(
+        limitations,
+        "The trajectory holds several Deputy runs; only the latest run's ending was assessed."
+      )
+    }
     if (!complete || relevant_loss) {
       if (!positive) {
         return(insufficient(missing))
