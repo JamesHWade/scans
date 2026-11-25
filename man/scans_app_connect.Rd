@@ -14,7 +14,8 @@ scans_app_connect(
   jobs = TRUE,
   investigations = FALSE,
   reviews = FALSE,
-  chat_factory = NULL
+  chat_factory = NULL,
+  days = 7
 )
 }
 \arguments{
@@ -27,7 +28,7 @@ The default is 100. Use \code{NULL} to read all available conversations.}
 
 \item{from, to}{Optional lower-inclusive and upper-exclusive activity bounds
 passed to the reader. When both are omitted, each load
-reads the seven days ending at load time. Supply either bound as \code{NULL}
+reads the \code{days} days ending at load time. Supply either bound as \code{NULL}
 explicitly to leave that side of the window open.}
 
 \item{reader}{Which trace reader to use: \code{"otel"} (the default) for this
@@ -50,6 +51,9 @@ forwarded to \code{\link[=scans_app]{scans_app()}}. Defaults to \code{FALSE}.}
 for example \code{function() ellmer::chat_openai()}. Defaults to \code{NULL}, which
 omits Ask. Tools configured on this client are replaced with the bounded
 scans tools; its system prompt is retained with evidence instructions.}
+
+\item{days}{Length in days of the rolling window read when \code{from} and \code{to}
+are both omitted. The default is 7.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.
@@ -62,6 +66,13 @@ and the snapshot is then shared by every session of the deployment until it
 is thirty minutes old or \strong{Reload traces} fetches it again.
 }
 \details{
+The app is described in \code{\link[=scans_app]{scans_app()}}: an overview with facets, a review
+queue with one-key dispositions when an annotation store is supplied,
+exports, and Deputy and provenance sections when the traces record them.
+Exports and the R snippet never contain the Connect server address or API
+key; the snippet names the content GUID and window so the read can be
+repeated.
+
 Two readers are available. The default, \code{"otel"}, uses this package's own
 \code{\link[=read_connect_traces]{read_connect_traces()}} with \code{\link[=as_trajectory_otel]{as_trajectory_otel()}}: it needs no other
 package, falls back to Connect's per-job trace endpoint when the aggregate

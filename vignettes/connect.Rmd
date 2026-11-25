@@ -183,6 +183,32 @@ The app depends on shiny, bslib, htmltools, httr2, and jsonlite. Attach them in
 `app.R` (as `deploy/connect/app.R` does) so Posit Publisher or rsconnect
 bundles them.
 
+### Review the conversations
+
+The app opens on an overview of the conversations in view: counts with their
+denominators, activity by day, patterns, tools, models, and users. Selecting a
+bar, pattern, tool, user, or model narrows the overview and the list together,
+and each active filter is a removable chip.
+
+With an annotation store (next section) the list becomes a review queue. It
+orders conversations by "Needs review": unreviewed first, then those with
+error findings, warnings, nothing a scan could assess, and no findings, newest
+first. Open a conversation and mark it with one of the store's labels by
+button or key (`1`-`9`), or press `E` to mark it reviewed without a label; the
+next unreviewed conversation opens. `U` jumps to the next unreviewed
+conversation and `?` lists the shortcuts.
+
+The Export menu on the overview gives the conversations and findings in view
+as CSV, a Markdown report for the application's developers, and an R snippet
+that repeats the read with the same content GUID, window, and scan settings.
+The report carries counts and links only. It has no transcript text, and user
+identifiers only when you ask for them. Links reopen the same filters. No
+export contains the Connect server address or API key.
+
+Deputy runs show their recorded ending and run interventions, and commons
+agents show answer provenance and recurring exploratory routes; see the
+sections on each below.
+
 ### Annotations on Connect
 
 Pass a `scans_annotations()` store to record reviewer labels and notes. Point
@@ -195,7 +221,12 @@ store <- scans_annotations("/data/scans-reviews/annotations.jsonl")
 scans_app_connect(sources, annotations = store)
 ```
 
-The bundled `app.R` reads `SCANS_ANNOTATIONS_DIR` for this. Without a store
+The bundled `app.R` reads `SCANS_ANNOTATIONS_DIR` for this, and
+`SCANS_ANNOTATION_LABELS` for the labels reviewers can apply. Its other Vars
+set the window (`SCANS_CONNECT_DAYS`), the reader (`SCANS_CONNECT_READER`),
+whether per-job stores are read (`SCANS_CONNECT_JOBS`), and the optional
+`SCANS_REVIEWS` and `SCANS_INVESTIGATIONS` controls; a value it does not
+understand stops the app with a message naming the Var. Without a store
 the app makes no writes and shows no annotation controls.
 
 ## Security model
