@@ -29,6 +29,7 @@ scans_app_transcript_ui <- function(data, index) {
   event_rows <- setdiff(event_rows, unname(pairs))
 
   blocks <- list()
+  chips <- scans_app_exchange_chips(data, id)
   known_turn_ids <- data$turns$turn_id[turn_rows]
   event_turn_ids <- data$events$turn_id[event_rows]
   known_event_turns <- !is.na(event_turn_ids) &
@@ -55,7 +56,8 @@ scans_app_transcript_ui <- function(data, index) {
             data$events,
             rows,
             pairs,
-            data$turns
+            data$turns,
+            chip = chips[[turn_id]]
           )
         ))
       }
@@ -85,7 +87,8 @@ scans_app_transcript_ui <- function(data, index) {
         ui = scans_app_turn_ui(
           data$turns[turn_row, , drop = FALSE],
           data$events,
-          integer()
+          integer(),
+          chip = chips[[data$turns$turn_id[[turn_row]]]]
         )
       ))
     )
@@ -218,9 +221,11 @@ scans_app_turn_ui <- function(
   events,
   rows,
   pairs = integer(),
-  turns = NULL
+  turns = NULL,
+  chip = NULL
 ) {
   role <- scans_app_first_string(turn$role[[1L]], "unknown")
+  internal <- isTRUE(turn$metadata[[1L]]$commons_internal)
   token <- scans_app_css_token(role)
   # A turn whose events are all tool traffic is machinery, not speech. commons
   # hands back tool results as user-role turns (ellmer carries a
@@ -243,7 +248,18 @@ scans_app_turn_ui <- function(
   )
   meta <- scans_app_turn_meta(turn)
 
-  content <- if (activity) {
+  content <- if (internal) {
+    # commons inserts these turns itself; they are not something the user
+    # or the model said, so they stay folded and visually quiet.
+    htmltools::tags$details(
+      class = "scans-app-msg-disclosure",
+      htmltools::tags$summary(
+        htmltools::tags$span(class = "scans-app-msg-role", "Internal reminder"),
+        scans_app_turn_position(turn)
+      ),
+      htmltools::div(class = "scans-app-msg-body", body, meta)
+    )
+  } else if (activity) {
     htmltools::div(class = "scans-app-msg-body", body, meta)
   } else if (identical(role, "system")) {
     htmltools::tags$details(
@@ -267,14 +283,18 @@ scans_app_turn_ui <- function(
     )
   }
 
-  htmltools::tags$section(
-    class = paste(
-      "scans-app-msg",
-      paste0("scans-app-msg-", token),
-      if (activity) "scans-app-msg-activity" else ""
-    ),
-    `data-role` = role,
-    content
+  htmltools::tagList(
+    chip,
+    htmltools::tags$section(
+      class = paste(
+        "scans-app-msg",
+        paste0("scans-app-msg-", token),
+        if (activity) "scans-app-msg-activity" else "",
+        if (internal) "scans-app-msg-internal"
+      ),
+      `data-role` = role,
+      content
+    )
   )
 }
 

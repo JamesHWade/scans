@@ -152,7 +152,8 @@ scans_app_export_server <- function(input, output, session, state) {
     performance <- scans_app_performance_data(
       current,
       state$visible(),
-      queue = state$queue()
+      queue = state$queue(),
+      candidates = state$candidates()
     )
     list(
       data = current,

@@ -93,6 +93,12 @@ scans_app_entry_ui <- function(record, selected, queue = NULL) {
         htmltools::div(class = "scans-app-entry-title", record$title[[1L]]),
         htmltools::div(
           class = "scans-app-entry-facts",
+          if (!is.na(record$parent_trajectory_id[[1L]] %||% NA)) {
+            htmltools::tags$span(
+              class = "scans-app-reason scans-app-subagent",
+              "subagent"
+            )
+          },
           if (length(reasons)) {
             scans_app_reason_chips(reasons)
           } else if (empty) {
@@ -204,14 +210,18 @@ scans_app_review_bar_ui <- function(queue, labels, status = "") {
       "Reviewed"
     ),
     htmltools::tags$span(
-      class = "scans-app-review-state",
-      scans_app_review_state_text(queue)
-    ),
-    htmltools::tags$span(
-      class = "scans-app-review-status",
-      role = "status",
-      `aria-live` = "polite",
-      status
+      class = "scans-app-review-note",
+      htmltools::tags$span(
+        class = "scans-app-review-state",
+        title = scans_app_review_state_text(queue),
+        scans_app_review_state_text(queue)
+      ),
+      htmltools::tags$span(
+        class = "scans-app-review-status",
+        role = "status",
+        `aria-live` = "polite",
+        status
+      )
     )
   )
 }
@@ -252,7 +262,7 @@ scans_app_review_controls_ui <- function(annotations) {
       class = "scans-app-review-options",
       shiny::checkboxInput(
         "scans_app_advance",
-        "Advance after review",
+        "Auto-advance",
         value = TRUE
       ),
       htmltools::tagAppendAttributes(
@@ -282,8 +292,11 @@ scans_app_review_controls_ui <- function(annotations) {
 }
 
 # The top of the queue, each row opening its trajectory.
-scans_app_review_next_ui <- function(queue, noun = scans_app_noun()) {
-  rows <- utils::head(queue, 5L)
+scans_app_review_next_ui <- function(
+  queue,
+  rows = utils::head(queue, 5L),
+  noun = scans_app_noun()
+) {
   store <- !anyNA(queue$reviewed)
   pending <- sum(!queue$reviewed %in% TRUE)
   htmltools::tagList(
@@ -292,15 +305,18 @@ scans_app_review_next_ui <- function(queue, noun = scans_app_noun()) {
       if (!store) {
         paste0(
           "No annotation store is configured, so review state is not recorded. ",
-          "The order is by recorded findings, newest first."
+          "One per pattern, most prevalent first."
         )
       } else if (pending == 0L) {
         sprintf(
-          "Every %s in view is reviewed. These are the highest ranked.",
+          "Every %s in view is reviewed.",
           noun$one
         )
       } else {
-        sprintf("%s in view still to review.", scans_app_n(pending, noun))
+        sprintf(
+          "%s in view still to review. One per pattern, most prevalent first.",
+          scans_app_n(pending, noun)
+        )
       }
     ),
     htmltools::div(
@@ -328,11 +344,12 @@ scans_app_review_next_ui <- function(queue, noun = scans_app_noun()) {
             class = "scans-app-review-next-facts",
             paste(facts, collapse = " \u00b7 ")
           ),
-          if (isTRUE(rows$reviewed[[i]])) {
-            scans_app_reviewed_mark(rows$label[[i]])
-          } else {
-            htmltools::tags$span()
-          },
+          htmltools::tags$span(
+            class = "scans-app-review-next-pattern",
+            if (!is.null(rows$pattern) && !is.na(rows$pattern[[i]])) {
+              scans_app_pattern_label(rows$pattern[[i]])
+            }
+          ),
           shiny::icon("chevron-right")
         )
       })

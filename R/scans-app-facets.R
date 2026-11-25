@@ -1,7 +1,16 @@
 # Facets narrow the cohort from the overview: a time bucket, a tool, a user,
 # or a model. They are session state and are not written to saved
 # investigations, whose trajectory selection already reflects them.
-scans_app_facet_names <- c("day", "tool", "tool_failed", "user", "model")
+scans_app_facet_names <- c(
+  "day",
+  "tool",
+  "tool_failed",
+  "user",
+  "model",
+  "kind",
+  "provenance",
+  "route"
+)
 
 # Clicking the active value again clears it. A failed-tool request names the
 # tool as its value; without one it means any failed tool call.
@@ -35,12 +44,15 @@ scans_app_facet_values <- function(data, facet) {
   switch(
     facet,
     day = c(
-      cohort_bucket_key(data$records$started_at, "day"),
-      cohort_bucket_key(data$records$started_at, "hour")
+      cohort_bucket_key(data$records$active_at, "day"),
+      cohort_bucket_key(data$records$active_at, "hour")
     ),
     tool = cohort_label(data$tool_calls$tool),
     user = cohort_label(data$records$user),
-    model = cohort_label(data$records$model)
+    model = cohort_label(data$records$model),
+    kind = data$interventions$kind,
+    provenance = data$exchanges$provenance_class,
+    route = data$exchanges$route_signature
   )
 }
 
@@ -67,7 +79,7 @@ scans_app_facet_filter <- function(data, indices, facets) {
   if (!is.null(facets$day)) {
     unit <- cohort_bucket_key_unit(facets$day)
     keep <- keep &
-      cohort_bucket_key(records$started_at, unit) %in% facets$day
+      cohort_bucket_key(records$active_at, unit) %in% facets$day
   }
   if (!is.null(facets[["tool"]]) || isTRUE(facets$tool_failed)) {
     calls <- data$tool_calls
@@ -88,6 +100,28 @@ scans_app_facet_filter <- function(data, indices, facets) {
   }
   if (!is.null(facets$model)) {
     keep <- keep & cohort_label(records$model) == facets$model
+  }
+  if (!is.null(facets$kind)) {
+    keep <- keep &
+      records$trajectory_id %in%
+        data$interventions$trajectory_id[
+          data$interventions$kind %in% facets$kind
+        ]
+  }
+  # A conversation matches when at least one of its exchanges does.
+  if (!is.null(facets$provenance)) {
+    keep <- keep &
+      records$trajectory_id %in%
+        data$exchanges$trajectory_id[
+          data$exchanges$provenance_class %in% facets$provenance
+        ]
+  }
+  if (!is.null(facets$route)) {
+    keep <- keep &
+      records$trajectory_id %in%
+        data$exchanges$trajectory_id[
+          data$exchanges$route_signature %in% facets$route
+        ]
   }
   indices[keep]
 }
@@ -132,6 +166,18 @@ scans_app_scope_labels <- function(
       c(tool = paste("Tool:", facets[["tool"]]))
     },
     if (!is.null(facets$day)) c(day = scans_app_bucket_label(facets$day)),
+    if (!is.null(facets$kind)) {
+      c(kind = cohort_scan_word("run_intervention", "label", facets$kind))
+    },
+    if (!is.null(facets$provenance)) {
+      c(
+        provenance = paste(
+          "Provenance:",
+          tolower(cohort_provenance_classes[[facets$provenance]])
+        )
+      )
+    },
+    if (!is.null(facets$route)) c(route = paste("Route:", facets$route)),
     if (!is.null(facets$user)) c(user = paste("User:", facets$user)),
     if (!is.null(facets$model)) c(model = paste("Model:", facets$model))
   )

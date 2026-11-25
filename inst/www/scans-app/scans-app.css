@@ -1977,3 +1977,71 @@ td.scans-app-cell-meter .scans-app-meter { margin-left: auto; }
 .scans-app-loading { display: none; padding: .7rem 2rem; border-bottom: 1px solid var(--scans-app-line); background: var(--scans-app-primary-soft); color: var(--scans-app-ink); font-size: .92rem; }
 .scans-app[data-scans-loading] .scans-app-loading { display: block; }
 .scans-app-performance p.scans-app-no-findings { margin: 0; padding: .9rem 1rem; border: 1px solid var(--scans-app-line); border-radius: .4rem; color: var(--scans-app-ink); }
+
+/* Deputy run evidence, provenance, and promotion candidates. */
+.scans-app {
+  --scans-app-series-trusted: #3f9272;
+  --scans-app-series-cited: #5b8def;
+  --scans-app-series-untrusted: #e2a03f;
+}
+.scans-app-series-trusted { fill: var(--scans-app-series-trusted); background: var(--scans-app-series-trusted); }
+.scans-app-series-cited { fill: var(--scans-app-series-cited); background: var(--scans-app-series-cited); }
+.scans-app-series-untrusted { fill: var(--scans-app-series-untrusted); background: var(--scans-app-series-untrusted); }
+.scans-app-series-unclassified { fill: var(--scans-app-series-clean); background: var(--scans-app-series-clean); }
+.scans-app-performance p.scans-app-section-note { margin: 0 0 .6rem; font-size: .85rem; }
+.scans-app-run-ending { display: inline-flex; align-items: center; gap: .35rem; margin-left: .5rem; padding-left: .6rem; border-left: 1px solid var(--scans-app-line); }
+.scans-app-run-ending-cut-off { color: var(--scans-app-danger); font-weight: 600; }
+.scans-app-lineage { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; margin-top: .25rem; font-size: .87rem; color: var(--scans-app-muted); }
+.scans-app-lineage .scans-app-inspect { padding: 0; margin-right: .5rem; }
+.scans-app-subagent { border-style: dashed; color: var(--scans-app-muted); background: transparent; }
+.scans-app-provenance-classes { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.scans-app-provenance-class .scans-app-tile-label { display: inline-flex; align-items: center; }
+.scans-app-provenance-class .scans-app-tile-figure { font-size: 1.4rem; }
+.scans-app-route { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.scans-app-route-step-sep { color: var(--scans-app-muted); }
+.scans-app-candidates { border-top: 1px solid var(--scans-app-line); }
+.scans-app-candidate { border-bottom: 1px solid var(--scans-app-line); }
+.scans-app-candidate-selected { background: var(--scans-app-primary-soft); box-shadow: inset 3px 0 0 var(--scans-app-primary); }
+.scans-app-candidate-row { display: grid; grid-template-columns: minmax(180px, 2.4fr) repeat(3, minmax(0, .9fr)) minmax(70px, .8fr) minmax(0, 1.3fr); align-items: center; gap: .9rem; width: 100%; padding: .65rem .5rem; border: 0; background: transparent; color: var(--scans-app-ink); font-size: .88rem; text-align: left; font-variant-numeric: tabular-nums; }
+.scans-app-candidate-row:hover, .scans-app-candidate-row:focus-visible { background: var(--scans-app-primary-soft); }
+.scans-app-candidate-basis { color: var(--scans-app-muted); font-size: .8rem; }
+.scans-app-stack { display: flex; gap: 2px; height: 6px; border-radius: 3px; overflow: hidden; background: var(--scans-app-soft); }
+.scans-app-stack > span:not(.visually-hidden) { flex-basis: 0; min-width: 3px; }
+.scans-app-route-snippets { padding: 0 .5rem .6rem; font-size: .82rem; color: var(--scans-app-muted); }
+.scans-app-route-snippets summary { cursor: pointer; width: fit-content; }
+.scans-app-performance .scans-app-route-snippets p { margin: .4rem 0; font-size: .82rem; }
+.scans-app-route-snippet { margin-top: .6rem; padding: .6rem .8rem; border: 1px solid var(--scans-app-line); border-radius: .35rem; background: var(--bs-body-bg); color: var(--scans-app-ink); }
+.scans-app-route-snippet small { margin-left: .6rem; color: var(--scans-app-muted); }
+.scans-app-route-snippet-label { margin-top: .4rem; color: var(--scans-app-muted); font-size: .76rem; }
+.scans-app-route-snippet pre { margin: .15rem 0 0; padding: .4rem .5rem; background: var(--scans-app-soft); border-radius: .25rem; font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.scans-app-provenance-chip { display: inline-flex; align-items: center; align-self: flex-start; padding: .1rem .55rem; border: 1px solid var(--scans-app-line); border-radius: 999px; color: var(--scans-app-muted); font-size: .76rem; }
+.scans-app-msg-internal { opacity: .7; font-size: .88rem; }
+.scans-app-review-next-pattern { color: var(--scans-app-muted); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) {
+  .scans-app-candidate-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .scans-app-candidate-row > :nth-child(n + 3) { display: none; }
+}
+
+/* Review bar: marks and state on the left, navigation on the right, on one
+   row until the pane is narrow. The status line fades after a few seconds
+   and stays in the accessibility tree. */
+.scans-app-review-controls { flex-wrap: nowrap; gap: .5rem; }
+.scans-app-review-controls > .shiny-html-output { flex: 1 1 0; }
+.scans-app-review-bar { flex-wrap: nowrap; gap: .25rem; min-width: 0; font-size: .8rem; }
+.scans-app-review-bar-label { display: none; }
+.scans-app-disposition { flex: none; padding: .15rem .4rem; font-size: .78rem; white-space: nowrap; }
+.scans-app-review-note { position: relative; flex: 1 1 0; min-width: 0; margin-left: .4rem; }
+.scans-app-review-state { display: block; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scans-app-review-status { position: absolute; inset: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--bs-body-bg); animation: scans-app-status-fade 5s ease-in forwards; }
+.scans-app-review-status:empty { display: none; }
+@keyframes scans-app-status-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+.scans-app-review-options { flex: none; gap: .35rem; font-size: .78rem; white-space: nowrap; }
+.scans-app-review-options .btn { padding: .15rem .45rem; font-size: .78rem; }
+.scans-app-review-options .checkbox label { display: inline-flex; align-items: center; gap: .3rem; }
+@media (prefers-reduced-motion: reduce) {
+  .scans-app-review-status { animation: scans-app-status-hide 0s linear 5s forwards; }
+  @keyframes scans-app-status-hide { to { opacity: 0; } }
+}
+@media (max-width: 1100px) {
+  .scans-app-review-controls, .scans-app-review-bar { flex-wrap: wrap; }
+}

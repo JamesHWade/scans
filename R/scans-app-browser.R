@@ -60,6 +60,12 @@ scans_app_browser_server <- function(
     }
   })
 
+  output$scans_app_browser_title <- shiny::renderText({
+    current <- state$data()
+    scans_app_title_case(
+      if (is.null(current)) "trajectories" else current$noun$many
+    )
+  })
   output$scans_app_visible_count <- shiny::renderText({
     current <- state$data()
     if (is.null(current)) {
@@ -152,6 +158,22 @@ scans_app_browser_server <- function(
     }
   })
 
+  # Promotion candidates need the bundle, so they are computed once per
+  # snapshot and visible cohort, and only for sources with provenance or
+  # tool routes worth ranking.
+  state$candidates <- shiny::reactive({
+    current <- state$data()
+    bundle <- state$active()$bundle
+    if (is.null(current) || is.null(bundle) || is.null(current$exchanges)) {
+      return(NULL)
+    }
+    route_candidates(
+      bundle,
+      trajectory_ids = current$info$trajectory_id[state$visible()],
+      exchanges = current$exchanges,
+      measures = NULL
+    )
+  })
   state$performance <- shiny::reactive({
     current <- state$data()
     if (is.null(current)) {
@@ -163,7 +185,8 @@ scans_app_browser_server <- function(
       state$visible(),
       state$facet_scopes(),
       queue = queue,
-      progress = state$review_progress()
+      progress = state$review_progress(),
+      candidates = state$candidates()
     )
   })
   output$scans_app_performance <- shiny::renderUI({

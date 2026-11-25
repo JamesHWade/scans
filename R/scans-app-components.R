@@ -133,8 +133,10 @@ scans_app_header_ui <- function(data, index) {
       },
       if (!is.na(record$elapsed[[1L]])) {
         paste0(" \u00b7 ", scans_app_seconds(record$elapsed[[1L]]))
-      }
+      },
+      scans_app_run_ending_ui(data$info$metadata[[index]])
     ),
+    scans_app_lineage_ui(data, index),
     htmltools::tags$details(
       class = "scans-app-run-details",
       htmltools::tags$summary("Run details"),

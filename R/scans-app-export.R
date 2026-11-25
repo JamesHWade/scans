@@ -15,7 +15,10 @@ scans_app_scope_keys <- c(
   "tool",
   "tool_failed",
   "user",
-  "model"
+  "model",
+  "kind",
+  "provenance",
+  "route"
 )
 
 scans_app_scope_hash <- function(
@@ -391,6 +394,68 @@ export_report <- function(
         `Median elapsed` = export_md_seconds(cohort$models$median_elapsed)
       ))
     ),
+    if (!is.null(cohort$interventions) && nrow(cohort$interventions) > 0L) {
+      section(
+        "Run interventions",
+        c(
+          export_md_table(tibble::tibble(
+            Intervention = cohort$interventions$label,
+            `Affected runs` = sprintf(
+              "%d of %d",
+              cohort$interventions$trajectories,
+              attr(cohort$interventions, "n_deputy")
+            ),
+            Recorded = cohort$interventions$findings
+          )),
+          if (length(attr(cohort$interventions, "limitations"))) {
+            c("", attr(cohort$interventions, "limitations"))
+          }
+        )
+      )
+    },
+    if (!is.null(cohort$provenance)) {
+      section(
+        "Answer provenance",
+        c(
+          sprintf(
+            "%s in %s that record provenance. Unclassified means no usable record, not untrusted.",
+            scans_app_plural(
+              attr(cohort$provenance, "total_exchanges"),
+              "exchange"
+            ),
+            scans_app_n(attr(cohort$provenance, "total_trajectories"), noun)
+          ),
+          "",
+          export_md_table(tibble::tibble(
+            Class = cohort$provenance$label,
+            Exchanges = sprintf(
+              "%d of %d",
+              cohort$provenance$exchanges,
+              attr(cohort$provenance, "total_exchanges")
+            ),
+            !!scans_app_title_case(noun$many) := cohort$provenance$trajectories
+          ))
+        )
+      )
+    },
+    if (!is.null(cohort$candidates) && nrow(cohort$candidates) > 0L) {
+      section(
+        "Promotion candidates",
+        c(
+          "Recurring exploratory tool routes that could become governed measures.",
+          "",
+          export_md_table(tibble::tibble(
+            Route = paste0("`", cohort$candidates$route_signature, "`"),
+            !!scans_app_title_case(
+              noun$many
+            ) := cohort$candidates$n_trajectories,
+            Exchanges = cohort$candidates$n_exchanges,
+            Users = cohort$candidates$n_users,
+            Basis = cohort$candidates$candidate_basis
+          ))
+        )
+      )
+    },
     if (include_users) {
       section(
         "Users",
