@@ -19,18 +19,21 @@ otel_commons_provenance_keys <- c(
 # of the transcript's and ends in a complete exchange. Matching content
 # rather than position keeps an edited or retried history from borrowing a
 # record. Different records for one exchange leave it unclassified, with a
-# loss, rather than choosing one.
+# loss, rather than choosing one. `ancestry` holds the parent links of spans
+# the conversation does not expose, so a call still reaches its turn through
+# them.
 otel_commons_tables <- function(
   spans,
   chat_spans,
   messages,
   trajectory_id,
-  offset
+  offset,
+  ancestry = NULL
 ) {
   if (!any(vapply(spans, otel_is_companion_span, logical(1)))) {
     return(NULL)
   }
-  index <- otel_span_index(spans)
+  index <- otel_span_index(c(ancestry, spans))
   turn_key <- function(span) {
     turn <- otel_commons_turn_ancestor(span, index)
     if (is.null(turn)) NA_character_ else paste(turn$trace_id, turn$span_id)

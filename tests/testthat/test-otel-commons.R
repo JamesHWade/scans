@@ -382,3 +382,42 @@ test_that("spans without timestamps do not abort record selection", {
     expect_false(is.na(provenance$timestamp))
   }
 })
+
+test_that("a turn reached through unexposed ancestors keeps its record", {
+  skip_if_not_installed("jsonlite")
+  # The budget cuts through the first turn: its `invoke_agent` span is kept
+  # only as ancestry of the surviving model call.
+  expect_warning(
+    conversations <- read_otel_traces(commons_otel_fixture("r"), max_spans = 5L)
+  )
+  first <- conversations[[1L]]
+  expect_identical(
+    sum(vapply(first, `[[`, character(1), "name") == "invoke_agent"),
+    1L
+  )
+  bundle <- as_trajectory_otel(conversations)
+  record <- provenance_events(bundle)$value[[1L]]
+  expect_identical(record$provenance_tag, "B")
+  expect_identical(record$citation_decisions[[1L]]$status, "accepted")
+  expect_identical(trajectory_info(bundle)$metadata[[1L]]$otel$model_calls, 2L)
+
+  # A framework span between the turn and its model call is not exposed
+  # either.
+  spans <- commons_otel_turn(
+    "1",
+    list(user_message("Q1")),
+    list(reply_message("A1")),
+    start = 100,
+    tag = "A"
+  )
+  spans[[2L]]$parent_span_id <- "reactive"
+  wrapper <- otel_test_span(
+    "reactive",
+    stats::setNames(list(), character()),
+    parent = spans[[1L]]$span_id,
+    trace = "trace-1",
+    name = "reactive"
+  )
+  bundle <- as_trajectory_otel(c(spans, list(wrapper)))
+  expect_identical(provenance_events(bundle)$value[[1L]]$provenance_tag, "A")
+})

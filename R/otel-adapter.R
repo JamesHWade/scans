@@ -181,7 +181,8 @@ otel_conversation_tables <- function(
     chat_spans,
     transcript$messages,
     trajectory_id,
-    nrow(tables$events)
+    nrow(tables$events),
+    ancestry = context$ancestry
   )
   if (!is.null(commons)) {
     tables$turns$round_index <- commons$rounds
@@ -1061,7 +1062,9 @@ otel_group_conversations <- function(spans) {
   groups <- lapply(groups, function(group) {
     context_spans <- otel_group_context_spans(group, index)
     group <- Filter(otel_is_conversation_span, context_spans)
-    attr(group, "otel_context") <- otel_context(context_spans)
+    context <- otel_context(context_spans)
+    context$ancestry <- otel_unexposed_ancestry(context_spans)
+    attr(group, "otel_context") <- context
     group
   })
   otel_order_conversations(groups)
@@ -1075,6 +1078,16 @@ otel_context <- function(spans) {
     user = otel_user_id(spans),
     attributes = otel_extra_attributes(spans),
     resource = otel_resource_attributes(spans)
+  )
+}
+
+# Parent links of the context spans a conversation does not expose: framework
+# wrappers, and ancestors the span budget kept as context only. They let a
+# retained span reach its commons turn without counting as activity.
+otel_unexposed_ancestry <- function(context_spans) {
+  lapply(
+    Filter(Negate(otel_is_conversation_span), context_spans),
+    function(span) span[c("trace_id", "span_id", "parent_span_id", "name")]
   )
 }
 
