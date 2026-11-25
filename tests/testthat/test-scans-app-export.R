@@ -388,6 +388,19 @@ test_that("the R snippet reproduces the read and scan settings without secrets",
   expect_match(commons, "commons::trajectory_read(", fixed = TRUE)
   expect_match(commons, "as_trajectory_commons()", fixed = TRUE)
   expect_no_match(commons, "jobs =", fixed = TRUE)
+
+  # No scans selected is not the same as every scan, and both survive.
+  none <- export_r_code(NULL, scans_app_scan_config(character()), character())
+  expect_true("  scans = character()" %in% none)
+  expect_true("ids <- character()" %in% none)
+  every <- export_r_code(NULL, scans_app_scan_config(), "a")
+  expect_true("  scans = NULL" %in% every)
+  spaced <- c("otel/a  b", paste(strrep("x", 30L), 1:4))
+  expect_identical(eval(parse(text = export_r_strings(spaced))), spaced)
+  expect_lte(
+    max(nchar(strsplit(export_r_strings(spaced), "\n", fixed = TRUE)[[1L]])),
+    77L
+  )
 })
 
 test_that("the Connect loader's recipe names the read and no credentials", {

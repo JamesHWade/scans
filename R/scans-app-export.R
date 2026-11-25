@@ -467,9 +467,28 @@ export_r_time <- function(time) {
   )
 }
 
+# `c()` is `NULL`, which a scans argument reads as every scan, so an empty
+# vector and `NULL` are each written as themselves. Lines are filled item by
+# item because wrapping the joined text would rewrite spaces inside a string.
 export_r_strings <- function(x, indent = "  ") {
-  quoted <- encodeString(x, quote = '"')
-  lines <- strwrap(paste(quoted, collapse = ", "), width = 76L)
+  if (is.null(x)) {
+    return("NULL")
+  }
+  if (length(x) == 0L) {
+    return("character()")
+  }
+  items <- paste0(
+    encodeString(x, quote = '"'),
+    rep(c(",", ""), c(length(x) - 1L, 1L))
+  )
+  line <- integer(length(items))
+  used <- 0L
+  for (i in seq_along(items)) {
+    fits <- used > 0L && used + 1L + nchar(items[[i]]) <= 75L
+    line[[i]] <- if (i == 1L) 1L else line[[i - 1L]] + !fits
+    used <- if (fits) used + 1L + nchar(items[[i]]) else nchar(items[[i]])
+  }
+  lines <- vapply(split(items, line), paste, "", collapse = " ")
   paste0("c(\n", paste0(indent, lines, collapse = "\n"), "\n)")
 }
 
@@ -524,7 +543,7 @@ export_r_code <- function(recipe, scan_config, ids, application = "") {
     sprintf("  loop_threshold = %dL,", scan_config$loop_threshold),
     paste0(
       "  scans = ",
-      gsub("\n", "\n  ", export_r_strings(scan_config$scans %||% character())),
+      gsub("\n", "\n  ", export_r_strings(scan_config$scans)),
       ""
     ),
     ")",
