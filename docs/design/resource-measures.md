@@ -12,8 +12,9 @@ Every row carries a value, unit, aggregation, source, source unit,
 the loaded bundle, never to all calls made by an application. `complete` means
 every eligible source record supplies this measure; `partial` means some
 do; `unavailable` means none do or the measure is unsupported. `unknown` is
-reserved for older conversation totals whose recording denominator was not
-preserved. A known zero is a value; an empty or unmeasured set is `NA`.
+reserved for totals that do not record how many of their records contributed:
+older conversation totals whose recording denominator was not preserved, and
+Deputy run totals. A known zero is a value; an empty or unmeasured set is `NA`.
 
 | Measure | Value and denominator |
 | --- | --- |
@@ -32,6 +33,28 @@ preserved. A known zero is a value; an empty or unmeasured set is `NA`.
 cost comparisons must require compatible currency, price/version basis,
 billing scope, and explicit inclusion of child work before producing deltas.
 Neither a model name nor a numeric cost establishes these facts.
+
+## Deputy run totals
+
+A Deputy `AgentResult` carries run-level `usage` (`AgentUsage`) and
+`duration`. They take precedence over turns for Deputy trajectories, with
+adapter `as_trajectory_deputy/1`: compaction removes earlier turns from the
+result, while the retained turns can include earlier runs of the same
+conversation, so turn sums can undercount or overcount the run.
+
+| Measure | Value and denominator |
+| --- | --- |
+| `elapsed` | The run's `duration`, source `deputy_run_duration`; one record. |
+| `input_tokens` | `input_tokens + cached_tokens`, so `includes_cached_input` is `TRUE`. |
+| `output_tokens`, `cached_input_tokens` | The run's `output_tokens` and `cached_tokens`. |
+
+Token measures have source `deputy_run_usage`. `n_total` is the run's model
+request count and `n_recorded` is `NA`, so coverage is `unknown`: Deputy adds
+a request without reported usage as zero and does not record how many
+requests reported it. The totals include compaction summary requests and
+delegated subagent runs, so a parent's total is inclusive of its children.
+A run with no recorded requests keeps the turn-based measures. Canonical turn
+usage and `summarize_trajectories()` keep the turn-level evidence.
 
 ## Attribution and source preservation
 

@@ -18,8 +18,9 @@ pooled with parents or subtracted from inclusive parent measurements.
 Durations are seconds (\code{s}); usage is \code{tokens}.
 \item \code{n_recorded}, \code{n_total}: eligible records with a valid value and eligible
 records in the loaded snapshot, respectively. Unknown counts are \code{NA}.
-\item \code{coverage}: \code{complete}, \code{partial}, \code{unavailable}, or \code{unknown} (an older
-conversation total without a denominator). Complete recording does not
+\item \code{coverage}: \code{complete}, \code{partial}, \code{unavailable}, or \code{unknown} (a total
+that does not record how many of its records contributed: an older
+conversation total, or a Deputy run total). Complete recording does not
 establish complete capture of an application's work.
 \item \code{source}, \code{source_unit}, \code{adapter}, \code{contract_version}: interpretation
 provenance. Contract version 1 describes this measurement interface.
@@ -50,6 +51,15 @@ their input counts with unknown cache inclusion. Do not add cached usage
 again when \code{includes_cached_input} is \code{TRUE}.
 \code{turn_duration} sums known canonical turn durations without asserting one
 turn equals one model call.
+
+Deputy results report run-level usage and duration, which take precedence
+over their turns: compaction removes earlier turns, and retained turns can
+belong to earlier runs of the conversation. Token measures then have source
+\code{deputy_run_usage}, \code{n_total} is the run's model request count, and
+\code{n_recorded} and coverage are unknown because Deputy counts a request
+without reported usage as zero. The totals include compaction summaries and
+delegated runs. \code{elapsed} is the run's \code{duration}. Turn-level usage remains
+in \code{\link[=trajectory_turns]{trajectory_turns()}} and \code{\link[=summarize_trajectories]{summarize_trajectories()}}.
 
 \code{model_duration} sums captured OTel chat durations. \code{tool_duration} sums
 OTel execute-tool durations, otherwise canonical tool-call durations.

@@ -326,3 +326,58 @@ test_that("dsprrr ellmer turns retain their separate cache component semantics",
   expect_all_true(input$includes_cached_input)
   expect_equal(summarize_trajectories(bundle)$input_tokens, 18)
 })
+
+test_that("Deputy run usage covers compacted turns while turn evidence remains", {
+  skip_if_not_installed("deputy", "0.0.0.9007")
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  # Compaction left one of four model responses in the result's turns.
+  compacted <- deputy::AgentResult(
+    response = "Done",
+    turns = list(
+      ellmer::UserTurn(list(ellmer::ContentText("Continue"))),
+      ellmer::AssistantTurn(
+        list(ellmer::ContentText("Done")),
+        tokens = c(10, 2, 5)
+      )
+    ),
+    events = list(
+      deputy::AgentEvent("compaction", turns_compacted = 6L, turns_kept = 2L)
+    ),
+    duration = 12,
+    run_id = "run-compacted",
+    usage = deputy::AgentUsage(
+      requests = 4L,
+      input_tokens = 300,
+      output_tokens = 60,
+      cached_tokens = 40
+    )
+  )
+  bundle <- as_trajectory_deputy(compacted)
+  rows <- resource_row(
+    bundle,
+    c("elapsed", "input_tokens", "output_tokens", "cached_input_tokens")
+  )
+
+  expect_identical(rows$value, c(12, 340, 60, 40))
+  expect_identical(
+    rows$source,
+    c("deputy_run_duration", rep("deputy_run_usage", 3))
+  )
+  expect_identical(rows$adapter, rep("as_trajectory_deputy/1", 4))
+  expect_identical(rows$n_total, c(1L, 4L, 4L, 4L))
+  expect_identical(rows$n_recorded, c(1L, NA, NA, NA))
+  expect_identical(rows$coverage, c("complete", rep("unknown", 3)))
+  expect_identical(rows$includes_cached_input, c(NA, TRUE, NA, NA))
+  expect_identical(summarize_trajectories(bundle)$input_tokens, 10)
+  expect_identical(trajectory_turns(bundle)$cached_input_tokens, c(NA, 5))
+
+  # A run without recorded requests keeps the turn-based measures.
+  unrequested <- deputy::AgentResult(
+    turns = compacted$turns,
+    run_id = "run-unrequested"
+  )
+  input <- resource_row(as_trajectory_deputy(unrequested), "input_tokens")
+  expect_identical(input$source, "ellmer_turns")
+  expect_identical(input$value, 15)
+})
