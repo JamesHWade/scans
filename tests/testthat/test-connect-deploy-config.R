@@ -146,6 +146,28 @@ test_that("the Connect app rejects Vars it cannot parse, naming each", {
   )
 })
 
+test_that("a rejected Var is a cli error that shows its value as written", {
+  error <- expect_error(
+    connect_config(SCANS_CONNECT_READER = "{otel} <x>"),
+    class = "rlang_error"
+  )
+  expect_identical(
+    conditionMessage(error),
+    "SCANS_CONNECT_READER must be otel or commons, not \"{otel} <x>\"."
+  )
+  expect_null(error$call)
+  expect_error(
+    connect_config(SCANS_CONNECT_SOURCES = "{App}=not-a-guid"),
+    "SCANS_CONNECT_SOURCES has a malformed entry: \"{App}=not-a-guid\".",
+    fixed = TRUE
+  )
+  expect_error(
+    connect_config(SCANS_CONNECT_SOURCES = ""),
+    "SCANS_CONNECT_SOURCES must be set to Label=<guid>;Label=<guid>.",
+    fixed = TRUE
+  )
+})
+
 test_that("the Connect window follows `days` and the commons reader gets a source", {
   loaders <- scans_app_connect_loaders(
     c(App = "11111111-1111-4111-8111-111111111111"),

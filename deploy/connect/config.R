@@ -4,7 +4,9 @@
 # see. app.R sources this file; the tests source it without starting the app.
 
 config_abort <- function(var, problem) {
-  stop(sprintf("%s %s", var, problem), call. = FALSE)
+  # `var` and `problem` are substituted as data, so braces in a Var's value
+  # are shown as written and never read as cli markup.
+  cli::cli_abort("{var} {problem}", call = NULL)
 }
 
 config_get <- function(var, env = Sys.getenv()) {
