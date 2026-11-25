@@ -136,6 +136,36 @@ test_that("Deputy delegation views must come through Deputy's disclosure", {
   )
 })
 
+test_that("a lead result converts beside an empty delegation history", {
+  skip_if_not_installed("deputy", "0.0.0.9007")
+  skip_if_not_installed("ellmer", "0.5.0")
+
+  fixture <- deputy_delegation_fixture()
+  history <- deputy_read_history(deputy_export_fixture(list()))
+  expect_identical(history, list())
+
+  expect_identical(
+    as_trajectory_deputy(fixture$lead, delegations = history),
+    as_trajectory_deputy(fixture$lead)
+  )
+  expect_identical(
+    trajectory_info(
+      as_trajectory_deputy(fixture$lead, "lead", delegations = history)
+    )$trajectory_id,
+    "lead"
+  )
+  expect_adapter_rejects(
+    list(),
+    as_trajectory_deputy,
+    "scans_error_deputy_source"
+  )
+  expect_adapter_rejects(
+    fixture$lead,
+    \(x) as_trajectory_deputy(x, delegations = character()),
+    "scans_error_deputy_source"
+  )
+})
+
 test_that("Deputy delegations repeated in one call are rejected", {
   skip_if_not_installed("deputy", "0.0.0.9007")
   skip_if_not_installed("ellmer", "0.5.0")

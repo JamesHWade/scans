@@ -194,10 +194,11 @@ as_trajectory_deputy <- function(
     views <- deputy_source_views(x, "x", call)
   } else {
     results <- deputy_source_results(x, call)
-    views <- if (!is.null(delegations)) {
-      deputy_source_views(delegations, "delegations", call)
-    } else {
+    # A run with no disclosed children reads back as an empty history.
+    views <- if (is.null(delegations) || identical(delegations, list())) {
       list()
+    } else {
+      deputy_source_views(delegations, "delegations", call)
     }
   }
 
