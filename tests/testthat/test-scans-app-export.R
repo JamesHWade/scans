@@ -254,6 +254,25 @@ test_that("the report states counts with denominators and omits content", {
   )
 })
 
+test_that("a narrowed report does not call its own start times the capture window", {
+  fixture <- export_fixture()
+  narrowed <- export_report(
+    scans_app_performance_data(fixture$data, 3L, queue = fixture$queue),
+    "Cohort",
+    read_info = list(from = as.POSIXct("2026-10-01", tz = "UTC"), to = NULL)
+  )
+  expect_no_match(narrowed, "Capture window", fixed = TRUE)
+  expect_match(
+    narrowed[[4L]],
+    "^- Start times in scope: Oct 03 UTC; source read "
+  )
+  undated <- export_report(
+    scans_app_performance_data(fixture$data, 5L, queue = fixture$queue),
+    "Cohort"
+  )
+  expect_identical(undated[[4L]], "- Start times in scope: none recorded")
+})
+
 test_that("a report without user identifiers omits a user filter's value", {
   fixture <- export_fixture()
   link <- scans_app_link(

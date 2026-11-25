@@ -86,7 +86,7 @@ export_time <- function(time) {
 }
 
 # What the rows of an export cover, repeated on every row so a file read on
-# its own still states its scope and capture window.
+# its own still states its scope and when those rows started.
 export_scope <- function(headline, labels = NULL, noun = scans_app_noun()) {
   window <- scans_app_day_range(headline$first_started, headline$last_started)
   paste(
@@ -261,12 +261,8 @@ export_report <- function(
       "))"
     ),
     paste0(
-      "- Capture window: ",
-      if (is.null(window)) {
-        "no start times recorded"
-      } else {
-        paste(window, "UTC, by start time")
-      },
+      "- Start times in scope: ",
+      if (is.null(window)) "none recorded" else paste(window, "UTC"),
       if (!is.null(read_info$from) || !is.null(read_info$to)) {
         paste0(
           "; source read ",
