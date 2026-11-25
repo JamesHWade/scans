@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* Internal: `scans_app_server()` and the Posit Connect trace reader are split into single-purpose files, and `<<-` super-assignments are replaced with explicit state environments. No user-visible changes. CI now lints with Jarl 0.7.1 (#74, #64).
+
 * The minimum ellmer version is now consistently 0.5.0 across adapter checks and examples, and the deputy and commons adapters require deputy 0.0.0.9007 and commons 0.2.0. One-off UX review screenshots and notes were removed from the repository, and the ellmerverse integration audit was refreshed for those versions (#73).
 
 * `as_trajectory_tempest()` now requires Tempest trajectory schema 3, keeping input artifact identities distinct from output publication and historical acceptance decisions without native graph snapshots. Reviews using any other schema, including schemas 1 and 2, must be regenerated.
