@@ -450,14 +450,15 @@ route_summary_overall <- function(info, exchanges) {
   window <- function(x, fun) {
     if (all(is.na(x))) as.POSIXct(NA, tz = "UTC") else fun(x, na.rm = TRUE)
   }
+  n_exchanges <- vapply(
+    route_classes,
+    function(class) sum(exchanges$provenance_class == class),
+    integer(1),
+    USE.NAMES = FALSE
+  )
   tibble::tibble(
     provenance_class = route_classes,
-    n_exchanges = vapply(
-      route_classes,
-      function(class) sum(exchanges$provenance_class == class),
-      integer(1),
-      USE.NAMES = FALSE
-    ),
+    n_exchanges = n_exchanges,
     n_trajectories = vapply(
       route_classes,
       function(class) {
