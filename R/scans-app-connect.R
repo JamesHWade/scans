@@ -196,7 +196,19 @@ scans_app_connect_loaders <- function(
     labels,
     x
   ) |>
-    stats::setNames(labels)
+    stats::setNames(labels) |>
+    lapply(function(loader) {
+      # Shown while the read is in progress; see scans_app_loading_text().
+      attr(loader, "scans_app_window") <- if (default_from && default_to) {
+        "the last 7 days"
+      } else {
+        scans_app_window_string(
+          if (!default_from) from,
+          if (!default_to) to
+        )
+      }
+      loader
+    })
 }
 
 scans_app_connect_guid <- function(x) {

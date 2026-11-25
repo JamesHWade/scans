@@ -125,3 +125,62 @@ test_that("a faceted table keeps its sibling rows for comparison", {
   expect_identical(performance$cohort$users$n, c(1L, 1L))
   expect_identical(performance$cohort$headline$tool_calls, 4L)
 })
+
+test_that("empty and loading states say what is specific about them", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  text <- function(...) {
+    gsub("\\s+", " ", gsub("<[^>]+>", "", as.character(...)))
+  }
+
+  clean <- text(cohort_overview_html(data, 2L))
+  expect_match(clean, "No findings in 1 assessed conversation.", fixed = TRUE)
+  expect_no_match(clean, "could not be assessed", fixed = TRUE)
+  expect_no_match(clean, "more than one pattern", fixed = TRUE)
+  expect_match(
+    text(cohort_overview_html(data, c(2L, 5L))),
+    "No findings in 1 assessed conversation. 1 conversation could not be assessed; see Evidence coverage.",
+    fixed = TRUE
+  )
+  expect_match(
+    text(cohort_overview_html(data, integer())),
+    "No conversations match these filters. Remove a filter to widen the cohort.",
+    fixed = TRUE
+  )
+  none <- scans_app_data(TrajectoryBundle(
+    data.frame(),
+    data.frame(),
+    data.frame()
+  ))
+  expect_match(
+    text(cohort_overview_html(none, integer())),
+    "This source returned no trajectories for the window read.",
+    fixed = TRUE
+  )
+
+  loader <- function() cohort_fixture()
+  attr(loader, "scans_app_window") <- "the last 7 days"
+  banner <- as.character(scans_app_loading_banner_ui(scans_app_sources(list(
+    Eager = cohort_fixture(),
+    Lazy = loader
+  ))))
+  expect_match(
+    banner,
+    "scans-app-loading-text\">Preparing Eager\u2026",
+    fixed = TRUE
+  )
+  expect_match(
+    banner,
+    "data-scans-loading-for=\"Lazy\">Reading traces for Lazy (the last 7 days)\u2026",
+    fixed = TRUE
+  )
+  loaders <- scans_app_connect_loaders(
+    c(App = "11111111-1111-4111-8111-111111111111"),
+    n = 10L,
+    from = NULL,
+    to = NULL,
+    default_from = TRUE,
+    default_to = TRUE
+  )
+  expect_identical(attr(loaders$App, "scans_app_window"), "the last 7 days")
+})

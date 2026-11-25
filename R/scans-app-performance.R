@@ -303,10 +303,14 @@ scans_app_performance_ui <- function(
     ),
     if (n == 0L) {
       scans_app_empty_ui(
-        sprintf(
-          "No %s match these filters. Remove a filter to widen the cohort.",
-          noun$many
-        )
+        if (data$total == 0L) {
+          sprintf("This source returned no %s for the window read.", noun$many)
+        } else {
+          sprintf(
+            "No %s match these filters. Remove a filter to widen the cohort.",
+            noun$many
+          )
+        }
       )
     } else {
       htmltools::tagList(
@@ -329,15 +333,24 @@ scans_app_performance_ui <- function(
         htmltools::tags$section(
           class = "scans-app-performance-section",
           htmltools::tags$h2("Patterns to investigate"),
-          scans_app_patterns_ui(data$patterns, n, scans, scope$pattern, noun),
-          htmltools::tags$p(
-            class = "scans-app-pattern-overlap",
-            if (nrow(data$patterns) > 1L && data$n_findings == 1L) {
-              paste0("These patterns all affect the same ", noun$one, ".")
-            } else {
-              paste("A", noun$one, "can appear in more than one pattern.")
-            }
-          )
+          scans_app_patterns_ui(
+            data$patterns,
+            n,
+            scans,
+            scope$pattern,
+            noun,
+            cohort$headline$n_assessed
+          ),
+          if (nrow(data$patterns) > 0L) {
+            htmltools::tags$p(
+              class = "scans-app-pattern-overlap",
+              if (nrow(data$patterns) > 1L && data$n_findings == 1L) {
+                paste0("These patterns all affect the same ", noun$one, ".")
+              } else {
+                paste("A", noun$one, "can appear in more than one pattern.")
+              }
+            )
+          }
         ),
         if (nrow(cohort$tools) > 0L) {
           htmltools::tags$section(
@@ -452,7 +465,8 @@ scans_app_patterns_ui <- function(
   n,
   scans,
   selected = NULL,
-  noun = scans_app_noun()
+  noun = scans_app_noun(),
+  assessed = n
 ) {
   if (length(scans) == 0L) {
     return(scans_app_empty_ui(
@@ -461,9 +475,21 @@ scans_app_patterns_ui <- function(
     ))
   }
   if (nrow(patterns) == 0L) {
-    return(scans_app_empty_ui(
-      "No patterns to display. Check Scanner coverage for unassessed trajectories.",
-      compact = TRUE
+    # No findings is good news about what was recorded; say so plainly and
+    # name what the scans could not look at.
+    return(htmltools::tags$p(
+      class = "scans-app-no-findings",
+      sprintf(
+        "No findings in %s assessed %s.",
+        scans_app_count(assessed),
+        if (assessed == 1L) noun$one else noun$many
+      ),
+      if (n > assessed) {
+        sprintf(
+          " %s could not be assessed; see Evidence coverage.",
+          scans_app_n(n - assessed, noun)
+        )
+      }
     ))
   }
   users_known <- !all(is.na(patterns$users))

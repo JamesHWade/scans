@@ -1972,3 +1972,8 @@ td.scans-app-cell-meter .scans-app-meter { margin-left: auto; }
 .scans-app-trajectory-export .btn-link { padding: 0 .35rem; font-size: .82rem; text-decoration: none; }
 .scans-app-trajectory-export .btn-link:hover { text-decoration: underline; }
 .scans-app-copy-fallback { width: 18rem; }
+
+/* Loading and empty states. */
+.scans-app-loading { display: none; padding: .7rem 2rem; border-bottom: 1px solid var(--scans-app-line); background: var(--scans-app-primary-soft); color: var(--scans-app-ink); font-size: .92rem; }
+.scans-app[data-scans-loading] .scans-app-loading { display: block; }
+.scans-app-performance p.scans-app-no-findings { margin: 0; padding: .9rem 1rem; border: 1px solid var(--scans-app-line); border-radius: .4rem; color: var(--scans-app-ink); }

@@ -180,6 +180,29 @@
       });
     });
 
+    // The server is busy while it reads a source, so the page itself says
+    // what is being read; the banner clears when the server is idle again.
+    function showLoading(label) {
+      var banner = document.querySelector(".scans-app-loading");
+      if (!banner) return;
+      var texts = banner.querySelectorAll("template[data-scans-loading-for]");
+      var text = Array.prototype.find.call(texts, function (node) {
+        return node.dataset.scansLoadingFor === label;
+      });
+      if (text) banner.querySelector(".scans-app-loading-text").textContent = text.innerHTML;
+      document.body.setAttribute("data-scans-loading", "");
+    }
+    $(document).on("shiny:inputchanged", function (event) {
+      if (event.name === "scans_app_application") showLoading(event.value);
+      if (event.name === "scans_app_reload") {
+        var select = document.getElementById("scans_app_application");
+        showLoading(select ? select.value : null);
+      }
+    });
+    $(document).on("shiny:idle", function () {
+      document.body.removeAttribute("data-scans-loading");
+    });
+
     function sendHash() {
       var hash = window.location.hash;
       if (!hash || hash.length < 2) return;

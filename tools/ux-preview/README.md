@@ -18,6 +18,10 @@ requests.
   `refund_status`, and a model change on Nov 18 that raises token use. Select a
   bar, a tool, a user, or a model to narrow the overview and the browser
   together; the chips above the trajectory list remove each filter.
+  The preview configures an annotation store in the session's temporary
+  directory, so the review flow works: open a conversation, press `1`-`4` or
+  `E` to mark it, and watch the queue advance and the Reviewed tile update.
+  **Export** offers both CSVs, the Markdown report, and the R snippet.
 - **Small example** is the bundled support-assistant recording. It exercises
   native shinychat streaming, suggestions, tool disclosure, and evidence
   navigation, and shows how the overview degrades for a handful of trajectories.
