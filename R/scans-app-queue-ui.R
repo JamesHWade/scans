@@ -170,8 +170,20 @@ scans_app_review_state_text <- function(queue, now = Sys.time()) {
 
 # One button per store label plus a label-free "Reviewed". `data-scans-key`
 # is the shortcut the page script clicks the button for.
-scans_app_review_bar_ui <- function(queue, labels, status = "") {
+scans_app_review_bar_ui <- function(
+  queue,
+  labels,
+  status = "",
+  outside = FALSE
+) {
   id <- queue$trajectory_id[[1L]]
+  state <- paste(
+    c(
+      if (outside) scans_app_outside_filters,
+      scans_app_review_state_text(queue)
+    ),
+    collapse = " \u00b7 "
+  )
   keys <- utils::head(seq_along(labels), 9L)
   # The note is a sibling of the buttons, not a child, so the layout can put
   # it beside them or on its own line.
@@ -181,8 +193,8 @@ scans_app_review_bar_ui <- function(queue, labels, status = "") {
       class = "scans-app-review-note",
       htmltools::tags$span(
         class = "scans-app-review-state",
-        title = scans_app_review_state_text(queue),
-        scans_app_review_state_text(queue)
+        title = state,
+        state
       ),
       htmltools::tags$span(
         class = "scans-app-review-status",

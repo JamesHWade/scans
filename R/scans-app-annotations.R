@@ -271,7 +271,8 @@ scans_app_annotation_server <- function(
     scans_app_review_bar_ui(
       queue[match(target$trajectory_id, queue$trajectory_id), ],
       annotations$labels,
-      disposition_status()
+      disposition_status(),
+      outside = !state$selected() %in% state$visible()
     )
   })
 

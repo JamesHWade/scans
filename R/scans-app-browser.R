@@ -1,3 +1,5 @@
+scans_app_outside_filters <- "Outside the current filters"
+
 scans_app_browser_server <- function(
   input,
   output,
@@ -96,8 +98,11 @@ scans_app_browser_server <- function(
   output$scans_app_position <- shiny::renderText({
     indices <- state$visible()
     position <- match(state$selected(), indices)
-    if (length(indices) == 0L || is.na(position)) {
+    if (is.null(state$selected())) {
       return("")
+    }
+    if (is.na(position)) {
+      return(scans_app_outside_filters)
     }
     sprintf("%d of %d", position, length(indices))
   })
@@ -163,11 +168,22 @@ scans_app_browser_server <- function(
     if (!is.character(id) || length(id) != 1L || is.na(id)) {
       return()
     }
+    # Like a deep link, this opens a run the current filters leave out; the
+    # position and the review bar then say it is outside them.
     index <- match(id, current$info$trajectory_id)
-    if (!is.na(index) && index %in% state$visible()) {
-      state$selected(index)
-      bslib::nav_select("scans_app_view", "trajectory", session = session)
+    if (is.na(index)) {
+      shiny::showNotification(
+        sprintf(
+          "%s is not in the loaded snapshot of this application, so it cannot be opened here.",
+          id
+        ),
+        type = "warning",
+        session = session
+      )
+      return()
     }
+    state$selected(index)
+    bslib::nav_select("scans_app_view", "trajectory", session = session)
   })
 
   # Promotion candidates need the bundle, so they are computed once per

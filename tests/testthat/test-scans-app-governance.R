@@ -317,6 +317,85 @@ test_that("the header states the run ending and recorded lineage", {
   expect_null(scans_app_run_ending(list()))
 })
 
+test_that("a lineage link opens a run the current filters leave out", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+  sent <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    showNotification = function(ui, ...) {
+      sent$notice <- c(sent$notice, ui)
+    },
+    .package = "shiny"
+  )
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = "looks right"
+  )
+  server <- scans_app_server(
+    scans_app_sources(list(Deputy = governance_deputy_bundle())),
+    annotations = store
+  )
+
+  shiny::testServer(server, {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    ids <- data()$info$trajectory_id
+    child <- ids[startsWith(ids, "otel/c_team/")]
+    mark <- function(id) {
+      session$setInputs(
+        scans_app_disposition = list(
+          label = "looks right",
+          trajectory_id = id,
+          nonce = stats::runif(1)
+        )
+      )
+    }
+    session$setInputs(scans_app_query = "Count the rows")
+    expect_identical(ids[visible()], child)
+    expect_identical(output$scans_app_position, "1 of 1")
+    expect_no_match(output$scans_app_review_bar$html, "Outside", fixed = TRUE)
+
+    session$setInputs(scans_app_inspect = "otel/c_team")
+    expect_identical(ids[[selected()]], "otel/c_team")
+    expect_identical(ids[visible()], child)
+    expect_identical(output$scans_app_position, "Outside the current filters")
+    expect_match(
+      output$scans_app_review_bar$html,
+      "Outside the current filters \u00b7 Not reviewed yet",
+      fixed = TRUE
+    )
+
+    # A judgement is saved against the open run, which stays open.
+    session$setInputs(scans_app_advance = FALSE)
+    mark("otel/c_team")
+    expect_identical(store$read()$trajectory_id, "otel/c_team")
+    expect_identical(ids[[selected()]], "otel/c_team")
+    expect_match(output$scans_app_review_bar$html, "Marked looks right.")
+
+    session$setInputs(scans_app_next = 1L)
+    expect_identical(ids[[selected()]], child)
+    session$setInputs(scans_app_inspect = "otel/c_team")
+    session$setInputs(scans_app_nav = list(direction = "prev", nonce = 1))
+    expect_identical(ids[[selected()]], child)
+
+    session$setInputs(scans_app_inspect = "otel/c_cutoff")
+    session$setInputs(scans_app_advance = TRUE)
+    mark("otel/c_cutoff")
+    expect_identical(ids[[selected()]], child)
+    expect_identical(output$scans_app_position, "1 of 1")
+
+    # A run the filters drop still gives way to one they keep.
+    session$setInputs(scans_app_query = "Explain the result")
+    expect_identical(ids[[selected()]], "otel/c_cutoff")
+
+    expect_null(sent$notice)
+    session$setInputs(scans_app_inspect = "otel/absent")
+    expect_identical(ids[[selected()]], "otel/c_cutoff")
+    expect_length(sent$notice, 1L)
+    expect_match(sent$notice, "otel/absent is not in the loaded snapshot")
+  })
+})
+
 test_that("the transcript marks exchange provenance and internal turns", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("ellmer", "0.5.0")
