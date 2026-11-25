@@ -332,6 +332,10 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
         relevant_loss <- TRUE
         missing <- "Capture losses affect Deputy lifecycle event types, so interventions cannot be ruled out."
       }
+      if (scan_compaction_runs(events)$unknown) {
+        relevant_loss <- TRUE
+        missing <- "The trajectory holds several Deputy runs and some compaction events record no run, so repeated compaction within a run cannot be ruled out."
+      }
       if (info$source_type %in% "otel") {
         # Deputy's trace allowlist omits these lifecycle events, so a span
         # capture can show them only through the run ending.

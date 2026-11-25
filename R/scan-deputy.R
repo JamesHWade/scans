@@ -150,6 +150,45 @@ scan_deputy_findings <- function(info_row, events, scan_id) {
   )
 }
 
+# The run ID Deputy stamps on each lifecycle event, or NA when not recorded.
+scan_event_run <- function(events) {
+  vapply(
+    events$metadata,
+    function(metadata) {
+      if (is.list(metadata)) {
+        scan_ending_string(metadata, "run_id")
+      } else {
+        NA_character_
+      }
+    },
+    character(1)
+  )
+}
+
+# Compaction events grouped by the run they belong to. A trajectory can hold
+# several runs (the root runs of one traced conversation), so its compactions
+# count toward the threshold only within a run. When several runs are
+# recorded, a compaction without a run ID belongs to none of them; `unknown`
+# says such events could still complete a repeat.
+scan_compaction_runs <- function(events) {
+  type <- events$event_type
+  compactions <- which(type %in% "deputy:compaction")
+  run <- scan_event_run(events)
+  several <- length(unique(stats::na.omit(run[scan_is_deputy_event(type)]))) >
+    1L ||
+    sum(type %in% "deputy:start") > 1L ||
+    sum(type %in% "deputy:stop") > 1L
+  if (!several) {
+    return(list(runs = list(compactions), unknown = FALSE))
+  }
+  known <- compactions[!is.na(run[compactions])]
+  list(
+    runs = unname(split(known, factor(run[known], unique(run[known])))),
+    unknown = length(known) < length(compactions) &&
+      length(compactions) >= scan_compaction_threshold
+  )
+}
+
 scan_intervention_record_finding <- function(
   scan_id,
   trajectory_id,
@@ -306,17 +345,19 @@ scan_intervention_findings <- function(events, ending, trajectory_id, scan_id) {
     )
   }
 
-  compactions <- which(type == "deputy:compaction")
-  if (length(compactions) >= scan_compaction_threshold) {
+  for (run in scan_compaction_runs(events)$runs) {
+    if (length(run) < scan_compaction_threshold) {
+      next
+    }
     findings <- c(
       findings,
       list(scan_intervention_finding(
         scan_id,
         events,
-        compactions,
+        run,
         "Repeated compaction",
         "Context was compacted repeatedly in one run, a sign of sustained context pressure.",
-        list(kind = "repeated_compaction", count = length(compactions))
+        list(kind = "repeated_compaction", count = length(run))
       ))
     )
   }

@@ -94,6 +94,25 @@ deputy_projected_bundle <- function(ending = NULL, events = NULL) {
   )
 }
 
+deputy_projected_events <- function(
+  types,
+  statuses = "completed",
+  call_id = NA_character_,
+  run_id = NA_character_
+) {
+  tibble::tibble(
+    trajectory_id = "otel/run-001",
+    event_id = sprintf("otel/run-001/event-%06d", seq_along(types)),
+    event_index = seq_along(types),
+    event_type = paste0("deputy:", types),
+    status = statuses,
+    call_id = call_id,
+    metadata = lapply(rep_len(run_id, length(types)), function(run) {
+      if (is.na(run)) list() else list(run_id = run)
+    })
+  )
+}
+
 deputy_limit_ending <- function(cut_off = FALSE, finish_reason = "stop") {
   list(
     class = "RunEndingLimit",
@@ -313,6 +332,41 @@ test_that("one compaction is not repeated and a resolved approval is not pending
     deputy_scan_status(bundle)[["run_intervention"]],
     "assessed_no_findings"
   )
+})
+
+test_that("repeated compaction is counted within each Deputy run", {
+  assess <- function(types, run_id) {
+    assess_trajectory_scans(
+      deputy_projected_bundle(
+        events = deputy_projected_events(types, run_id = run_id)
+      ),
+      scans = "run_intervention"
+    )
+  }
+  types <- c("compaction", "stop", "compaction", "compaction", "stop")
+
+  apart <- assess(types[-4L], c("run-a", "run-a", "run-b", "run-b"))
+  expect_identical(nrow(apart$findings), 0L)
+  expect_identical(apart$assessments$status, "assessed_no_findings")
+
+  repeated <- assess(types, c("run-a", "run-a", "run-b", "run-b", "run-b"))
+  expect_identical(repeated$findings$value, list(list(
+    kind = "repeated_compaction",
+    count = 2L
+  )))
+  expect_identical(
+    repeated$findings$event_ids,
+    list(sprintf("otel/run-001/event-%06d", 3:4))
+  )
+
+  # Two runs are recorded, but not which one each compaction belongs to.
+  unplaced <- assess(types[-4L], c(NA, "run-a", NA, "run-b"))
+  expect_identical(nrow(unplaced$findings), 0L)
+  expect_identical(unplaced$assessments$status, "insufficient_evidence")
+  expect_match(unplaced$assessments$reason, "record no run")
+
+  one_run <- assess(types[c(1L, 3L, 5L)], NA_character_)
+  expect_identical(one_run$findings$value[[1L]]$count, 2L)
 })
 
 test_that("Deputy scans key on projected run evidence, not the source type", {
