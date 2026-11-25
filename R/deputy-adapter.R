@@ -32,7 +32,7 @@
 #' @examples
 #' if (
 #'   rlang::is_installed("deputy", version = "0.0.0.9000") &&
-#'     rlang::is_installed("ellmer", version = "0.4.2")
+#'     rlang::is_installed("ellmer", version = "0.5.0")
 #' ) {
 #'   constructor <- deputy::AgentResult
 #'   if (!inherits(constructor, "S7_class")) constructor <- constructor$new

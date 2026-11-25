@@ -1,6 +1,8 @@
+ellmer_min_version <- "0.5.0"
+
 ellmer_check_installed <- function(
   call = rlang::caller_env(),
-  version = "0.4.2",
+  version = ellmer_min_version,
   installed = rlang::is_installed
 ) {
   if (!installed("ellmer", version = version)) {

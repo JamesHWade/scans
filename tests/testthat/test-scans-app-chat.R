@@ -181,7 +181,7 @@ test_that("Ask rejects outdated ellmer before initializing a provider", {
   check <- ellmer_check_installed
   local_mocked_bindings(ellmer_check_installed = function(...) {
     check(..., installed = function(pkg, version) {
-      numeric_version("0.4.2") >= numeric_version(version)
+      numeric_version("0.4.9") >= numeric_version(version)
     })
   })
   calls <- 0L

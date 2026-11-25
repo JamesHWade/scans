@@ -534,7 +534,7 @@ dsprrr_trace_turns <- function(trace) {
 }
 
 dsprrr_are_ellmer_turns <- function(x) {
-  rlang::is_installed("ellmer", version = "0.4.2") &&
+  rlang::is_installed("ellmer", version = ellmer_min_version) &&
     length(x) > 0L &&
     all(vapply(x, ellmer_is_turn, logical(1)))
 }

@@ -1,6 +1,6 @@
 test_that("public dsprrr modules pass the shared adapter contract", {
   skip_if_not_installed("dsprrr", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_adapter_conforms(
     source = dsprrr_module_fixture(),
@@ -9,7 +9,7 @@ test_that("public dsprrr modules pass the shared adapter contract", {
 })
 
 test_that("exported dsprrr traces become canonical trajectories", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   bundle <- as_trajectory_dsprrr(traces)
@@ -65,7 +65,7 @@ test_that("exported dsprrr traces become canonical trajectories", {
 })
 
 test_that("dsprrr semantic tool events retain ellmer correlation", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   request <- ellmer::ContentToolRequest(
     id = "call-001",
@@ -89,7 +89,7 @@ test_that("dsprrr semantic tool events retain ellmer correlation", {
 })
 
 test_that("partial dsprrr rows retain context and report unavailable semantics", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   traces$program_artifact_id <- NA_character_
@@ -117,7 +117,7 @@ test_that("partial dsprrr rows retain context and report unavailable semantics",
 
 test_that("as_trajectory dispatches public dsprrr modules", {
   skip_if_not_installed("dsprrr", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   program <- dsprrr_module_fixture()
   explicit <- as_trajectory_dsprrr(program)
@@ -137,7 +137,7 @@ test_that("empty dsprrr modules convert quietly without provider calls", {
 })
 
 test_that("conflicting caller run identities are retained but not promoted", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   traces$trace_context <- list(list(
@@ -160,7 +160,7 @@ test_that("conflicting caller run identities are retained but not promoted", {
 })
 
 test_that("dsprrr source extensions are sanitized instead of silently dropped", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   traces$provider_note <- "cache hit"
@@ -185,7 +185,7 @@ test_that("dsprrr source extensions are sanitized instead of silently dropped", 
 })
 
 test_that("unavailable dsprrr metrics become missing values and explicit losses", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   traces$timestamp <- as.POSIXct(NA, tz = "UTC")
@@ -228,7 +228,7 @@ test_that("unavailable dsprrr metrics become missing values and explicit losses"
 })
 
 test_that("empty dsprrr snapshots return empty canonical bundles", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   empty <- as_trajectory_dsprrr(traces[0, ])
@@ -240,7 +240,7 @@ test_that("empty dsprrr snapshots return empty canonical bundles", {
 })
 
 test_that("repeated dsprrr rows receive distinct local identities", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   repeated <- as_trajectory_dsprrr(traces[c(1L, 1L), ])
@@ -253,7 +253,7 @@ test_that("repeated dsprrr rows receive distinct local identities", {
 })
 
 test_that("dsprrr output satisfies the ellmerverse correlation fixture", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expected <- trajectory_info(fixture_ellmerverse_correlation())
   expected <- expected[expected$source_type == "dsprrr", , drop = FALSE]
@@ -297,7 +297,7 @@ test_that("dsprrr output satisfies the ellmerverse correlation fixture", {
 })
 
 test_that("generic dispatch leaves exported dsprrr data frames explicit", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_s3_class(
     rlang::catch_cnd(as_trajectory(dsprrr_trace_fixture())),
@@ -307,7 +307,7 @@ test_that("generic dispatch leaves exported dsprrr data frames explicit", {
 
 test_that("malformed dsprrr modules fail at the adapter boundary", {
   skip_if_not_installed("dsprrr", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   fake_module <- new.env(parent = emptyenv())
   fake_module$get_traces <- function() tibble::tibble()
@@ -319,7 +319,7 @@ test_that("malformed dsprrr modules fail at the adapter boundary", {
 })
 
 test_that("dsprrr source errors identify malformed exported snapshots", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_snapshot(error = TRUE, as_trajectory_dsprrr(list()))
   expect_snapshot(
@@ -340,7 +340,7 @@ test_that("dsprrr source errors identify malformed exported snapshots", {
 })
 
 test_that("dsprrr conversion is deterministic and contains no live source", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   traces <- dsprrr_trace_fixture()
   first <- as_trajectory_dsprrr(traces)

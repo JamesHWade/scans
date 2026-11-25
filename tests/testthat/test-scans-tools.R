@@ -277,15 +277,14 @@ test_that("missing string arguments receive the tools input condition", {
   }
 })
 
-test_that("tools require newer ellmer without raising the adapter minimum", {
+test_that("tools require the minimum ellmer version", {
   check <- ellmer_check_installed
   local_mocked_bindings(ellmer_check_installed = function(...) {
     check(..., installed = function(pkg, version) {
-      numeric_version("0.4.2") >= numeric_version(version)
+      numeric_version("0.4.9") >= numeric_version(version)
     })
   })
 
-  expect_no_error(ellmer_check_installed())
   expect_error(
     scans_tools(NULL),
     regexp = "ellmer.*0[.]5[.]0",
