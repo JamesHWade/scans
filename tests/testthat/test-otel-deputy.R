@@ -362,3 +362,15 @@ test_that("a subagent read without its lead adds no lead trajectory", {
     "child"
   )
 })
+
+test_that("spans no run claims are reported without a delegated run", {
+  skip_if_not_installed("jsonlite")
+  lead <- deputy_run_spans("lead", list("deputy.stop_reason" = "complete"))
+  stray <- otel_chat_span(span_id = "stray", conversation = "conv-1")
+  losses <- trajectory_losses(as_trajectory_otel(c(lead, list(stray))))
+
+  expect_identical(losses$trajectory_id, "otel/conv-1")
+  expect_identical(losses$field, "deputy.run")
+  expect_identical(losses$metadata[[1L]], list(spans = 1L))
+  expect_identical(nrow(trajectory_losses(as_trajectory_otel(lead))), 0L)
+})

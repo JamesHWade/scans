@@ -60,14 +60,14 @@ otel_deputy_run_key <- function(span, index) {
 # lead's trajectory can report it.
 otel_deputy_parts <- function(spans) {
   runs <- Filter(otel_is_deputy_run, spans)
+  if (length(runs) == 0L) {
+    return(list(list(spans = spans, runs = runs, run_id = NULL)))
+  }
   child <- vapply(
     runs,
     function(run) !is.na(otel_attribute(run, "deputy.parent.run.id")),
     logical(1)
   )
-  if (!any(child)) {
-    return(list(list(spans = spans, runs = runs, run_id = NULL)))
-  }
   context <- attr(spans, "otel_context", exact = TRUE)
   index <- otel_span_index(spans)
   child_keys <- vapply(
