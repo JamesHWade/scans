@@ -28,6 +28,64 @@ test_that("the browser's tool error count is the count of failed calls", {
   expect_identical(sum(data$records$n_tool_errors), sum(calls$failed))
 })
 
+test_that("a reused call id pairs each result with one call", {
+  reused <- function(types, errors) {
+    n <- length(types)
+    bundle <- TrajectoryBundle(
+      tibble::tibble(trajectory_id = "r", source_type = "manual"),
+      tibble::tibble(
+        trajectory_id = "r",
+        turn_id = "r-turn",
+        turn_index = 1L,
+        role = "assistant"
+      ),
+      tibble::tibble(
+        trajectory_id = "r",
+        event_id = paste0("r-", seq_len(n)),
+        event_index = seq_len(n),
+        turn_id = "r-turn",
+        event_type = types,
+        name = "lookup",
+        call_id = "again",
+        error = errors
+      )
+    )
+    scans_app_data(bundle)
+  }
+
+  one_result <- reused(
+    c("tool_call", "tool_call", "tool_result"),
+    c(NA, NA, "timeout")
+  )
+  calls <- cohort_tool_calls(one_result, "r")
+  expect_identical(calls$event_id, c("r-1", "r-2"))
+  expect_identical(calls$failed, c(TRUE, FALSE))
+  expect_identical(one_result$records$n_tool_errors, 1L)
+  expect_identical(cohort_tools(one_result, "r")$failed, 1L)
+
+  two_results <- reused(
+    c("tool_call", "tool_result", "tool_call", "tool_result"),
+    c(NA, NA, NA, "timeout")
+  )
+  calls <- cohort_tool_calls(two_results, "r")
+  expect_identical(calls$event_id, c("r-1", "r-3"))
+  expect_identical(calls$failed, c(FALSE, TRUE))
+  expect_identical(calls$error, c(NA, "timeout"))
+
+  early_result <- reused(
+    c("tool_result", "tool_call", "tool_call", "tool_result"),
+    c("late", NA, NA, NA)
+  )
+  calls <- cohort_tool_calls(early_result, "r")
+  expect_identical(calls$event_id, paste0("r-", 1:3))
+  expect_identical(calls$failed, c(TRUE, FALSE, FALSE))
+
+  before_its_call <- reused(c("tool_result", "tool_call"), c("late", NA))
+  calls <- cohort_tool_calls(before_its_call, "r")
+  expect_identical(calls$event_id, c("r-1", "r-2"))
+  expect_identical(calls$failed, c(TRUE, FALSE))
+})
+
 test_that("tools rank by failures and keep untimed calls out of durations", {
   data <- cohort_fixture_data()
   tools <- cohort_tools(data, data$info$trajectory_id)

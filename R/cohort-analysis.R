@@ -10,9 +10,11 @@ cohort_event_failed <- function(events) {
     events$status %in% c("failed", "error")
 }
 
-# A result is paired with the first call in its trajectory that carries the
-# same call id. A result no call claims keeps its own row, so a recorded
-# failure is never dropped for want of a matching call.
+# A result resolves the earliest pending call before it in its trajectory that
+# carries the same call id, the pairing `scan_tool_relation_indices()` gives
+# the tool scans, so a reused id never hands one result to two calls. A result
+# no call claims keeps its own row, so a recorded failure is never dropped for
+# want of a matching call.
 cohort_tool_calls <- function(data, ids) {
   events <- data$events
   events <- events[
@@ -22,6 +24,7 @@ cohort_tool_calls <- function(data, ids) {
     ,
     drop = FALSE
   ]
+  events <- events[order(events$event_index, method = "radix"), , drop = FALSE]
   events$failed <- cohort_event_failed(events)
   events$error[!is.na(events$error) & !nzchar(events$error)] <- NA_character_
   events$key <- ifelse(
@@ -29,9 +32,10 @@ cohort_tool_calls <- function(data, ids) {
     NA_character_,
     paste(events$trajectory_id, events$call_id, sep = "\r")
   )
-  calls <- events[events$event_type == "tool_call", , drop = FALSE]
-  results <- events[events$event_type == "tool_result", , drop = FALSE]
-  paired <- match(calls$key, results$key, incomparables = NA_character_)
+  is_call <- events$event_type == "tool_call"
+  calls <- events[is_call, , drop = FALSE]
+  results <- events[!is_call, , drop = FALSE]
+  paired <- cohort_result_pairs(events$key, is_call)
   orphans <- results[
     !seq_len(nrow(results)) %in% paired,
     ,
@@ -67,6 +71,39 @@ cohort_tool_calls <- function(data, ids) {
     ,
     drop = FALSE
   ]
+}
+
+# For each call, the row of its result among the results, or `NA`. `key` and
+# `is_call` describe tool events in order. A key used by one call and one
+# result pairs them directly; only reused keys need the ordered pass.
+cohort_result_pairs <- function(key, is_call) {
+  call_at <- which(is_call)
+  result_at <- which(!is_call)
+  paired <- match(key[call_at], key[result_at], incomparables = NA_character_)
+  paired[which(result_at[paired] < call_at)] <- NA_integer_
+
+  reused <- !is.na(key) & key %in% key[duplicated(paste(is_call, key))]
+  if (!any(reused)) {
+    return(paired)
+  }
+  rows <- which(reused)
+  relations <- scan_tool_relation_indices(
+    ifelse(is_call[rows], "tool_call", "tool_result"),
+    key[rows]
+  )
+  resolved <- setdiff(rows[is_call[rows]], rows[relations$unresolved_calls])
+  matched <- setdiff(rows[!is_call[rows]], rows[relations$unmatched_results])
+  # Results resolve calls first in, first out, so within one key the nth
+  # resolved call holds the nth matched result.
+  turn <- function(key) {
+    paste(key, stats::ave(seq_along(key), key, FUN = seq_along), sep = "\r")
+  }
+  paired[reused[call_at]] <- NA_integer_
+  paired[match(resolved, call_at)] <- match(matched, result_at)[match(
+    turn(key[resolved]),
+    turn(key[matched])
+  )]
+  paired
 }
 
 cohort_unknown <- "Unknown"
