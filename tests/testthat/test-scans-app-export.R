@@ -239,6 +239,88 @@ test_that("the report states counts with denominators and omits content", {
   )
 })
 
+test_that("a report without user identifiers omits a user filter's value", {
+  fixture <- export_fixture()
+  link <- scans_app_link(
+    "https://connect.test/app/",
+    "Cohort",
+    list(pattern = "event_error", user = "ada@example.com")
+  )
+  labels <- c(pattern = "Finding: event error", user = "User: ada@example.com")
+  text <- paste(
+    export_report(fixture$performance, "Cohort", labels, link),
+    collapse = "\n"
+  )
+  expect_no_match(text, "ada", fixed = TRUE)
+  expect_match(
+    text,
+    "Finding: event error \u00b7 One user (identifier omitted) \u00b7 started",
+    fixed = TRUE
+  )
+  expect_match(
+    text,
+    "([open in scans](https://connect.test/app/#Cohort/?scope=pattern=event_error))",
+    fixed = TRUE
+  )
+  expect_match(
+    text,
+    "1. [`a`](https://connect.test/app/#Cohort/a?scope=pattern=event_error):",
+    fixed = TRUE
+  )
+  expect_match(
+    text,
+    "Links open the cohort without the user filter.",
+    fixed = TRUE
+  )
+
+  named <- paste(
+    export_report(
+      fixture$performance,
+      "Cohort",
+      labels,
+      link,
+      include_users = TRUE
+    ),
+    collapse = "\n"
+  )
+  expect_match(named, "\u00b7 User: ada@example.com \u00b7", fixed = TRUE)
+  expect_match(
+    named,
+    "#Cohort/a?scope=pattern=event_error&user=ada%40example.com",
+    fixed = TRUE
+  )
+  expect_no_match(named, "without the user filter", fixed = TRUE)
+})
+
+test_that("the report dialog's user option governs a user filter", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(
+      scans_app_hash = scans_app_scope_hash(
+        "Cohort",
+        scope = list(user = "ada")
+      )
+    )
+    expect_identical(facets(), list(user = "ada"))
+    session$setInputs(scans_app_export_report = 1L)
+    text <- paste(export_text(), collapse = "\n")
+    expect_no_match(text, "ada", fixed = TRUE)
+    expect_match(text, "One user (identifier omitted)", fixed = TRUE)
+
+    session$setInputs(scans_app_report_users = TRUE)
+    text <- paste(export_text(), collapse = "\n")
+    expect_match(text, "User: ada", fixed = TRUE)
+    expect_match(text, "?scope=user=ada", fixed = TRUE)
+
+    session$setInputs(scans_app_export_trajectory = 1L)
+    expect_no_match(paste(export_text(), collapse = "\n"), "ada", fixed = TRUE)
+  })
+})
+
 test_that("the R snippet reproduces the read and scan settings without secrets", {
   config <- scans_app_scan_config(c("event_error", "turn_error"), 3L, 4L)
   placeholder <- export_r_code(NULL, config, c("a", "b"), "Cohort")

@@ -57,12 +57,16 @@ scans_app_parse_scope <- function(text) {
 }
 
 # `base` is the app's own address; with none (a test session) links are
-# relative fragments.
+# relative fragments. `users = FALSE` leaves a user filter out of the link,
+# for exports that must not name anyone.
 scans_app_link <- function(base, application, scope = list()) {
   force(base)
   force(application)
   force(scope)
-  function(trajectory_id = NULL) {
+  function(trajectory_id = NULL, users = TRUE) {
+    if (!users) {
+      scope$user <- NULL
+    }
     paste0(
       base %||% "",
       "#",
@@ -235,6 +239,12 @@ export_report <- function(
   queue <- utils::head(cohort$queue, 5L)
   progress <- cohort$progress
   window <- scans_app_day_range(headline$first_started, headline$last_started)
+  # A user filter still narrows the cohort, so the scope says there is one
+  # without saying who.
+  user_hidden <- !include_users && "user" %in% names(labels)
+  if (user_hidden) {
+    labels[["user"]] <- "One user (identifier omitted)"
+  }
   section <- function(title, lines) {
     if (length(lines)) c(paste("##", title), "", lines, "")
   }
@@ -245,7 +255,7 @@ export_report <- function(
       "- Scope: ",
       export_scope(headline, labels, noun),
       " ([open in scans](",
-      link(),
+      link(users = include_users),
       "))"
     ),
     paste0(
@@ -400,7 +410,13 @@ export_report <- function(
           "%d. [`%s`](%s): %s%s",
           seq_len(nrow(queue)),
           queue$trajectory_id,
-          vapply(queue$trajectory_id, link, "", USE.NAMES = FALSE),
+          vapply(
+            queue$trajectory_id,
+            link,
+            "",
+            users = include_users,
+            USE.NAMES = FALSE
+          ),
           vapply(
             queue$reasons,
             function(reasons) {
@@ -429,7 +445,10 @@ export_report <- function(
       "- The source read was cut short, so older or failed pages are missing."
     },
     if (!include_users) {
-      "- User identifiers and transcript text are omitted from this report."
+      paste0(
+        "- User identifiers and transcript text are omitted from this report.",
+        if (user_hidden) " Links open the cohort without the user filter."
+      )
     } else {
       "- Transcript text is omitted from this report."
     }

@@ -235,7 +235,7 @@ scans_app_export_server <- function(input, output, session, state) {
         export_trajectory_markdown(
           export$data,
           index,
-          state$link()(export$data$info$trajectory_id[[index]])
+          state$link()(export$data$info$trajectory_id[[index]], users = FALSE)
         )
       }
     )
