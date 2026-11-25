@@ -31,10 +31,7 @@ test_that("already-read commons conversations become canonical trajectories", {
     as.POSIXct("2026-08-25 12:00:01", tz = "UTC")
   )
   expect_identical(info$metadata[[1L]]$source, attr(source, "source"))
-  expect_identical(
-    "source" %in% trajectory_losses(bundle)$field,
-    is.null(attr(source, "source"))
-  )
+  expect_false("source" %in% trajectory_losses(bundle)$field)
   expect_identical(
     turns$role,
     c("user", "assistant")
@@ -223,10 +220,7 @@ test_that("missing commons provenance is not inferred", {
     sum(trajectory_events(bundle)$event_type == "commons:provenance"),
     0L
   )
-  expect_setequal(
-    trajectory_losses(bundle)$field,
-    c("source", "provenance")
-  )
+  expect_identical(trajectory_losses(bundle)$field, "provenance")
 })
 
 test_that("commons preserves malformed provenance without trusting it", {
@@ -433,10 +427,7 @@ test_that("commons record fields and turn attributes retain safe provenance", {
     metadata$conversation_fields[c("revision", "api_key")],
     list(revision = 2L, api_key = "<redacted>")
   )
-  expect_identical(
-    metadata$conversation_fields[["user"]],
-    source[[1L]][["user"]]
-  )
+  expect_false("user" %in% names(metadata$conversation_fields))
   expect_identical(
     metadata$conversation_attributes$revision,
     "record-attribute"
@@ -490,5 +481,115 @@ test_that("extra Commons fields cannot partially match last activity", {
   expect_no_match(
     paste(trajectory_losses(bundle)$field, collapse = " "),
     "last_active$"
+  )
+})
+
+test_that("current commons reads align rounds with exchange provenance", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  source <- commons_current_trajectory_fixture()
+  expect_adapter_conforms(source, adapter = as_trajectory_commons)
+  bundle <- as_trajectory_commons(source["conversation-current"])
+  turns <- trajectory_turns(bundle)
+  events <- trajectory_events(bundle)
+  provenance <- events[events$event_type == "commons:provenance", ]
+  internal <- vapply(
+    turns$metadata,
+    function(metadata) isTRUE(metadata$commons_internal),
+    logical(1)
+  )
+
+  expect_identical(turns$round_index, c(rep(1L, 6L), 2L, 2L))
+  expect_identical(which(internal), 5L)
+  expect_identical(turns$role[internal], "user")
+  expect_identical(
+    vapply(provenance$metadata, `[[`, integer(1), "exchange_index"),
+    unique(turns$round_index)
+  )
+  expect_identical(
+    vapply(provenance$value, `[[`, character(1), "provenance_tag"),
+    c("A", "B")
+  )
+  expect_identical(
+    trajectory_info(bundle)$completed_at,
+    as.POSIXct("2026-08-26 12:00:11", tz = "UTC")
+  )
+  expect_identical(nrow(trajectory_losses(bundle)), 0L)
+})
+
+test_that("commons users share the OTel user slot", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  source <- commons_current_trajectory_fixture()
+  bundle <- as_trajectory_commons(source)
+  metadata <- trajectory_info(bundle)$metadata
+
+  expect_identical(metadata[[1L]]$otel, list(user = "analyst"))
+  expect_identical(
+    vapply(metadata, scans_app_metadata_user, character(1)),
+    c("analyst", NA_character_)
+  )
+  expect_null(metadata[[2L]]$otel)
+  expect_false("user" %in% trajectory_losses(bundle)$field)
+
+  source[[1L]]$user <- c("analyst", "reviewer")
+  bundle <- as_trajectory_commons(source[1L])
+  expect_null(trajectory_info(bundle)$metadata[[1L]]$otel)
+  expect_identical(trajectory_losses(bundle)$field, "user")
+  expect_error(
+    as_trajectory_commons(source, metadata = list(otel = list())),
+    class = "scans_error_commons_argument"
+  )
+})
+
+test_that("commons placeholder turns are capture losses", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  source <- commons_current_trajectory_fixture()["conversation-recovered"]
+  bundle <- as_trajectory_commons(source)
+  turns <- trajectory_turns(bundle)
+  losses <- trajectory_losses(bundle)
+
+  expect_identical(losses$field, c("capture$input", "capture$tool_result"))
+  expect_identical(losses$turn_id, turns$turn_id[c(1L, 3L)])
+  expect_identical(losses$metadata[[2L]], list(content_index = 1L))
+
+  complete <- TrajectoryBundle(
+    trajectory_info(bundle),
+    turns,
+    trajectory_events(bundle)
+  )
+  status <- function(x) {
+    assessments <- assess_trajectory_scans(x)$assessments
+    stats::setNames(assessments$status, assessments$scan)
+  }
+  scans <- c("unresolved_tool_call", "turn_error")
+  expect_identical(
+    unname(status(complete)[scans]),
+    rep("assessed_no_findings", 2L)
+  )
+  expect_identical(
+    unname(status(bundle)[scans]),
+    rep("insufficient_evidence", 2L)
+  )
+})
+
+test_that("commons source locators are sanitized like other adapters", {
+  skip_if_not_installed("ellmer", "0.4.2")
+
+  source <- commons_record_trajectory_fixture()
+  bundle <- as_trajectory_commons(
+    source,
+    source_uri = "https://user:secret@connect.example/content/1?token=secret"
+  )
+
+  expect_identical(
+    trajectory_info(bundle)$source_uri,
+    "https://connect.example/content/1"
+  )
+  expect_in("source_uri", trajectory_losses(bundle)$field)
+  expect_error(
+    as_trajectory_commons(source, source_uri = ""),
+    class = "scans_error_commons_argument"
   )
 })

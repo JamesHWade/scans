@@ -111,23 +111,31 @@ integrity, not authenticity.
 ## commons
 
 commons reconstructs conversations and their provenance from OpenTelemetry
-traces. Current conversations contain `turns` and `last_active` fields; earlier
-turn-list results remain supported. Provenance stays attached to the turns.
-Current Commons does not return an outer source descriptor, so scans reports
-that missing fact without inferring where the conversation came from.
-Read through commons, then convert the settled value:
+traces. Current conversations contain `turns`, `last_active`, and `user`
+fields; earlier turn-list results remain supported. Provenance stays attached
+to the turns. Read through commons, then convert the settled value, passing
+`source_uri` if you want to record where the traces came from:
 
 ```{r, eval = FALSE}
 conversations <- commons::trajectory_read("path/to/otel-traces")
-bundle <- as_trajectory_commons(conversations)
+bundle <- as_trajectory_commons(conversations, source_uri = "file:///traces")
 filter_trajectory_events(bundle, event_type = "commons:provenance")
 ```
 
 Model-visible turns reuse the ellmer adapter. Activity time remains trajectory
-timing, and any recorded local or Connect source descriptor stays in metadata.
+timing. Rounds follow commons' exchanges, so each `commons:provenance` event's
+`exchange_index` matches the `round_index` of its turns. Internal reminder
+turns that commons injects stay in the transcript, marked with
+`commons_internal = TRUE` in turn metadata, and belong to the round they
+follow. The Connect user is kept in `metadata$otel$user`, the same slot the
+OpenTelemetry adapter uses.
+
 Trust tags and citation decisions remain inspectable as `commons:provenance`
 events. Missing or conflicting provenance becomes a loss; scans never infers a
-stronger trust claim.
+stronger trust claim. When a trace omitted input history or tool results,
+commons fills the gap with placeholder turns. scans keeps them and records a
+`capture$input` or `capture$tool_result` loss on each, so scans that need a
+complete transcript report insufficient evidence.
 
 ## Tempest
 
