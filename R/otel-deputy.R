@@ -271,13 +271,13 @@ otel_deputy_events <- function(runs, trajectory_id, offset) {
     }),
     recursive = FALSE
   )
+  losses <- otel_deputy_event_losses(runs, trajectory_id)
   if (length(events) == 0L) {
-    return(list(events = NULL, losses = list()))
+    return(list(events = NULL, losses = losses))
   }
   times <- vapply(events, function(event) otel_nanos(event$time), numeric(1))
   events <- events[order(times)]
   rows <- vector("list", length(events))
-  losses <- list()
   for (position in seq_along(events)) {
     event <- events[[position]]
     index <- offset + position
@@ -306,4 +306,27 @@ otel_deputy_events <- function(runs, trajectory_id, offset) {
     rows[[position]] <- row
   }
   list(events = otel_rows_table(rows, "events"), losses = losses)
+}
+
+# The parser keeps a bounded number of span events per run span. The events
+# it left out may have been governance decisions, so the history is reported
+# as incomplete rather than read as one where they never happened.
+otel_deputy_event_losses <- function(runs, trajectory_id) {
+  losses <- list()
+  for (run in runs) {
+    dropped <- attr(run$events, "dropped", exact = TRUE) %||% 0L
+    if (dropped > 0L) {
+      losses[[length(losses) + 1L]] <- trajectory_new_loss(
+        trajectory_ids(trajectory_id),
+        "capture$events",
+        "truncated",
+        paste(
+          "A Deputy run span carried more span events than are read; the",
+          "run's later governance events are missing"
+        ),
+        metadata = list(span_id = run$span_id, events = as.integer(dropped))
+      )
+    }
+  }
+  losses
 }

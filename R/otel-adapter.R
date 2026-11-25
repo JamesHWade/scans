@@ -93,7 +93,9 @@
 #' Other attributes stay in event `metadata`. Deputy does not export its other
 #' event types, so OTel bundles have no `deputy:approval`,
 #' `deputy:limit_wrap_up`, `deputy:compaction_error`, tool, request, or
-#' content events, and no tool names, inputs, results, or error messages.
+#' content events, and no tool names, inputs, results, or error messages. A
+#' run span's first 1,000 span events are read; a span with more is reported
+#' with a `capture$events` loss counting the events left out.
 #' Conversations without a `deputy.run` span are unaffected.
 #'
 #' Spans are grouped into conversations by the `gen_ai.conversation.id`

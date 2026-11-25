@@ -126,7 +126,9 @@ names the same events, timestamped from the span event:\tabular{lll}{
 Other attributes stay in event \code{metadata}. Deputy does not export its other
 event types, so OTel bundles have no \code{deputy:approval},
 \code{deputy:limit_wrap_up}, \code{deputy:compaction_error}, tool, request, or
-content events, and no tool names, inputs, results, or error messages.
+content events, and no tool names, inputs, results, or error messages. A
+run span's first 1,000 span events are read; a span with more is reported
+with a \code{capture$events} loss counting the events left out.
 Conversations without a \code{deputy.run} span are unaffected.
 
 Spans are grouped into conversations by the \code{gen_ai.conversation.id}

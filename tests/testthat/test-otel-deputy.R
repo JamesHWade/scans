@@ -374,3 +374,25 @@ test_that("spans no run claims are reported without a delegated run", {
   expect_identical(losses$metadata[[1L]], list(spans = 1L))
   expect_identical(nrow(trajectory_losses(as_trajectory_otel(lead))), 0L)
 })
+
+test_that("span events past the per-span limit are reported as a loss", {
+  skip_if_not_installed("jsonlite")
+  run <- deputy_run_spans("run-1", list("deputy.stop_reason" = "complete"))
+  line <- jsonlite::fromJSON(otel_test_otlp_line(run), simplifyVector = FALSE)
+  line$resourceSpans[[1L]]$scopeSpans[[1L]]$spans[[1L]]$events <- rep(
+    list(list(name = "deputy.stop", timeUnixNano = "2000000000")),
+    1002L
+  )
+  spans <- otel_parse_otlp_lines(jsonlite::toJSON(line, auto_unbox = TRUE))
+  bundle <- as_trajectory_otel(spans)
+  losses <- trajectory_losses(bundle)
+
+  expect_identical(nrow(deputy_events(bundle, "otel/conv-1")), 1000L)
+  expect_identical(losses$trajectory_id, "otel/conv-1")
+  expect_identical(losses$field, "capture$events")
+  expect_identical(losses$reason, "truncated")
+  expect_identical(
+    losses$metadata[[1L]],
+    list(span_id = "span-run-1", events = 2L)
+  )
+})
