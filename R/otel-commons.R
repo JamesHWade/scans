@@ -46,7 +46,7 @@ otel_commons_tables <- function(
       next
     }
     previous <- provenance[[key]]
-    if (is.null(previous) || otel_span_time(span) > otel_span_time(previous)) {
+    if (is.null(previous) || otel_span_is_later(span, previous)) {
       provenance[[key]] <- span
     }
   }
@@ -57,7 +57,7 @@ otel_commons_tables <- function(
       next
     }
     previous <- calls[[key]]$chat
-    if (is.null(previous) || otel_span_time(span) > otel_span_time(previous)) {
+    if (is.null(previous) || otel_span_is_later(span, previous)) {
       calls[[key]] <- list(
         chat = span,
         record = provenance[[key]] %||% get(key, envir = index)
@@ -175,6 +175,14 @@ otel_commons_turn_ancestor <- function(span, index) {
 otel_span_time <- function(span) {
   end <- otel_nanos(span$end_time)
   if (is.finite(end)) end else otel_nanos(span$start_time)
+}
+
+# A span without a usable time never displaces one already chosen, as in
+# `otel_latest_span()`.
+otel_span_is_later <- function(span, previous) {
+  times <- c(otel_span_time(span), otel_span_time(previous))
+  times[!is.finite(times)] <- -Inf
+  times[[1L]] > times[[2L]]
 }
 
 # Exchange (round) of each message, after commons' `split_exchanges()`: a user

@@ -351,3 +351,34 @@ test_that("internal reminder turns do not open an exchange", {
   expect_identical(turns$metadata[[3L]], list(commons_internal = TRUE))
   expect_identical(provenance_events(bundle)$value[[1L]]$provenance_tag, "A")
 })
+
+test_that("spans without timestamps do not abort record selection", {
+  skip_if_not_installed("jsonlite")
+  untimed <- function(span) {
+    span$start_time <- NA_character_
+    span$end_time <- NA_character_
+    span
+  }
+  spans <- commons_otel_turn(
+    "1",
+    list(user_message("Q1")),
+    list(reply_message("A1")),
+    start = 100,
+    tag = "A"
+  )
+  # A second model call and a second record in the same turn, neither with a
+  # usable time: the timed ones stay the latest wherever the others arrive.
+  call <- spans[[2L]]
+  call$span_id <- "chat-untimed"
+  call$attributes[["gen_ai.output.messages"]] <- NULL
+  record <- spans[[3L]]
+  record$span_id <- "provenance-untimed"
+  record$attributes[["commons.provenance.tag"]] <- "C"
+  extra <- list(untimed(call), untimed(record))
+
+  for (ordered in list(c(spans, extra), c(spans[1L], extra, spans[-1L]))) {
+    provenance <- provenance_events(as_trajectory_otel(ordered))
+    expect_identical(provenance$value[[1L]]$provenance_tag, "A")
+    expect_false(is.na(provenance$timestamp))
+  }
+})
