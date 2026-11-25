@@ -179,6 +179,7 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
         as.numeric(info$completed_at),
         as.numeric(info$started_at)
       ),
+      origin = "1970-01-01",
       tz = "UTC"
     ),
     parent_trajectory_id = info$parent_trajectory_id,

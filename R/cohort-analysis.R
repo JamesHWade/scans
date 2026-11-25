@@ -444,7 +444,7 @@ cohort_review_state <- function(annotations, ids) {
       reviewed = NA,
       label = NA_character_,
       n_annotations = NA_integer_,
-      reviewed_at = as.POSIXct(NA_real_, tz = "UTC"),
+      reviewed_at = as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC"),
       reviewed_by = NA_character_
     ))
   }
@@ -661,7 +661,11 @@ cohort_interventions <- function(
         list(as.POSIXct(character(), tz = "UTC")),
         lapply(kinds, function(kind) {
           seen <- at[rows$kind == kind & !is.na(at)]
-          if (length(seen)) max(seen) else as.POSIXct(NA_real_, tz = "UTC")
+          if (length(seen)) {
+            max(seen)
+          } else {
+            as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
+          }
         })
       )
     )
