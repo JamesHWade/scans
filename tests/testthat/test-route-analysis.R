@@ -338,6 +338,39 @@ test_that("route tools compute counts and candidates in the permitted scope", {
   )
 })
 
+test_that("route candidate snippets page through content beyond max_chars", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  sql <- paste("SELECT", strrep("amount, ", 30L), "region FROM orders")
+  result <- strrep("west 120; ", 25L)
+  bundle <- as_trajectory_commons(list(
+    `conversation-001` = route_conversation(
+      list(route_single("c1-sql", "run_sql", list(sql = sql), result, "Q?")),
+      "C",
+      "ana",
+      "2026-11-01 10:00:00"
+    )
+  ))
+  tools <- scans_tools(bundle, max_chars = 100L)
+  read <- function(content_offset) {
+    scans_tool_result(
+      tools$scans_route_candidates,
+      signature = "run_sql",
+      content_offset = content_offset
+    )$data[[1L]]
+  }
+  pages <- lapply(c(0L, 100L, 200L), read)
+  field <- function(name) {
+    paste(vapply(pages, function(x) x[[name]], character(1)), collapse = "")
+  }
+
+  expect_equal(pages[[1L]]$output_chars, 250)
+  expect_equal(pages[[1L]]$content_slices$output$total_chars, 250)
+  expect_equal(pages[[1L]]$content_slices$output$next_offset, 100)
+  expect_null(pages[[3L]]$content_slices$output$next_offset)
+  expect_identical(field("output"), result)
+  expect_identical(field("input"), paste0("{\"sql\":\"", sql, "\"}"))
+})
+
 test_that("candidate evidence passes into review cases and regression data", {
   bundle <- route_commons_bundle()
   candidate <- route_candidates(bundle)[1L, ]

@@ -104,8 +104,9 @@ scans_tools_routes <- function(
         class = "scans_error_tools_input"
       )
     }
+    # Fields stay whole so reply() can slice them and honour content_offset.
     reply(
-      route_snippets(context$bundle, table, max_chars),
+      route_snippets(context$bundle, table, .Machine$integer.max),
       offset,
       limit,
       content_offset,
