@@ -2,12 +2,16 @@
 # disposition. A disposition is an annotation record in the configured store;
 # it is unrelated to the session-local evidence reviews that build examples.
 
-scans_app_marker_shapes <- list(
-  error = htmltools::tags$path(d = "M6 0.5 11.5 6 6 11.5 0.5 6Z"),
-  warning = htmltools::tags$path(d = "M6 1 11.5 11H0.5Z"),
-  clean = htmltools::tags$circle(cx = 6, cy = 6, r = 4.25),
-  unassessed = htmltools::tags$path(d = "M2 6h8")
-)
+# Built on demand: htmltools is optional and must not load with the package.
+scans_app_marker_shape <- function(class) {
+  switch(
+    class,
+    error = htmltools::tags$path(d = "M6 0.5 11.5 6 6 11.5 0.5 6Z"),
+    warning = htmltools::tags$path(d = "M6 1 11.5 11H0.5Z"),
+    clean = htmltools::tags$circle(cx = 6, cy = 6, r = 4.25),
+    unassessed = htmltools::tags$path(d = "M2 6h8")
+  )
+}
 
 # Shape and colour both carry the class; the hidden text states it.
 scans_app_marker <- function(class) {
@@ -17,7 +21,7 @@ scans_app_marker <- function(class) {
       viewBox = "0 0 12 12",
       `aria-hidden` = "true",
       focusable = "false",
-      scans_app_marker_shapes[[class]]
+      scans_app_marker_shape(class)
     ),
     htmltools::tags$span(
       class = "visually-hidden",
