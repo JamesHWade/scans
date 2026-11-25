@@ -49,13 +49,15 @@ run_reviewed_improvement <- function(
     ),
     add = TRUE
   )
-  calls <- 0L
+  requests <- new.env(parent = emptyenv())
+  requests$n <- 0L
   if (offline) {
     chat <- ellmer::chat_openai(model = "offline", credentials = function() {
       "unused"
     })
     httr2::local_mocked_responses(function(req) {
-      calls <<- calls + 1L
+      requests$n <- requests$n + 1L
+      calls <- requests$n
       if (calls > 30L) {
         stop("Offline fixture request ceiling exceeded.")
       }
@@ -234,7 +236,7 @@ run_reviewed_improvement <- function(
     task = task,
     traces = traces,
     offline = offline,
-    mocked_requests = calls,
+    mocked_requests = requests$n,
     output_dir = output_dir
   )
 }
