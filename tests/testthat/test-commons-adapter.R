@@ -485,7 +485,7 @@ test_that("extra Commons fields cannot partially match last activity", {
 })
 
 test_that("current commons reads align rounds with exchange provenance", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_current_trajectory_fixture()
   expect_adapter_conforms(source, adapter = as_trajectory_commons)
@@ -518,7 +518,7 @@ test_that("current commons reads align rounds with exchange provenance", {
 })
 
 test_that("commons users share the OTel user slot", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_current_trajectory_fixture()
   bundle <- as_trajectory_commons(source)
@@ -543,7 +543,7 @@ test_that("commons users share the OTel user slot", {
 })
 
 test_that("commons placeholder turns are capture losses", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_current_trajectory_fixture()["conversation-recovered"]
   bundle <- as_trajectory_commons(source)
@@ -575,7 +575,7 @@ test_that("commons placeholder turns are capture losses", {
 })
 
 test_that("commons source locators are sanitized like other adapters", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   bundle <- as_trajectory_commons(
