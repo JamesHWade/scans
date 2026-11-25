@@ -91,6 +91,20 @@ trajectory_info(bundle)[, c("trajectory_id", "run_id", "parent_trajectory_id")]
 Unresolved parent identifiers and missing run identifiers are recorded as
 losses.
 
+The result's `RunEnding` sets the trajectory status and is kept in
+`metadata$ending` with one stable set of fields. A run whose answer the
+provider cut short (`max_tokens`, `context_window`, or `content_filter`) still
+completed, so its status is `"completed"`; check `ending$cut_off` when a whole
+answer matters:
+
+```{r, eval = FALSE}
+ending <- trajectory_info(bundle)$metadata[[1]]$ending
+ending[c("class", "finish_reason", "cut_off")]
+```
+
+`measure_trajectories()` reports Deputy's run-level usage and duration, which
+still count turns that compaction removed from the result.
+
 ## dsprrr
 
 A dsprrr module converts through its public trace exporter; an already

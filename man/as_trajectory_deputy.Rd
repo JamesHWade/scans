@@ -32,28 +32,81 @@ A \link{TrajectoryBundle}.
 \code{as_trajectory_deputy()} snapshots one or more completed
 \code{deputy::AgentResult} objects into a canonical \link{TrajectoryBundle}. It
 delegates model-visible turns to \code{\link[=as_trajectory_ellmer]{as_trajectory_ellmer()}} and adds ordered,
-namespaced Deputy lifecycle events. Current S7 results and events are read
-through their public properties; earlier R6 results remain supported.
+namespaced Deputy lifecycle events. Results and events are read through
+their public S7 properties.
 }
 \details{
-Run, session, agent, delegation, usage, and immutable run-context values are
-retained as sanitized data. When a result's parent run occurs in the same
-input, the adapter resolves \code{parent_trajectory_id}. Otherwise it retains the
-parent run ID as metadata and records an adapter loss. Missing run identity
-is also explicit. Source objects, providers, tools, callbacks, and
-credentials are never retained.
+Run, session, agent, delegation, usage, ending, and immutable run-context
+values are retained as sanitized data. When a result's parent run occurs in
+the same input, the adapter resolves \code{parent_trajectory_id}. Otherwise it
+retains the parent run ID as metadata and records an adapter loss. Missing
+run identity is also explicit. Source objects, providers, tools, callbacks,
+and credentials are never retained.
 
 \code{as_trajectory()} dispatches to this adapter for Deputy results and non-empty
 lists containing only Deputy results when Deputy is installed.
 }
+\section{Run ending}{
+The trajectory \code{status} follows the result's \code{RunEnding}:
+\code{RunEndingAnswered} and \code{RunEndingCutOff} are \code{"completed"},
+\code{RunEndingStopped} and \code{RunEndingLimit} are \code{"interrupted"}, and
+\code{RunEndingFailed} is \code{"failed"}. A cut-off answer keeps \code{"completed"}
+because Deputy completed the run; the provider truncated its final
+response. Check \code{metadata$ending$cut_off} whenever a whole answer matters.
+
+\code{trajectory_info(bundle)$metadata[[i]]$ending} always has these fields, in
+this order, with \code{NA} where the ending does not supply one:
+\itemize{
+\item \code{class} (character): \code{"RunEndingAnswered"}, \code{"RunEndingStopped"},
+\code{"RunEndingLimit"}, \code{"RunEndingCutOff"}, or \code{"RunEndingFailed"}.
+\item \code{reason} (character): the stop, limit, or failure reason.
+\item \code{by} (character): who stopped a \code{RunEndingStopped} run, such as
+\code{"caller"}, \code{"hook"}, or \code{"abandoned"}.
+\item \code{field} (character), \code{actual} (double), \code{limit} (double): the
+\code{UsageLimits} field reached, the figure reached, and the figure allowed.
+\code{actual} is also \code{NA} when Deputy could not know it.
+\item \code{wrapped_up} (logical): for a limit, whether the model gave a final
+answer in the extra request allowed by \code{on_exceed = "wrap_up"}.
+\item \code{phase} (character): where a failed run failed.
+\item \code{finish_reason} (character): the provider's finish reason for the
+final response.
+\item \code{cut_off} (logical): whether the provider cut that response short. It is
+\code{TRUE} for every \code{RunEndingCutOff} and for a truncated wrap-up answer.
+}
+
+The failure condition itself is projected by the \code{deputy:run_error} event.
+}
+
+\section{Events}{
+Each \code{deputy::AgentEvent} becomes a \verb{deputy:<type>} event, in source
+order. Fields that are not projected into a column stay in the event's
+sanitized \code{metadata}, with Deputy S7 values and conditions as plain lists.
+\itemize{
+\item \code{tool_start}, \code{approval}: \code{value} is \code{tool_input}.
+\item \code{tool_end}: \code{value} is \code{tool_result}, and \code{error} is \code{tool_error}.
+\item \code{content}: \code{value} is \code{content}.
+\item \code{trusted_result}: \code{value} is the trusted value; \code{result_id},
+\code{result_type}, and \code{tool_fingerprint} stay in \code{metadata}.
+\item \code{structured_attempt}: \code{value} is the attempted value; \code{valid},
+\code{feedback}, and \code{attempt} stay in \code{metadata}.
+\item \code{request_error}, \code{run_error}, \code{compaction_error}: \code{error} is the
+condition message.
+}
+
+\code{status} is \code{"failed"} for \code{request_error}, \code{run_error},
+\code{compaction_error}, a \code{tool_end} with an error, a denied \code{permission}, and
+an invalid \code{structured_attempt}; \code{"pending"} for an \code{approval} awaiting a
+decision; and \code{"completed"} otherwise. \code{name} and \code{call_id} carry
+\code{tool_name} and \code{tool_call_id}; \code{text} carries \code{text}, a \code{start} task, or a
+\code{warning} message.
+}
+
 \examples{
 if (
-  rlang::is_installed("deputy", version = "0.0.0.9000") &&
+  rlang::is_installed("deputy", version = "0.0.0.9007") &&
     rlang::is_installed("ellmer", version = "0.5.0")
 ) {
-  constructor <- deputy::AgentResult
-  if (!inherits(constructor, "S7_class")) constructor <- constructor$new
-  result <- constructor(
+  result <- deputy::AgentResult(
     turns = list(
       ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
       ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))
@@ -64,5 +117,6 @@ if (
 
   bundle <- as_trajectory_deputy(result)
   trajectory_events(bundle)
+  trajectory_info(bundle)$metadata[[1]]$ending
 }
 }
