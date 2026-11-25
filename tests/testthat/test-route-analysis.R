@@ -371,6 +371,24 @@ test_that("route candidate snippets page through content beyond max_chars", {
   expect_identical(field("input"), paste0("{\"sql\":\"", sql, "\"}"))
 })
 
+test_that("route candidate listing applies the requested basis", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  listed <- function(bundle, ...) {
+    result <- scans_tool_result(scans_tools(bundle)$scans_route_candidates, ...)
+    vapply(result$data, function(x) x$candidate_basis, character(1))
+  }
+  commons <- route_commons_bundle()
+  plain <- route_ellmer_bundle()
+
+  expect_identical(listed(commons, basis = "provenance"), rep("provenance", 2L))
+  expect_length(listed(commons, basis = "unclassified_source"), 0L)
+  expect_identical(
+    listed(plain, basis = "unclassified_source"),
+    "unclassified_source"
+  )
+  expect_length(listed(plain, basis = "provenance"), 0L)
+})
+
 test_that("candidate evidence passes into review cases and regression data", {
   bundle <- route_commons_bundle()
   candidate <- route_candidates(bundle)[1L, ]

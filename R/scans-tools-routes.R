@@ -88,7 +88,10 @@ scans_tools_routes <- function(
         min_exchanges,
         max_snippets = 0L
       )
-      result <- result[setdiff(names(result), c("evidence", "snippets"))]
+      result <- result[
+        is.null(basis) | result$candidate_basis %in% basis,
+        setdiff(names(result), c("evidence", "snippets"))
+      ]
       return(reply(result, offset, limit, content_offset, extra = extra))
     }
     table$candidate_basis <- route_candidate_basis(table)
