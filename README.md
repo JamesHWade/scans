@@ -29,7 +29,8 @@ pak::pak("JamesHWade/scans")
 The core analysis layer depends on cli, rlang, S7, tibble, and vctrs. Adapters
 and the review app use optional packages that are loaded when you need them.
 This development version requires ellmer 0.5.0 and pins a compatible shinychat
-revision in `DESCRIPTION`; `pak::pak()` resolves these dependencies.
+revision in `DESCRIPTION`; `pak::pak()` resolves these dependencies. The deputy
+and commons adapters need deputy 0.0.0.9007 and commons 0.2.0 or later.
 
 ## Try the offline example
 
