@@ -10,9 +10,17 @@ test_that("the commons trace fixture reads into an OTel trajectory", {
   expect_match(attr(conversations, "source_uri"), "^file://.*/commons$")
 
   bundle <- as_trajectory_otel(conversations)
+  events <- trajectory_events(bundle)
   expect_identical(
-    trajectory_events(bundle)$text,
+    events$text[events$event_type == "content"],
     c("What is revenue?", "Revenue excludes tax.")
+  )
+  # This older trace records provenance on the turn span itself.
+  provenance <- events[events$event_type == "commons:provenance", ]
+  expect_identical(provenance$value[[1L]]$provenance_tag, "B")
+  expect_identical(
+    provenance$value[[1L]]$citation_decisions[[1L]]$label,
+    "Data dictionary"
   )
   expect_identical(
     read_otel_traces(test_path("fixtures", "commons", "trace-0.jsonl")),
@@ -108,7 +116,7 @@ test_that("n, from, and to select conversations as the Connect reader does", {
   expect_named(read_otel_traces(dir, n = 1L, to = at(250)), "b")
   expect_error(
     read_otel_traces(dir, from = "yesterday"),
-    class = "scans_error_connect_window"
+    class = "scans_error_otel_window"
   )
 })
 

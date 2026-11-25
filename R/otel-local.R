@@ -29,7 +29,8 @@
 #'   default reads every file in full rather than the last seven days.
 #' @param max_spans Ceiling on how many GenAI spans are kept, counting back
 #'   from the most recent. Only spans carrying `gen_ai.*` attributes count
-#'   towards it, as for [read_connect_traces()].
+#'   towards it, as for [read_connect_traces()]; commons turn and provenance
+#'   spans never count.
 #'
 #' @returns A named list of conversations, each a list of spans, oldest-first,
 #'   in the same form as [read_connect_traces()]. The `"source_uri"` attribute
@@ -59,8 +60,8 @@ read_otel_traces <- function(
 ) {
   call <- rlang::caller_env()
   otel_check_jsonlite(call)
-  from <- connect_check_bound(from, "from", call)
-  to <- connect_check_bound(to, "to", call)
+  from <- otel_check_bound(from, "from", call)
+  to <- otel_check_bound(to, "to", call)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_number_whole(max_spans, min = 1)
   path <- path %||% otel_default_traces_dir(call)
@@ -89,7 +90,7 @@ read_otel_traces <- function(
   in_budget <- vapply(
     spans,
     function(span) {
-      otel_is_genai_span(span) &&
+      otel_is_budget_span(span) &&
         otel_span_in_window(span, from = NULL, to = to)
     },
     logical(1)

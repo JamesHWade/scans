@@ -32,7 +32,8 @@ default reads every file in full rather than the last seven days.}
 
 \item{max_spans}{Ceiling on how many GenAI spans are kept, counting back
 from the most recent. Only spans carrying \verb{gen_ai.*} attributes count
-towards it, as for \code{\link[=read_connect_traces]{read_connect_traces()}}.}
+towards it, as for \code{\link[=read_connect_traces]{read_connect_traces()}}; commons turn and provenance
+spans never count.}
 }
 \value{
 A named list of conversations, each a list of spans, oldest-first,

@@ -57,12 +57,35 @@ neither attribute had message capture turned off and is left contentless.
 Messages that no span recorded
 are reported as \code{capture$input} or \code{capture$tool_result} losses, so
 \code{\link[=assess_trajectory_scans]{assess_trajectory_scans()}} does not treat the transcript as complete.
+}
+\section{commons agents}{
+
+commons wraps each turn in a \code{commons_conversation_turn} span and records
+each answer's provenance in a \code{commons_provenance} span. These spans are kept
+with their conversation, never counted against a reader's span budget, and
+never used as a transcript, so token totals, model calls, and resource
+measures are unchanged by them. Each exchange of the transcript becomes a
+\code{"commons:provenance"} event in the form \code{\link[=as_trajectory_commons]{as_trajectory_commons()}} gives:
+\code{value} holds \code{provenance_tag} and the full \code{citation_decisions} parsed
+from \code{commons.citation.candidates} (sanitized and bounded by the payload
+limit, with a loss when truncated), \code{metadata$exchange_index} numbers the
+exchange, and each turn's \code{round_index} is its exchange. As in commons, a
+user turn opens an exchange unless it returns tool results or is an
+internal reminder; reminder turns carry \code{commons_internal = TRUE} in their
+metadata. Unlike the commons reader, \code{timestamp} is the time the record's
+span ended. A record attaches to an exchange only when the history its turn
+recorded matches the transcript, and conflicting records for one exchange
+leave it unclassified with a loss. The Connect user commons records
+(\code{commons.connect.user}) is kept as \code{metadata$otel$user}. commons setup
+spans such as \code{commons_agent_create} belong to no conversation and are
+ignored.
 
 Spans are grouped into conversations by the \code{gen_ai.conversation.id}
 attribute, walking up the span's ancestry to find it. A conversation
 without that attribute anywhere in its ancestry falls back to its trace id,
 which groups a single model call rather than a session.
 }
+
 \seealso{
 \code{\link[=read_connect_traces]{read_connect_traces()}} to fetch spans from Posit Connect, and
 \code{\link[=read_otel_traces]{read_otel_traces()}} to read local trace files.

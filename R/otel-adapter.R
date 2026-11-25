@@ -28,6 +28,27 @@
 #' are reported as `capture$input` or `capture$tool_result` losses, so
 #' [assess_trajectory_scans()] does not treat the transcript as complete.
 #'
+#' @section commons agents:
+#' commons wraps each turn in a `commons_conversation_turn` span and records
+#' each answer's provenance in a `commons_provenance` span. These spans are kept
+#' with their conversation, never counted against a reader's span budget, and
+#' never used as a transcript, so token totals, model calls, and resource
+#' measures are unchanged by them. Each exchange of the transcript becomes a
+#' `"commons:provenance"` event in the form [as_trajectory_commons()] gives:
+#' `value` holds `provenance_tag` and the full `citation_decisions` parsed
+#' from `commons.citation.candidates` (sanitized and bounded by the payload
+#' limit, with a loss when truncated), `metadata$exchange_index` numbers the
+#' exchange, and each turn's `round_index` is its exchange. As in commons, a
+#' user turn opens an exchange unless it returns tool results or is an
+#' internal reminder; reminder turns carry `commons_internal = TRUE` in their
+#' metadata. Unlike the commons reader, `timestamp` is the time the record's
+#' span ended. A record attaches to an exchange only when the history its turn
+#' recorded matches the transcript, and conflicting records for one exchange
+#' leave it unclassified with a loss. The Connect user commons records
+#' (`commons.connect.user`) is kept as `metadata$otel$user`. commons setup
+#' spans such as `commons_agent_create` belong to no conversation and are
+#' ignored.
+#'
 #' Spans are grouped into conversations by the `gen_ai.conversation.id`
 #' attribute, walking up the span's ancestry to find it. A conversation
 #' without that attribute anywhere in its ancestry falls back to its trace id,
@@ -135,9 +156,14 @@ otel_conversation_tables <- function(
       utils::URLencode(as.character(conversation_id), reserved = TRUE)
     )
   }
-  chat_spans <- Filter(otel_is_chat_span, spans)
+  # Companion spans contribute provenance and context only: counts, timing,
+  # and status describe the model and tool activity.
+  companion <- vapply(spans, otel_is_companion_span, logical(1))
+  activity <- spans[!companion]
+  attr(activity, "otel_context") <- context %||% otel_context(spans)
+  chat_spans <- Filter(otel_is_chat_span, activity)
   latest <- otel_latest_span(chat_spans)
-  tool_spans <- Filter(otel_is_tool_span, spans)
+  tool_spans <- Filter(otel_is_tool_span, activity)
 
   transcript <- otel_transcript(latest, chat_spans, trajectory_id)
   tables <- otel_messages_tables(
@@ -150,19 +176,37 @@ otel_conversation_tables <- function(
     trajectory_loss_table(transcript$losses),
     tables$losses
   ))
+  commons <- otel_commons_tables(
+    spans,
+    chat_spans,
+    transcript$messages,
+    trajectory_id,
+    nrow(tables$events)
+  )
+  if (!is.null(commons)) {
+    tables$turns$round_index <- commons$rounds
+    tables$turns$metadata[commons$internal] <- list(list(
+      commons_internal = TRUE
+    ))
+    tables$events <- trajectory_bind_rows(list(tables$events, commons$events))
+    tables$losses <- trajectory_bind_rows(list(
+      tables$losses,
+      trajectory_loss_table(commons$losses)
+    ))
+  }
 
-  times <- otel_span_times(spans)
+  times <- otel_span_times(activity)
   # The conversation's status is that of its latest model call: an early
   # rate-limited call that was retried successfully is a failed event, not a
   # failed conversation. Earlier failures stay countable in the metadata.
-  failed_spans <- Filter(otel_span_failed, spans)
+  failed_spans <- Filter(otel_span_failed, activity)
   failed <- otel_span_failed(latest)
   error <- if (failed) otel_span_error(latest) else NA_character_
   metadata$otel_failed_spans <- length(failed_spans)
   ids <- trajectory_ids(trajectory_id)
   safe_source_uri <- trajectory_sanitize_uri(source_uri, "source_uri", ids)
   safe_metadata <- trajectory_sanitize_metadata(
-    otel_info_metadata(spans, chat_spans, metadata),
+    otel_info_metadata(activity, chat_spans, metadata),
     "metadata",
     ids
   )
@@ -247,7 +291,7 @@ otel_extra_attributes <- function(spans, max_chars = 200L) {
     attributes <- span$attributes
     keys <- names(attributes)
     keep <- !startsWith(keys, "gen_ai.") &
-      !keys %in% c("error.type") &
+      !keys %in% c("error.type", otel_commons_provenance_keys) &
       !otel_transport_attribute(keys)
     for (key in keys[keep]) {
       value <- otel_string(attributes[[key]])
@@ -321,9 +365,10 @@ otel_clip <- function(value, max_chars) {
 
 # The user behind a conversation, when any span names one. The semantic
 # conventions say `enduser.id`; older and framework-specific keys are tried
-# after it.
+# after it. commons records the Connect session user on its turn span.
 otel_user_keys <- c(
   "enduser.id",
+  "commons.connect.user",
   "user.id",
   "user.name",
   "user.email",
@@ -1015,12 +1060,8 @@ otel_group_conversations <- function(spans) {
   )
   groups <- lapply(groups, function(group) {
     context_spans <- otel_group_context_spans(group, index)
-    group <- Filter(otel_is_selected_genai_span, context_spans)
-    attr(group, "otel_context") <- list(
-      user = otel_user_id(context_spans),
-      attributes = otel_extra_attributes(context_spans),
-      resource = otel_resource_attributes(context_spans)
-    )
+    group <- Filter(otel_is_conversation_span, context_spans)
+    attr(group, "otel_context") <- otel_context(context_spans)
     group
   })
   otel_order_conversations(groups)
@@ -1029,6 +1070,14 @@ otel_group_conversations <- function(spans) {
 # Include ancestors while extracting conversation context, even when a wrapper
 # has no GenAI attributes of its own. The returned conversation later exposes
 # only GenAI spans, while its bounded context summary retains wrapper metadata.
+otel_context <- function(spans) {
+  list(
+    user = otel_user_id(spans),
+    attributes = otel_extra_attributes(spans),
+    resource = otel_resource_attributes(spans)
+  )
+}
+
 otel_group_context_spans <- function(group, index) {
   context_spans <- group
   included <- new.env(parent = emptyenv())

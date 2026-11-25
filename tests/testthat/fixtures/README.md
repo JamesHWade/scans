@@ -80,3 +80,12 @@ missing-input and missing-tool-result placeholder turns. It lives in its own
 directory so reads of `commons/` stay unchanged. The dsprrr
 module fixture similarly uses `dsprrr::module_fn()` and `dsprrr::run()` instead
 of mutating module state.
+
+`commons/otel/r/trace-0.jsonl` and `commons/otel/python/trace-1.jsonl`, with
+their `expected.json`, are copied unchanged from commons' shared trace fixtures
+(`tests/shared/traces/` in posit-dev/commons at commit
+`820659fca10f0ae6284d0a76016c186a3e63f420`). The R and Python agents wrote them
+from the same scripted conversations; `expected.json` is what commons requires
+a trace reader to make of each. OTel adapter tests read them with
+`read_otel_traces()` and compare the provenance events with that file and with
+`as_trajectory_commons()`.

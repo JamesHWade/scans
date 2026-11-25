@@ -71,8 +71,8 @@ scans_app_connect <- function(
   rlang::check_bool(jobs)
   rlang::check_bool(investigations)
   rlang::check_bool(reviews)
-  from <- connect_check_bound(from, "from")
-  to <- connect_check_bound(to, "to")
+  from <- otel_check_bound(from, "from", class = connect_window_class)
+  to <- otel_check_bound(to, "to", class = connect_window_class)
   reader <- rlang::arg_match(reader)
   if (identical(reader, "commons")) {
     scans_app_connect_check_package()
