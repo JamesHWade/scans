@@ -97,33 +97,22 @@ read_connect_traces <- function(
     connect_progress("Parsing spans")
     spans <- otel_parse_otlp_lines(lines)
   }
-  spans <- otel_unique_spans(spans)
-  spans <- otel_limit_spans(spans, max_spans = max_spans, to = to)
   connect_progress("Grouping conversations")
-  conversations <- otel_group_conversations_in_window(spans, from, to)
-  found <- length(conversations)
-
-  if (!is.null(n) && found > n) {
-    conversations <- utils::tail(conversations, n)
-  }
+  conversations <- otel_read_conversations(
+    spans,
+    from = from,
+    to = to,
+    n = n,
+    max_spans = max_spans,
+    read_at = read_at,
+    truncated = isTRUE(attr(lines, "truncated", exact = TRUE)),
+    incomplete = isTRUE(attr(lines, "incomplete", exact = TRUE))
+  )
   attr(conversations, "source_uri") <- paste0(
     client$server,
     "/content/",
     guid,
     "/"
-  )
-  attr(conversations, "read_info") <- list(
-    read_at = read_at,
-    from = from,
-    to = to,
-    n = n,
-    spans = sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
-    spans_total = length(spans),
-    max_spans = max_spans,
-    truncated = isTRUE(attr(lines, "truncated", exact = TRUE)),
-    incomplete = isTRUE(attr(lines, "incomplete", exact = TRUE)),
-    conversations_found = found,
-    conversations = length(conversations)
   )
   conversations
 }
