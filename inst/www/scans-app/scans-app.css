@@ -1961,3 +1961,14 @@ td.scans-app-cell-meter .scans-app-meter { margin-left: auto; }
   .scans-app-review-next-row { grid-template-columns: .75rem minmax(0, 1fr) .8rem; }
   .scans-app-review-next-row > :nth-child(n + 3):not(:last-child) { display: none; }
 }
+
+/* Exports. */
+.scans-app-export { margin-left: auto; }
+.scans-app-export .dropdown-item { font-size: .9rem; }
+.scans-app-export-text { font-family: var(--bs-font-monospace); font-size: .8rem; line-height: 1.5; white-space: pre; resize: vertical; }
+.scans-app-export-note { font-size: .88rem; color: var(--scans-app-muted); }
+.scans-app-copy-status { margin-right: auto; font-size: .85rem; color: var(--scans-app-muted); }
+.scans-app-trajectory-export { display: inline-flex; align-items: center; gap: .25rem; margin-left: .75rem; }
+.scans-app-trajectory-export .btn-link { padding: 0 .35rem; font-size: .82rem; text-decoration: none; }
+.scans-app-trajectory-export .btn-link:hover { text-decoration: underline; }
+.scans-app-copy-fallback { width: 18rem; }

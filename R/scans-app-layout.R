@@ -181,6 +181,7 @@ scans_app_ui <- function(
             htmltools::div(
               class = "scans-app-workspace-bar",
               htmltools::tags$strong("Transcript"),
+              shiny::uiOutput("scans_app_trajectory_export", inline = TRUE),
               scans_app_workspace_toolbar()
             )
           ),

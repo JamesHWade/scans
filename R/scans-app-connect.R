@@ -150,16 +150,26 @@ scans_app_connect_loaders <- function(
           from
         }
         read_to <- if (default_to) read_now else to
+        # What an R user needs to repeat this read; never the server or key.
+        recipe <- list(
+          reader = reader,
+          guid = source,
+          n = n,
+          from = read_from,
+          to = read_to,
+          jobs = jobs
+        )
         if (identical(reader, "commons")) {
-          return(
+          return(scans_app_loaded_source(
             commons::trajectory_read(
               source,
               n = n,
               from = read_from,
               to = read_to
             ) |>
-              as_trajectory_commons(metadata = list(application = label))
-          )
+              as_trajectory_commons(metadata = list(application = label)),
+            recipe = recipe
+          ))
         }
         conversations <- read_connect_traces(
           source,
@@ -178,7 +188,8 @@ scans_app_connect_loaders <- function(
         # from "the ceiling cut this short".
         scans_app_loaded_source(
           bundle,
-          read_info = attr(conversations, "read_info", exact = TRUE)
+          read_info = attr(conversations, "read_info", exact = TRUE),
+          recipe = recipe
         )
       }
     },

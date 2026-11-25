@@ -13,8 +13,8 @@ test_that("tiles state each fact with its denominator", {
   html <- as.character(cohort_overview_html(data, 1:5))
 
   expect_match(html, "of 5 captured", fixed = TRUE)
-  expect_match(html, "of 4 assessed · 1 not assessed", fixed = TRUE)
-  expect_match(html, "of 6 tool calls · in 2 conversations", fixed = TRUE)
+  expect_match(html, "of 4 assessed \u00b7 1 not assessed", fixed = TRUE)
+  expect_match(html, "of 6 tool calls \u00b7 in 2 conversations", fixed = TRUE)
   expect_match(html, "timed for 3 of 5", fixed = TRUE)
   expect_match(html, "recorded for 3 of 5", fixed = TRUE)
   expect_match(html, "5 of 5</strong>\\s+conversations")
@@ -32,7 +32,7 @@ test_that("tiles state each fact with its denominator", {
   )
   expect_match(
     as.character(cohort_overview_html(off, 1:5, scans = character())),
-    "Scans off · no conversation was assessed",
+    "Scans off \u00b7 no conversation was assessed",
     fixed = TRUE
   )
 })
@@ -109,7 +109,7 @@ test_that("copy names conversations only for conversation sources", {
   data <- scans_app_data(performance_fixture())
   html <- as.character(cohort_overview_html(data, 1:3))
   expect_match(html, "3 of 3</strong>\\s+trajectories")
-  expect_no_match(html, "onversation")
+  expect_no_match(gsub("<[^>]+>", "", html), "onversation")
 })
 
 test_that("a faceted table keeps its sibling rows for comparison", {

@@ -46,7 +46,7 @@ scans_app_reason_chips <- function(reasons, limit = 2L) {
 scans_app_reviewed_mark <- function(label) {
   htmltools::tags$span(
     class = "scans-app-reviewed",
-    htmltools::tags$span(`aria-hidden` = "true", "✓"),
+    htmltools::tags$span(`aria-hidden` = "true", "\u2713"),
     htmltools::tags$span(class = "visually-hidden", "Reviewed:"),
     scans_app_badge(
       if (is.na(label)) "Reviewed" else label,
@@ -99,7 +99,7 @@ scans_app_entry_ui <- function(record, selected, queue = NULL) {
         ),
         htmltools::div(
           class = "scans-app-entry-time",
-          paste(facts, collapse = " · ")
+          paste(facts, collapse = " \u00b7 ")
         ),
         if (isTRUE(queue$reviewed[[1L]])) {
           scans_app_reviewed_mark(queue$label[[1L]])
@@ -154,7 +154,7 @@ scans_app_review_state_text <- function(queue, now = Sys.time()) {
         scans_app_age_string(queue$reviewed_at[[1L]], now)
       }
     ),
-    collapse = " · "
+    collapse = " \u00b7 "
   )
 }
 
@@ -214,8 +214,8 @@ scans_app_review_bar_ui <- function(queue, labels, status = "") {
 
 scans_app_shortcuts <- function(labels) {
   rows <- c(
-    "J or ↓" = "Next in the list",
-    "K or ↑" = "Previous in the list",
+    "J or \u2193" = "Next in the list",
+    "K or \u2191" = "Previous in the list",
     "U" = "Next unreviewed",
     stats::setNames(
       paste("Mark as", utils::head(labels, 9L)),
@@ -322,7 +322,7 @@ scans_app_review_next_ui <- function(queue, noun = scans_app_noun()) {
           ),
           htmltools::tags$span(
             class = "scans-app-review-next-facts",
-            paste(facts, collapse = " · ")
+            paste(facts, collapse = " \u00b7 ")
           ),
           if (isTRUE(rows$reviewed[[i]])) {
             scans_app_reviewed_mark(rows$label[[i]])

@@ -78,6 +78,40 @@
     }
   }
 
+  // Copy an attribute's text or a text box's value. When the browser refuses
+  // clipboard access the text is shown selected so it can be copied by hand.
+  function copyText(button) {
+    var box = button.dataset.scansCopyFrom && document.getElementById(button.dataset.scansCopyFrom);
+    var text = box ? box.value : button.dataset.scansCopy;
+    var status = (button.closest(".modal-content") || document).querySelector(".scans-app-copy-status");
+    function say(message) {
+      if (status) status.textContent = message;
+      else {
+        var label = button.textContent;
+        button.textContent = message;
+        setTimeout(function () { button.textContent = label; }, 1600);
+      }
+    }
+    function byHand() {
+      if (!box) {
+        box = document.createElement("input");
+        box.className = "form-control form-control-sm scans-app-copy-fallback";
+        box.readOnly = true;
+        box.value = text;
+        box.setAttribute("aria-label", "Link to copy");
+        button.insertAdjacentElement("afterend", box);
+      }
+      box.focus();
+      box.select();
+      say("Press Ctrl or Cmd + C to copy");
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { say("Copied"); }, byHand);
+    } else {
+      byHand();
+    }
+  }
+
   function isTyping(target) {
     if (!target) return false;
     var tag = (target.tagName || "").toLowerCase();
@@ -220,6 +254,11 @@
       }
       // The innermost facet wins, so a failed-calls cell inside a tool row
       // applies its own, narrower filter.
+      var copy = event.target.closest("[data-scans-copy], [data-scans-copy-from]");
+      if (copy) {
+        copyText(copy);
+        return;
+      }
       var disposition = event.target.closest("[data-scans-disposition]");
       if (disposition) {
         var bar = disposition.closest("[data-scans-target]");

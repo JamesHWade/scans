@@ -54,7 +54,9 @@ scans_app_navigation_server <- function(
       )
     }
   })
-  shiny::observe({
+  # Runs after the resets an application change triggers, so a scope carried
+  # by the link is not cleared again.
+  shiny::observe(priority = -1L, {
     target <- state$pending_hash()
     current <- state$data()
     if (is.null(target) || is.null(current)) {
@@ -63,7 +65,25 @@ scans_app_navigation_server <- function(
     if (!identical(target$application, state$application())) {
       return()
     }
-    index <- match(target$trajectory_id, current$info$trajectory_id)
+    # A link that names a scope replaces the pattern, facets, and findings
+    # switch; one without leaves the current filters alone.
+    scope <- target$scope
+    if (length(scope)) {
+      state$facets(scans_app_facet_validate(
+        current,
+        scope[intersect(names(scope), scans_app_facet_names)]
+      ))
+      known <- scans_app_has_string(scope$pattern) &&
+        scope$pattern %in%
+          intersect(current$findings$scan, state$scan_config()$scans)
+      state$pattern_filter(if (known) scope$pattern)
+      bslib::update_switch(
+        "scans_app_findings_only",
+        value = isTRUE(scope$findings),
+        session = session
+      )
+    }
+    index <- match(target$trajectory_id %||% NA, current$info$trajectory_id)
     if (!is.na(index)) {
       state$selected(index)
       bslib::nav_select("scans_app_view", "trajectory", session = session)
@@ -140,17 +160,28 @@ scans_app_parse_hash <- function(hash, labels) {
   }
   hash <- sub("^#", "", hash)
   event_parts <- strsplit(hash, "?event=", fixed = TRUE)[[1L]]
-  hash <- event_parts[[1L]]
+  scope_parts <- strsplit(event_parts[[1L]], "?scope=", fixed = TRUE)[[1L]]
+  scope <- if (length(scope_parts) == 2L) {
+    scans_app_parse_scope(scope_parts[[2L]])
+  }
+  hash <- scope_parts[[1L]]
   parts <- strsplit(hash, "/", fixed = TRUE)[[1L]]
-  if (length(parts) < 2L) {
+  if (length(parts) < 2L && !(length(scope) && endsWith(hash, "/"))) {
     return(NULL)
   }
   application <- utils::URLdecode(parts[[1L]])
   trajectory_id <- utils::URLdecode(paste(parts[-1L], collapse = "/"))
-  if (!application %in% labels || !nzchar(trajectory_id)) {
+  # A scope alone reopens the overview; anything else needs a trajectory.
+  if (!application %in% labels || (!nzchar(trajectory_id) && !length(scope))) {
     return(NULL)
   }
-  target <- list(application = application, trajectory_id = trajectory_id)
+  target <- list(application = application)
+  if (nzchar(trajectory_id)) {
+    target$trajectory_id <- trajectory_id
+  }
+  if (length(scope)) {
+    target$scope <- scope
+  }
   if (length(event_parts) == 2L) {
     target$event_id <- utils::URLdecode(event_parts[[2L]])
   }

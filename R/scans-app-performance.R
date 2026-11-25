@@ -293,7 +293,8 @@ scans_app_performance_ui <- function(
           icon = shiny::icon("comment"),
           class = "btn-outline-secondary"
         )
-      }
+      },
+      if (n > 0L) scans_app_export_menu_ui(noun)
     ),
     scans_app_scope_sentence_ui(
       cohort$headline,

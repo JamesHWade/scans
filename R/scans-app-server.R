@@ -83,5 +83,6 @@ scans_app_server <- function(
       chat_factory
     )
     scans_app_ask_server(input, output, session, state, chat_factory)
+    scans_app_export_server(input, output, session, state)
   }
 }
