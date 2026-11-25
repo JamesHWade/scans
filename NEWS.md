@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* `as_trajectory_otel()` recognizes Deputy `deputy.run` spans: run identity, Deputy's ten-field `metadata$ending` as far as the span records it, status mapped as in `as_trajectory_deputy()`, and timestamped `deputy:*` events for permissions, fallbacks, compactions, hooks, checkpoints, warnings, structured attempts, delegations, and stops. A delegated subagent run filed under its lead's conversation gets its own trajectory, linked through `parent_trajectory_id`. Deputy run spans never count against `max_spans` (#67).
+
 * `as_trajectory_otel()` keeps commons agents' turn and provenance spans. Each exchange becomes a timestamped `commons:provenance` event with full citation decisions, in the same form as `as_trajectory_commons()`; turns get commons round indices; conflicting records leave an exchange unclassified with a loss; and the commons Connect user is kept in `metadata$otel$user`. These spans never count against `max_spans` or change resource measures (#69).
 * Invalid `from`/`to` bounds now raise `scans_error_otel_window`; Connect readers also keep `scans_error_connect_window` (#69).
 
