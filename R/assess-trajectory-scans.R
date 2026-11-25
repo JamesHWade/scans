@@ -305,6 +305,14 @@ scan_assess_evidence <- function(scan, info, turns, events, losses, positive) {
       complete <- any(scan_is_deputy_event(events$event_type))
       relevant_loss <- event_loss
       missing <- "Deputy lifecycle events are not recorded, so interventions cannot be ruled out."
+      if (info$source_type %in% "otel") {
+        # Deputy's trace allowlist omits these lifecycle events, so a span
+        # capture can show them only through the run ending.
+        limitations <- c(
+          limitations,
+          "Deputy run spans do not export limit wrap-ups, compaction errors, or approvals; a trace cannot rule those out."
+        )
+      }
     }
     if (!complete || relevant_loss) {
       if (!positive) {

@@ -635,3 +635,41 @@ test_that("Ask tools show run endings and can narrow findings to a scan", {
   listed <- scans_tool_result(other$scans_list_trajectories)
   expect_false("run_ending" %in% names(listed$data[[1L]]))
 })
+
+test_that("Deputy scans assess runs read from OpenTelemetry spans", {
+  skip_if_not_installed("jsonlite")
+  bundle <- as_trajectory_otel(read_otel_traces(
+    test_path("fixtures", "deputy", "otel")
+  ))
+  assessed <- assess_trajectory_scans(
+    bundle,
+    scans = c("cut_off_answer", "run_intervention")
+  )
+  findings <- assessed$findings
+  kinds <- vapply(
+    findings$value[findings$scan == "run_intervention"],
+    \(value) value$kind,
+    character(1)
+  )
+
+  expect_equal(
+    findings$trajectory_id[findings$scan == "cut_off_answer"],
+    "otel/c_cutoff"
+  )
+  expect_setequal(kinds, c("provider_fallback", "permission_denied"))
+  expect_true(all(
+    findings$event_ids[findings$scan == "run_intervention"] |>
+      unlist() %in%
+      trajectory_events(bundle)$event_id
+  ))
+
+  interventions <- assessed$assessments[
+    assessed$assessments$scan == "run_intervention" &
+      assessed$assessments$status != "not_applicable",
+  ]
+  expect_true(all(vapply(
+    interventions$limitations,
+    \(x) any(grepl("Deputy run spans do not export", x, fixed = TRUE)),
+    logical(1)
+  )))
+})
