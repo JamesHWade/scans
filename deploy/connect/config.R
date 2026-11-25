@@ -8,7 +8,9 @@ config_abort <- function(var, problem) {
 }
 
 config_get <- function(var, env = Sys.getenv()) {
-  value <- env[[var]]
+  # `[[` on a missing name is NULL for a list but an error for the named
+  # character vector Sys.getenv() returns.
+  value <- if (var %in% names(env)) env[[var]]
   if (is.null(value) || is.na(value)) "" else trimws(value)
 }
 

@@ -1,8 +1,13 @@
-connect_config <- function(...) {
+connect_config_source <- function() {
   path <- test_path("..", "..", "deploy", "connect", "config.R")
   skip_if_not(file.exists(path), "deploy/ is not part of the built package")
   env <- new.env()
   sys.source(path, envir = env)
+  env
+}
+
+connect_config <- function(...) {
+  env <- connect_config_source()
   vars <- utils::modifyList(
     list(SCANS_CONNECT_SOURCES = "App=11111111-1111-4111-8111-111111111111"),
     list(...)
@@ -45,6 +50,64 @@ test_that("the Connect app reads its Vars with documented defaults", {
   expect_true(set$investigations)
   expect_identical(set$annotations_dir, "/data/reviews")
   expect_identical(set$annotation_labels, c("looks right", "tool failure"))
+})
+
+connect_optional_vars <- c(
+  "SCANS_CONNECT_N",
+  "SCANS_CONNECT_DAYS",
+  "SCANS_CONNECT_READER",
+  "SCANS_CONNECT_JOBS",
+  "SCANS_ANNOTATIONS_DIR",
+  "SCANS_ANNOTATION_LABELS",
+  "SCANS_REVIEWS",
+  "SCANS_INVESTIGATIONS"
+)
+
+expect_connect_defaults <- function(config) {
+  expect_identical(
+    config$sources,
+    c(App = "11111111-1111-4111-8111-111111111111")
+  )
+  expect_identical(config$n, 100L)
+  expect_identical(config$days, 7L)
+  expect_identical(config$reader, "otel")
+  expect_true(config$jobs)
+  expect_false(config$reviews)
+  expect_false(config$investigations)
+  expect_null(config$annotations_dir)
+  expect_null(config$annotation_labels)
+}
+
+test_that("the Connect app starts with only the required Var set", {
+  env <- connect_config_source()
+  sources <- "App=11111111-1111-4111-8111-111111111111"
+
+  # Sys.getenv() returns a named character vector, where `[[` on a missing
+  # name is an error rather than NULL.
+  expect_identical(env$config_get("SCANS_ABSENT", c(OTHER = "x")), "")
+  expect_identical(env$config_get("SCANS_ABSENT", character()), "")
+  expect_identical(env$config_get("OTHER", c(OTHER = " x ")), "x")
+  expect_connect_defaults(
+    env$scans_connect_config(c(SCANS_CONNECT_SOURCES = sources))
+  )
+
+  unset <- stats::setNames(
+    rep(NA_character_, length(connect_optional_vars)),
+    connect_optional_vars
+  )
+  withr::local_envvar(c(unset, SCANS_CONNECT_SOURCES = sources))
+  expect_connect_defaults(env$scans_connect_config())
+
+  # Connect shows a Var cleared in the dashboard as empty, not as absent.
+  empty <- stats::setNames(
+    rep(c("", "  "), length.out = length(connect_optional_vars)),
+    connect_optional_vars
+  )
+  withr::local_envvar(empty)
+  expect_connect_defaults(env$scans_connect_config())
+
+  withr::local_envvar(SCANS_CONNECT_SOURCES = NA)
+  expect_error(env$scans_connect_config(), "SCANS_CONNECT_SOURCES must be set")
 })
 
 test_that("the Connect app rejects Vars it cannot parse, naming each", {
