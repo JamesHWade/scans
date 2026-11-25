@@ -90,10 +90,11 @@ test_that("ranked trajectories keep identities and put unknown values last", {
 test_that("application overview follows filters and opens exact evidence without loading again", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   bundle <- performance_fixture()
   app <- scans_app(list(Example = function() {
-    calls <<- calls + 1L
+    recorded$calls <- recorded$calls + 1L
     bundle
   }))
 
@@ -121,7 +122,7 @@ test_that("application overview follows filters and opens exact evidence without
     expect_match(output$scans_app_performance$html, "Scans off", fixed = TRUE)
     session$setInputs(scans_app_inspect = "invalid")
     expect_identical(selected_trajectory_id(), "slow")
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
   })
   expect_identical(
     trajectory_info(bundle)$trajectory_id,
@@ -264,9 +265,10 @@ test_that("pattern filters reset when changing application", {
 test_that("disabling the active pattern's scan restores the cohort", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   app <- scans_app(list(Example = function() {
-    calls <<- calls + 1L
+    recorded$calls <- recorded$calls + 1L
     performance_fixture()
   }))
 
@@ -282,7 +284,7 @@ test_that("disabling the active pattern's scan restores the cohort", {
     session$setInputs(scans_app_pattern = "event_error")
     expect_null(pattern_filter())
     expect_equal(performance()$n, 3)
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
   })
 })
 

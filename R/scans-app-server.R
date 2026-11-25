@@ -994,7 +994,8 @@ scans_app_server <- function(
       )
     })
     if (!is.null(chat_factory)) {
-      previous_chat_view <- NULL
+      chat_view <- new.env(parent = emptyenv())
+      chat_view$previous <- NULL
       shiny::observe({
         one <- identical(input$scans_app_view, "trajectory") &&
           !is.null(selected())
@@ -1006,10 +1007,10 @@ scans_app_server <- function(
           )
         )
         chosen <- shiny::isolate(input$scans_app_ask_scope)
-        if (one && !identical(previous_chat_view, "trajectory")) {
+        if (one && !identical(chat_view$previous, "trajectory")) {
           chosen <- "trajectory"
         }
-        previous_chat_view <<- input$scans_app_view
+        chat_view$previous <- input$scans_app_view
         if (is.null(chosen) || !chosen %in% choices) {
           chosen <- unname(choices[[1L]])
         }

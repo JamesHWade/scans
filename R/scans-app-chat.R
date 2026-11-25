@@ -130,8 +130,9 @@ scans_app_chat_server <- function(
     )
   }
   references <- new.env(parent = emptyenv())
-  last_scope <- NULL
-  pinned <- NULL
+  state <- new.env(parent = emptyenv())
+  state$last_scope <- NULL
+  state$pinned <- NULL
   # Run before chat_server's submit observer. Only a submission changes the
   # tools. Navigating or filtering while a response streams cannot retarget it.
   shiny::observeEvent(input$scans_app_ask_user_input, priority = 1000L, {
@@ -161,8 +162,8 @@ scans_app_chat_server <- function(
         "browse the app but this question cannot inspect the snapshot."
       ))
       mod$set_client(empty_client, sync = FALSE)
-      last_scope <<- NULL
-      pinned <<- NULL
+      state$last_scope <- NULL
+      state$pinned <- NULL
       shiny::showNotification(
         "Ask could not prepare the selected snapshot.",
         type = "error",
@@ -175,7 +176,7 @@ scans_app_chat_server <- function(
     context <- prepared$context
     key <- list(context$snapshot_id, context$revision_id, context$ids)
     client <- base$clone(deep = TRUE)
-    if (identical(key, last_scope)) {
+    if (identical(key, state$last_scope)) {
       client$set_turns(mod$client$get_turns())
     } else {
       client$set_turns(list())
@@ -197,8 +198,8 @@ scans_app_chat_server <- function(
       })
     }))
     mod$set_client(client, sync = FALSE)
-    last_scope <<- key
-    pinned <<- list(context = context, label = selection$label)
+    state$last_scope <- key
+    state$pinned <- list(context = context, label = selection$label)
     mod$append(htmltools::div(
       class = "scans-app-answer-scope",
       selection$label,
@@ -233,5 +234,5 @@ scans_app_chat_server <- function(
       )
     }
   })
-  list(module = mod, pinned = function() pinned, references = references)
+  list(module = mod, pinned = function() state$pinned, references = references)
 }

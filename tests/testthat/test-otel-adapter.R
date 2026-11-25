@@ -646,8 +646,9 @@ test_that("content-wide and retained per-job traces are merged", {
 
 test_that("post-window legacy spans do not consume max_spans", {
   skip_if_not_installed("httr2")
-  urls <- character()
-  page_number <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$urls <- character()
+  recorded$page_number <- 0L
   to <- as.POSIXct("2026-01-01", tz = "UTC")
   jobs_response <- httr2::response(
     headers = list(`content-type` = "application/json"),
@@ -659,12 +660,12 @@ test_that("post-window legacy spans do not consume max_spans", {
       if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
         return(jobs_response)
       }
-      urls <<- c(urls, request$url)
-      page_number <<- page_number + 1L
+      recorded$urls <- c(recorded$urls, request$url)
+      recorded$page_number <- recorded$page_number + 1L
       trace_response
     },
     connect_trace_page = function(response) {
-      if (page_number == 1L) {
+      if (recorded$page_number == 1L) {
         otel_test_envelope(
           c("after-1", "after-2"),
           (as.numeric(to) + c(1, 2)) * 1e9
@@ -686,9 +687,9 @@ test_that("post-window legacy spans do not consume max_spans", {
   )
 
   expect_length(lines, 1L)
-  expect_length(urls, 2L)
-  expect_match(urls[[1L]], "limit=2", fixed = TRUE)
-  expect_match(urls[[2L]], "limit=2", fixed = TRUE)
+  expect_length(recorded$urls, 2L)
+  expect_match(recorded$urls[[1L]], "limit=2", fixed = TRUE)
+  expect_match(recorded$urls[[2L]], "limit=2", fixed = TRUE)
 })
 
 test_that("legacy trace filtering keeps only relevant or unclassified lines", {
@@ -714,8 +715,9 @@ test_that("legacy trace filtering keeps only relevant or unclassified lines", {
 
 test_that("per-job pagination uses full transport pages", {
   skip_if_not_installed("httr2")
-  urls <- character()
-  page_number <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$urls <- character()
+  recorded$page_number <- 0L
   jobs_response <- httr2::response(
     headers = list(`content-type` = "application/json"),
     body = charToRaw('[{"key":"job-1","start_time":"2026-01-01"}]')
@@ -728,12 +730,12 @@ test_that("per-job pagination uses full transport pages", {
       if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
         return(jobs_response)
       }
-      urls <<- c(urls, request$url)
-      page_number <<- page_number + 1L
+      recorded$urls <- c(recorded$urls, request$url)
+      recorded$page_number <- recorded$page_number + 1L
       trace_response
     },
     connect_trace_page = function(response) {
-      if (page_number == 1L) {
+      if (recorded$page_number == 1L) {
         otel_test_envelope(c("span-1", "span-2"))
       } else {
         otel_test_envelope("span-3")
@@ -753,15 +755,16 @@ test_that("per-job pagination uses full transport pages", {
 
   expect_length(lines, 2L)
   expect_length(attr(lines, "spans", exact = TRUE), 3L)
-  expect_length(urls, 2L)
-  expect_match(urls[[1L]], "limit=2", fixed = TRUE)
-  expect_match(urls[[2L]], "limit=2", fixed = TRUE)
+  expect_length(recorded$urls, 2L)
+  expect_match(recorded$urls[[1L]], "limit=2", fixed = TRUE)
+  expect_match(recorded$urls[[2L]], "limit=2", fixed = TRUE)
 })
 
 test_that("nested OTLP spans respect the aggregate span budget", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  requests <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$requests <- 0L
   batch <- otel_test_envelope(c("one", "two", "three"))
   response <- httr2::response(
     headers = list(`X-Total-Count` = "1"),
@@ -769,7 +772,7 @@ test_that("nested OTLP spans respect the aggregate span budget", {
   )
   testthat::local_mocked_bindings(
     connect_perform = function(request, call) {
-      requests <<- requests + 1L
+      recorded$requests <- recorded$requests + 1L
       response
     }
   )
@@ -785,7 +788,7 @@ test_that("nested OTLP spans respect the aggregate span budget", {
   ))
   spans <- otel_parse_otlp_lines(lines, max_spans = 2L)
 
-  expect_identical(requests, 1L)
+  expect_identical(recorded$requests, 1L)
   expect_identical(
     vapply(spans, `[[`, character(1), "span_id"),
     c("one", "two")
@@ -795,7 +798,8 @@ test_that("nested OTLP spans respect the aggregate span budget", {
 test_that("nested OTLP spans respect the per-job span budget", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  trace_requests <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$trace_requests <- 0L
   jobs_response <- httr2::response(
     headers = list(`content-type` = "application/json"),
     body = charToRaw('[{"key":"job-1","start_time":"2026-01-01"}]')
@@ -809,7 +813,7 @@ test_that("nested OTLP spans respect the per-job span budget", {
       if (endsWith(sub("\\?.*$", "", request$url), "/jobs")) {
         return(jobs_response)
       }
-      trace_requests <<- trace_requests + 1L
+      recorded$trace_requests <- recorded$trace_requests + 1L
       trace_response
     }
   )
@@ -825,7 +829,7 @@ test_that("nested OTLP spans respect the per-job span budget", {
   )
   spans <- otel_parse_otlp_lines(lines, max_spans = 2L)
 
-  expect_identical(trace_requests, 1L)
+  expect_identical(recorded$trace_requests, 1L)
   expect_identical(
     vapply(spans, `[[`, character(1), "span_id"),
     c("one", "two")
@@ -848,7 +852,8 @@ test_that("post-window nested spans do not consume the legacy span budget", {
 
 test_that("legacy reader checks every overlapping job", {
   skip_if_not_installed("httr2")
-  trace_requests <- character()
+  recorded <- new.env(parent = emptyenv())
+  recorded$trace_requests <- character()
   jobs_response <- httr2::response(
     headers = list(`content-type` = "application/json"),
     body = charToRaw(paste0(
@@ -865,7 +870,7 @@ test_that("legacy reader checks every overlapping job", {
       if (endsWith(path, "/jobs")) {
         return(jobs_response)
       }
-      trace_requests <<- c(trace_requests, path)
+      recorded$trace_requests <- c(recorded$trace_requests, path)
       trace_response
     },
     connect_perform_batch = function(requests, call, ...) {
@@ -884,9 +889,9 @@ test_that("legacy reader checks every overlapping job", {
     page_size = 10L
   )
 
-  expect_length(trace_requests, 2L)
-  expect_match(trace_requests[[1L]], "newer-start", fixed = TRUE)
-  expect_match(trace_requests[[2L]], "older-start", fixed = TRUE)
+  expect_length(recorded$trace_requests, 2L)
+  expect_match(recorded$trace_requests[[1L]], "newer-start", fixed = TRUE)
+  expect_match(recorded$trace_requests[[2L]], "older-start", fixed = TRUE)
 })
 
 test_that("oversized text is truncated and recorded as a loss", {
@@ -971,13 +976,14 @@ test_that("truncation does not split a multibyte character", {
 test_that("aggregate trace pages after the first are fetched in batches", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  urls <- character()
+  recorded <- new.env(parent = emptyenv())
+  recorded$urls <- character()
   page_lines <- function(offset, limit) {
     ids <- paste0("span-", seq.int(offset + 1L, length.out = limit))
     paste(vapply(ids, otel_test_envelope, character(1)), collapse = "\n")
   }
   httr2::local_mocked_responses(function(req) {
-    urls <<- c(urls, req$url)
+    recorded$urls <- c(recorded$urls, req$url)
     query <- httr2::url_parse(req$url)$query
     offset <- as.integer(query$offset)
     limit <- as.integer(query$limit)
@@ -1001,7 +1007,7 @@ test_that("aggregate trace pages after the first are fetched in batches", {
   )
 
   expect_length(lines, 7L)
-  trace_urls <- urls[grepl("/traces", urls, fixed = TRUE)]
+  trace_urls <- recorded$urls[grepl("/traces", recorded$urls, fixed = TRUE)]
   expect_length(trace_urls, 4L)
   offsets <- vapply(
     trace_urls,
@@ -1016,9 +1022,10 @@ test_that("aggregate trace pages after the first are fetched in batches", {
 test_that("aggregate transport pages are independent of the GenAI budget", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  urls <- character()
+  recorded <- new.env(parent = emptyenv())
+  recorded$urls <- character()
   httr2::local_mocked_responses(function(req) {
-    urls <<- c(urls, req$url)
+    recorded$urls <- c(recorded$urls, req$url)
     query <- httr2::url_parse(req$url)$query
     offset <- as.integer(query$offset)
     limit <- min(as.integer(query$limit), 6L - offset)
@@ -1052,7 +1059,7 @@ test_that("aggregate transport pages are independent of the GenAI budget", {
   )
 
   limits <- vapply(
-    urls,
+    recorded$urls,
     \(url) httr2::url_parse(url)$query$limit,
     character(1),
     USE.NAMES = FALSE
@@ -1160,11 +1167,12 @@ test_that("job timestamps preserve numeric timezone offsets", {
 
 test_that("span counting parses all lines in one batch and respects the window", {
   skip_if_not_installed("jsonlite")
-  parses <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$parses <- 0L
   original <- otel_parse_envelopes
   testthat::local_mocked_bindings(
     otel_parse_envelopes = function(...) {
-      parses <<- parses + 1L
+      recorded$parses <- recorded$parses + 1L
       original(...)
     }
   )
@@ -1175,18 +1183,19 @@ test_that("span counting parses all lines in one batch and respects the window",
     connect_trace_lines_summary(c(line, "malformed"), to)$span_count,
     2L
   )
-  expect_identical(parses, 1L)
+  expect_identical(recorded$parses, 1L)
 })
 
 test_that("spans parsed while paging are reused rather than parsed again", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
   historical <- as.POSIXct("2026-01-01", tz = "UTC")
-  parses <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$parses <- 0L
   original <- otel_parse_envelopes_each
   testthat::local_mocked_bindings(
     otel_parse_envelopes_each = function(...) {
-      parses <<- parses + 1L
+      recorded$parses <- recorded$parses + 1L
       original(...)
     },
     connect_client = function(...) list(server = "https://connect.example.com"),
@@ -1214,7 +1223,7 @@ test_that("spans parsed while paging are reused rather than parsed again", {
     to = historical
   )
 
-  expect_identical(parses, 1L)
+  expect_identical(recorded$parses, 1L)
   expect_identical(attr(conversations, "read_info")$spans_total, 1L)
 })
 
@@ -1439,10 +1448,11 @@ test_that("a line summary reports GenAI count and earliest start", {
 test_that("jobs = FALSE skips the retained job stores", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  urls <- character()
+  recorded <- new.env(parent = emptyenv())
+  recorded$urls <- character()
   testthat::local_mocked_bindings(
     connect_perform = function(request, call) {
-      urls <<- c(urls, request$url)
+      recorded$urls <- c(recorded$urls, request$url)
       httr2::response(
         headers = list(`X-Total-Count` = "1"),
         body = charToRaw(otel_test_envelope("one"))
@@ -1460,17 +1470,18 @@ test_that("jobs = FALSE skips the retained job stores", {
     jobs = FALSE
   )
 
-  expect_length(urls, 1L)
-  expect_false(any(grepl("/jobs", urls, fixed = TRUE)))
+  expect_length(recorded$urls, 1L)
+  expect_false(any(grepl("/jobs", recorded$urls, fixed = TRUE)))
   expect_length(attr(lines, "spans", exact = TRUE), 1L)
 })
 
 test_that("jobs = FALSE also skips fallback when the aggregate store is absent", {
   skip_if_not_installed("httr2")
-  requests <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$requests <- 0L
   testthat::local_mocked_bindings(
     connect_perform = function(request, call) {
-      requests <<- requests + 1L
+      recorded$requests <- recorded$requests + 1L
       NULL
     }
   )
@@ -1485,7 +1496,7 @@ test_that("jobs = FALSE also skips fallback when the aggregate store is absent",
     jobs = FALSE
   )
 
-  expect_identical(requests, 1L)
+  expect_identical(recorded$requests, 1L)
   expect_length(lines, 0L)
   expect_identical(attr(lines, "spans", exact = TRUE), list())
 })
@@ -1633,8 +1644,9 @@ test_that("a failed later retained-job page aborts the read", {
 test_that("retained jobs are requested in bounded waves", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  batch_sizes <- integer()
-  request_limits <- character()
+  recorded <- new.env(parent = emptyenv())
+  recorded$batch_sizes <- integer()
+  recorded$request_limits <- character()
   jobs <- lapply(5:1, function(index) {
     list(
       key = paste0("job-", index),
@@ -1649,9 +1661,9 @@ test_that("retained jobs are requested in bounded waves", {
   testthat::local_mocked_bindings(
     connect_perform = function(request, call) jobs_response,
     connect_perform_batch = function(requests, call, ...) {
-      batch_sizes <<- c(batch_sizes, length(requests))
-      request_limits <<- c(
-        request_limits,
+      recorded$batch_sizes <- c(recorded$batch_sizes, length(requests))
+      recorded$request_limits <- c(
+        recorded$request_limits,
         vapply(
           requests,
           \(request) httr2::url_parse(request$url)$query$limit,
@@ -1673,16 +1685,17 @@ test_that("retained jobs are requested in bounded waves", {
     wave_size = 2L
   )
 
-  expect_identical(batch_sizes, 2L)
-  expect_identical(request_limits, c("10", "10"))
+  expect_identical(recorded$batch_sizes, 2L)
+  expect_identical(recorded$request_limits, c("10", "10"))
   expect_true(attr(lines, "truncated", exact = TRUE))
 })
 
 test_that("an exact final retained page is not marked truncated", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  parses <- 0L
-  progress <- character()
+  recorded <- new.env(parent = emptyenv())
+  recorded$parses <- 0L
+  recorded$progress <- character()
   original <- otel_parse_envelopes_each
   jobs_response <- httr2::response_json(
     body = list(list(
@@ -1695,7 +1708,7 @@ test_that("an exact final retained page is not marked truncated", {
     body = charToRaw(otel_test_envelope(c("one", "two")))
   )
   withr::local_options(list(scans.progress = function(message) {
-    progress <<- c(progress, message)
+    recorded$progress <- c(recorded$progress, message)
   }))
   testthat::local_mocked_bindings(
     connect_perform = function(request, call) {
@@ -1706,7 +1719,7 @@ test_that("an exact final retained page is not marked truncated", {
       }
     },
     otel_parse_envelopes_each = function(...) {
-      parses <<- parses + 1L
+      recorded$parses <- recorded$parses + 1L
       original(...)
     }
   )
@@ -1722,8 +1735,8 @@ test_that("an exact final retained page is not marked truncated", {
   )
 
   expect_null(attr(lines, "truncated", exact = TRUE))
-  expect_identical(parses, 1L)
-  expect_true(any(grepl("job-1 page 1", progress, fixed = TRUE)))
+  expect_identical(recorded$parses, 1L)
+  expect_true(any(grepl("job-1 page 1", recorded$progress, fixed = TRUE)))
 })
 
 test_that("retained jobs must start before the upper window bound", {
@@ -1793,7 +1806,8 @@ test_that("OTel metadata keeps distinct values and resource users", {
 test_that("a failed later aggregate page keeps what was read and warns", {
   skip_if_not_installed("httr2")
   skip_if_not_installed("jsonlite")
-  fallback_lines <- NULL
+  recorded <- new.env(parent = emptyenv())
+  recorded$fallback_lines <- NULL
   aggregate_response <- httr2::response(
     headers = list(`X-Total-Count` = "2"),
     body = charToRaw(otel_test_envelope("first"))
@@ -1812,7 +1826,7 @@ test_that("a failed later aggregate page keeps what was read and warns", {
       lines = character(),
       ...
     ) {
-      fallback_lines <<- lines
+      recorded$fallback_lines <- lines
       result <- "fallback"
       attr(result, "spans") <- list()
       result
@@ -1835,9 +1849,9 @@ test_that("a failed later aggregate page keeps what was read and warns", {
 
   expect_identical(as.vector(lines), "fallback")
   # The page already read travels to the per-job fallback.
-  expect_length(fallback_lines, 1L)
-  expect_true(attr(fallback_lines, "incomplete"))
-  expect_false(isTRUE(attr(fallback_lines, "truncated")))
+  expect_length(recorded$fallback_lines, 1L)
+  expect_true(attr(recorded$fallback_lines, "incomplete"))
+  expect_false(isTRUE(attr(recorded$fallback_lines, "truncated")))
   expect_error(
     connect_trace_lines(
       client = list(server = "https://connect.example.com", api_key = "secret"),
@@ -1893,10 +1907,15 @@ test_that("a missing X-Total-Count header pages until a short page", {
     otel_test_envelope("b"),
     ""
   )
-  served <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$served <- 0L
   serve <- function(request, ...) {
-    served <<- served + 1L
-    body <- if (served <= length(pages)) pages[[served]] else ""
+    recorded$served <- recorded$served + 1L
+    body <- if (recorded$served <= length(pages)) {
+      pages[[recorded$served]]
+    } else {
+      ""
+    }
     httr2::response(body = charToRaw(body))
   }
   testthat::local_mocked_bindings(
@@ -1919,10 +1938,10 @@ test_that("a missing X-Total-Count header pages until a short page", {
   expect_length(as.vector(lines), 2L)
   expect_false(isTRUE(attr(lines, "truncated")))
   # Two full pages, then the empty page that ends the read.
-  expect_identical(served, 3L)
+  expect_identical(recorded$served, 3L)
 
   # A first page shorter than requested is the last page: no further request.
-  served <- 0L
+  recorded$served <- 0L
   pages <- list(paste(
     otel_test_envelope("a"),
     otel_test_envelope("b"),
@@ -1940,7 +1959,7 @@ test_that("a missing X-Total-Count header pages until a short page", {
     jobs = FALSE
   )
   expect_length(as.vector(lines), 2L)
-  expect_identical(served, 1L)
+  expect_identical(recorded$served, 1L)
 })
 
 test_that("Date and string window bounds become UTC times", {
@@ -1994,10 +2013,15 @@ test_that("a span seen twice does not count towards the span ceiling", {
     otel_test_envelope("b"),
     ""
   )
-  served <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$served <- 0L
   serve <- function(request, ...) {
-    served <<- served + 1L
-    body <- if (served <= length(pages)) pages[[served]] else ""
+    recorded$served <- recorded$served + 1L
+    body <- if (recorded$served <= length(pages)) {
+      pages[[recorded$served]]
+    } else {
+      ""
+    }
     httr2::response(body = charToRaw(body))
   }
   testthat::local_mocked_bindings(

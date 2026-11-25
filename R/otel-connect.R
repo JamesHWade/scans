@@ -371,19 +371,20 @@ connect_trace_lines <- function(
   jobs = TRUE
 ) {
   limit <- page_size
-  transient_failure <- FALSE
+  failure <- new.env(parent = emptyenv())
+  failure$transient <- FALSE
   response <- withCallingHandlers(
     connect_perform(
       connect_trace_request(client, guid, from, to, limit, 0L),
       call
     ),
     scans_connect_transient_failure = function(cnd) {
-      transient_failure <<- TRUE
+      failure$transient <- TRUE
     }
   )
   if (is.null(response)) {
     if (!jobs) {
-      if (transient_failure) {
+      if (failure$transient) {
         scans_abort(
           "Couldn't read this content's traces from Posit Connect.",
           class = "scans_error_connect_traces",
@@ -395,7 +396,7 @@ connect_trace_lines <- function(
       return(lines)
     }
     lines <- character()
-    if (transient_failure) {
+    if (failure$transient) {
       cli::cli_warn(c(
         "This content's current traces could not be read from Posit Connect.",
         "i" = "The result holds retained per-job traces and may be incomplete."
@@ -625,11 +626,14 @@ connect_job_trace_lines <- function(
   spans <- attr(lines, "spans", exact = TRUE)
   lines <- unique(lines)
   parsed <- connect_trace_lines_summary(lines, to, spans = spans)
-  spans <- parsed$spans
-  span_count <- parsed$span_count
-  seen <- connect_seen_spans(spans)
+  state <- new.env(parent = emptyenv())
+  state$lines <- lines
+  state$spans <- parsed$spans
+  state$span_count <- parsed$span_count
+  seen <- connect_seen_spans(state$spans)
   finish <- function() {
-    attr(lines, "spans") <- spans
+    lines <- state$lines
+    attr(lines, "spans") <- state$spans
     if (truncated) {
       attr(lines, "truncated") <- TRUE
     }
@@ -638,7 +642,7 @@ connect_job_trace_lines <- function(
     }
     lines
   }
-  if (span_count >= max_spans && truncated) {
+  if (state$span_count >= max_spans && truncated) {
     return(finish())
   }
   jobs <- connect_perform(
@@ -673,20 +677,20 @@ connect_job_trace_lines <- function(
   add_page <- function(response, key, page_number) {
     page <- connect_trace_page(response)
     added <- connect_add_trace_lines(
-      lines,
+      state$lines,
       page,
       to,
       drop_after = TRUE,
       seen = seen
     )
-    lines <<- added$lines
-    spans <<- c(spans, added$spans)
-    span_count <<- span_count + added$span_count
+    state$lines <- added$lines
+    state$spans <- c(state$spans, added$spans)
+    state$span_count <- state$span_count + added$span_count
     connect_progress(sprintf(
       "Read retained job %s page %d (%s GenAI spans)",
       key,
       page_number,
-      format(span_count, big.mark = ",")
+      format(state$span_count, big.mark = ",")
     ))
     list(
       n = length(page),
@@ -704,8 +708,8 @@ connect_job_trace_lines <- function(
     )
   }
 
-  if (span_count >= max_spans) {
-    truncated <- length(keys) > 0L || span_count > max_spans
+  if (state$span_count >= max_spans) {
+    truncated <- length(keys) > 0L || state$span_count > max_spans
     return(finish())
   }
   if (length(keys) == 0L) {
@@ -744,7 +748,7 @@ connect_job_trace_lines <- function(
       } else {
         offset < page$total
       }
-      while (span_count < max_spans && page$n > 0L && page_has_more) {
+      while (state$span_count < max_spans && page$n > 0L && page_has_more) {
         request_limit <- page_size
         response <- connect_perform(
           job_request(keys[[index]], request_limit, offset),
@@ -762,9 +766,9 @@ connect_job_trace_lines <- function(
           offset < page$total
         }
       }
-      if (span_count >= max_spans) {
+      if (state$span_count >= max_spans) {
         later_keys <- index < length(keys)
-        truncated <- span_count > max_spans || page_has_more || later_keys
+        truncated <- state$span_count > max_spans || page_has_more || later_keys
         return(finish())
       }
     }

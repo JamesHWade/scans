@@ -62,9 +62,10 @@ test_that("coverage uses the filtered cohort and scanner denominator", {
 test_that("settings and selections recompute assessments without reloading", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   app <- scans_app(list(Example = function() {
-    calls <<- calls + 1L
+    recorded$calls <- recorded$calls + 1L
     scan_loop_fixture()
   }))
   shiny::testServer(app$serverFuncSource(), {
@@ -80,6 +81,6 @@ test_that("settings and selections recompute assessments without reloading", {
     )
     session$setInputs(scans_app_scans = character())
     expect_identical(nrow(performance()$assessment_coverage), 0L)
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
   })
 })
