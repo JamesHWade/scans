@@ -1,6 +1,6 @@
 test_that("Deputy delegation history passes the shared adapter contract", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   fixture <- deputy_delegation_fixture()
   expect_adapter_conforms(
@@ -16,7 +16,7 @@ test_that("Deputy delegation history passes the shared adapter contract", {
 
 test_that("a lead result and its delegations link through Deputy lineage", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   fixture <- deputy_delegation_fixture()
   bundle <- as_trajectory_deputy(fixture$lead, delegations = fixture$history)
@@ -82,7 +82,7 @@ test_that("a lead result and its delegations link through Deputy lineage", {
 
 test_that("standalone delegation history keeps unresolved parents explicit", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- as_trajectory_deputy(deputy_delegation_fixture()$history)
   info <- trajectory_info(bundle)
@@ -100,7 +100,7 @@ test_that("standalone delegation history keeps unresolved parents explicit", {
 
 test_that("Deputy delegation views must come through Deputy's disclosure", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   fixture <- deputy_delegation_fixture()
 
@@ -138,7 +138,7 @@ test_that("Deputy delegation views must come through Deputy's disclosure", {
 
 test_that("Deputy delegations repeated in one call are rejected", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   history <- deputy_delegation_fixture()$history
   expect_adapter_rejects(
@@ -150,7 +150,7 @@ test_that("Deputy delegations repeated in one call are rejected", {
 
 test_that("Deputy delegation outcomes set honest statuses and losses", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   view <- function(delegation_id, run_id, status) {
     deputy_export_child(delegation_id, run_id, NULL, status = status)
@@ -203,7 +203,7 @@ test_that("Deputy delegation outcomes set honest statuses and losses", {
 
 test_that("offloaded tool results in a Deputy result are externalized", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   request <- ellmer::ContentToolRequest(
     id = "call-001",
