@@ -159,6 +159,33 @@ as metadata and the missing parent is recorded without inventing a trajectory.
 `ending`, `finish_reason`, and `cut_off` are candidates to retain as run
 outcome metadata.
 
+#### Delegation views, jobs, and approvals (deputy 0.0.0.9007, #66)
+
+`LeadAgent$export_subagents()` returns a plain list (`schema_version = 1L`,
+`settled`, `scope`, `children`) whose children hold ellmer content records,
+not turns. `delegation_history()` checks a `DelegationDisclosure` again and
+replays them as ellmer `turns`, marking every reference `"unresolved"`.
+`as_trajectory_deputy()` therefore accepts the views that
+`delegation_history()` or `$inspect_subagents(transcript = TRUE)` return, on
+their own or through `delegations =` beside the lead `AgentResult`, and
+rejects a raw export rather than replaying it without that check. Neither
+value has a class, so `as_trajectory()` does not dispatch on them.
+
+Parents resolve from each view's `outcome$runtime`: `parent_run_id` names the
+delegating run, and `parent_delegation_id` names the parent delegation of a
+nested child. Views carry no timestamps or lifecycle events. A withheld
+transcript is a `capture$transcript` loss, and a tool result that holds only
+a `tool_result_reference()` preview is an externalized `contents$value` loss.
+
+`AgentJob` (`job_read()`) and `ApprovalContinuation` (`approval_read()`) stay
+deferred. A job's `result` is a summary of its `AgentResult` without turns or
+events, and its status can still be running, so a trajectory from it would
+have no semantic record to review. An approval continuation is a paused run,
+not a completed one; once resumed, the run's `AgentResult` already converts.
+A job adapter becomes worthwhile when Deputy persists a public, settled turn
+record for the job (as the delegation transcript does), and an approval one
+when an investigation needs pending tool calls as review evidence.
+
 ### tempest
 
 `tempest_trajectory_review()` is already a purpose-built post-run projection.

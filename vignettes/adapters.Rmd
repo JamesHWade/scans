@@ -105,6 +105,28 @@ ending[c("class", "finish_reason", "cut_off")]
 `measure_trajectories()` reports Deputy's run-level usage and duration, which
 still count turns that compaction removed from the result.
 
+A `LeadAgent`'s delegations arrive as disclosed views rather than results.
+Read a saved `$export_subagents()` snapshot back through
+`deputy::delegation_history()`, which checks your `DelegationDisclosure`
+again, and pass the views beside the lead result. Each delegation becomes a
+trajectory linked to its parent run, including nested delegations:
+
+```{r, eval = FALSE}
+history <- deputy::delegation_history(export, requester, disclosure, scope)
+bundle <- as_trajectory_deputy(lead_result, delegations = history)
+delegation <- trajectory_info(bundle)$metadata[[2]]$delegation
+delegation$claims
+delegation$manifest[c("provider", "model", "tools")]
+```
+
+The views alone also convert, with the lead's run recorded as an unresolved
+parent. Each child keeps its manifest configuration, its claimed
+`missing_evidence` and `unresolved_work`, and its artifact references with
+their availability; scans never reads a reference. A transcript that
+disclosure withheld is a `capture$transcript` loss, and a tool result that
+Deputy offloaded keeps only its preview, recorded as an externalized
+`contents$value` loss.
+
 ## dsprrr
 
 A dsprrr module converts through its public trace exporter; an already
