@@ -63,6 +63,7 @@ scans_app_data <- function(
     summaries = summaries,
     measures = analysis$measures,
     tool_calls = tool_calls,
+    noun = scans_app_noun(info$source_type),
     records = records
   )
 }

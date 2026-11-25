@@ -219,9 +219,9 @@ scans_app_filter_server <- function(
     }
   )
 
-  # Everything except the facets, so the overview can also show the cohort
-  # one facet wider than the browser list.
-  filtered <- shiny::reactive({
+  # Everything except the facets. The overview also shows the cohort one
+  # facet wider than the browser list, and later filters build on this.
+  state$filtered <- shiny::reactive({
     current <- state$data()
     if (is.null(current)) {
       return(integer())
@@ -266,19 +266,31 @@ scans_app_filter_server <- function(
     }
     scans_app_order_records(
       current$records,
-      scans_app_facet_filter(current, filtered(), state$facets()),
+      scans_app_facet_filter(current, state$filtered(), state$facets()),
       scans_app_input_or(input$scans_app_sort, "findings")
     )
   })
-  # The activity chart keeps every bucket while one is selected.
-  state$activity_scope <- shiny::reactive({
+  # For each active facet, the cohort without it.
+  state$facet_scopes <- shiny::reactive({
     current <- state$data()
-    if (is.null(current)) {
-      return(integer())
-    }
     facets <- state$facets()
-    facets$day <- NULL
-    scans_app_facet_filter(current, filtered(), facets)
+    if (is.null(current) || !length(facets)) {
+      return(list())
+    }
+    scopes <- list()
+    for (facet in setdiff(names(facets), "tool_failed")) {
+      wider <- facets
+      wider[[facet]] <- NULL
+      if (facet == "tool") {
+        wider$tool_failed <- NULL
+      }
+      scopes[[facet]] <- scans_app_facet_filter(
+        current,
+        state$filtered(),
+        wider
+      )
+    }
+    scopes
   })
 
   shiny::observeEvent(

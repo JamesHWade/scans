@@ -1,20 +1,24 @@
 # Application measures use the same visible trajectory identities as the
 # browser. Findings count affected trajectories, not repeated detector hits.
-# `activity_indices` is the same cohort without the time facet, so the chart
-# keeps its other buckets when one is selected.
-scans_app_performance_data <- function(
-  data,
-  indices,
-  activity_indices = indices
-) {
+# `scopes` holds, per facet, the same cohort without that facet. The chart and
+# each breakdown use theirs, so a selected bar, tool, user, or model stays
+# next to the rows it can be compared with.
+scans_app_performance_data <- function(data, indices, scopes = list()) {
   summaries <- data$summaries[indices, , drop = FALSE]
   ids <- summaries$trajectory_id
   trajectories <- cohort_trajectories(data, ids)
   calls <- cohort_tool_calls(data, ids)
-  activity <- cohort_activity(
-    data,
-    data$info$trajectory_id[activity_indices]
-  )
+  scope_ids <- function(facet) {
+    scope <- scopes[[facet]]
+    if (is.null(scope)) ids else data$info$trajectory_id[scope]
+  }
+  breakdown <- function(facet) {
+    if (is.null(scopes[[facet]])) {
+      return(cohort_breakdown(data, ids, facet, trajectories, calls))
+    }
+    cohort_breakdown(data, scope_ids(facet), facet)
+  }
+  activity <- cohort_activity(data, scope_ids("day"))
   patterns <- cohort_patterns(data, ids, trajectories, activity)
   headline <- cohort_headline(data, ids, trajectories, calls)
   summaries$index <- indices
@@ -52,9 +56,14 @@ scans_app_performance_data <- function(
     cohort = list(
       headline = headline,
       activity = activity,
-      tools = cohort_tools(data, ids, calls),
-      models = cohort_breakdown(data, ids, "model", trajectories, calls),
-      users = cohort_breakdown(data, ids, "user", trajectories, calls)
+      tools = if (is.null(scopes[["tool"]])) {
+        cohort_tools(data, ids, calls)
+      } else {
+        cohort_tools(data, scope_ids("tool"))
+      },
+      models = breakdown("model"),
+      users = breakdown("user"),
+      noun = data$noun %||% scans_app_noun(data$info$source_type)
     ),
     trajectories = summaries
   )
@@ -193,6 +202,7 @@ scans_app_performance_ui <- function(
 ) {
   n <- data$n
   cohort <- data$cohort
+  noun <- cohort$noun
   facets <- scope$facets %||% list()
   next_run <- if (n > 0L) {
     scans_app_performance_order(data$trajectories, "findings")[1L, ]
@@ -206,7 +216,7 @@ scans_app_performance_ui <- function(
       if (chat) {
         shiny::actionButton(
           "scans_app_ask_overview",
-          "Ask about these trajectories",
+          paste("Ask about these", noun$many),
           icon = shiny::icon("comment"),
           class = "btn-outline-secondary"
         )
@@ -214,11 +224,15 @@ scans_app_performance_ui <- function(
     ),
     scans_app_scope_sentence_ui(
       cohort$headline,
-      scans_app_scope_labels(facets, scope$pattern, scope$findings_only)
+      scans_app_scope_labels(facets, scope$pattern, scope$findings_only),
+      noun
     ),
     if (n == 0L) {
       scans_app_empty_ui(
-        "No trajectories match these filters. Broaden the filters to continue."
+        sprintf(
+          "No %s match these filters. Remove a filter to widen the cohort.",
+          noun$many
+        )
       )
     } else {
       htmltools::tagList(
@@ -229,23 +243,24 @@ scans_app_performance_ui <- function(
           ),
           scans_on = length(scans) > 0L,
           facets = facets,
-          findings_only = isTRUE(scope$findings_only)
+          findings_only = isTRUE(scope$findings_only),
+          noun = noun
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
           htmltools::tags$h2("Activity"),
-          scans_app_activity_ui(cohort$activity, facets$day)
+          scans_app_activity_ui(cohort$activity, facets$day, noun)
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
           htmltools::tags$h2("Patterns to investigate"),
-          scans_app_patterns_ui(data$patterns, n, scans, scope$pattern),
+          scans_app_patterns_ui(data$patterns, n, scans, scope$pattern, noun),
           htmltools::tags$p(
             class = "scans-app-pattern-overlap",
             if (nrow(data$patterns) > 1L && data$n_findings == 1L) {
-              "These patterns all affect the same trajectory."
+              paste0("These patterns all affect the same ", noun$one, ".")
             } else {
-              "A trajectory can appear in more than one pattern."
+              paste("A", noun$one, "can appear in more than one pattern.")
             }
           )
         ),
@@ -253,13 +268,13 @@ scans_app_performance_ui <- function(
           htmltools::tags$section(
             class = "scans-app-performance-section",
             htmltools::tags$h2("Tools"),
-            scans_app_tools_ui(cohort$tools, facets)
+            scans_app_tools_ui(cohort$tools, facets, noun)
           )
         },
         htmltools::div(
           class = "scans-app-breakdowns",
-          scans_app_models_ui(cohort$models, n, facets),
-          scans_app_users_ui(cohort$users, n, facets)
+          scans_app_models_ui(cohort$models, n, facets, noun),
+          scans_app_users_ui(cohort$users, n, facets, noun)
         ),
         htmltools::tags$section(
           class = "scans-app-performance-section",
@@ -386,7 +401,13 @@ scans_app_pattern_label <- function(scan) {
   )
 }
 
-scans_app_patterns_ui <- function(patterns, n, scans, selected = NULL) {
+scans_app_patterns_ui <- function(
+  patterns,
+  n,
+  scans,
+  selected = NULL,
+  noun = scans_app_noun()
+) {
   if (length(scans) == 0L) {
     return(scans_app_empty_ui(
       "No scans selected. Enable scans in Options to see diagnostic patterns.",
@@ -425,12 +446,14 @@ scans_app_patterns_ui <- function(patterns, n, scans, selected = NULL) {
         `data-scans-pattern` = row$scan,
         `aria-pressed` = if (identical(selected, row$scan)) "true" else "false",
         `aria-label` = sprintf(
-          "%s, %s: %d of %d conversations. %s. Show these conversations.",
+          "%s, %s: %d of %d %s. %s. Show these %s.",
           label,
           row$severity,
           row$trajectories,
           n,
-          row$evidence
+          noun$many,
+          row$evidence,
+          noun$many
         ),
         htmltools::tags$span(
           scans_app_badge(scans_app_title_case(row$severity), row$severity)

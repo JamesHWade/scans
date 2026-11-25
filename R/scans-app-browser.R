@@ -71,7 +71,7 @@ scans_app_browser_server <- function(
       "%d of %d %s",
       count,
       total,
-      if (total == 1L) "trajectory" else "trajectories"
+      if (total == 1L) current$noun$one else current$noun$many
     )
   })
 
@@ -93,9 +93,9 @@ scans_app_browser_server <- function(
     if (length(indices) == 0L) {
       return(scans_app_empty_ui(
         if (nrow(current$records) == 0L) {
-          "This bundle has no trajectories."
+          paste0("This source has no ", current$noun$many, ".")
         } else {
-          "No trajectories match these filters."
+          paste0("No ", current$noun$many, " match these filters.")
         }
       ))
     }
@@ -135,7 +135,7 @@ scans_app_browser_server <- function(
     scans_app_performance_data(
       current,
       state$visible(),
-      state$activity_scope()
+      state$facet_scopes()
     )
   })
   output$scans_app_performance <- shiny::renderUI({

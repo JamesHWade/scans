@@ -40,7 +40,7 @@ test_that("tiles state each fact with its denominator", {
 test_that("the activity chart has one labelled, focusable mark per bucket", {
   skip_if_not_installed("htmltools")
   data <- cohort_fixture_data()
-  performance <- scans_app_performance_data(data, 3:4, 1:5)
+  performance <- scans_app_performance_data(data, 3:4, list(day = 1:5))
   chart <- htmltools::tagQuery(
     scans_app_activity_ui(performance$cohort$activity, "2026-10-03")
   )
@@ -98,4 +98,30 @@ test_that("tool and breakdown tables appear only when they inform", {
 
   anonymous <- as.character(cohort_overview_html(data, 5L))
   expect_no_match(anonymous, "By model|Most active users")
+})
+
+test_that("copy names conversations only for conversation sources", {
+  skip_if_not_installed("htmltools")
+  expect_identical(scans_app_noun(c("otel", "commons"))$many, "conversations")
+  expect_identical(scans_app_noun(c("otel", "vitals"))$many, "trajectories")
+  expect_identical(scans_app_noun(NA_character_)$one, "trajectory")
+
+  data <- scans_app_data(performance_fixture())
+  html <- as.character(cohort_overview_html(data, 1:3))
+  expect_match(html, "3 of 3</strong>\\s+trajectories")
+  expect_no_match(html, "onversation")
+})
+
+test_that("a faceted table keeps its sibling rows for comparison", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  performance <- scans_app_performance_data(
+    data,
+    c(1L, 4L),
+    list(tool = 1:5, model = 1:5)
+  )
+  expect_identical(performance$cohort$tools$tool, c("refund", "lookup"))
+  expect_identical(performance$cohort$models$n, c(2L, 2L, 1L))
+  expect_identical(performance$cohort$users$n, c(1L, 1L))
+  expect_identical(performance$cohort$headline$tool_calls, 4L)
 })

@@ -169,6 +169,15 @@
         return;
       }
       if (isTyping(event.target)) return;
+      var bar = event.target.closest && event.target.closest(".scans-app-bar");
+      if (bar && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        var step = event.key === "ArrowLeft" ? "previousElementSibling" : "nextElementSibling";
+        var next = bar[step];
+        while (next && (next.disabled || !next.classList.contains("scans-app-bar"))) next = next[step];
+        if (next) next.focus();
+        event.preventDefault();
+        return;
+      }
       var direction = null;
       if (event.key === "ArrowDown" || event.key === "j") direction = "next";
       if (event.key === "ArrowUp" || event.key === "k") direction = "prev";
@@ -198,6 +207,13 @@
       }
       // The innermost facet wins, so a failed-calls cell inside a tool row
       // applies its own, narrower filter.
+      var expand = event.target.closest("[data-scans-expand]");
+      if (expand) {
+        var open = expand.getAttribute("aria-expanded") !== "true";
+        expand.setAttribute("aria-expanded", open ? "true" : "false");
+        expand.parentElement.classList.toggle("scans-app-expanded", open);
+        return;
+      }
       var clear = event.target.closest("[data-scans-facet-clear]");
       if (clear) {
         Shiny.setInputValue(

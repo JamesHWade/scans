@@ -1827,9 +1827,12 @@ a.scans-app-unsupported-evidence { color: var(--scans-app-danger); text-decorati
 .scans-app-bar[aria-pressed="true"] { background: var(--scans-app-primary-soft); color: var(--scans-app-ink); font-weight: 600; box-shadow: inset 0 0 0 1px var(--scans-app-primary); }
 .scans-app-bar[aria-pressed="true"] .scans-app-bar-stack rect { stroke: var(--scans-app-primary-soft); }
 .scans-app-activity-selected .scans-app-bar:not([aria-pressed="true"]) .scans-app-bar-stack { opacity: .35; }
-.scans-app-bar-tip { display: none; position: absolute; z-index: 5; top: .5rem; left: calc(50% + 1.2rem); flex-direction: column; gap: .1rem; padding: .5rem .7rem; border: 1px solid var(--scans-app-line); border-radius: .35rem; background: var(--bs-body-bg); box-shadow: 0 2px 10px rgb(23 28 50 / 10%); color: var(--scans-app-ink); font-size: .78rem; font-weight: 400; line-height: 1.5; text-align: left; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
-.scans-app-bar-flip .scans-app-bar-tip { left: auto; right: calc(50% + 1.2rem); }
+.scans-app-bar-tip { display: none; position: absolute; z-index: 5; bottom: calc(100% + .35rem); left: 50%; transform: translateX(-50%); align-items: center; gap: .9rem; padding: .25rem .6rem; border: 1px solid var(--scans-app-line); border-radius: .35rem; background: var(--bs-body-bg); box-shadow: 0 2px 10px rgb(23 28 50 / 10%); color: var(--scans-app-ink); font-size: .78rem; font-weight: 400; line-height: 1.5; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.scans-app-bar-tip > span { display: inline-flex; align-items: center; }
+.scans-app-bar-start .scans-app-bar-tip { left: 0; transform: none; }
+.scans-app-bar-end .scans-app-bar-tip { left: auto; right: 0; transform: none; }
 .scans-app-bar:hover > .scans-app-bar-tip, .scans-app-bar:focus-visible > .scans-app-bar-tip { display: flex; }
+.scans-app-performance p.scans-app-activity-caption { margin: 0 0 .5rem; font-size: .82rem; line-height: 1.9; }
 .scans-app-bar-tip strong { font-weight: 600; }
 .scans-app-legend { display: flex; flex-wrap: wrap; gap: .3rem 1.4rem; margin: .9rem 0 0; padding: 0; list-style: none; font-size: .82rem; color: var(--scans-app-muted); }
 .scans-app-legend li { display: flex; align-items: center; }
@@ -1879,10 +1882,20 @@ td.scans-app-cell-meter .scans-app-meter { margin-left: auto; }
 .scans-app-breakdowns:empty { display: none; }
 .scans-app-breakdown { min-width: 0; }
 .scans-app-performance p.scans-app-breakdown-fact { color: var(--scans-app-ink); margin: 0; }
-.scans-app-breakdown-more { margin-top: .6rem; font-size: .85rem; }
-.scans-app-breakdown-more summary { cursor: pointer; width: fit-content; color: var(--scans-app-primary); }
-.scans-app-breakdown-more[open] summary { margin-bottom: .3rem; }
-.scans-app-breakdown-more table { table-layout: auto; }
+.scans-app-row-extra { display: none; }
+.scans-app-expanded .scans-app-row-extra { display: table-row; }
+.scans-app-show-rows { margin-top: .6rem; padding: 0; border: 0; background: transparent; color: var(--scans-app-primary); font-size: .85rem; }
+.scans-app-show-rows:hover { text-decoration: underline; }
+.scans-app-show-rows[aria-expanded="true"] { display: none; }
+
+/* Tighter rhythm: tiles, activity, and the first patterns fit one screen. */
+.scans-app-performance { padding-top: 1.3rem; }
+.scans-app-performance h2 { font-size: 1.25rem; margin-bottom: .6rem; }
+.scans-app-performance-section, .scans-app-breakdowns { margin: 1.8rem 0 1.3rem; }
+.scans-app-overview-title { margin-bottom: .35rem; }
+.scans-app-overview-title h1 { font-size: 1.9rem; }
+.scans-app-tiles { margin-top: 1rem; }
+.scans-app-activity { --scans-app-plot-height: 8.5rem; }
 
 .scans-app-scope-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
 .scans-app-chip { display: inline-flex; align-items: center; gap: .4rem; max-width: 100%; padding: .22rem .6rem; border: 1px solid transparent; border-radius: 999px; background: var(--scans-app-primary-soft); color: var(--scans-app-ink); font-size: .8rem; line-height: 1.4; }

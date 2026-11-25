@@ -20,7 +20,7 @@ cohort_fixture <- function() {
   TrajectoryBundle(
     tibble::tibble(
       trajectory_id = c("a", "b", "c", "d", "e"),
-      source_type = "manual",
+      source_type = "otel",
       started_at = start + c(0, 5 * 3600, 2 * 86400, 2 * 86400 + 3600, NA),
       completed_at = start +
         c(10, 5 * 3600 + 20, 2 * 86400 + 40, NA, NA),
