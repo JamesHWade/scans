@@ -111,7 +111,7 @@ deputy_limit_ending <- function(cut_off = FALSE, finish_reason = "stop") {
 
 test_that("a cut-off answer is a trajectory finding although the run completed", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   for (reason in c("max_tokens", "context_window", "content_filter")) {
     bundle <- as_trajectory_deputy(deputy_result_fixture(
@@ -152,7 +152,7 @@ test_that("a cut-off answer is a trajectory finding although the run completed",
 
 test_that("a truncated final turn is reported at the turn and at the answer", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   result <- deputy_result_fixture(
     overrides = list(
@@ -175,7 +175,7 @@ test_that("a truncated final turn is reported at the turn and at the answer", {
 
 test_that("Deputy interventions produce findings with exact event evidence", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- deputy_lifecycle_fixture()
   events <- trajectory_events(bundle)
@@ -258,7 +258,7 @@ test_that("Deputy interventions produce findings with exact event evidence", {
 
 test_that("event_error and run_intervention report the same failed event deliberately", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- deputy_lifecycle_fixture()
   findings <- scan_trajectories(bundle)
@@ -284,7 +284,7 @@ test_that("event_error and run_intervention report the same failed event deliber
 
 test_that("one compaction is not repeated and a resolved approval is not pending", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   events <- list(
     deputy::AgentEvent("start", task = "Review"),
@@ -451,7 +451,7 @@ test_that("a limit that stopped the run without an answer is a limit stop", {
 
 test_that("reported delegation claims are findings on the child trajectory", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   fixture <- deputy_delegation_fixture()
   bundle <- as_trajectory_deputy(fixture$lead, delegations = fixture$history)
@@ -503,7 +503,7 @@ test_that("reported delegation claims are findings on the child trajectory", {
 
 test_that("unreported and truncated delegation claims stay qualified", {
   skip_if_not_installed("deputy", "0.0.0.9007")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   child <- function(claims) {
     deputy_export_child(
