@@ -85,11 +85,25 @@ test_that("adapters share one trajectory status vocabulary", {
     "tool_call_limit",
     "cost_limit",
     "hook_requested_stop",
-    "interrupted"
+    "interrupted",
+    "abandoned"
   )) {
     expect_identical(
       trajectory_canonical_status(reason),
       "interrupted",
+      info = reason
+    )
+  }
+  for (reason in c(
+    "file_checkpoint_error",
+    "delegation_error",
+    "batch_error",
+    "setup_error",
+    "setup_failed"
+  )) {
+    expect_identical(
+      trajectory_canonical_status(reason),
+      "failed",
       info = reason
     )
   }
