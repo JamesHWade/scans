@@ -112,6 +112,67 @@ test_that("review-state filters narrow the browser and keep progress honest", {
   })
 })
 
+test_that("a review-filtered report counts review progress in its own scope", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  skip_if_not_installed("jsonlite")
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = c("tool failure", "looks right")
+  )
+  store$append("Cohort", "c", label = "tool failure", note = NULL)
+
+  shiny::testServer(review_queue_server(store), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    ids <- data()$info$trajectory_id
+    session$setInputs(scans_app_review_state = "needs")
+    expect_identical(ids[visible()], c("a", "d", "e", "b"))
+    # The on-screen queue still counts the cohort before the review filter.
+    expect_identical(review_progress()$flagged_reviewed, 1L)
+    expect_identical(review_progress()$flagged, 3L)
+
+    session$setInputs(scans_app_export_report = 1L)
+    text <- paste(export_text(), collapse = "\n")
+    expect_match(
+      text,
+      "- Scope: 4 of 5 conversations \u00b7 Needs review \u00b7 started",
+      fixed = TRUE
+    )
+    expect_match(
+      text,
+      "- Review: 0 of 2 flagged conversations reviewed.",
+      fixed = TRUE
+    )
+    expect_match(text, "#Cohort/a?scope=review=needs)", fixed = TRUE)
+
+    session$setInputs(
+      scans_app_review_state = "reviewed",
+      scans_app_review_label = "tool failure"
+    )
+    session$setInputs(
+      scans_app_hash = "Cohort/?scope=review=reviewed&review_label=tool%20failure&user=bo"
+    )
+    expect_identical(ids[visible()], "c")
+    text <- paste(export_text(), collapse = "\n")
+    expect_match(
+      text,
+      "- Scope: 1 of 5 conversations \u00b7 Reviewed \u00b7 Label: tool failure \u00b7 One user (identifier omitted)",
+      fixed = TRUE
+    )
+    expect_match(
+      text,
+      "- Review: 1 of 1 flagged conversations reviewed.",
+      fixed = TRUE
+    )
+    expect_no_match(text, "\\bbo\\b")
+    expect_match(
+      text,
+      "#Cohort/c?scope=review=reviewed&review_label=tool%20failure)",
+      fixed = TRUE
+    )
+  })
+})
+
 test_that("an exported link carries the review filter and reopens it", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")

@@ -147,12 +147,12 @@ scans_app_export_server <- function(input, output, session, state) {
     current <- state$data()
     shiny::req(current)
     # Exports describe exactly the trajectories in view, so their tables are
-    # not widened the way the on-screen breakdowns are.
+    # not widened the way the on-screen breakdowns are, and review progress
+    # is counted over those trajectories rather than the on-screen queue's.
     performance <- scans_app_performance_data(
       current,
       state$visible(),
-      queue = state$queue(),
-      progress = state$review_progress()
+      queue = state$queue()
     )
     list(
       data = current,
