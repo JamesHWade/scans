@@ -106,7 +106,7 @@ otel_envelope_spans <- function(envelope) {
 }
 
 otel_span <- function(span, scope = NULL, resource = NULL) {
-  list(
+  parsed <- list(
     trace_id = span$traceId %||% "",
     span_id = span$spanId %||% "",
     parent_span_id = span$parentSpanId %||% "",
@@ -118,6 +118,26 @@ otel_span <- function(span, scope = NULL, resource = NULL) {
     attributes = otel_attributes(span$attributes),
     resource = otel_attributes(resource$resource$attributes)
   )
+  # Span events are read only where they are projected, so a trace full of
+  # exception or framework events does not grow every parsed span.
+  if (otel_is_companion_span(parsed) && length(span$events) > 0L) {
+    parsed$events <- otel_span_events(span$events)
+  }
+  parsed
+}
+
+# At most `max_events` events per span; the count left out is kept.
+otel_span_events <- function(events, max_events = 1000L) {
+  kept <- utils::head(events, max_events)
+  out <- lapply(kept, function(event) {
+    list(
+      name = event$name %||% "",
+      time = as.character(event$timeUnixNano %||% NA),
+      attributes = otel_attributes(event$attributes)
+    )
+  })
+  attr(out, "dropped") <- length(events) - length(kept)
+  out
 }
 
 otel_attributes <- function(attributes) {
@@ -166,10 +186,12 @@ otel_is_genai_span <- function(span) {
 # assigns them to, never count against the span budget, and never define a
 # conversation on their own. commons wraps each turn in
 # `commons_conversation_turn` and records each answer's provenance in
-# `commons_provenance` (pkg-r/R/tracing.R).
+# `commons_provenance` (pkg-r/R/tracing.R). Deputy wraps each agent run in
+# `deputy.run`, with its governance events on it (R/agent-tracing.R).
 otel_companion_span_names <- c(
   "commons_conversation_turn",
-  "commons_provenance"
+  "commons_provenance",
+  "deputy.run"
 )
 
 otel_is_companion_span <- function(span) {

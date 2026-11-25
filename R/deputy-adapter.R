@@ -485,14 +485,23 @@ deputy_ending_metadata <- function(ending, finish_reason, cut_off) {
 }
 
 deputy_status <- function(snapshot) {
-  switch(
+  deputy_ending_status(
     deputy_ending_class(snapshot$ending),
+    snapshot$stop_reason
+  )
+}
+
+# The trajectory status for an ending class, or for the stop reason when the
+# class is unknown. as_trajectory_otel() applies it to `deputy.run` spans.
+deputy_ending_status <- function(class, stop_reason) {
+  switch(
+    class,
     RunEndingAnswered = ,
     RunEndingCutOff = "completed",
     RunEndingStopped = ,
     RunEndingLimit = "interrupted",
     RunEndingFailed = "failed",
-    trajectory_canonical_status(snapshot$stop_reason)
+    trajectory_canonical_status(stop_reason)
   )
 }
 

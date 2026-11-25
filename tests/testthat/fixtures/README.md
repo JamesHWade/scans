@@ -89,3 +89,18 @@ from the same scripted conversations; `expected.json` is what commons requires
 a trace reader to make of each. OTel adapter tests read them with
 `read_otel_traces()` and compare the provenance events with that file and with
 `as_trajectory_commons()`.
+
+`deputy/otel/trace-0.jsonl` holds real Deputy and ellmer spans written by
+otelsdk's file exporter: a run that compacts its history and falls back to a
+second chat, a denied tool call, an answer the provider cut off, and a lead
+that delegates to a subagent under the same conversation ID. The agents ran
+against Deputy's own local fake OpenAI-compatible server, so no provider was
+involved. It was captured with Deputy 0.0.0.9007 and ellmer 0.5.2 by running,
+from the scans root,
+
+```sh
+Rscript tools/capture-deputy-otel-fixture.R /path/to/deputy-checkout
+```
+
+which also replaces the host user and process ID otelsdk records with fixed
+values. Run, session, and span IDs are random, so a rebuild changes them.

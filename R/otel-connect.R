@@ -36,7 +36,8 @@
 #'   than allowed to exhaust the budget before the conversations are reached.
 #'   Framework spans are kept only as long as grouping needs them to link a
 #'   model call to its conversation, and are dropped afterwards. commons turn
-#'   and provenance spans are kept with their conversation and never count.
+#'   and provenance spans and Deputy run spans are kept with their
+#'   conversation and never count.
 #' @param jobs Whether to also read the retained per-job trace stores that
 #'   predate the content-wide store (see *Trace endpoints*). The default,
 #'   `TRUE`, is complete; `FALSE` skips those requests, which on a

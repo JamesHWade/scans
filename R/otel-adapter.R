@@ -49,6 +49,53 @@
 #' spans such as `commons_agent_create` belong to no conversation and are
 #' ignored.
 #'
+#' @section Deputy agents:
+#' Deputy wraps each agent run in a `deputy.run` span. Like commons' spans it
+#' is kept with its conversation, never counted against a span budget, and
+#' never used as a transcript or a measure. A conversation's root runs, the
+#' turns of one chat, stay one trajectory. Each subagent run (one with
+#' `deputy.parent.run.id`) becomes its own trajectory, holding the model and
+#' tool calls under its run span, with the ID `otel/<conversation>/<run ID>`
+#' and `parent_trajectory_id` set when its parent run is in the same input.
+#' Otherwise the parent run ID stays in metadata with a `parent_run_id` loss.
+#' A model or tool call that no run's ancestry reaches stays with the lead and
+#' is reported with a `deputy.run` loss.
+#'
+#' The latest run speaks for its trajectory. `run_id` is its `deputy.run.id`,
+#' and metadata carries `session_id`, `agent_id`, `parent_run_id`,
+#' `delegation_id`, `stop_reason`, and the ten-field `ending` described in
+#' [as_trajectory_deputy()]. The span records only the stop reason, the final
+#' finish reason, and whether the answer was cut off, so `by`, `field`,
+#' `actual`, `limit`, `wrapped_up`, and `phase` are `NA`. `class` is
+#' `"RunEndingAnswered"` or `"RunEndingCutOff"` for stop reason `"complete"`,
+#' `"RunEndingStopped"` for any other reason Deputy exports by name except a
+#' limit or failure reason, and `NA` for those and for `"custom"`, because a
+#' caller or hook can stop a run with a limit's or failure's own word. The
+#' trajectory `status` then follows the Deputy adapter's mapping from `class`,
+#' or from the stop reason when `class` is `NA`.
+#'
+#' Deputy exports nine event types as span events, each with only
+#' identifiers and decisions. They become events named as the Deputy adapter
+#' names the same events, timestamped from the span event:
+#'
+#' | Span event | Bundle event | Notes |
+#' | --- | --- | --- |
+#' | `deputy.permission` | `deputy:permission` | `call_id` from `tool_call_id`; `"failed"` when `decision` is `"deny"` |
+#' | `deputy.structured_attempt` | `deputy:structured_attempt` | `"failed"` when `valid` is false; no attempted value |
+#' | `deputy.fallback` | `deputy:fallback` | `fallback_index` |
+#' | `deputy.compaction` | `deputy:compaction` | successful compactions only |
+#' | `deputy.hook` | `deputy:hook` | `hook`, `decision` |
+#' | `deputy.file_checkpoint` | `deputy:file_checkpoint` | `checkpoint_id` |
+#' | `deputy.delegation` | `deputy:delegation` | `delegation_id` |
+#' | `deputy.warning` | `deputy:warning` | `code`; no message |
+#' | `deputy.stop` | `deputy:stop` | |
+#'
+#' Other attributes stay in event `metadata`. Deputy does not export its other
+#' event types, so OTel bundles have no `deputy:approval`,
+#' `deputy:limit_wrap_up`, `deputy:compaction_error`, tool, request, or
+#' content events, and no tool names, inputs, results, or error messages.
+#' Conversations without a `deputy.run` span are unaffected.
+#'
 #' Spans are grouped into conversations by the `gen_ai.conversation.id`
 #' attribute, walking up the span's ancestry to find it. A conversation
 #' without that attribute anywhere in its ancestry falls back to its trace id,
@@ -93,7 +140,18 @@ as_trajectory_otel <- function(
       otel_empty_table("events")
     ))
   }
-  if (!is.null(trajectory_id) && length(conversations) > 1L) {
+  ids <- names(conversations) %||% seq_along(conversations)
+  parts <- unlist(
+    Map(
+      function(spans, id) {
+        lapply(otel_deputy_parts(spans), function(part) c(part, list(id = id)))
+      },
+      conversations,
+      ids
+    ),
+    recursive = FALSE
+  )
+  if (!is.null(trajectory_id) && length(parts) > 1L) {
     scans_abort(
       "{.arg trajectory_id} must be {.code NULL} for multiple conversations.",
       class = "scans_error_otel_source",
@@ -101,20 +159,17 @@ as_trajectory_otel <- function(
     )
   }
 
-  tables <- Map(
-    function(spans, id) {
-      otel_conversation_tables(
-        spans,
-        conversation_id = id,
-        trajectory_id = trajectory_id,
-        source_uri = source_uri,
-        metadata = metadata
-      )
-    },
-    conversations,
-    names(conversations) %||% seq_along(conversations)
-  )
-  otel_combine_tables(tables)
+  tables <- lapply(parts, function(part) {
+    otel_conversation_tables(
+      part$spans,
+      conversation_id = part$id,
+      trajectory_id = trajectory_id,
+      source_uri = source_uri,
+      metadata = metadata,
+      deputy = part
+    )
+  })
+  otel_combine_tables(otel_deputy_resolve_parents(tables))
 }
 
 otel_is_span_list <- function(x) {
@@ -125,6 +180,31 @@ otel_is_span_list <- function(x) {
 
 otel_empty_table <- function(table) {
   tibble::as_tibble(trajectory_table_schemas()[[table]])
+}
+
+# A subagent's trajectory links to the trajectory holding its parent run when
+# both are in the read; the unresolved-parent loss then no longer applies.
+otel_deputy_resolve_parents <- function(tables) {
+  owners <- character()
+  for (table in tables) {
+    owners[table$run_ids %||% character()] <- table$info$trajectory_id
+  }
+  lapply(tables, function(table) {
+    parent <- table$info$metadata[[1L]]$parent_run_id
+    if (
+      is.character(parent) && length(parent) == 1L && parent %in% names(owners)
+    ) {
+      table$info$parent_trajectory_id <- owners[[parent]]
+      if (!is.null(table$losses)) {
+        table$losses <- table$losses[
+          table$losses$field != "parent_run_id",
+          ,
+          drop = FALSE
+        ]
+      }
+    }
+    table
+  })
 }
 
 # Combine conversation tables before validating the bundle to avoid
@@ -145,7 +225,8 @@ otel_conversation_tables <- function(
   conversation_id,
   trajectory_id,
   source_uri,
-  metadata
+  metadata,
+  deputy = list()
 ) {
   context <- attr(spans, "otel_context", exact = TRUE)
   spans <- otel_unique_spans(spans)
@@ -155,6 +236,13 @@ otel_conversation_tables <- function(
       "otel/",
       utils::URLencode(as.character(conversation_id), reserved = TRUE)
     )
+    if (!is.null(deputy$run_id)) {
+      trajectory_id <- paste0(
+        trajectory_id,
+        "/",
+        utils::URLencode(deputy$run_id, reserved = TRUE)
+      )
+    }
   }
   # Companion spans contribute provenance and context only: counts, timing,
   # and status describe the model and tool activity.
@@ -196,6 +284,24 @@ otel_conversation_tables <- function(
     ))
   }
 
+  runs <- otel_deputy_tables(
+    deputy$runs %||% list(),
+    trajectory_id,
+    nrow(tables$events),
+    deputy$unassigned %||% 0L
+  )
+  if (!is.null(runs)) {
+    tables$events <- trajectory_bind_rows(list(tables$events, runs$events))
+    tables$losses <- trajectory_bind_rows(list(
+      tables$losses,
+      trajectory_loss_table(runs$losses)
+    ))
+    metadata <- c(
+      metadata[setdiff(names(metadata), names(runs$metadata))],
+      runs$metadata
+    )
+  }
+
   times <- otel_span_times(activity)
   # The conversation's status is that of its latest model call: an early
   # rate-limited call that was retried successfully is a failed event, not a
@@ -213,7 +319,7 @@ otel_conversation_tables <- function(
   )
   info <- tibble::tibble(
     trajectory_id = trajectory_id,
-    run_id = as.character(conversation_id),
+    run_id = runs$run_id %||% as.character(conversation_id),
     parent_trajectory_id = NA_character_,
     source_type = "otel",
     source_id = as.character(conversation_id),
@@ -226,13 +332,14 @@ otel_conversation_tables <- function(
       otel_attribute(latest, "gen_ai.request.model"),
     started_at = times$started_at,
     completed_at = times$completed_at,
-    status = if (failed) "failed" else "completed",
+    status = runs$status %||% if (failed) "failed" else "completed",
     error = error,
     metadata = list(safe_metadata$value)
   )
 
   list(
     info = info,
+    run_ids = runs$run_ids,
     turns = tables$turns,
     events = tables$events,
     losses = trajectory_bind_rows(list(
@@ -1061,11 +1168,22 @@ otel_group_conversations <- function(spans) {
   )
   groups <- lapply(groups, function(group) {
     context_spans <- otel_group_context_spans(group, index)
-    group <- Filter(otel_is_conversation_span, context_spans)
+    members <- seq_along(context_spans) <= length(group)
+    # A companion found only as an ancestor belongs to another conversation:
+    # Deputy files a compaction summary under its session, not the run's.
+    keep <- vapply(
+      seq_along(context_spans),
+      function(i) {
+        otel_is_conversation_span(context_spans[[i]]) &&
+          (members[[i]] || !otel_is_companion_span(context_spans[[i]]))
+      },
+      logical(1)
+    )
+    conversation <- otel_deputy_assign_runs(context_spans[keep], index)
     context <- otel_context(context_spans)
     context$ancestry <- otel_unexposed_ancestry(context_spans)
-    attr(group, "otel_context") <- context
-    group
+    attr(conversation, "otel_context") <- context
+    conversation
   })
   otel_order_conversations(groups)
 }
