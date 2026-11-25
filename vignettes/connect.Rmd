@@ -98,11 +98,61 @@ can tell a quiet week from a truncated or incomplete read.
 ### How a conversation is reconstructed
 
 scans reconstructs messages from the most recent `chat` span of a conversation.
-The transcript is limited to the history captured in that span; disabled or
-partial message capture leaves content unavailable. `execute_tool` spans
+The transcript is limited to the history captured in that span; disabled
+message capture leaves content unavailable. `execute_tool` spans
 contribute recorded tool duration and failure. Non-GenAI span and
 resource attributes such as `enduser.id` or a session identifier are kept in
 trajectory metadata and surface in the app as badges and search terms.
+
+shinychat titles each conversation with a separate model call under the same
+conversation identifier, and that call often finishes last. It is never used
+as the transcript. Its tokens stay in the conversation's usage totals and are
+reported separately in `metadata$otel$title_calls`.
+
+ellmer leaves out a call's message history when the turn holds content it
+cannot serialize. scans then rebuilds the history from the latest earlier
+call that recorded one, adds each later call's reply, and records a
+`capture$input` or `capture$tool_result` loss for the messages no span kept.
+`assess_trajectory_scans()` reports scans that depend on those messages as
+having insufficient evidence.
+
+## Read local trace files
+
+Outside Connect, the same spans can be written to local OTLP NDJSON files by
+otelsdk's file exporter. `read_otel_traces()` reads them and returns
+conversations in the same form as `read_connect_traces()`, with the same `n`,
+`from`, `to`, and `max_spans` arguments. It reads every file unless you give a
+window.
+
+A commons agent logs locally when tracing goes to a file:
+
+```{r}
+Sys.setenv(
+  OTEL_TRACES_EXPORTER = "otlp/file",
+  OTEL_EXPORTER_OTLP_TRACES_FILE = "traces/trace-%N.jsonl",
+  OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = "true"
+)
+# Set these before ellmer and commons load, then:
+agent <- commons::agent(client, commons, log = TRUE)
+```
+
+A deputy agent, or any ellmer application, is configured the same way:
+set the exporter variables before ellmer loads, and deputy's `deputy.run`
+spans land in the same files as ellmer's model calls.
+
+Pass the directory, one or more files, or nothing when
+`OTEL_EXPORTER_OTLP_TRACES_FILE` is set in the session doing the reading:
+
+```{r}
+conversations <- read_otel_traces("traces")
+bundle <- as_trajectory_otel(conversations)
+```
+
+The exporter rotates through `trace-0.jsonl`, `trace-1.jsonl`, and so on, and
+keeps `trace-latest.jsonl` pointing at the newest file. Each span is read once,
+whether that alias is a link or a copy. The `read_info` attribute also records
+how many files were read and how many lines could not be parsed; a file being
+written while you read can end in a partial line.
 
 ## Deploy the review app
 

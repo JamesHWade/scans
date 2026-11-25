@@ -15,8 +15,8 @@ as_trajectory_otel(
 otel_group_conversations(spans)
 }
 \arguments{
-\item{x}{A list of conversations, as returned by \code{\link[=read_connect_traces]{read_connect_traces()}},
-or a flat list of spans to be grouped.}
+\item{x}{A list of conversations, as returned by \code{\link[=read_connect_traces]{read_connect_traces()}}
+or \code{\link[=read_otel_traces]{read_otel_traces()}}, or a flat list of spans to be grouped.}
 
 \item{trajectory_id}{Optional trajectory identifier. Must be \code{NULL} when
 \code{x} holds more than one conversation.}
@@ -33,8 +33,9 @@ A \link{TrajectoryBundle}.
 \description{
 \code{as_trajectory_otel()} builds a \link{TrajectoryBundle} from OpenTelemetry spans
 that follow the GenAI semantic conventions, as emitted by \pkg{ellmer} and
-recorded by Posit Connect's content observability store. Read those spans
-with \code{\link[=read_connect_traces]{read_connect_traces()}}.
+recorded by Posit Connect's content observability store or written to local
+OTLP files. Read those spans with \code{\link[=read_connect_traces]{read_connect_traces()}} or
+\code{\link[=read_otel_traces]{read_otel_traces()}}.
 
 Each conversation is reconstructed from its most recent \code{chat} span:
 provider instrumentation records the whole message history on every model
@@ -42,11 +43,27 @@ call, so the last call carries the complete exchange. \code{execute_tool} spans
 contribute the timing and failure of each tool call, which the message
 history alone does not record.
 
+A shinychat conversation-titling call (system instructions beginning
+"You title chat conversations.") is never chosen over another model call,
+even when it started last. Its usage stays in the conversation's totals in
+\code{metadata$otel}, and \code{metadata$otel$title_calls} reports how many title
+calls there were and their tokens.
+
+When the chosen span records its output but omits \code{gen_ai.input.messages},
+as ellmer does when a turn holds content it cannot serialize, the history
+is recovered from the latest earlier model call in the conversation that
+recorded its input, followed by the output of each later call. A span with
+neither attribute had message capture turned off and is left contentless.
+Messages that no span recorded
+are reported as \code{capture$input} or \code{capture$tool_result} losses, so
+\code{\link[=assess_trajectory_scans]{assess_trajectory_scans()}} does not treat the transcript as complete.
+
 Spans are grouped into conversations by the \code{gen_ai.conversation.id}
 attribute, walking up the span's ancestry to find it. A conversation
 without that attribute anywhere in its ancestry falls back to its trace id,
 which groups a single model call rather than a session.
 }
 \seealso{
-\code{\link[=read_connect_traces]{read_connect_traces()}} to fetch spans from Posit Connect.
+\code{\link[=read_connect_traces]{read_connect_traces()}} to fetch spans from Posit Connect, and
+\code{\link[=read_otel_traces]{read_otel_traces()}} to read local trace files.
 }

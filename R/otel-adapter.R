@@ -3,8 +3,9 @@
 #' @description
 #' `as_trajectory_otel()` builds a [TrajectoryBundle] from OpenTelemetry spans
 #' that follow the GenAI semantic conventions, as emitted by \pkg{ellmer} and
-#' recorded by Posit Connect's content observability store. Read those spans
-#' with [read_connect_traces()].
+#' recorded by Posit Connect's content observability store or written to local
+#' OTLP files. Read those spans with [read_connect_traces()] or
+#' [read_otel_traces()].
 #'
 #' Each conversation is reconstructed from its most recent `chat` span:
 #' provider instrumentation records the whole message history on every model
@@ -12,13 +13,28 @@
 #' contribute the timing and failure of each tool call, which the message
 #' history alone does not record.
 #'
+#' A shinychat conversation-titling call (system instructions beginning
+#' "You title chat conversations.") is never chosen over another model call,
+#' even when it started last. Its usage stays in the conversation's totals in
+#' `metadata$otel`, and `metadata$otel$title_calls` reports how many title
+#' calls there were and their tokens.
+#'
+#' When the chosen span records its output but omits `gen_ai.input.messages`,
+#' as ellmer does when a turn holds content it cannot serialize, the history
+#' is recovered from the latest earlier model call in the conversation that
+#' recorded its input, followed by the output of each later call. A span with
+#' neither attribute had message capture turned off and is left contentless.
+#' Messages that no span recorded
+#' are reported as `capture$input` or `capture$tool_result` losses, so
+#' [assess_trajectory_scans()] does not treat the transcript as complete.
+#'
 #' Spans are grouped into conversations by the `gen_ai.conversation.id`
 #' attribute, walking up the span's ancestry to find it. A conversation
 #' without that attribute anywhere in its ancestry falls back to its trace id,
 #' which groups a single model call rather than a session.
 #'
-#' @param x A list of conversations, as returned by [read_connect_traces()],
-#'   or a flat list of spans to be grouped.
+#' @param x A list of conversations, as returned by [read_connect_traces()]
+#'   or [read_otel_traces()], or a flat list of spans to be grouped.
 #' @param trajectory_id Optional trajectory identifier. Must be `NULL` when
 #'   `x` holds more than one conversation.
 #' @param source_uri Optional URI recording where the spans were read from.
@@ -26,7 +42,8 @@
 #'
 #' @returns A [TrajectoryBundle].
 #'
-#' @seealso [read_connect_traces()] to fetch spans from Posit Connect.
+#' @seealso [read_connect_traces()] to fetch spans from Posit Connect, and
+#'   [read_otel_traces()] to read local trace files.
 #' @export
 as_trajectory_otel <- function(
   x,
@@ -122,21 +139,17 @@ otel_conversation_tables <- function(
   latest <- otel_latest_span(chat_spans)
   tool_spans <- Filter(otel_is_tool_span, spans)
 
-  system_messages <- otel_system_messages(latest)
-  input_messages <- otel_parse_messages(latest, "gen_ai.input.messages")
-  output_messages <- otel_parse_messages(latest, "gen_ai.output.messages")
-  messages <- c(system_messages, input_messages, output_messages)
-  model_output_index <- otel_model_output_index(
-    output_messages,
-    length(system_messages) + length(input_messages)
-  )
+  transcript <- otel_transcript(latest, chat_spans, trajectory_id)
   tables <- otel_messages_tables(
-    messages,
+    transcript$messages,
     trajectory_id = trajectory_id,
-    latest = latest,
-    model_output_index = model_output_index,
+    turn_spans = transcript$turn_spans,
     tool_spans = tool_spans
   )
+  tables$losses <- trajectory_bind_rows(list(
+    trajectory_loss_table(transcript$losses),
+    tables$losses
+  ))
 
   times <- otel_span_times(spans)
   # The conversation's status is that of its latest model call: an early
@@ -188,7 +201,10 @@ otel_conversation_tables <- function(
 }
 
 # Sum usage across distinct captured model calls, including calls whose
-# turns are absent from the reconstructed history.
+# turns are absent from the reconstructed history. Conversation-titling calls
+# are work the application did for this conversation, so they stay in the
+# totals; `title_calls` reports their share so it is neither hidden nor
+# mistaken for transcript activity.
 otel_info_metadata <- function(spans, chat_spans, metadata) {
   context <- attr(spans, "otel_context", exact = TRUE) %||% list()
   usage <- list(
@@ -200,6 +216,20 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
     model_calls = length(chat_spans),
     spans = length(spans)
   )
+  title_spans <- Filter(otel_is_title_span, chat_spans)
+  if (length(title_spans) > 0L) {
+    usage$title_calls <- list(
+      model_calls = length(title_spans),
+      input_tokens = otel_sum_attribute(
+        title_spans,
+        "gen_ai.usage.input_tokens"
+      ),
+      output_tokens = otel_sum_attribute(
+        title_spans,
+        "gen_ai.usage.output_tokens"
+      )
+    )
+  }
   usage$user <- context$user %||% otel_user_id(spans)
   usage$attributes <- context$attributes %||% otel_extra_attributes(spans)
   usage$resource <- context$resource %||% otel_resource_attributes(spans)
@@ -373,23 +403,146 @@ otel_parse_json <- function(text) {
   parsed
 }
 
-otel_model_output_index <- function(messages, offset) {
-  indices <- which(vapply(
+# `gen_ai.input.messages` is present and parses, even to an empty list.
+otel_has_input_messages <- function(span) {
+  text <- otel_attribute(span, "gen_ai.input.messages")
+  if (is.na(text) || !nzchar(text)) {
+    return(FALSE)
+  }
+  parsed <- tryCatch(
+    jsonlite::fromJSON(text, simplifyVector = FALSE),
+    error = function(e) NULL
+  )
+  is.list(parsed)
+}
+
+# The messages to reconstruct, the span whose usage each turn carries, and
+# losses for history the spans did not record. Normally this is the selected
+# span's own history and output. ellmer omits `gen_ai.input.messages` when a
+# turn holds content it cannot serialize; the history is then recovered from
+# the latest earlier call that recorded input, followed by the output of each
+# call from that one to the selected one. Messages sent between those outputs
+# are lost and reported, not replaced with placeholders. After commons'
+# `recover_missing_input()`. A span with neither attribute had message
+# capture turned off; it is contentless rather than partially captured.
+otel_transcript <- function(latest, chat_spans, trajectory_id) {
+  system <- otel_system_messages(latest)
+  if (
+    is.null(latest) ||
+      otel_has_input_messages(latest) ||
+      is.na(otel_attribute(latest, "gen_ai.output.messages"))
+  ) {
+    input <- otel_parse_messages(latest, "gen_ai.input.messages")
+    return(otel_transcript_segments(system, input, list(latest)))
+  }
+
+  ids <- trajectory_ids(trajectory_id)
+  candidates <- Filter(
+    function(span) !otel_is_title_span(span) || identical(span, latest),
+    chat_spans
+  )
+  starts <- vapply(candidates, function(s) otel_nanos(s$start_time), numeric(1))
+  starts[!is.finite(starts)] <- -Inf
+  candidates <- candidates[order(starts)]
+  target <- Position(function(span) identical(span, latest), candidates)
+  prior <- candidates[seq_len(target - 1L)]
+  valid <- which(vapply(prior, otel_has_input_messages, logical(1)))
+
+  if (length(valid) == 0L) {
+    transcript <- otel_transcript_segments(system, list(), list(latest))
+    transcript$losses <- list(trajectory_new_loss(
+      ids,
+      "capture$input",
+      "unsupported",
+      paste(
+        "The latest model call omitted gen_ai.input.messages and no earlier",
+        "call in the conversation recorded its input; earlier turns are missing"
+      ),
+      metadata = list(span_id = latest$span_id)
+    ))
+    return(transcript)
+  }
+
+  history <- prior[[utils::tail(valid, 1L)]]
+  if (length(system) == 0L) {
+    system <- otel_system_messages(history)
+  }
+  input <- otel_parse_messages(history, "gen_ai.input.messages")
+  segments <- candidates[seq.int(utils::tail(valid, 1L), target)]
+  transcript <- otel_transcript_segments(system, input, segments)
+  transcript$losses <- lapply(seq_along(segments)[-1L], function(index) {
+    previous <- otel_parse_messages(
+      segments[[index - 1L]],
+      "gen_ai.output.messages"
+    )
+    span_id <- segments[[index]]$span_id
+    if (otel_messages_request_tools(previous)) {
+      trajectory_new_loss(
+        ids,
+        "capture$tool_result",
+        "unsupported",
+        paste(
+          "A model call omitted gen_ai.input.messages; the results of the",
+          "tool calls requested before it are missing"
+        ),
+        metadata = list(span_id = span_id)
+      )
+    } else {
+      trajectory_new_loss(
+        ids,
+        "capture$input",
+        "unsupported",
+        paste(
+          "A model call omitted gen_ai.input.messages; the messages sent to",
+          "it after the previous recorded output are missing"
+        ),
+        metadata = list(span_id = span_id)
+      )
+    }
+  })
+  transcript
+}
+
+# Each segment's output follows the history in order, and its last assistant
+# message is the turn that carries that call's usage and timing.
+otel_transcript_segments <- function(system, input, segments) {
+  messages <- c(system, input)
+  turn_spans <- vector("list", length(messages))
+  for (span in segments) {
+    output <- otel_parse_messages(span, "gen_ai.output.messages")
+    assistant <- which(vapply(
+      output,
+      function(message) identical(otel_message_role(message), "assistant"),
+      logical(1)
+    ))
+    spans <- vector("list", length(output))
+    if (length(assistant) > 0L) {
+      spans[utils::tail(assistant, 1L)] <- list(span)
+    }
+    messages <- c(messages, output)
+    turn_spans <- c(turn_spans, spans)
+  }
+  list(messages = messages, turn_spans = turn_spans, losses = list())
+}
+
+otel_messages_request_tools <- function(messages) {
+  any(vapply(
     messages,
-    function(message) identical(otel_message_role(message), "assistant"),
+    function(message) {
+      any(vapply(
+        message$parts %||% list(),
+        function(part) identical(otel_string(part$type), "tool_call"),
+        logical(1)
+      ))
+    },
     logical(1)
   ))
-  if (length(indices) == 0L) {
-    return(NA_integer_)
-  }
-  as.integer(offset + utils::tail(indices, 1L))
 }
 
 otel_messages_tables <- function(
   messages,
   trajectory_id,
-  latest,
-  model_output_index,
+  turn_spans,
   tool_spans
 ) {
   turns <- list()
@@ -424,11 +577,7 @@ otel_messages_tables <- function(
       turn_id = turn_id,
       index = index,
       role = role,
-      span = if (!is.na(model_output_index) && index == model_output_index) {
-        latest
-      } else {
-        NULL
-      }
+      span = turn_spans[[index]]
     )
   }
 
@@ -718,6 +867,28 @@ otel_is_chat_span <- function(span) {
   identical(otel_attribute(span, "gen_ai.operation.name"), "chat")
 }
 
+otel_title_prompt <- "You title chat conversations."
+
+# After commons' `is_conversation_title_span()`: the system instructions'
+# text begins with shinychat's titling prompt.
+otel_is_title_span <- function(span) {
+  parts <- otel_parse_json(otel_attribute(span, "gen_ai.system_instructions"))
+  texts <- vapply(
+    parts,
+    function(part) {
+      if (is.list(part) && identical(otel_string(part$type), "text")) {
+        otel_string(part$content)
+      } else {
+        NA_character_
+      }
+    },
+    character(1)
+  )
+  texts <- texts[!is.na(texts)]
+  length(texts) > 0L &&
+    startsWith(paste(texts, collapse = ""), otel_title_prompt)
+}
+
 otel_is_tool_span <- function(span) {
   identical(otel_attribute(span, "gen_ai.operation.name"), "execute_tool")
 }
@@ -797,9 +968,17 @@ otel_span_duration <- function(span) {
   (end - start) / 1e9
 }
 
+# The latest chat span is the transcript source, except that a shinychat
+# conversation-titling call never displaces a real one: it shares the
+# conversation id and often starts last, but its history is the title prompt.
+# After commons' `chat_span_is_preferred()`.
 otel_latest_span <- function(spans) {
   if (length(spans) == 0L) {
     return(NULL)
+  }
+  transcript <- Filter(Negate(otel_is_title_span), spans)
+  if (length(transcript) > 0L) {
+    spans <- transcript
   }
   times <- vapply(spans, function(s) otel_nanos(s$start_time), numeric(1))
   times[!is.finite(times)] <- -Inf

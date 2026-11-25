@@ -2053,3 +2053,135 @@ test_that("a span seen twice does not count towards the span ceiling", {
   expect_identical(second$span_count, 0L)
   expect_length(second$spans, 0L)
 })
+
+test_that("a shinychat title call that starts last does not replace the transcript", {
+  skip_if_not_installed("jsonlite")
+  system <- list(list(type = "text", content = "You are helpful."))
+  reply <- otel_chat_span(
+    span_id = "chat-1",
+    system = system,
+    input = list(
+      list(role = "user", parts = text_part("What is revenue?")),
+      list(role = "assistant", parts = text_part("Sales minus returns.")),
+      list(role = "user", parts = text_part("Including tax?"))
+    ),
+    output = list(list(role = "assistant", parts = text_part("Excluding.")))
+  )
+  title <- otel_chat_span(
+    span_id = "title-1",
+    system = list(list(
+      type = "text",
+      content = "You title chat conversations. Reply with a title."
+    )),
+    input = list(list(role = "user", parts = text_part("What is revenue?"))),
+    output = list(list(role = "assistant", parts = text_part("Revenue"))),
+    extra = list(
+      "gen_ai.usage.input_tokens" = 30,
+      "gen_ai.usage.output_tokens" = 4
+    )
+  )
+  title$attributes <- title$attributes[
+    !duplicated(
+      names(title$attributes),
+      fromLast = TRUE
+    )
+  ]
+  title$start_time <- "5000000000"
+  title$end_time <- "6000000000"
+
+  bundle <- as_trajectory_otel(list(reply, title))
+  events <- trajectory_events(bundle)
+  turns <- trajectory_turns(bundle)
+
+  expect_identical(
+    events$text,
+    c(
+      "You are helpful.",
+      "What is revenue?",
+      "Sales minus returns.",
+      "Including tax?",
+      "Excluding."
+    )
+  )
+  expect_identical(turns$input_tokens[[5L]], 100)
+  otel <- trajectory_info(bundle)$metadata[[1L]]$otel
+  expect_identical(otel$model_calls, 2L)
+  expect_identical(otel$input_tokens, 130)
+  expect_identical(
+    otel$title_calls,
+    list(model_calls = 1L, input_tokens = 30, output_tokens = 4)
+  )
+  expect_identical(
+    measure_trajectories(bundle)$value[
+      measure_trajectories(bundle)$measure == "input_tokens"
+    ],
+    130
+  )
+
+  only_title <- as_trajectory_otel(list(title))
+  expect_identical(trajectory_events(only_title)$text[[3L]], "Revenue")
+})
+
+test_that("a call that omitted its input recovers history from an earlier call", {
+  skip_if_not_installed("jsonlite")
+  question <- list(role = "user", parts = text_part("Chart sales"))
+  first <- otel_chat_span(
+    span_id = "chat-1",
+    input = list(question),
+    output = list(list(role = "assistant", parts = text_part("Which year?")))
+  )
+  second <- otel_chat_span(
+    span_id = "chat-2",
+    output = list(list(role = "assistant", parts = text_part("Here it is.")))
+  )
+  second$start_time <- "3000000000"
+  second$end_time <- "4000000000"
+
+  bundle <- as_trajectory_otel(list(second, first))
+  turns <- trajectory_turns(bundle)
+  losses <- trajectory_losses(bundle)
+
+  expect_identical(turns$role, c("user", "assistant", "assistant"))
+  expect_identical(
+    trajectory_events(bundle)$text,
+    c("Chart sales", "Which year?", "Here it is.")
+  )
+  expect_identical(turns$duration, c(NA, 1, 1))
+  expect_identical(losses$field, "capture$input")
+  expect_identical(losses$reason, "unsupported")
+  expect_identical(losses$metadata[[1L]], list(span_id = "chat-2"))
+  status <- assess_trajectory_scans(bundle, scans = "turn_error")$assessments
+  expect_identical(status$status, "insufficient_evidence")
+})
+
+test_that("unrecovered tool results and unrecoverable history are losses", {
+  skip_if_not_installed("jsonlite")
+  first <- otel_chat_span(
+    span_id = "chat-1",
+    input = list(list(role = "user", parts = text_part("Search"))),
+    output = list(list(
+      role = "assistant",
+      parts = list(list(type = "tool_call", id = "call-1", name = "search"))
+    ))
+  )
+  second <- otel_chat_span(
+    span_id = "chat-2",
+    output = list(list(role = "assistant", parts = text_part("Found it.")))
+  )
+  second$start_time <- "3000000000"
+
+  recovered <- as_trajectory_otel(list(first, second))
+  expect_identical(
+    trajectory_events(recovered)$event_type,
+    c("content", "tool_call", "content")
+  )
+  expect_identical(trajectory_losses(recovered)$field, "capture$tool_result")
+
+  alone <- as_trajectory_otel(list(second))
+  expect_identical(trajectory_events(alone)$text, "Found it.")
+  expect_identical(trajectory_losses(alone)$field, "capture$input")
+  expect_identical(
+    assess_trajectory_scans(alone, scans = "turn_error")$assessments$status,
+    "insufficient_evidence"
+  )
+})
