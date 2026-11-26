@@ -177,9 +177,29 @@ scans_app_export_server <- function(input, output, session, state) {
     } else {
       report_saved_context(saved)
     }
-    if (!is.null(saved) && state$rescan_investigation()) {
-      context$snapshot["revision_id"] <- list(NULL)
-      context$analysis_version <- as.character(utils::packageVersion("scans"))
+    view <- state$view()
+    # The annotation filter reads this app's store when it has one, so its
+    # membership is the store's now, not the saved one.
+    store_membership <- state$has_store && isTRUE(view$annotated_only)
+    if (!is.null(saved)) {
+      unsaved <- if (state$rescan_investigation()) {
+        context$analysis_version <- as.character(
+          utils::packageVersion("scans")
+        )
+        "this analysis has not been saved as a revision."
+      } else if (store_membership) {
+        "the annotation filter uses this app's annotation store, not the membership saved with this revision, so no saved revision describes it."
+      } else if (
+        !scans_app_same_view(view, saved$view) ||
+          length(state$facets()) ||
+          length(state$review_filter())
+      ) {
+        "the view was changed in the app since this revision was saved, so no saved revision describes it."
+      }
+      if (!is.null(unsaved)) {
+        context$snapshot["revision_id"] <- list(NULL)
+        context$snapshot$unsaved <- unsaved
+      }
     }
     report_build(
       current,
@@ -188,10 +208,11 @@ scans_app_export_server <- function(input, output, session, state) {
         context,
         list(
           application = state$application(),
-          view = state$view(),
+          view = view,
           facets = state$facets(),
           review = state$review_filter(),
           annotated_label = scans_app_annotated_label(saved, state$has_store),
+          store_membership = store_membership,
           app_url = link_base(),
           settings = state$scan_config(),
           bundle = entry$bundle,

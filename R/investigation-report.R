@@ -609,6 +609,8 @@ report_build <- function(data, indices, context) {
     tools$top_error <- rep(NA_character_, nrow(tools))
   }
   withheld <- query_hidden || user_hidden
+  store_membership <- isTRUE(context$store_membership) &&
+    isTRUE(view$annotated_only)
   limits <- c(
     if (!is.null(open_link)) {
       carried <- if (withheld) {
@@ -627,6 +629,8 @@ report_build <- function(data, indices, context) {
           carried,
           if (withheld) {
             "this cohort, widened as noted below,"
+          } else if (store_membership) {
+            "this cohort, subject to the annotation note below,"
           } else {
             "exactly this cohort"
           },
@@ -634,7 +638,9 @@ report_build <- function(data, indices, context) {
         )
       }
     },
-    if (!is.null(open_link) && isTRUE(view$annotated_only)) {
+    if (!is.null(open_link) && store_membership) {
+      "The annotation filter used this app's annotation store as it was when this report was made, not the membership saved with the investigation. A link applies the annotations recorded where it is opened, so it reopens this cohort only where those are the same."
+    } else if (!is.null(open_link) && isTRUE(view$annotated_only)) {
       "The annotation filter depends on annotations where the link is opened: the saved file's membership, or that app's own annotation store. An app with neither says so and shows a wider cohort."
     },
     if (!is.null(open_link) && length(review)) {

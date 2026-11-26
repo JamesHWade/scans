@@ -168,3 +168,109 @@ test_that("the report dialog's user option governs a user filter", {
     expect_no_match(paste(export_text(), collapse = "\n"), "ada", fixed = TRUE)
   })
 })
+
+test_that("the app's report prints a revision only for the view it saved", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  saved <- report_fixture(list(query = "small"))
+  saved_revision <- saved$manifest$revision_id
+  app <- scans_app(saved)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_query = "small")
+    session$setInputs(scans_app_export_report = 1L)
+    expect_match(export_text(), saved_revision, fixed = TRUE, all = FALSE)
+
+    changed <- list(
+      list(scans_app_query = "large"),
+      list(scans_app_facet = list(facet = "model", value = "small")),
+      list(scans_app_findings_only = TRUE)
+    )
+    for (inputs in changed) {
+      do.call(session$setInputs, inputs)
+      text <- export_text()
+      expect_no_match(text, saved_revision, fixed = TRUE)
+      expect_match(text, saved$manifest$snapshot_id, fixed = TRUE, all = FALSE)
+      expect_match(
+        text,
+        "the view was changed in the app since this revision was saved, so no saved revision describes it.",
+        fixed = TRUE,
+        all = FALSE
+      )
+      expect_null(report()$scope$snapshot$revision_id)
+      # Back to the saved view.
+      session$setInputs(
+        scans_app_query = "small",
+        scans_app_findings_only = FALSE
+      )
+      if (length(facets())) {
+        session$setInputs(
+          scans_app_facet = list(facet = "model", value = "small")
+        )
+      }
+      expect_match(export_text(), saved_revision, fixed = TRUE, all = FALSE)
+    }
+  })
+})
+
+test_that("an annotation filter names the membership the report used", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  saved <- report_fixture(list(
+    annotated_only = TRUE,
+    annotation_ids = c("a", "c")
+  ))
+  script <- investigation_report(
+    saved,
+    app_url = "http://mocksession:1234/mockpath"
+  )
+  expect_identical(script$trajectories$trajectory_id, c("a", "c"))
+  expect_identical(script$scope$filters[["annotated"]], "Annotated when saved")
+  expect_identical(
+    script$scope$snapshot$revision_id,
+    saved$manifest$revision_id
+  )
+
+  # Without a store the app uses the saved membership: the script's report.
+  shiny::testServer(scans_app(saved)$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_annotated_only = TRUE)
+    session$setInputs(scans_app_export_report = 1L)
+    expect_identical(
+      report_without_time(export_text()),
+      report_without_time(format(script))
+    )
+  })
+
+  # With a store the app filters on the store's annotations as they are now.
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = "tool failure"
+  )
+  store$append("Cohort", "b", "tool failure", NULL, "reviewer")
+  app <- scans_app(saved, annotations = store)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_annotated_only = TRUE)
+    session$setInputs(scans_app_export_report = 1L)
+    report <- report()
+    expect_identical(report$trajectories$trajectory_id, "b")
+    expect_identical(
+      report$scope$filters[["annotated"]],
+      "Annotated in this app's annotation store at export"
+    )
+    expect_null(report$scope$snapshot$revision_id)
+    text <- export_text()
+    expect_no_match(text, saved$manifest$revision_id, fixed = TRUE)
+    expect_match(
+      text,
+      "the annotation filter uses this app's annotation store, not the membership saved with this revision, so no saved revision describes it.",
+      fixed = TRUE,
+      all = FALSE
+    )
+    expect_no_match(text, "reopen exactly this cohort", fixed = TRUE)
+  })
+})

@@ -238,7 +238,11 @@ report_blocks <- function(x, max_evidence = 100L) {
           "Snapshot ",
           report_code(scope$snapshot$snapshot_id),
           if (is.null(scope$snapshot$revision_id)) {
-            "; this analysis has not been saved as a revision."
+            paste0(
+              "; ",
+              scope$snapshot$unsaved %||%
+                "this analysis has not been saved as a revision."
+            )
           } else {
             list(", revision ", report_code(scope$snapshot$revision_id), ".")
           }

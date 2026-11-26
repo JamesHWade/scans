@@ -88,6 +88,23 @@ that investigation and address, apart from the generation time; a test holds
 this. A live view has no snapshot identifiers and can carry facets and review
 filters, which the report names. After "Apply current scanners" the report
 keeps the snapshot identifier and says the analysis is not a saved revision.
+When the filters on screen differ from the saved view (a changed source,
+status, text, pattern, or annotation switch, or any facet or review filter),
+the report likewise keeps the snapshot identifier, which still identifies the
+evidence, and omits the revision identifier, saying the view was changed
+since the save: that revision covers a different view.
+
+The annotation filter of an opened investigation has two sources. Without an
+annotation store the app uses the membership saved with the investigation,
+and its report is the script's ("Annotated when saved"). With a store it uses
+the store's annotations as they are when the report is made. The same
+investigation can then report a different cohort, so the app's report names
+the filter as the store's ("Annotated in this app's annotation store at
+export"), omits the revision identifier, and says a link reopens that cohort
+only where the same annotations are recorded. A script never sees a store and
+always reports the saved membership. Making the app ignore its store for a
+saved view was rejected: the switch on screen filters by the store, and the
+report must describe the cohort on screen.
 The earlier in-app Markdown builder is removed. The app does not pass its
 session-local review cases to the report yet.
 
