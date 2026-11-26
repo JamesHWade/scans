@@ -747,3 +747,36 @@ test_that("a scanner modified after construction is checked again at the call", 
     )
   }
 })
+
+test_that("scanner_findings() recycles only length-one arguments", {
+  expect_identical(
+    nrow(scanner_findings(
+      event_id = c("a", "b"),
+      label = "Same",
+      explanation = "Same."
+    )),
+    2L
+  )
+  expect_identical(nrow(scanner_findings()), 0L)
+  expect_error(
+    scanner_findings(
+      event_id = c("a", "b"),
+      label = c("x", "y", "z"),
+      explanation = "Mismatched."
+    )
+  )
+  expect_error(
+    scanner_findings(
+      event_id = c("a", "b"),
+      label = character(),
+      explanation = character()
+    )
+  )
+  expect_error(
+    scanner_findings(
+      label = c("x", "y"),
+      explanation = "z",
+      event_ids = list("a", "b", "c")
+    )
+  )
+})

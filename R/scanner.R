@@ -189,7 +189,9 @@ print.scans_scanner <- function(x, ...) {
 #'   an event and no turn takes the event's turn; one with both must name the
 #'   event's own turn.
 #' @param label,explanation A short label and a one-sentence explanation for
-#'   each finding.
+#'   each finding. All arguments are recycled to a common size with the
+#'   vctrs rules: only length one recycles, and other mismatches are an
+#'   error.
 #' @param event_ids Optional list with every supporting event identifier for
 #'   each finding. The primary event is always included.
 #' @param value Optional list of scan-specific structured details, one per
@@ -207,15 +209,24 @@ scanner_findings <- function(
   event_ids = NULL,
   value = NULL
 ) {
-  size <- length(label)
-  out <- tibble::tibble(
-    turn_id = as.character(vctrs::vec_recycle(turn_id, size)),
-    event_id = as.character(vctrs::vec_recycle(event_id, size)),
+  args <- vctrs::vec_recycle_common(
+    turn_id = turn_id,
+    event_id = event_id,
     label = label,
-    explanation = explanation
+    explanation = explanation,
+    event_ids = event_ids,
+    value = value,
+    .call = rlang::current_env()
   )
-  out$event_ids <- event_ids %||% rep(list(character()), size)
-  out$value <- value %||% rep(list(list()), size)
+  size <- vctrs::vec_size(args$label)
+  out <- tibble::tibble(
+    turn_id = as.character(args$turn_id),
+    event_id = as.character(args$event_id),
+    label = args$label,
+    explanation = args$explanation
+  )
+  out$event_ids <- args$event_ids %||% rep(list(character()), size)
+  out$value <- args$value %||% rep(list(list()), size)
   class(out) <- c("scans_scanner_findings", class(out))
   out
 }

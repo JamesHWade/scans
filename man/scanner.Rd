@@ -56,7 +56,9 @@ an event and no turn takes the event's turn; one with both must name the
 event's own turn.}
 
 \item{label, explanation}{A short label and a one-sentence explanation for
-each finding.}
+each finding. All arguments are recycled to a common size with the
+vctrs rules: only length one recycles, and other mismatches are an
+error.}
 
 \item{event_ids}{Optional list with every supporting event identifier for
 each finding. The primary event is always included.}
