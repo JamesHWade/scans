@@ -338,9 +338,10 @@ answer_without_support_scanner <- function(
         ,
         drop = FALSE
       ]
-      # Retrieval calls are found by tool name and their results by call
-      # identity, since a result row need not repeat the tool name. A result
-      # that names a retrieval tool counts even when its call was not kept.
+      # Retrieval calls are found by tool name and their results by the same
+      # verified link the action scanner uses, since a result row need not
+      # repeat the tool name. A result that names a retrieval tool counts even
+      # when its call was not kept.
       calls <- events[
         events$event_type %in%
           "tool_call" &
@@ -348,13 +349,17 @@ answer_without_support_scanner <- function(
         ,
         drop = FALSE
       ]
-      call_ids <- calls$call_id[!is.na(calls$call_id)]
-      results <- events[
-        events$event_type %in%
-          "tool_result" &
-          (events$name %in%
-            settings$retrieval_tools |
-            (!is.na(events$call_id) & events$call_id %in% call_ids)),
+      all_results <- events[
+        events$event_type %in% "tool_result",
+        ,
+        drop = FALSE
+      ]
+      linked <- domain_link_results(events, calls)
+      results <- all_results[
+        sort(unique(c(
+          which(all_results$name %in% settings$retrieval_tools),
+          linked[!is.na(linked)]
+        ))),
         ,
         drop = FALSE
       ]
@@ -364,10 +369,10 @@ answer_without_support_scanner <- function(
           "No assistant text is recorded."
         ))
       }
-      if (any(is.na(calls$call_id) | !calls$call_id %in% results$call_id)) {
+      if (anyNA(linked)) {
         return(scans::scanner_unassessed(
           "insufficient_evidence",
-          "A retrieval call has no recorded result, so what it returned is unknown."
+          "A retrieval call has no recorded result, or its result cannot be told apart from another call's, so what it returned is unknown."
         ))
       }
       if (nrow(results) == 0L && nrow(provenance) == 0L) {

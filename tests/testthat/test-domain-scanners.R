@@ -560,3 +560,38 @@ test_that("negated and interrogative action phrases are not claims", {
     1L
   )
 })
+
+test_that("another tool's result does not count as retrieval", {
+  recipe <- domain_scanner_recipe()
+  question <- recipe$domain_user("How much leave can I carry over?")
+  search <- recipe$domain_tool_call("search_docs", "call-1")
+  mail <- recipe$domain_tool_call("send_mail", "call-1")
+  mailed <- recipe$domain_tool_result("send_mail", "call-1", list(sent = TRUE))
+  answer <- recipe$domain_assistant(domain_long_answer)
+  empty <- recipe$domain_tool_result("search_docs", "call-1", list())
+  expect_identical(
+    domain_retrieval_status(
+      recipe,
+      question,
+      search,
+      empty,
+      mail,
+      mailed,
+      answer
+    ),
+    "insufficient_evidence"
+  )
+  empty$parent_event_id <- "chat/event-02"
+  expect_identical(
+    domain_retrieval_status(
+      recipe,
+      question,
+      search,
+      empty,
+      mail,
+      mailed,
+      answer
+    ),
+    "assessed_with_findings"
+  )
+})
