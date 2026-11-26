@@ -24,8 +24,9 @@ test_that("a comparison opens as two applications with the comparison first", {
   position <- function(text) regexpr(text, html, fixed = TRUE)[[1L]]
   expect_gt(position("Not compared"), 0L)
   expect_lt(position("Not compared"), position("Paired changes in 7 matched"))
+  expect_gt(position("2 outcomes missing on a side"), 0L)
   expect_lt(
-    position("1 outcome with an incompatible scorer"),
+    position("2 outcomes missing on a side"),
     position("improved")
   )
   expect_lt(position("Paired changes"), position("scans_app_comparison_cases"))
@@ -121,7 +122,7 @@ test_that("a case shows the comparison's values and links both trajectories", {
   ))
   expect_match(
     gaps,
-    "not comparable (incompatible). Scorer identity differs.",
+    "not comparable (missing). No evaluation by this scorer on the candidate.",
     fixed = TRUE
   )
   expect_match(
