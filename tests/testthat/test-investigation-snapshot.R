@@ -407,3 +407,42 @@ test_that("a snapshot fingerprints its content once and still rejects edits", {
     class = "scans_error_investigation"
   )
 })
+
+test_that("the bundled example keeps its snapshot and revision identifiers", {
+  skip_if_not_installed("jsonlite")
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    application = "Support assistant example"
+  )
+  expect_identical(
+    saved$manifest$snapshot_id,
+    "sha256:a85034486ae5615b770d381220f685816f63135488233f2eb8e8482ea774b015"
+  )
+  # The revision covers the package version, so pin the one these
+  # identifiers were recorded with.
+  saved$manifest$package_version <- "0.0.0.9000"
+  expect_identical(
+    investigation_revision_id(saved),
+    "sha256:fee200ae5473d643c5ede96a6528465fdacf6b32ab3e2ac888f6893706b76415"
+  )
+})
+
+test_that("a build rejects an analysis that does not fit its evidence", {
+  skip_if_not_installed("jsonlite")
+  bundle <- investigation_bundle_fixture()
+  saved <- investigation_snapshot(bundle, application = "Support assistant")
+  analysis <- saved$analysis
+  analysis$findings$event_id[[1L]] <- "no-such-event"
+  expect_error(
+    investigation_build(
+      bundle,
+      NULL,
+      "Support assistant",
+      list(),
+      saved$settings,
+      list(),
+      analysis
+    ),
+    class = "scans_error_investigation"
+  )
+})
