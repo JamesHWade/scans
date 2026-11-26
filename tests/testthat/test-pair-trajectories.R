@@ -425,3 +425,18 @@ test_that("leftover scorers recorded elsewhere on the other side are missing", {
   expect_identical(renamed$outcome_pairs$compatibility, "incompatible")
   expect_identical(renamed$outcome_pairs$reason, "Scorer identity differs.")
 })
+
+test_that("keys equal in different encodings pair", {
+  utf8 <- "café"
+  latin1 <- iconv(utf8, "UTF-8", "latin1")
+  expect_identical(Encoding(latin1), "latin1")
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(1, ids = utf8, trajectory_ids = "run/a"),
+    comparison_manual_investigation(1, ids = latin1, trajectory_ids = "run/a"),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  expect_identical(nrow(pairing$pairs), 1L)
+  expect_identical(nrow(pairing$only_baseline), 0L)
+  expect_identical(nrow(pairing$only_candidate), 0L)
+})

@@ -422,8 +422,9 @@ pairing_keyed <- function(x, by, dataset_version) {
   )
   out$missing <- lapply(seq_len(nrow(out)), \(i) required[absent[i, ]])
   # Length-prefixed parts, so no separator in an identity can merge two keys.
+  # Byte lengths need one encoding: equal strings can differ in bytes.
   parts <- lapply(required, function(column) {
-    value <- as.character(out[[column]])
+    value <- enc2utf8(as.character(out[[column]]))
     paste0(nchar(value, type = "bytes"), ":", value)
   })
   out$key <- do.call(paste0, parts)
