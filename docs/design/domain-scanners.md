@@ -125,6 +125,7 @@ write the scanner; that remains open on #43.
 
 `vignettes/custom-scanners.Rmd` runs end to end offline: define, run, read
 assessments, review, validate on development cases, change the scanner and
-its version, check once on test cases, then save and reopen. It deliberately
-leaves the held-out result worse than the development result and does not
-tune against it.
+its version, check once on test cases, then save and reopen. It reports the
+held-out result as it is and does not tune against it. The test split was
+written to contain two kinds of error the development split lacks, and the
+article says so rather than presenting the gap as a finding.

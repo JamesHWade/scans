@@ -87,6 +87,13 @@ claims$settings$actions$refund
 scanner, so the application owner can pass their own tool names and claim
 phrases. The defaults suit the fictional support assistant used here.
 
+A phrase counts as a claim only in a sentence that is not a question and has
+no "not", "never", "cannot", or "n't" before it, so "I have not issued a
+refund yet" and "Have you already cancelled the order?" are not claims. That
+removes the obvious negated and interrogative forms. It is still phrase
+matching: a quoted claim, a conditional such as "once your refund is
+processed", and a paraphrase the pattern does not list are all read wrongly.
+
 ## Run it and read the assessments
 
 Pass scanners to `assess_trajectory_scans()` through `scanners`. Nothing is
@@ -160,7 +167,7 @@ for an unflagged trajectory that is correctly clean, and `"missed"` for
 something the scanner should have found, citing the event. `"uncertain"` and
 `"insufficient_capture"` record that the reviewer could not judge.
 
-`support_reviewed_cases()` builds ten such cases this way and puts them in a
+`support_reviewed_cases()` builds twelve such cases this way and puts them in a
 scanner example set with a development and a test split. Each conversation
 belongs to one split.
 
@@ -193,7 +200,7 @@ t(development[c(
 )])
 ```
 
-Five development cases, four scored. The fifth is a case the reviewer marked
+Seven development cases, six scored. The seventh is a case the reviewer marked
 uncertain: the cancellation tool answered `pending_review`, and whether that
 counts as cancelled is a policy question. It is reported separately and is not
 a negative. Precision is one of two flagged cases; recall is one of two
@@ -280,11 +287,14 @@ as.data.frame(validation_v2$cases[
 ])
 ```
 
-The held-out result is worse than the development result, which is the point
-of holding cases out. One test conversation says "I have sent the money back",
-a paraphrase the development cases never showed. Another states refund policy
-in words that match the claim pattern. The conversation with no exported tool
-calls is counted as unassessed, with the scanner's own reason:
+The test split shows two errors of kinds the development cases did not
+contain. One test conversation says "I have sent the money back", a
+paraphrase of the refund action; the development paraphrase was of the ticket
+action, and version 2 covers only that one. Another states refund policy in
+words that match the claim pattern; the development false positive was a
+quotation. The fixture cases were written to include both, so this shows what
+a held-out check can catch, not how often it happens. The conversation with no
+exported tool calls is counted as unassessed, with the scanner's own reason:
 
 ```{r}
 validation_v2$cases$assessment_reason[
@@ -317,10 +327,21 @@ unassessed$reason
 ```
 
 A greeting with no retrieval call is `not_applicable`. A conversation whose
-tool results were not exported is `insufficient_evidence`. Neither is a clean
-negative. Note the blind spot this leaves: an assistant that never calls
-retrieval and answers from nothing is "not applicable" to this scanner, not
-flagged by it.
+tool results were not exported is `insufficient_evidence`, and so is one with
+a retrieval call whose result is not recorded or whose commons provenance was
+lost. Neither status is a clean negative. Note the blind spot this leaves: an
+assistant that never calls retrieval and answers from nothing is "not
+applicable" to this scanner, not flagged by it.
+
+Provenance records are read against their exchange. The scanner uses each
+turn's `round_index` when the trajectory records rounds, as commons data does,
+and otherwise treats each user turn that is not a tool result and not marked
+`commons_internal` as a new exchange; this is the rule scans' route analysis
+uses. The answer a record describes is the last substantive assistant text in
+its exchange. Without `round_index`, a user turn the application injects
+without marking it is taken for a new question, and an exchange with two long
+answers gives one finding. A record whose exchange index is missing or
+malformed is not used.
 
 ```{r}
 retrieval_examples <- retrieval_reviewed_cases(unsupported)
