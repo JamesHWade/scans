@@ -294,10 +294,10 @@ print.scans_investigation_report <- function(x, ...) {
   noun <- x$scope$noun
   cli::cli_text("{.cls scans_investigation_report} {x$application}")
   cli::cli_text(
-    "{x$headline$n} of {x$headline$total} {noun$many} in scope · {x$headline$n_findings} of {x$headline$n_assessed} assessed with findings · {x$headline$n_not_assessed} not assessed"
+    "{x$headline$n} of {x$headline$total} {noun$many} in scope \u00b7 {x$headline$n_findings} of {x$headline$n_assessed} assessed with findings \u00b7 {x$headline$n_not_assessed} not assessed"
   )
   cli::cli_text(
-    "{nrow(x$patterns)} pattern{?s} · {nrow(x$evidence)} finding{?s} with evidence identities"
+    "{nrow(x$patterns)} pattern{?s} \u00b7 {nrow(x$evidence)} finding{?s} with evidence identities"
   )
   cli::cli_text(
     "Render with {.fn write_investigation_report} or {.fn format}."
