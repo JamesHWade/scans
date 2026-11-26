@@ -64,9 +64,9 @@ Epochs of one sample are exchangeable repeats; vitals shares no seed between
 epoch `k` of two runs, so the alignment by epoch number is a convention. It
 is kept because each row then holds one trajectory per side that a reviewer
 can open, which a sample-level row holding two sets of trajectories does not
-give. The convention is made harmless in two ways. The caller must ask for it
-by naming `"epoch"`. And paired summaries take the case as the unit and use
-only statistics that do not depend on how epochs were aligned (see
+give. The convention is kept harmless in two ways. The caller must ask for it
+by naming `"epoch"`. And when any case has more than one pair, summaries are
+counts of epoch pairs with no interval or test (see
 [Paired summaries](#paired-summaries)).
 
 Rejected: sample-level pairs with epochs as a replicate set. Every per-case
@@ -134,6 +134,120 @@ score of `"C"` under one scorer is not compared with `1` under another.
 Rejected: treating equal labels as the same scorer (the label is a variable
 name); inferring direction for numeric scores from a metric name; a registry
 of known scorers (scans would then own scoring facts that belong to vitals).
+
+## Per-case changes
+
+`compare_trajectories(pairing)` reads the saved evaluations, assessments, and
+measures of both investigations and returns three families. They are never
+combined into one score, and every row carries both trajectory identities.
+
+**Outcomes**, per case and scorer. Only a `compatible` scorer pair whose two
+values are on the scale gets a `change` (`improved`, `regressed`,
+`unchanged`), read through the scorer's direction. `delta` is candidate minus
+baseline for numeric and binary scales and `NA` for ordered scales, whose
+steps are not known to be equal.
+
+**Patterns**, per case and scan, from the saved assessments. Every pair of
+saved statuses has one change; rows are the baseline, columns the candidate:
+
+| Baseline \ Candidate | with findings | no findings | not applicable | insufficient evidence | execution failure |
+| --- | --- | --- | --- | --- | --- |
+| with findings | `persisted` | `resolved` | `no_longer_applicable` | `not_comparable` | `not_comparable` |
+| no findings | `appeared` | `absent` | `absent` | `not_comparable` | `not_comparable` |
+| not applicable | `newly_applicable` | `absent` | `absent` | `not_comparable` | `not_comparable` |
+| insufficient evidence | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` |
+| execution failure | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` |
+
+A scan not selected on a side, a missing assessment, or a different scanner
+version or thresholds is `not_comparable` whatever the statuses.
+
+`not_applicable` is an assessment: the scanner determined that the pattern
+cannot occur in that capture. Against no findings on the other side it is
+`absent`, since neither side has the pattern. Against findings on the other
+side it is not a fix or a regression. A pattern found on the baseline whose
+scan does not apply to the candidate's capture is `no_longer_applicable`:
+the pattern can no longer occur there, which may mean the capture changed
+shape (for example, the candidate stopped calling tools) rather than that
+anything was repaired. The mirror case, not applicable on the baseline and
+found on the candidate, is `newly_applicable`. Both are counted on their own
+in `cases`, in the summaries, and in print, and neither feeds
+`share_resolved` or its sign test, which compare only `resolved` with
+`appeared`.
+
+Rejected: counting `no_longer_applicable` as `resolved` (it would credit a
+change with removing a pattern it only made impossible to observe), and
+counting it as `not_comparable` (both sides were assessed, and the finding
+on the baseline is evidence a reviewer should see).
+
+An unassessed side is never read as clean. Rows carry the finding
+identifiers and the event identifiers those findings cite on each side.
+
+**Resources**, per case and measure, from `measure_trajectories()`. A delta
+needs, on both sides, a recorded value with `complete` coverage, and the same
+unit, aggregation, source, measurement contract version, and cache inclusion.
+For `input_tokens` the inclusion must also be known. Otherwise the delta is
+`NA` with the reason, and both values, units, coverages, denominators,
+sources, and cache-inclusion flags stay on the row. `unit` is the unit the
+two sides share and `NA` when they differ, so a row never shows both values
+under one side's unit. A summary's median delta needs one unit across its
+cases. A partial sum is a lower bound, so a
+difference of two of them has no sign that can be trusted. A resource change
+is `increased` or `decreased`, never better or worse.
+
+`cases` has one row per pair with the count of its changes in each family,
+so a caller or the app can filter to regressions, improvements, pattern
+changes, and resource changes without recomputing anything.
+
+## Paired summaries
+
+Estimand: among paired cases from the same dataset version, how many changed
+in each direction.
+
+For each scorer, scan, and measure the summary counts cases by direction. A
+scorer, scan, or measure with nothing comparable keeps its row, with zero
+compared and its not-comparable count, so it is not mistaken for one never
+evaluated; a scorer never compatible on any pair has an unknown version. It
+adds uncertainty only when both conditions hold:
+
+1. Every case has one pair, so pairs are independent cases.
+2. At least six cases changed. A two-sided exact sign test on five changed
+   cases cannot go below `p = 0.0625`, so fewer are reported as counts.
+
+Then it reports the share of changed cases that moved in the named direction
+(improved, resolved, increased), an exact Clopper-Pearson interval for that
+share, and the exact two-sided sign test against an even split. For a binary
+scorer this is the exact McNemar test. The sign test uses only direction, so
+it is also valid for ordered and numeric scales. P-values are per row and
+unadjusted.
+
+Two descriptive numbers carry no interval and so need neither condition on
+the number of changed cases. For a binary scorer without repeated epochs,
+`paired_difference` is the difference in the proportion at the better level,
+(improved - regressed) / n, reported whatever the number of changes. Numeric
+outcomes and resources get the median delta: nothing recorded justifies a
+distribution for it, so it has no interval either.
+
+Under repeated epochs the pairs of one case are not independent and their
+alignment is a convention, so summaries count epoch pairs and report no
+interval or test. A case-level reduction for repeated epochs is future work.
+
+When no case pairs (different or undeclared dataset versions, or disjoint
+task mixes) the design is `unpaired`. Summaries then describe each side
+separately: counts by outcome value (for a numeric scorer, the count and
+median of finite numeric values, and a count of the other values as off the
+scale; a logical `TRUE` is not read as `1`), trajectories with, without, and without
+assessed findings per scan, and recorded values per measure. Every table is
+labelled `unpaired` and none has an estimate, interval, or test.
+
+`print()` lists what was not compared before any change: missing-key,
+duplicated, and one-sided trajectories, incompatible, unknown, and missing
+outcomes, pattern checks that were not comparable, and resource values
+recorded on one side without a delta.
+
+Rejected: a t-interval or bootstrap for mean deltas (assumes a distribution,
+and small evaluation sets are the norm); an asymptotic McNemar test; a
+single improvement score across the three families; resource totals summed
+across cases (partial coverage would be mixed into the sum).
 
 ## What a result can establish
 

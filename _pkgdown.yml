@@ -42,6 +42,7 @@ reference:
   contents:
   - pair_trajectories
   - comparison_scorer
+  - compare_trajectories
 
 - title: Reviewed examples
   contents:

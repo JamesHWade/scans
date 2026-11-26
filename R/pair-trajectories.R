@@ -40,6 +40,7 @@
 #'   applied to both sides, or a list with `baseline` and `candidate` lists
 #'   when the sides differ.
 #'
+#' @seealso [compare_trajectories()] for per-case changes.
 #' @returns A `scans_pairing` value: a list of ordinary tibbles and the two
 #'   investigations.
 #'
@@ -263,7 +264,7 @@ comparison_scorer <- function(
 #' @export
 print.scans_pairing <- function(x, ...) {
   cli::cli_text(
-    "{.cls scans_pairing} on {.field {x$key$by}}, dataset version {.val {unique(x$key$dataset_version)}}"
+    "{.cls scans_pairing} on {.field {x$key$by}}; {pairing_version_text(x)}"
   )
   cli::cli_text("Baseline snapshot: {x$snapshots$snapshot_id[[1L]]}")
   cli::cli_text("Candidate snapshot: {x$snapshots$snapshot_id[[2L]]}")
@@ -273,6 +274,17 @@ print.scans_pairing <- function(x, ...) {
 }
 
 pairing_sides <- c("baseline", "candidate")
+
+pairing_version_text <- function(x) {
+  versions <- x$key$dataset_version
+  if (anyNA(versions)) {
+    return("dataset version not declared")
+  }
+  if (versions[[1L]] == versions[[2L]]) {
+    return(paste0("dataset version ", versions[[1L]]))
+  }
+  paste0("dataset versions ", versions[[1L]], " and ", versions[[2L]])
+}
 
 pairing_abort <- function(message, call = rlang::caller_env()) {
   scans_abort(

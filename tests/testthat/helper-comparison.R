@@ -170,3 +170,48 @@ comparison_manual_investigation <- function(
   )
   investigation_snapshot(bundle, application = "Manual")
 }
+
+# Seven cases that all change between runs in every family: the outcome rises,
+# an error event appears, and output tokens increase. Enough changed cases for
+# each summary to carry an exact sign test.
+comparison_changed_investigation <- function(side, n = 7L) {
+  ids <- paste0("case-", seq_len(n))
+  trajectory_ids <- paste0("run/", ids)
+  turn_ids <- paste0(trajectory_ids, "/turn")
+  candidate <- side == "candidate"
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = trajectory_ids,
+      sample_id = ids,
+      source_type = "manual",
+      status = "completed"
+    ),
+    tibble::tibble(
+      trajectory_id = trajectory_ids,
+      turn_id = turn_ids,
+      turn_index = 1L,
+      role = "assistant",
+      input_tokens = 10,
+      output_tokens = if (candidate) 9 else 4
+    ),
+    tibble::tibble(
+      trajectory_id = trajectory_ids,
+      event_id = paste0(trajectory_ids, "/event"),
+      event_index = 1L,
+      turn_id = turn_ids,
+      content_index = 1L,
+      event_type = if (candidate) "error" else "content",
+      content_type = if (candidate) NA else "text",
+      text = if (candidate) NA else "Done",
+      status = if (candidate) "failed" else "completed",
+      error = if (candidate) "Tool failed" else NA
+    ),
+    evaluations = tibble::tibble(
+      trajectory_id = trajectory_ids,
+      evaluation_id = paste0(trajectory_ids, "/evaluation"),
+      scorer = "judge",
+      value = as.list(rep(if (candidate) 1 else 0, n))
+    )
+  )
+  investigation_snapshot(bundle, application = paste("Manual", side))
+}
