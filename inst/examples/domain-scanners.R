@@ -221,7 +221,12 @@ answer_without_support_scanner <- function(
         ))
       }
       if (nrow(results) == 0L && nrow(provenance) == 0L) {
-        if (domain_capture_is_lossy(trajectory$losses)) {
+        # as_trajectory_commons() records a "provenance" loss when a
+        # conversation's provenance records are missing.
+        if (
+          domain_capture_is_lossy(trajectory$losses) ||
+            any(trajectory$losses$field %in% "provenance")
+        ) {
           return(scans::scanner_unassessed(
             "insufficient_evidence",
             "No retrieval result or provenance record is retained, and capture losses mean one may be missing."

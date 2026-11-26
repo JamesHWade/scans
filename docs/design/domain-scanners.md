@@ -57,7 +57,9 @@ call was not kept. A retrieval call with no linked result is
 
 **No retrieval and no provenance is `not_applicable`, not insufficient.** The
 lead's brief said "otherwise insufficient". With capture losses it is
-insufficient. With a complete capture and no retrieval call, the detector's
+insufficient, and a `provenance` loss, which `as_trajectory_commons()`
+records when a conversation's provenance records are missing, counts as one.
+With a complete capture and no retrieval call, the detector's
 trigger never occurred, and "the conversation records no retrieval" is a
 statement about the conversation, not about missing evidence. Both are
 unassessed and neither is a negative. The cost is a blind spot, stated in the

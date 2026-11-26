@@ -280,3 +280,21 @@ test_that("retrieval calls are found by name and results by call identity", {
     "insufficient_evidence"
   )
 })
+
+test_that("a provenance loss means missing provenance is not evidence", {
+  recipe <- domain_scanner_recipe()
+  expect_identical(
+    domain_retrieval_status(
+      recipe,
+      recipe$domain_user("How much leave can I carry over?"),
+      recipe$domain_assistant(domain_long_answer),
+      losses = tibble::tibble(
+        trajectory_id = "chat",
+        field = "provenance",
+        reason = "unsupported",
+        detail = "The commons conversation has no provenance records"
+      )
+    ),
+    "insufficient_evidence"
+  )
+})
