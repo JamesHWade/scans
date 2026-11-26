@@ -484,6 +484,26 @@ test_that("an unpaired summary counts non-numeric values as off the scale", {
   expect_snapshot(print(comparison))
 })
 
+test_that("printing strips terminal escapes from recorded labels", {
+  withr::local_options(cli.num_colors = 1L)
+  label <- "judge\033[31m red\033[39m"
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(c(0, 0), scorer = label),
+    comparison_manual_investigation(c(1, 1), scorer = label),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(comparison_scorer(label, "1\033]8;;x\a", "numeric"))
+  )
+  comparison <- compare_trajectories(pairing)
+  comparison$pairing$snapshots$application <- c(
+    "Base\033[1mline",
+    "Candidate"
+  )
+  printed <- paste(capture_messages(print(comparison)), collapse = "")
+  expect_no_match(printed, "\033", fixed = TRUE)
+  expect_match(printed, "Outcome judge red (version 1", fixed = TRUE)
+})
+
 test_that("a comparison checks the investigations against the pairing", {
   pairing <- pair_trajectories(
     comparison_manual_investigation(c(0, 1)),

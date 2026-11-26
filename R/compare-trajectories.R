@@ -130,10 +130,10 @@ compare_trajectories <- function(pairing, conf_level = 0.95) {
 print.scans_comparison <- function(x, ...) {
   pairing <- x$pairing
   cli::cli_text(
-    "{.cls scans_comparison} {pairing$snapshots$application[[1L]]} -> {pairing$snapshots$application[[2L]]}"
+    "{.cls scans_comparison} {comparison_plain(pairing$snapshots$application[[1L]])} -> {comparison_plain(pairing$snapshots$application[[2L]])}"
   )
   cli::cli_text(
-    "Key: {.field {pairing$key$by}}; {pairing_version_text(pairing)}"
+    "Key: {.field {pairing$key$by}}; {comparison_plain(pairing_version_text(pairing))}"
   )
   cli::cli_text("Baseline snapshot: {pairing$snapshots$snapshot_id[[1L]]}")
   cli::cli_text("Candidate snapshot: {pairing$snapshots$snapshot_id[[2L]]}")
@@ -895,7 +895,7 @@ comparison_summary_lines <- function(summaries) {
         row <- patterns[i, ]
         sprintf(
           "Pattern %s: appeared in %d, resolved in %d, persisted in %d; %s",
-          row$scan,
+          comparison_plain(row$scan),
           row$n_appeared,
           row$n_resolved,
           row$n_persisted,
@@ -934,6 +934,12 @@ comparison_summary_lines <- function(summaries) {
 }
 
 comparison_short <- function(x, width = 40L) {
-  x <- gsub("\\s+", " ", x)
+  x <- gsub("\\s+", " ", comparison_plain(x))
   ifelse(nchar(x) > width, paste0(substr(x, 1L, width - 3L), "..."), x)
+}
+
+# Recorded labels are data: no terminal escape or control character in them
+# may reach the console.
+comparison_plain <- function(x) {
+  gsub("[[:cntrl:]]", " ", cli::ansi_strip(x))
 }
