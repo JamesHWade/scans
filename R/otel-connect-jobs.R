@@ -217,7 +217,7 @@ connect_trace_lines_summary <- function(lines, to = NULL, spans = NULL) {
       earliest <- min(earliest, start / 1e9)
     }
     if (
-      otel_is_genai_span(span) &&
+      otel_is_budget_span(span) &&
         otel_span_in_window(span, from = NULL, to = to)
     ) {
       count <- count + 1L

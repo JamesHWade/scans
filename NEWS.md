@@ -1,5 +1,8 @@
 # scans 0.0.0.9000
 
+* `as_trajectory_otel()` keeps commons agents' turn and provenance spans. Each exchange becomes a timestamped `commons:provenance` event with full citation decisions, in the same form as `as_trajectory_commons()`; turns get commons round indices; conflicting records leave an exchange unclassified with a loss; and the commons Connect user is kept in `metadata$otel$user`. These spans never count against `max_spans` or change resource measures (#69).
+* Invalid `from`/`to` bounds now raise `scans_error_otel_window`; Connect readers also keep `scans_error_connect_window` (#69).
+
 * `as_trajectory_deputy()` now requires deputy 0.0.0.9007. It keeps each run's ending in `metadata$ending` (class, reason, by, limit details, wrap-up, phase, finish reason, cut-off) and sets status from it; a cut-off answer stays `"completed"` with `ending$cut_off = TRUE`. Current lifecycle events (request, compaction, fallback, approval, trusted result, structured attempt, run error) are projected with failed statuses and error messages, and Deputy usage, limits, endings, and conditions are kept as plain data instead of recorded as losses. Support for earlier R6 results is removed (#65).
 * Deputy's `file_checkpoint_error`, `delegation_error`, `batch_error`, `setup_error`, and `setup_failed` stop reasons now map to `"failed"`, and `"abandoned"` maps to `"interrupted"` (#65).
 * `measure_trajectories()` reports Deputy token usage and elapsed time from the run's own usage and duration, so compacted runs are no longer undercounted. Coverage is `unknown` because Deputy counts unreported usage as zero (#65).

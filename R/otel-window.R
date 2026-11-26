@@ -1,6 +1,11 @@
 # Bounds are compared as seconds, so a Date (days) or a string must become a
 # POSIXct first; silently mis-scaling a Date would shift the window by years.
-connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
+otel_check_bound <- function(
+  x,
+  arg,
+  call = rlang::caller_env(),
+  class = "scans_error_otel_window"
+) {
   if (is.null(x)) {
     return(NULL)
   }
@@ -11,7 +16,7 @@ connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
     return(as.POSIXct(format(x), tz = "UTC"))
   }
   if (is.character(x) && length(x) == 1L && !is.na(x)) {
-    parsed <- connect_parse_bound_string(x)
+    parsed <- otel_parse_bound_string(x)
     if (!is.na(parsed)) {
       return(parsed)
     }
@@ -21,14 +26,14 @@ connect_check_bound <- function(x, arg, call = rlang::caller_env()) {
       "{.arg {arg}} must be a single POSIXct, Date, or ISO 8601 string, or {.code NULL}.",
       "i" = "Times without a zone are read as UTC."
     ),
-    class = "scans_error_connect_window",
+    class = class,
     call = call
   )
 }
 
 # ISO 8601 with an optional time, fractional seconds, and a zone: "Z" or a
 # numeric offset is honoured, and a string without a zone is read as UTC.
-connect_parse_bound_string <- function(x) {
+otel_parse_bound_string <- function(x) {
   x <- trimws(x)
   if (grepl("^\\d{4}-\\d{2}-\\d{2}$", x)) {
     x <- paste0(x, "T00:00:00")
@@ -72,7 +77,7 @@ otel_limit_spans <- function(spans, max_spans = Inf, to = NULL) {
     \(span) otel_span_in_window(span, from = NULL, to = to),
     spans
   )
-  selected <- vapply(spans, otel_is_selected_genai_span, logical(1))
+  selected <- vapply(spans, otel_is_selected_budget_span, logical(1))
   genai <- 0L
   cutoff <- NULL
   for (index in seq_along(spans)) {
@@ -88,7 +93,10 @@ otel_limit_spans <- function(spans, max_spans = Inf, to = NULL) {
     return(spans)
   }
 
-  keep <- seq_along(spans) < cutoff
+  # Companion spans are not budgeted; grouping drops any whose conversation
+  # lost its model calls to the ceiling.
+  keep <- seq_along(spans) < cutoff |
+    vapply(spans, otel_is_companion_span, logical(1))
   # A later parent can supply the selected child's conversation id and wrapper
   # metadata. Retain that ancestry for grouping, but do not expose or count an
   # ancestor that fell beyond the GenAI ceiling.
@@ -161,7 +169,7 @@ otel_read_conversations <- function(
     from = from,
     to = to,
     n = n,
-    spans = sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
+    spans = sum(vapply(spans, otel_is_selected_budget_span, logical(1))),
     spans_total = length(spans),
     max_spans = max_spans,
     truncated = truncated,

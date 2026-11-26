@@ -12,7 +12,7 @@ otel_parse_otlp_lines <- function(lines, max_spans = Inf, to = NULL) {
           if (!otel_span_in_window(parsed_span, from = NULL, to = to)) {
             next
           }
-          if (otel_is_genai_span(parsed_span)) {
+          if (otel_is_budget_span(parsed_span)) {
             if (genai >= max_spans) {
               return(spans)
             }
@@ -161,9 +161,34 @@ otel_is_genai_span <- function(span) {
   any(startsWith(keys, "gen_ai."))
 }
 
-otel_is_selected_genai_span <- function(span) {
-  otel_is_genai_span(span) &&
+# Producer spans that belong with a conversation but are not model or tool
+# activity. They are kept with the conversation their ancestry or trace
+# assigns them to, never count against the span budget, and never define a
+# conversation on their own. commons wraps each turn in
+# `commons_conversation_turn` and records each answer's provenance in
+# `commons_provenance` (pkg-r/R/tracing.R).
+otel_companion_span_names <- c(
+  "commons_conversation_turn",
+  "commons_provenance"
+)
+
+otel_is_companion_span <- function(span) {
+  isTRUE(span$name %in% otel_companion_span_names)
+}
+
+# The spans the `max_spans` budget counts.
+otel_is_budget_span <- function(span) {
+  otel_is_genai_span(span) && !otel_is_companion_span(span)
+}
+
+otel_is_selected_budget_span <- function(span) {
+  otel_is_budget_span(span) &&
     !isTRUE(attr(span, "otel_context_only", exact = TRUE))
+}
+
+# The spans a grouped conversation keeps.
+otel_is_conversation_span <- function(span) {
+  otel_is_selected_budget_span(span) || otel_is_companion_span(span)
 }
 
 otel_is_selected_chat_span <- function(span) {

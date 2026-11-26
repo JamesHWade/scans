@@ -1407,7 +1407,7 @@ test_that("span budget retains late ancestors as grouping context", {
     c("chat-A", "root")
   )
   expect_identical(
-    sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
+    sum(vapply(spans, otel_is_selected_budget_span, logical(1))),
     1L
   )
   expect_named(groups, "conv-A")
@@ -1989,7 +1989,7 @@ test_that("Date and string window bounds become UTC times", {
   expect_identical(bounds$from, as.POSIXct("2026-08-27 14:30:00", tz = "UTC"))
   expect_identical(bounds$to, as.POSIXct("2026-08-28", tz = "UTC"))
   expect_identical(
-    connect_parse_bound_string("2026-08-27 10:30:15.5+01:00"),
+    otel_parse_bound_string("2026-08-27 10:30:15.5+01:00"),
     as.POSIXct("2026-08-27 09:30:15.5", tz = "UTC")
   )
 

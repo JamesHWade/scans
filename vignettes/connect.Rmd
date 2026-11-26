@@ -219,10 +219,23 @@ the app makes no writes and shows no annotation controls.
 
 ## Agents built with commons
 
-commons agents log their conversations with provenance tags and citation
-decisions that the GenAI spans do not carry. To keep those, read through
-commons and convert with `as_trajectory_commons()`, or pass
-`reader = "commons"` to `scans_app_connect()`:
+commons agents add their own spans to each conversation: a turn wrapper that
+records the Connect user, and a provenance record of each answer's tag and
+citation decisions. `as_trajectory_otel()` keeps both. Each exchange becomes a
+`commons:provenance` event, in the same form `as_trajectory_commons()` gives,
+with the full citation decisions and the time the record was made, and the
+user is kept with the trajectory's metadata. The same read also keeps every
+model and tool call's timing and usage, which the commons reader does not
+return, so `measure_trajectories()` and answer-time trends work on commons
+conversations. A record that conflicts with another for the same exchange,
+as after an edited or restored session, leaves the exchange unclassified with
+a loss rather than guessing.
+
+Read through commons instead when you want the transcript exactly as commons
+rebuilds it, including its placeholder turns, or its own resolution of
+vanity URLs and deployment records. Convert that result with
+`as_trajectory_commons()`, or pass `reader = "commons"` to
+`scans_app_connect()`:
 
 ```{r}
 conversations <- commons::trajectory_read("path-or-guid")

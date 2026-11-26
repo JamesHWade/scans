@@ -37,7 +37,8 @@ carrying \verb{gen_ai.*} attributes count towards it: Shiny applications emit
 thousands of reactive spans per session, and those are read past rather
 than allowed to exhaust the budget before the conversations are reached.
 Framework spans are kept only as long as grouping needs them to link a
-model call to its conversation, and are dropped afterwards.}
+model call to its conversation, and are dropped afterwards. commons turn
+and provenance spans are kept with their conversation and never count.}
 
 \item{jobs}{Whether to also read the retained per-job trace stores that
 predate the content-wide store (see \emph{Trace endpoints}). The default,

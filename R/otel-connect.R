@@ -35,7 +35,8 @@
 #'   thousands of reactive spans per session, and those are read past rather
 #'   than allowed to exhaust the budget before the conversations are reached.
 #'   Framework spans are kept only as long as grouping needs them to link a
-#'   model call to its conversation, and are dropped afterwards.
+#'   model call to its conversation, and are dropped afterwards. commons turn
+#'   and provenance spans are kept with their conversation and never count.
 #' @param jobs Whether to also read the retained per-job trace stores that
 #'   predate the content-wide store (see *Trace endpoints*). The default,
 #'   `TRUE`, is complete; `FALSE` skips those requests, which on a
@@ -69,8 +70,8 @@ read_connect_traces <- function(
   call <- rlang::caller_env()
   rlang::check_bool(jobs)
   use_default_window <- missing(from) && missing(to)
-  from <- connect_check_bound(from, "from", call)
-  to <- connect_check_bound(to, "to", call)
+  from <- otel_check_bound(from, "from", call, connect_window_class)
+  to <- otel_check_bound(to, "to", call, connect_window_class)
   rlang::check_number_whole(n, min = 1, allow_null = TRUE)
   rlang::check_number_whole(max_spans, min = 1)
   guid <- connect_source_guid(source, call)
@@ -116,6 +117,12 @@ read_connect_traces <- function(
   )
   conversations
 }
+
+# Connect bounds keep their historical class as well as the reader-neutral one.
+connect_window_class <- c(
+  "scans_error_connect_window",
+  "scans_error_otel_window"
+)
 
 connect_progress <- function(message) {
   hook <- getOption("scans.progress")
@@ -510,7 +517,7 @@ connect_add_trace_lines <- function(
   span_count <- as.integer(sum(vapply(
     spans,
     function(span) {
-      otel_is_genai_span(span) &&
+      otel_is_budget_span(span) &&
         otel_span_in_window(span, from = NULL, to = to)
     },
     logical(1)
