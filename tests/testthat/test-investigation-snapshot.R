@@ -307,3 +307,13 @@ test_that("selection maps structural summaries by trajectory identity", {
   expect_identical(revised$analysis$summaries$trajectory_depth, c(1L, 0L))
   expect_identical(revised$analysis$summaries$n_losses, c(0L, 1L))
 })
+
+test_that("print methods dispatch for callers outside the package", {
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    application = "Support assistant"
+  )
+  caller <- list2env(list(x = saved), parent = globalenv())
+  printed <- testthat::capture_messages(evalq(print(x), caller))
+  expect_match(printed[[1L]], "scans_investigation", fixed = TRUE)
+})

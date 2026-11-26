@@ -56,3 +56,11 @@ S7::method(print, TrajectoryBundle) <- function(x, ...) {
   cli::cli_text("  sources:      {source_label}")
   invisible(x)
 }
+
+# S7 1.0.0 leaves a placeholder named `print` in this namespace after the
+# assignment above. While it exists, the `S3method(print, ...)` entries in
+# NAMESPACE register against the placeholder instead of base::print(), and
+# printing a saved investigation or comparison falls back to the list print.
+if (exists("print", inherits = FALSE)) {
+  rm(print)
+}
