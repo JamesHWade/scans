@@ -5,8 +5,16 @@
 
 # A shareable hash: "<application>/<trajectory_id>", optionally followed by
 # "?scope=key=value&..." naming the pattern, facets, findings switch, and
-# review filter. Older hashes have no scope and parse as before.
+# review filter, and the source, status, text, and annotation filters. A
+# scope with no filters is written "?scope=none", so the link still says
+# which filters it sets: none. A hash without "?scope=" (the address bar's
+# own, and older links) sets no filters.
 scans_app_scope_keys <- c(
+  "source",
+  "status",
+  "status_unknown",
+  "query",
+  "annotated",
   "pattern",
   "findings",
   "review",
@@ -24,9 +32,10 @@ scans_app_scope_keys <- c(
 scans_app_scope_hash <- function(
   application,
   trajectory_id = NULL,
-  scope = list()
+  scope = NULL
 ) {
   encode <- function(x) utils::URLencode(x, reserved = TRUE, repeated = TRUE)
+  explicit <- !is.null(scope)
   scope <- scope[intersect(scans_app_scope_keys, names(scope))]
   scope <- Filter(function(value) !is.null(value) && !isFALSE(value), scope)
   paste0(
@@ -43,6 +52,8 @@ scans_app_scope_hash <- function(
           collapse = "&"
         )
       )
+    } else if (explicit) {
+      "?scope=none"
     }
   )
 }
@@ -55,22 +66,30 @@ scans_app_parse_scope <- function(text) {
   )
   scope <- lapply(pairs, function(pair) utils::URLdecode(pair[[2L]]))
   names(scope) <- vapply(pairs, function(pair) pair[[1L]], "")
-  for (flag in intersect(c("findings", "tool_failed"), names(scope))) {
+  flags <- c("findings", "tool_failed", "status_unknown", "annotated")
+  for (flag in intersect(flags, names(scope))) {
     scope[[flag]] <- if (identical(scope[[flag]], "TRUE")) TRUE
   }
   scope
 }
 
 # `base` is the app's own address; with none (a test session) links are
-# relative fragments. `users = FALSE` leaves a user filter out of the link,
-# for exports that must not name anyone.
-scans_app_link <- function(base, application, scope = list()) {
+# relative fragments. `users = FALSE` leaves the `private` scope keys out of
+# the link, for exports that must not name anyone: the user filter, and the
+# text filter when its term names a user.
+scans_app_link <- function(
+  base,
+  application,
+  scope = list(),
+  private = "user"
+) {
   force(base)
   force(application)
   force(scope)
+  force(private)
   function(trajectory_id = NULL, users = TRUE) {
     if (!users) {
-      scope$user <- NULL
+      scope[private] <- NULL
     }
     paste0(
       base %||% "",

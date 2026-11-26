@@ -57,9 +57,14 @@ test_that("deep links carry the scope and old hashes still parse", {
     scans_app_parse_hash("#My%20app/", "My app"),
     list(application = "My app")
   )
+  # A scope, even one that sets nothing this app knows, clears the filters.
   expect_identical(
     scans_app_parse_hash("My%20app/?scope=unknown=1", "My app"),
-    list(application = "My app")
+    list(application = "My app", scope = stats::setNames(list(), character()))
+  )
+  expect_identical(
+    scans_app_parse_hash(scans_app_scope_hash("A", scope = list()), "A"),
+    scans_app_parse_hash("A/?scope=unknown=1", "A")
   )
   expect_identical(
     scans_app_parse_hash(scans_app_scope_hash("A (b)"), c("Other", "A (b)")),
@@ -81,7 +86,7 @@ test_that("deep links carry the scope and old hashes still parse", {
   )
   expect_identical(
     scans_app_link(NULL, "A", list(findings = FALSE))("t"),
-    "#A/t"
+    "#A/t?scope=none"
   )
 })
 
@@ -146,7 +151,7 @@ test_that("the conversations export has one row per trajectory in view", {
 
   unknown <- export_conversations(fixture$data, "a")
   expect_identical(unknown$review_state, NA_character_)
-  expect_identical(unknown$link, "#/a")
+  expect_identical(unknown$link, "#/a?scope=none")
 
   file <- withr::local_tempfile(fileext = ".csv")
   export_csv(table, file)
@@ -766,5 +771,43 @@ test_that("the user option stays ticked when a filter re-renders the overview", 
       as.character(output$scans_app_performance$html),
       'id="scans_app_export_users"[^>]*checked'
     )
+  })
+})
+
+test_that("the app's own link carries the full view and reopens the same cohort", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  updates <- local_input_updates()
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_hash = "Cohort/")
+    input_updates_ack(session, updates)
+    unknown <- scans_app_filter_choices(data())$status[["Unknown"]]
+    session$setInputs(
+      scans_app_source = "otel",
+      scans_app_status = unknown,
+      scans_app_query = "large",
+      scans_app_findings_only = TRUE
+    )
+    ids <- data()$info$trajectory_id
+    expected <- ids[sort(visible())]
+    expect_lt(length(expected), length(ids))
+    hash <- link()("c")
+    expect_match(hash, "source=otel", fixed = TRUE)
+    expect_match(hash, "status_unknown=TRUE", fixed = TRUE)
+    expect_match(hash, "query=large", fixed = TRUE)
+
+    # Following the link from a differently filtered session, or from this
+    # one, selects the same cohort.
+    session$setInputs(
+      scans_app_query = "missing",
+      scans_app_findings_only = FALSE
+    )
+    expect_identical(report_follow_link(session, updates, hash), expected)
+    session$setInputs(scans_app_hash = "Cohort/")
+    expect_identical(report_follow_link(session, updates, hash), expected)
+    expect_identical(view()$query, "large")
   })
 })

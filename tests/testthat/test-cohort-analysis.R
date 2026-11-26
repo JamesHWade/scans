@@ -340,3 +340,54 @@ test_that("review progress counts flagged and reviewed without inventing zeros",
   expect_identical(unknown$flagged_reviewed, NA_integer_)
   expect_identical(unknown$reviewed, NA_integer_)
 })
+
+test_that("measurement coverage counts every trajectory once per measure", {
+  data <- cohort_fixture_data()
+  ids <- c("a", "b", "c", "e")
+  measures <- cohort_measures(data, ids)
+  expect_identical(measures$measure, scans_measure_template()$measure)
+  expect_identical(
+    measures$complete +
+      measures$partial +
+      measures$unavailable +
+      measures$unknown,
+    rep(4L, nrow(measures))
+  )
+  rows <- data$measures[
+    data$measures$trajectory_id %in% ids & data$measures$measure == "elapsed",
+  ]
+  elapsed <- measures[measures$measure == "elapsed", ]
+  expect_identical(elapsed$complete, sum(rows$coverage == "complete"))
+  expect_identical(
+    elapsed$median_complete,
+    stats::median(rows$value[rows$coverage == "complete"])
+  )
+  # A measure nothing recorded has an unknown median, not zero.
+  expect_identical(
+    measures$median_complete[measures$measure == "cost"],
+    NA_real_
+  )
+  expect_identical(cohort_measures(data, character())$n, rep(0L, 12L))
+})
+
+test_that("capture losses are grouped by reason and keep unassigned ones", {
+  data <- scans_app_data(performance_fixture())
+  losses <- cohort_losses(data, "slow")
+  expect_identical(
+    losses[c("field", "reason", "losses", "trajectories", "unassigned")],
+    tibble::tibble(
+      field = "usage",
+      reason = "unsupported",
+      losses = 2L,
+      trajectories = 1L,
+      unassigned = 1L
+    )
+  )
+  # A capture-wide loss bears on a cohort that owns none of its own.
+  elsewhere <- cohort_losses(data, "fast")
+  expect_identical(
+    c(elsewhere$losses, elsewhere$trajectories, elsewhere$unassigned),
+    c(1L, 0L, 1L)
+  )
+  expect_identical(nrow(cohort_losses(cohort_fixture_data(), "a")), 0L)
+})
