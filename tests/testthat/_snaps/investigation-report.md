@@ -4,7 +4,8 @@
       investigation_report(saved, app_url = "javascript:alert(1)")
     Condition
       Error in `investigation_report()`:
-      ! `app_url` must be one "http://" or "https://" address.
+      ! `app_url` must be one "http://" or "https://" base address.
+      i Give the host and path only: no credentials, query, or fragment.
 
 # review decisions use the review case's own adjudication
 

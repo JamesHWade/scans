@@ -46,8 +46,9 @@
 #' @param reviews Optional list of [review_case()] values made from this
 #'   investigation's snapshot. Their adjudicated status is reported beside the
 #'   evidence they refer to.
-#' @param app_url Optional address of a [scans_app()] deployment, starting
-#'   with `http://` or `https://`. Without it the report has anchors only.
+#' @param app_url Optional address of a [scans_app()] deployment: an
+#'   `http://` or `https://` host and path, with no credentials, query, or
+#'   fragment. Without it the report has anchors only.
 #' @param include_users Whether to print user identifiers. Defaults to
 #'   `FALSE`.
 #'
@@ -288,15 +289,26 @@ report_check <- function(x, call = rlang::caller_env()) {
   invisible(x)
 }
 
+# A base address: scheme, host, optional port and path. Credentials, a query,
+# or a fragment would be copied into every link, and the path's characters
+# are limited to ones neither Markdown nor HTML reads as markup, so a link
+# cannot break a table row.
 report_check_url <- function(url, call = rlang::caller_env()) {
+  pattern <- paste0(
+    "^https?://",
+    "([A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*|\\[[0-9A-Fa-f:.]+\\])",
+    "(:[0-9]{1,5})?",
+    "(/[A-Za-z0-9._~!$'()*+,;=:%/-]*)?$"
+  )
   if (
     !is.null(url) &&
-      (!rlang::is_string(url) ||
-        is.na(url) ||
-        !grepl("^https?://[^[:space:]\"'<>`\\\\]+$", url))
+      (!rlang::is_string(url) || is.na(url) || !grepl(pattern, url))
   ) {
     report_abort(
-      "{.arg app_url} must be one {.val http://} or {.val https://} address.",
+      c(
+        "{.arg app_url} must be one {.val http://} or {.val https://} base address.",
+        i = "Give the host and path only: no credentials, query, or fragment."
+      ),
       call
     )
   }

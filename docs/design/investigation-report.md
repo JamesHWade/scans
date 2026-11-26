@@ -143,7 +143,9 @@ error.
 Recorded text reaches the output only as plain text or code spans in a block
 layout that each writer escapes for its format. The HTML file has inline CSS,
 no script, and no external asset. `app_url` must be an `http` or `https`
-address.
+base address: host, optional port, and a path limited to characters neither
+writer reads as markup, with no credentials, query, or fragment, since every
+link copies it.
 
 ## Review decisions
 

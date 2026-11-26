@@ -28,8 +28,9 @@ write_investigation_report(
 investigation's snapshot. Their adjudicated status is reported beside the
 evidence they refer to.}
 
-\item{app_url}{Optional address of a \code{\link[=scans_app]{scans_app()}} deployment, starting
-with \verb{http://} or \verb{https://}. Without it the report has anchors only.}
+\item{app_url}{Optional address of a \code{\link[=scans_app]{scans_app()}} deployment: an
+\verb{http://} or \verb{https://} host and path, with no credentials, query, or
+fragment. Without it the report has anchors only.}
 
 \item{include_users}{Whether to print user identifiers. Defaults to
 \code{FALSE}.}

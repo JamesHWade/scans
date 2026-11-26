@@ -419,6 +419,49 @@ test_that("the report says what a link cannot restore", {
   )
 })
 
+test_that("an app address is a plain base address that stays one table cell", {
+  saved <- report_fixture()
+  for (url in c(
+    "https://user:secret@scans.test/app/",
+    "https://scans.test@evil.test/",
+    "https://scans.test/app/#frag",
+    "https://scans.test/app/?token=abc",
+    "https://scans.test/a|b/",
+    "https://scans.test/a&lt;b/",
+    "https://scans.test/a`b/",
+    "https:///app/"
+  )) {
+    expect_error(
+      investigation_report(saved, app_url = url),
+      class = "scans_error_report"
+    )
+  }
+  for (url in c(
+    "https://scans.test/app/",
+    "http://127.0.0.1:3838/a(b)/~c%20d/",
+    "https://[::1]:8080"
+  )) {
+    report <- investigation_report(saved, app_url = url)
+    expect_true(startsWith(report$scope$link, paste0(url, "#Cohort/")))
+  }
+  skip_if_not_installed("commonmark")
+  skip_if_not_installed("xml2")
+  doc <- report_md_doc(investigation_report(
+    saved,
+    app_url = "http://127.0.0.1:3838/a(b)/"
+  ))
+  for (table in xml2::xml_find_all(doc, "//table")) {
+    width <- length(xml2::xml_find_all(table, ".//th"))
+    for (row in xml2::xml_find_all(table, ".//tbody/tr")) {
+      expect_length(xml2::xml_find_all(row, "./td"), width)
+    }
+  }
+  hrefs <- xml2::xml_attr(xml2::xml_find_all(doc, "//table//a[@href]"), "href")
+  hrefs <- hrefs[!startsWith(hrefs, "#")]
+  expect_gt(length(hrefs), 0L)
+  expect_true(all(startsWith(hrefs, "http://127.0.0.1:3838/a(b)/#Cohort/")))
+})
+
 test_that("user identifiers appear only on request", {
   skip_if_not_installed("htmltools")
   saved <- report_fixture(list(query = "ADA"))
