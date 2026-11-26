@@ -8,7 +8,8 @@ analysis gained a public interface. Save and reopen are unchanged; see
 
 ## Public boundary
 
-`investigation_report(x, reviews, app_url, include_users)` takes a saved
+`investigation_report(x, reviews, app_url, include_users, include_errors)`
+takes a saved
 investigation (or a bundle, which it snapshots with the defaults) and returns
 a `scans_investigation_report`: scope details and ordinary tibbles named
 `headline`, `patterns`, `tools`, `models`, `users`, `measures`, `coverage`,
@@ -130,7 +131,18 @@ Three limits remain, and the report prints each one that applies:
 The default is identities and scanner explanations, not content. The report
 never prints message text, tool arguments, or tool results, whatever the
 saved content policy retains, so it is always within that policy. It does
-print tool names, model names, recorded error strings, and identifiers.
+print tool names, model names, and identifiers. Recorded error strings are
+often tool-result text, so the tool table counts each tool's most frequent
+error without its text unless `include_errors = TRUE`; printing them by
+default would contradict the report's own statement that it holds no tool
+results.
+
+Source details a script records with an investigation are free-form and
+can name a person (`user_id`, an account, a host). Their values are printed
+only for the fields a source reader records about its read (window, cap,
+counts, files); any other field is named with its value withheld unless
+`include_users = TRUE`. An allow-list is the smallest rule that cannot
+leak: a deny-list of identifying names would miss the next one.
 Explanations are scanner-written sentences; a custom scanner that quotes
 transcript text in an explanation would put that text in the report.
 

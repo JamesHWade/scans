@@ -208,16 +208,26 @@ report_blocks <- function(x, max_evidence = 100L) {
     report_source_items(scope$source, noun),
     list(
       if (length(scope$source$details)) {
+        details <- scope$source$details
         c(
           list("Source details as recorded: "),
-          lapply(seq_along(scope$source$details), function(i) {
+          lapply(seq_along(details), function(i) {
             list(
               if (i > 1L) "; ",
-              report_code(names(scope$source$details)[[i]]),
-              paste0(" ", scope$source$details[[i]])
+              report_code(names(details)[[i]]),
+              if (is.na(details[[i]])) {
+                " (value withheld)"
+              } else {
+                paste0(" ", details[[i]])
+              }
             )
           }),
-          list(".")
+          list(
+            ".",
+            if (anyNA(details)) {
+              " Free-form details may name a person, so their values print only with user identifiers."
+            }
+          )
         )
       },
       if (!is.null(scope$snapshot)) {
@@ -326,10 +336,21 @@ report_blocks <- function(x, max_evidence = 100L) {
         "No findings does not establish success. Source limits and missing captures can affect coverage.",
         "Not assessed and unknown are not zero: a scan that could not read a record says nothing about it.",
         "Elapsed time may include user pauses; token totals may be partial.",
-        if (x$include_users) {
-          "Transcript text, tool arguments, and tool results are omitted from this report."
+        sprintf(
+          "%s are omitted from this report.",
+          paste(
+            c(
+              if (!x$include_users) "User identifiers",
+              if (x$include_users) "Transcript text" else "transcript text",
+              "tool arguments, and tool results"
+            ),
+            collapse = ", "
+          )
+        ),
+        if (isTRUE(x$include_errors)) {
+          "The tool table prints the most frequent recorded error text per tool as recorded; it can contain tool-result text."
         } else {
-          "User identifiers, transcript text, tool arguments, and tool results are omitted from this report."
+          "Recorded error text is withheld; the tool table counts errors only."
         }
       )
     )
@@ -445,8 +466,10 @@ report_cohort_blocks <- function(x) {
                 report_count(row$failed),
                 scans_app_percent(row$failure_rate)
               ),
-              if (is.na(row$top_error)) {
+              if (row$top_error_n == 0L) {
                 ""
+              } else if (is.na(row$top_error)) {
+                sprintf("text withheld (%s)", report_count(row$top_error_n))
               } else {
                 list(
                   report_code(row$top_error),

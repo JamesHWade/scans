@@ -25,11 +25,19 @@
 #' @section Content:
 #' The report contains identities and scanner explanations, not transcript
 #' text: no message text, tool arguments, or tool results. Tool names, model
-#' names, recorded error strings, and trajectory, turn, and event identifiers
-#' do appear. User identifiers are omitted unless `include_users = TRUE`; a
-#' text filter that matches a user identifier is then described without its
-#' term. Review rationales and expected behavior are free text and are never
-#' printed.
+#' names, and trajectory, turn, and event identifiers do appear. Recorded
+#' error strings are often tool-result text, so the tool table counts errors
+#' without their text unless `include_errors = TRUE`. User identifiers are
+#' omitted unless `include_users = TRUE`; a text filter that matches a user
+#' identifier is then described without its term. Review rationales and
+#' expected behavior are free text and are never printed.
+#'
+#' Source details a caller recorded with the investigation print their values
+#' only for the fields a source reader records about its read (`read_at`,
+#' `from`, `to`, `n`, `spans`, `spans_total`, `max_spans`, `truncated`,
+#' `incomplete`, `conversations_found`, `conversations`, `files`, and
+#' `lines_dropped`). Any other field is free-form and may name a person, so
+#' it is listed by name with its value withheld unless `include_users = TRUE`.
 #'
 #' @section Links:
 #' With `app_url`, each trajectory and event links to that app. A link sets
@@ -49,8 +57,10 @@
 #' @param app_url Optional address of a [scans_app()] deployment: an
 #'   `http://` or `https://` host and path, with no credentials, query, or
 #'   fragment. Without it the report has anchors only.
-#' @param include_users Whether to print user identifiers. Defaults to
-#'   `FALSE`.
+#' @param include_users Whether to print user identifiers and the values of
+#'   free-form source details. Defaults to `FALSE`.
+#' @param include_errors Whether to print the most frequent recorded error
+#'   text per tool. Defaults to `FALSE`, which prints the count only.
 #'
 #' @returns `investigation_report()` returns a `scans_investigation_report`: a
 #'   list of ordinary tibbles and scope details.
@@ -94,7 +104,8 @@ investigation_report <- function(
   x,
   reviews = NULL,
   app_url = NULL,
-  include_users = FALSE
+  include_users = FALSE,
+  include_errors = FALSE
 ) {
   investigation_check_dependencies()
   if (is_trajectory_bundle(x)) {
@@ -103,6 +114,9 @@ investigation_report <- function(
   investigation_validate(x)
   if (!rlang::is_bool(include_users)) {
     report_abort("{.arg include_users} must be TRUE or FALSE.")
+  }
+  if (!rlang::is_bool(include_errors)) {
+    report_abort("{.arg include_errors} must be TRUE or FALSE.")
   }
   report_check_url(app_url)
   data <- scans_app_data(x$bundle, x$settings, analysis = x$analysis)
@@ -125,7 +139,8 @@ investigation_report <- function(
         settings = x$settings,
         bundle = x$bundle,
         reviews = report_reviews(reviews, x),
-        include_users = include_users
+        include_users = include_users,
+        include_errors = include_errors
       )
     )
   )
@@ -148,6 +163,10 @@ report_read_fields <- c(
   "conversations_found",
   "conversations"
 )
+
+# The source details whose values are printed without `include_users`: what
+# a reader records about its read. Anything else is free-form.
+report_detail_fields <- c(report_read_fields, "files", "lines_dropped")
 
 report_saved_context <- function(x) {
   source <- x$manifest$source
@@ -394,6 +413,7 @@ report_query_names_user <- function(query, users) {
 # - `bundle`, for promotion candidates; `queue` and `reviews`: optional state.
 report_build <- function(data, indices, context) {
   include_users <- isTRUE(context$include_users)
+  include_errors <- isTRUE(context$include_errors)
   indices <- sort(indices)
   ids <- data$info$trajectory_id[indices]
   performance <- scans_app_performance_data(
@@ -564,6 +584,14 @@ report_build <- function(data, indices, context) {
 
   read <- context$read_info
   read <- if (is.list(read)) read else list()
+  details <- context$source_details
+  if (!include_users && length(details)) {
+    details[!names(details) %in% report_detail_fields] <- NA_character_
+  }
+  tools <- cohort$tools
+  if (!include_errors) {
+    tools$top_error <- rep(NA_character_, nrow(tools))
+  }
   withheld <- query_hidden || user_hidden
   limits <- c(
     if (!is.null(open_link)) {
@@ -619,6 +647,7 @@ report_build <- function(data, indices, context) {
       generated = as.POSIXct(Sys.time(), tz = "UTC"),
       package_version = as.character(utils::packageVersion("scans")),
       include_users = include_users,
+      include_errors = include_errors,
       scope = list(
         n = headline$n,
         total = headline$total,
@@ -632,7 +661,7 @@ report_build <- function(data, indices, context) {
         ),
         source = list(
           recorded = length(read) > 0L,
-          details = context$source_details,
+          details = details,
           from = read$from,
           to = read$to,
           read_at = read$read_at %||% context$loaded_at,
@@ -651,7 +680,7 @@ report_build <- function(data, indices, context) {
       ),
       headline = headline,
       patterns = patterns,
-      tools = cohort$tools,
+      tools = tools,
       models = cohort$models,
       users = if (include_users) cohort$users,
       measures = cohort$measures,

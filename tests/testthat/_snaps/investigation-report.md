@@ -7,6 +7,14 @@
       ! `app_url` must be one "http://" or "https://" base address.
       i Give the host and path only: no credentials, query, or fragment.
 
+# free-form source details and error text print only on request
+
+    Code
+      investigation_report(saved, include_errors = NA)
+    Condition
+      Error in `investigation_report()`:
+      ! `include_errors` must be TRUE or FALSE.
+
 # review decisions use the review case's own adjudication
 
     Code

@@ -9,7 +9,7 @@ test_that("the report's numbers and evidence are the app's for the same view", {
   for (view in views) {
     saved <- report_fixture(view)
     app <- report_app_view(saved)
-    report <- investigation_report(saved)
+    report <- investigation_report(saved, include_errors = TRUE)
     shown <- app$performance
 
     expect_gt(length(app$ids), 0L)
@@ -221,7 +221,8 @@ test_that("the scope names every active filter and the capped source read", {
     "- Source read: no time window recorded. The read recorded no cap."
   )
   # A reader's read details passed as the source itself are read the same;
-  # other source fields are printed as recorded, never read as a cap.
+  # other source fields are named, never read as a cap, and their free-form
+  # values print only with user identifiers.
   direct <- investigation_snapshot(
     cohort_fixture(),
     source = list(truncated = FALSE, incomplete = FALSE, kind = "nightly")
@@ -231,14 +232,17 @@ test_that("the scope names every active filter and the capped source read", {
     "- Source read: no time window recorded. The read recorded no cap." %in%
       direct
   )
-  expect_true("- Source details as recorded: `kind` nightly." %in% direct)
+  expect_true(
+    "- Source details as recorded: `kind` (value withheld). Free-form details may name a person, so their values print only with user identifiers." %in%
+      direct
+  )
   described <- investigation_snapshot(
     cohort_fixture(),
     source = list(kind = "bundled example", incomplete = TRUE)
   )
   described <- format(investigation_report(described))
   expect_true(
-    "- Source details as recorded: `kind` bundled example; `incomplete` TRUE." %in%
+    "- Source details as recorded: `kind` (value withheld); `incomplete` TRUE. Free-form details may name a person, so their values print only with user identifiers." %in%
       described
   )
   expect_no_match(described, "could not be read", fixed = TRUE)
@@ -460,6 +464,50 @@ test_that("an app address is a plain base address that stays one table cell", {
   hrefs <- hrefs[!startsWith(hrefs, "#")]
   expect_gt(length(hrefs), 0L)
   expect_true(all(startsWith(hrefs, "http://127.0.0.1:3838/a(b)/#Cohort/")))
+})
+
+test_that("free-form source details and error text print only on request", {
+  saved <- investigation_snapshot(
+    cohort_fixture(),
+    application = "Cohort",
+    source = list(
+      user_id = "ada@example.com",
+      server = "prod-1",
+      read_info = list(truncated = FALSE, files = 2L)
+    )
+  )
+  text <- format(investigation_report(saved))
+  expect_no_match(text, "ada@example.com|prod-1")
+  expect_true(
+    "- Source details as recorded: `user_id` (value withheld); `server` (value withheld). Free-form details may name a person, so their values print only with user identifiers." %in%
+      text
+  )
+  named <- format(investigation_report(saved, include_users = TRUE))
+  expect_true(
+    "- Source details as recorded: `user_id` ada\\@example.com; `server` prod-1." %in%
+      named
+  )
+
+  report <- investigation_report(saved)
+  expect_true(all(is.na(report$tools$top_error)))
+  expect_no_match(text, "`timeout`|`late`")
+  expect_match(text, "| text withheld (", fixed = TRUE, all = FALSE)
+  expect_true(
+    "- Recorded error text is withheld; the tool table counts errors only." %in%
+      text
+  )
+  errors <- format(investigation_report(saved, include_errors = TRUE))
+  expect_match(errors, "`timeout`", fixed = TRUE, all = FALSE)
+  expect_match(
+    errors,
+    "it can contain tool-result text",
+    fixed = TRUE,
+    all = FALSE
+  )
+  expect_snapshot(
+    investigation_report(saved, include_errors = NA),
+    error = TRUE
+  )
 })
 
 test_that("user identifiers appear only on request", {

@@ -6,7 +6,13 @@
 \alias{format.scans_investigation_report}
 \title{Report a saved investigation}
 \usage{
-investigation_report(x, reviews = NULL, app_url = NULL, include_users = FALSE)
+investigation_report(
+  x,
+  reviews = NULL,
+  app_url = NULL,
+  include_users = FALSE,
+  include_errors = FALSE
+)
 
 write_investigation_report(
   x,
@@ -32,8 +38,11 @@ evidence they refer to.}
 \verb{http://} or \verb{https://} host and path, with no credentials, query, or
 fragment. Without it the report has anchors only.}
 
-\item{include_users}{Whether to print user identifiers. Defaults to
-\code{FALSE}.}
+\item{include_users}{Whether to print user identifiers and the values of
+free-form source details. Defaults to \code{FALSE}.}
+
+\item{include_errors}{Whether to print the most frequent recorded error
+text per tool. Defaults to \code{FALSE}, which prints the count only.}
 
 \item{path}{File to write. The extension chooses the format unless
 \code{format} is given: \code{.html} or \code{.htm} for HTML, \code{.md} for Markdown.}
@@ -104,11 +113,19 @@ establish that the source captured everything.
 
 The report contains identities and scanner explanations, not transcript
 text: no message text, tool arguments, or tool results. Tool names, model
-names, recorded error strings, and trajectory, turn, and event identifiers
-do appear. User identifiers are omitted unless \code{include_users = TRUE}; a
-text filter that matches a user identifier is then described without its
-term. Review rationales and expected behavior are free text and are never
-printed.
+names, and trajectory, turn, and event identifiers do appear. Recorded
+error strings are often tool-result text, so the tool table counts errors
+without their text unless \code{include_errors = TRUE}. User identifiers are
+omitted unless \code{include_users = TRUE}; a text filter that matches a user
+identifier is then described without its term. Review rationales and
+expected behavior are free text and are never printed.
+
+Source details a caller recorded with the investigation print their values
+only for the fields a source reader records about its read (\code{read_at},
+\code{from}, \code{to}, \code{n}, \code{spans}, \code{spans_total}, \code{max_spans}, \code{truncated},
+\code{incomplete}, \code{conversations_found}, \code{conversations}, \code{files}, and
+\code{lines_dropped}). Any other field is free-form and may name a person, so
+it is listed by name with its value withheld unless \code{include_users = TRUE}.
 }
 
 \section{Links}{
