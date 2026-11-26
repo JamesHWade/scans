@@ -89,8 +89,18 @@ export_time <- function(time) {
 }
 
 # What the rows of an export cover, repeated on every row so a file read on
-# its own still states its scope and when those rows started.
-export_scope <- function(headline, labels = NULL, noun = scans_app_noun()) {
+# its own still states its scope and when those rows started. A user filter
+# still narrows the cohort, so without `include_users` the scope says there
+# is one without saying who.
+export_scope <- function(
+  headline,
+  labels = NULL,
+  noun = scans_app_noun(),
+  include_users = TRUE
+) {
+  if (!include_users && "user" %in% names(labels)) {
+    labels[["user"]] <- "One user (identifier omitted)"
+  }
   window <- scans_app_day_range(headline$first_started, headline$last_started)
   paste(
     c(
@@ -115,7 +125,8 @@ export_conversations <- function(
   queue = NULL,
   link = scans_app_link(NULL, ""),
   application = "",
-  scope = ""
+  scope = "",
+  include_users = FALSE
 ) {
   trajectories <- cohort_trajectories(data, ids)
   calls <- cohort_tool_calls(data, ids)
@@ -123,15 +134,22 @@ export_conversations <- function(
     cohort_review_queue(data, ids, trajectories = trajectories)
   review <- queue[match(ids, queue$trajectory_id), , drop = FALSE]
   count <- function(rows) tabulate(match(rows, ids), nbins = length(ids))
-  tibble::tibble(
+  # A trajectory no scan could assess has no finding count, not a count of 0.
+  found <- function(n) {
+    n <- as.integer(n)
+    n[trajectories$class %in% "unassessed"] <- NA_integer_
+    n
+  }
+  out <- tibble::tibble(
     trajectory_id = ids,
     started_at = export_time(trajectories$started_at),
     user = trajectories$user,
     model = trajectories$model,
     status = data$info$status[match(ids, data$info$trajectory_id)],
     class = trajectories$class,
-    n_findings = trajectories$n_findings,
-    n_error_findings = trajectories$n_errors,
+    assessed = trajectories$assessed,
+    n_findings = found(trajectories$n_findings),
+    n_error_findings = found(trajectories$n_errors),
     tool_calls = count(calls$trajectory_id),
     tool_failed = count(calls$trajectory_id[calls$failed]),
     elapsed_s = round(trajectories$elapsed, 3),
@@ -144,10 +162,15 @@ export_conversations <- function(
     review_label = review$label,
     reviewed_by = review$reviewed_by,
     reviewed_at = export_time(review$reviewed_at),
-    link = vapply(ids, link, "", USE.NAMES = FALSE),
+    link = vapply(ids, link, "", users = include_users, USE.NAMES = FALSE),
     application = rep(application, length(ids)),
     scope = rep(scope, length(ids))
   )
+  # A blank column would read as no user recorded, so it is left out.
+  if (!include_users) {
+    out$user <- NULL
+  }
+  out
 }
 
 export_findings <- function(
@@ -155,7 +178,8 @@ export_findings <- function(
   ids,
   link = scans_app_link(NULL, ""),
   application = "",
-  scope = ""
+  scope = "",
+  include_users = FALSE
 ) {
   findings <- data$findings[
     data$findings$trajectory_id %in% ids,
@@ -179,7 +203,13 @@ export_findings <- function(
       ""
     ),
     explanation = findings$explanation,
-    link = vapply(findings$trajectory_id, link, "", USE.NAMES = FALSE),
+    link = vapply(
+      findings$trajectory_id,
+      link,
+      "",
+      users = include_users,
+      USE.NAMES = FALSE
+    ),
     application = rep(application, nrow(findings)),
     scope = rep(scope, nrow(findings))
   )
@@ -222,6 +252,14 @@ export_md_count <- function(x) {
       if (is.na(value)) "unknown" else scans_app_count(round(value))
     },
     ""
+  )
+}
+
+export_md_assessed <- function(breakdown) {
+  ifelse(
+    breakdown$n_assessed == 0L,
+    "not assessed",
+    sprintf("%d of %d assessed", breakdown$n_findings, breakdown$n_assessed)
   )
 }
 
@@ -350,7 +388,11 @@ export_report <- function(
         export_md_table(tibble::tibble(
           Pattern = scans_app_pattern_label(patterns$scan),
           Severity = patterns$severity,
-          Affected = sprintf("%d of %d", patterns$trajectories, headline$n),
+          Affected = sprintf(
+            "%d of %d assessed",
+            patterns$trajectories,
+            patterns$assessed
+          ),
           `Users affected` = ifelse(
             is.na(patterns$users),
             "unknown",
@@ -389,7 +431,7 @@ export_report <- function(
       export_md_table(tibble::tibble(
         Model = cohort$models$value,
         Recorded = cohort$models$n,
-        `With findings` = cohort$models$n_findings,
+        `With findings` = export_md_assessed(cohort$models),
         `Median tokens` = export_md_count(cohort$models$median_tokens),
         `Median elapsed` = export_md_seconds(cohort$models$median_elapsed)
       ))
@@ -472,7 +514,7 @@ export_report <- function(
         export_md_table(tibble::tibble(
           User = cohort$users$value,
           Recorded = cohort$users$n,
-          `With findings` = cohort$users$n_findings
+          `With findings` = export_md_assessed(cohort$users)
         ))
       )
     },
@@ -709,7 +751,9 @@ export_trajectory_markdown <- function(
     "",
     "## Findings",
     "",
-    if (nrow(findings) == 0L) {
+    if (nrow(findings) == 0L && !cohort_assessed(data, id)) {
+      "Not assessed: no selected scan could assess this trajectory."
+    } else if (nrow(findings) == 0L) {
       "No findings. This does not establish success."
     } else {
       sprintf(

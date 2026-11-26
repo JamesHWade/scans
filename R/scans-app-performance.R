@@ -57,6 +57,7 @@ scans_app_performance_data <- function(
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
+  summaries$assessed <- trajectories$assessed
   summaries$n_tool_errors <- data$records$n_tool_errors[indices]
   summaries$elapsed <- trajectories$elapsed
   summaries$tokens <- trajectories$tokens
@@ -67,6 +68,7 @@ scans_app_performance_data <- function(
     total = headline$total,
     n = headline$n,
     n_findings = headline$n_findings,
+    n_assessed = headline$n_assessed,
     n_evaluated = sum(ids %in% data$evaluations$trajectory_id),
     n_losses = sum(ids %in% data$loss_trajectory_ids),
     unassigned_losses = sum(is.na(data$loss_trajectory_ids)),
@@ -302,7 +304,7 @@ scans_app_performance_ui <- function(
           class = "btn-outline-secondary"
         )
       },
-      if (n > 0L) scans_app_export_menu_ui(noun)
+      if (n > 0L) scans_app_export_menu_ui(noun, isTRUE(scope$export_users))
     ),
     scans_app_scope_sentence_ui(
       cohort$headline,
@@ -558,11 +560,11 @@ scans_app_patterns_ui <- function(
         `data-scans-pattern` = row$scan,
         `aria-pressed` = if (identical(selected, row$scan)) "true" else "false",
         `aria-label` = sprintf(
-          "%s, %s: %d of %d %s. %s. Show these %s.",
+          "%s, %s: %d of %d assessed %s. %s. Show these %s.",
           label,
           row$severity,
           row$trajectories,
-          n,
+          row$assessed,
           noun$many,
           row$evidence,
           noun$many
@@ -577,7 +579,7 @@ scans_app_patterns_ui <- function(
         ),
         htmltools::tags$span(
           class = "scans-app-cell-meter",
-          sprintf("%d of %d", row$trajectories, n),
+          sprintf("%d of %d assessed", row$trajectories, row$assessed),
           scans_app_meter(row$share, row$severity)
         ),
         if (users_known) {
@@ -650,7 +652,13 @@ scans_app_performance_table <- function(data, priority) {
                 scans_app_count(rows$tokens[[i]])
               }
             ),
-            htmltools::tags$td(rows$n_findings[[i]])
+            htmltools::tags$td(
+              if (rows$assessed[[i]] || rows$n_findings[[i]] > 0L) {
+                rows$n_findings[[i]]
+              } else {
+                "Not assessed"
+              }
+            )
           )
         }
       )))

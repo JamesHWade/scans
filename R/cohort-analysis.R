@@ -154,17 +154,23 @@ cohort_tools <- function(data, ids, calls = cohort_tool_calls(data, ids)) {
   out[order(-out$failed, -out$calls, out$tool), , drop = FALSE]
 }
 
+# Whether any selected scan could assess each trajectory. One that none
+# could has no finding count: zero findings there is unknown, not clean.
+cohort_assessed <- function(data, ids) {
+  ids %in%
+    data$assessments$trajectory_id[
+      data$assessments$status %in%
+        c("assessed_no_findings", "assessed_with_findings")
+    ]
+}
+
 # Per-trajectory facts every cohort table groups by. `class` partitions the
 # cohort: a trajectory with no findings is "clean" only when a selected scan
 # could assess it, because an unassessed trajectory is not a negative result.
 cohort_trajectories <- function(data, ids) {
   rows <- match(ids, data$records$trajectory_id)
   records <- data$records[rows, , drop = FALSE]
-  assessed <- ids %in%
-    data$assessments$trajectory_id[
-      data$assessments$status %in%
-        c("assessed_no_findings", "assessed_with_findings")
-    ]
+  assessed <- cohort_assessed(data, ids)
   usage <- scans_app_token_usage(data, ids)
   tokens <- rowSums(usage, na.rm = TRUE)
   tokens[rowSums(!is.na(usage)) == 0L] <- NA_real_
@@ -281,11 +287,20 @@ cohort_patterns <- function(
       drop = FALSE
     ]
     started <- affected$at[!is.na(affected$at)]
+    # A trajectory this scan could not assess is not an unaffected one, so
+    # the share is over the trajectories it did assess.
+    assessed <- length(unique(data$assessments$trajectory_id[
+      data$assessments$scan == scan &
+        data$assessments$trajectory_id %in% ids &
+        data$assessments$status %in%
+          c("assessed_no_findings", "assessed_with_findings")
+    ]))
     tibble::tibble(
       scan = scan,
       severity = if (any(rows$severity %in% "error")) "error" else "warning",
       trajectories = nrow(affected),
-      share = nrow(affected) / length(ids),
+      assessed = assessed,
+      share = if (assessed > 0L) nrow(affected) / assessed else NA_real_,
       findings = nrow(rows),
       users = if (users_known) {
         length(unique(affected$user[!is.na(affected$user)]))
@@ -317,6 +332,7 @@ cohort_patterns <- function(
       scan = character(),
       severity = character(),
       trajectories = integer(),
+      assessed = integer(),
       share = double(),
       findings = integer(),
       users = integer(),
@@ -348,6 +364,7 @@ cohort_breakdown <- function(
       n = nrow(rows),
       n_findings = sum(rows$n_findings > 0L),
       n_error = sum(rows$n_errors > 0L),
+      n_assessed = sum(rows$assessed),
       tool_calls = sum(call_group == value),
       tool_failed = sum(calls$failed[call_group == value]),
       median_elapsed = scans_app_median(rows$elapsed),
@@ -362,6 +379,7 @@ cohort_breakdown <- function(
       n = integer(),
       n_findings = integer(),
       n_error = integer(),
+      n_assessed = integer(),
       tool_calls = integer(),
       tool_failed = integer(),
       median_elapsed = double(),

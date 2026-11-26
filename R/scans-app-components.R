@@ -58,7 +58,11 @@ scans_app_overview_ui <- function(data, index) {
     list("Events", scans_app_count(summary$n_events[[1L]])),
     list(
       "Findings",
-      scans_app_count(n_findings),
+      if (n_findings == 0L && !cohort_assessed(data, id)) {
+        "Not assessed"
+      } else {
+        scans_app_count(n_findings)
+      },
       if (n_errors > 0L) {
         "danger"
       } else if (n_findings > 0L) {

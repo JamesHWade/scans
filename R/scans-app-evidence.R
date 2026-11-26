@@ -30,6 +30,12 @@ scans_app_evidence_ui <- function(data, index) {
             data$noun$one %||% "trajectory",
             "."
           )
+        } else if (!cohort_assessed(data, id)) {
+          paste0(
+            "No selected scan could assess this ",
+            data$noun$one %||% "trajectory",
+            ". See Evidence coverage for what each scan needs."
+          )
         } else {
           "No findings from the selected scans. Check coverage before drawing a conclusion."
         }

@@ -100,6 +100,53 @@ test_that("tool and breakdown tables appear only when they inform", {
   expect_no_match(anonymous, "By model|Most active users")
 })
 
+test_that("breakdown rows count findings over assessed conversations", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  html <- as.character(cohort_overview_html(data, 1:5))
+  expect_match(
+    html,
+    "small: 2 of 5 conversations. 1 of 2 assessed conversations have findings.",
+    fixed = TRUE
+  )
+  expect_match(html, "<small>of 2 assessed</small>", fixed = TRUE)
+  # The one conversation with no recorded model could not be assessed.
+  expect_match(
+    html,
+    "Unknown: 1 of 5 conversations. No conversation was assessed.",
+    fixed = TRUE
+  )
+  expect_match(
+    html,
+    '<td>\\s*<span class="scans-app-unknown">Not assessed</span>\\s*</td>'
+  )
+})
+
+test_that("a conversation no scan assessed is not shown with zero findings", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  text <- function(ui) gsub("\\s+", " ", gsub("<[^>]+>", " ", as.character(ui)))
+
+  expect_match(text(scans_app_overview_ui(data, 5L)), "Findings Not assessed")
+  expect_match(text(scans_app_overview_ui(data, 2L)), "Findings 0 ")
+  expect_match(
+    text(scans_app_evidence_ui(data, 5L)),
+    "No selected scan could assess this conversation.",
+    fixed = TRUE
+  )
+  expect_match(
+    text(scans_app_evidence_ui(data, 2L)),
+    "No findings from the selected scans.",
+    fixed = TRUE
+  )
+  table <- scans_app_performance_table(
+    scans_app_performance_data(data, c(2L, 5L))$trajectories,
+    "findings"
+  )
+  expect_match(as.character(table), "<td>Not assessed</td>", fixed = TRUE)
+  expect_match(as.character(table), "<td>0</td>", fixed = TRUE)
+})
+
 test_that("copy names conversations only for conversation sources", {
   skip_if_not_installed("htmltools")
   expect_identical(scans_app_noun(c("otel", "commons"))$many, "conversations")
@@ -224,4 +271,21 @@ test_that("counts in the findings pane and header agree in number", {
     'placeholder="Search trajectories"',
     fixed = TRUE
   )
+})
+
+test_that("pattern rows state affected over the trajectories the scan assessed", {
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny")
+  html <- as.character(cohort_overview_html(cohort_fixture_data(), 1:5))
+  expect_match(html, "2 of 3 assessed", fixed = TRUE)
+  expect_match(html, ": 2 of 3 assessed conversations.", fixed = TRUE)
+})
+
+test_that("the export menu keeps the user option ticked across a re-render", {
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny")
+  html <- as.character(scans_app_export_menu_ui(users = TRUE))
+  expect_match(html, 'id="scans_app_export_users"[^>]*checked')
+  off <- as.character(scans_app_export_menu_ui())
+  expect_no_match(off, 'id="scans_app_export_users"[^>]*checked')
 })

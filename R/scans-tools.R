@@ -341,6 +341,7 @@ scans_tools_build <- function(
     indices <- indices[records$trajectory_id[indices] %in% context$ids]
     indices <- scans_app_order_records(records, indices, sort)
     rows <- records[indices, setdiff(names(records), c("search", "index"))]
+    rows$assessed <- cohort_assessed(context$data, rows$trajectory_id)
     if (!is.null(endings)) {
       rows[names(endings)] <- endings[
         match(rows$trajectory_id, context$data$info$trajectory_id),
@@ -544,7 +545,7 @@ scans_tools_build <- function(
     scans_list_trajectories = definition(
       list_runs,
       "scans_list_trajectories",
-      "Find and rank retained trajectories within the permitted snapshot.",
+      "Find and rank retained trajectories within the permitted snapshot. Where `assessed` is false no scan could assess the trajectory, so its finding counts are unknown, not zero.",
       c(
         list(
           query = string("Literal case-insensitive text search."),

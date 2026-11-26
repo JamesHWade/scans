@@ -101,10 +101,10 @@ test_that("the conversations export has one row per trajectory in view", {
     c(
       "trajectory_id",
       "started_at",
-      "user",
       "model",
       "status",
       "class",
+      "assessed",
       "n_findings",
       "n_error_findings",
       "tool_calls",
@@ -126,7 +126,9 @@ test_that("the conversations export has one row per trajectory in view", {
     c("2026-10-03T10:00:00Z", "2026-10-01T10:00:00Z", NA)
   )
   expect_identical(table$class, c("error", "error", "unassessed"))
-  expect_identical(table$n_error_findings, c(2L, 1L, 0L))
+  expect_identical(table$assessed, c(TRUE, TRUE, FALSE))
+  expect_identical(table$n_findings, c(4L, 2L, NA))
+  expect_identical(table$n_error_findings, c(2L, 1L, NA))
   expect_identical(table$tool_calls, c(2L, 2L, 0L))
   expect_identical(table$tool_failed, c(2L, 1L, 0L))
   expect_identical(table$elapsed_s, c(40, 10, NA))
@@ -151,6 +153,140 @@ test_that("the conversations export has one row per trajectory in view", {
   written <- utils::read.csv(file, na.strings = "")
   expect_identical(nrow(written), 3L)
   expect_true(is.na(written$elapsed_s[[3L]]))
+  # A trajectory no scan assessed has no finding count; an assessed one with
+  # no findings has a count of zero.
+  expect_match(readLines(file)[[4L]], ',"unassessed",FALSE,,,', fixed = TRUE)
+  clean <- export_conversations(fixture$data, "b")
+  expect_identical(
+    clean[c("assessed", "n_findings")],
+    tibble::tibble(
+      assessed = TRUE,
+      n_findings = 0L
+    )
+  )
+})
+
+test_that("finding counts stay integer when no trajectory is assessed", {
+  fixture <- export_fixture()
+  for (ids in list("e", character())) {
+    table <- export_conversations(fixture$data, ids)
+    expect_type(table$n_findings, "integer")
+    expect_type(table$n_error_findings, "integer")
+  }
+  expect_identical(
+    export_conversations(fixture$data, "e")$n_findings,
+    NA_integer_
+  )
+})
+
+test_that("the report's pattern table counts affected over assessed", {
+  fixture <- export_fixture()
+  text <- paste(
+    export_report(fixture$performance, "Cohort"),
+    collapse = "\n"
+  )
+  expect_match(text, "| warning | 2 of 3 assessed |", fixed = TRUE)
+  expect_no_match(text, "| 2 of 5 |", fixed = TRUE)
+})
+
+test_that("CSV exports name users only when asked", {
+  fixture <- export_fixture()
+  link <- scans_app_link(
+    "https://connect.test/app/",
+    "Cohort",
+    list(pattern = "event_error", user = "ada")
+  )
+  scope <- function(include_users) {
+    export_scope(
+      fixture$performance$cohort$headline,
+      c(pattern = "Finding: event error", user = "User: ada"),
+      include_users = include_users
+    )
+  }
+  written <- function(table) {
+    file <- withr::local_tempfile(fileext = ".csv")
+    export_csv(table, file)
+    paste(readLines(file), collapse = "\n")
+  }
+
+  findings <- export_findings(fixture$data, "a", link, "Cohort", scope(FALSE))
+  expect_no_match(written(findings), "ada", fixed = TRUE)
+  expect_identical(
+    findings$link[[1L]],
+    "https://connect.test/app/#Cohort/a?scope=pattern=event_error"
+  )
+  expect_match(
+    findings$scope[[1L]],
+    "One user (identifier omitted)",
+    fixed = TRUE
+  )
+
+  conversations <- export_conversations(
+    fixture$data,
+    c("a", "d"),
+    link = link,
+    application = "Cohort",
+    scope = scope(FALSE)
+  )
+  expect_false("user" %in% names(conversations))
+  expect_no_match(written(conversations), "ada", fixed = TRUE)
+
+  named <- export_conversations(
+    fixture$data,
+    c("a", "d"),
+    link = link,
+    application = "Cohort",
+    scope = scope(TRUE),
+    include_users = TRUE
+  )
+  expect_identical(named$user, c("ada", NA))
+  expect_match(named$link[[1L]], "&user=ada", fixed = TRUE)
+  expect_match(named$scope[[1L]], "User: ada", fixed = TRUE)
+  expect_match(
+    export_findings(
+      fixture$data,
+      "a",
+      link,
+      include_users = TRUE
+    )$link[[1L]],
+    "&user=ada",
+    fixed = TRUE
+  )
+})
+
+test_that("the export menu's user option governs both CSV downloads", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(
+      scans_app_hash = scans_app_scope_hash(
+        "Cohort",
+        scope = list(user = "ada")
+      )
+    )
+    read <- function(path) paste(readLines(path), collapse = "\n")
+    expect_no_match(
+      read(output$scans_app_export_conversations),
+      "ada",
+      fixed = TRUE
+    )
+    expect_no_match(read(output$scans_app_export_findings), "ada", fixed = TRUE)
+
+    session$setInputs(scans_app_export_users = TRUE)
+    expect_match(
+      read(output$scans_app_export_conversations),
+      "User: ada",
+      fixed = TRUE
+    )
+    expect_match(
+      read(output$scans_app_export_findings),
+      "?scope=user=ada",
+      fixed = TRUE
+    )
+  })
 })
 
 test_that("the findings export has one row per finding in view", {
@@ -217,7 +353,7 @@ test_that("the report states counts with denominators and omits content", {
   )
   expect_match(
     text,
-    "| Event errors | error | 2 of 5 | 2 | Oct 03 | 3 events report errors |",
+    "| Event errors | error | 2 of 3 assessed | 2 | Oct 03 | 3 events report errors |",
     fixed = TRUE
   )
   expect_match(
@@ -225,7 +361,12 @@ test_that("the report states counts with denominators and omits content", {
     "| `lookup` | 4 | 1 (25%) | `timeout` (1) | 2.5 s | 3.8 s |",
     fixed = TRUE
   )
-  expect_match(text, "| large | 2 | 2 | 100 | 40.0 s |", fixed = TRUE)
+  expect_match(
+    text,
+    "| large | 2 | 2 of 2 assessed | 100 | 40.0 s |",
+    fixed = TRUE
+  )
+  expect_match(text, "| Unknown | 1 | not assessed |", fixed = TRUE)
   expect_match(
     text,
     "1. [`a`](https://connect.test/app/#Cohort/a?scope=pattern=event_error&day=2026-10-03): 1 tool error, Repeated tool call",
@@ -250,7 +391,7 @@ test_that("the report states counts with denominators and omits content", {
     export_report(fixture$performance, "Cohort", include_users = TRUE),
     collapse = "\n"
   )
-  expect_match(named, "| ada | 2 | 1 |", fixed = TRUE)
+  expect_match(named, "| ada | 2 | 1 of 2 assessed |", fixed = TRUE)
   expect_match(named, "(bo)", fixed = TRUE)
   expect_no_match(named, "Unopened items", fixed = TRUE)
 
@@ -504,9 +645,13 @@ test_that("a trajectory copies as bounded Markdown that says it has content", {
     "No findings. This does not establish success." %in%
       export_trajectory_markdown(data, 2L)
   )
+  unassessed <- export_trajectory_markdown(data, 5L)
+  expect_true("No transcript was recorded." %in% unassessed)
   expect_true(
-    "No transcript was recorded." %in% export_trajectory_markdown(data, 5L)
+    "Not assessed: no selected scan could assess this trajectory." %in%
+      unassessed
   )
+  expect_no_match(unassessed, "No findings", fixed = TRUE)
 })
 
 test_that("a scoped link reopens the same cohort and exports follow it", {
@@ -595,5 +740,31 @@ test_that("an application link selects that application and its overview", {
     session$setInputs(scans_app_hash = "Missing/")
     expect_null(pending_hash())
     expect_identical(application(), "Other")
+  })
+})
+
+test_that("the user option stays ticked when a filter re-renders the overview", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(scans_app_hash = scans_app_scope_hash("Cohort"))
+    expect_no_match(
+      as.character(output$scans_app_performance$html),
+      'id="scans_app_export_users"[^>]*checked'
+    )
+    session$setInputs(scans_app_export_users = TRUE)
+    session$setInputs(
+      scans_app_hash = scans_app_scope_hash(
+        "Cohort",
+        scope = list(user = "ada")
+      )
+    )
+    expect_match(
+      as.character(output$scans_app_performance$html),
+      'id="scans_app_export_users"[^>]*checked'
+    )
   })
 })

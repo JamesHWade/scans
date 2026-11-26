@@ -169,7 +169,8 @@ test_that("patterns count affected trajectories, users, and a bucket series", {
   )
   expect_identical(patterns$severity, c("error", rep("warning", 3L)))
   expect_identical(patterns$trajectories, c(2L, 2L, 1L, 1L))
-  expect_identical(patterns$share, c(0.4, 0.4, 0.2, 0.2))
+  expect_identical(patterns$assessed, c(3L, 3L, 3L, 3L))
+  expect_identical(patterns$share, c(2, 2, 1, 1) / 3)
   expect_identical(patterns$findings, c(3L, 2L, 1L, 1L))
   expect_identical(patterns$users, c(2L, 1L, 1L, 1L))
   expect_identical(
@@ -185,6 +186,26 @@ test_that("patterns count affected trajectories, users, and a bucket series", {
   expect_identical(nrow(cohort_patterns(data, "e")), 0L)
 })
 
+test_that("patterns measure the share over trajectories the scan assessed", {
+  data <- cohort_fixture_data()
+  ids <- data$info$trajectory_id
+  patterns <- cohort_patterns(data, ids)
+  repeated <- patterns[patterns$scan == "repeated_tool_call", ]
+
+  expect_identical(repeated$trajectories, 2L)
+  expect_identical(repeated$assessed, 3L)
+  expect_identical(repeated$share, 2 / 3)
+
+  narrowed <- cohort_patterns(data, "d")
+  expect_true(all(narrowed$assessed >= narrowed$trajectories))
+
+  none <- data
+  none$assessments <- none$assessments[0L, ]
+  blind <- cohort_patterns(none, ids)
+  expect_identical(blind$assessed, rep(0L, nrow(blind)))
+  expect_identical(blind$share, rep(NA_real_, nrow(blind)))
+})
+
 test_that("breakdowns label unknown groups and report measure coverage", {
   data <- cohort_fixture_data()
   ids <- data$info$trajectory_id
@@ -193,6 +214,7 @@ test_that("breakdowns label unknown groups and report measure coverage", {
   expect_identical(models$value, c("large", "small", "Unknown"))
   expect_identical(models$n, c(2L, 2L, 1L))
   expect_identical(models$n_findings, c(2L, 1L, 0L))
+  expect_identical(models$n_assessed, c(2L, 2L, 0L))
   expect_identical(models$n_error, c(1L, 1L, 0L))
   expect_identical(models$tool_calls, c(4L, 2L, 0L))
   expect_identical(models$tool_failed, c(2L, 1L, 0L))
@@ -204,6 +226,7 @@ test_that("breakdowns label unknown groups and report measure coverage", {
   users <- cohort_breakdown(data, ids, "user")
   expect_identical(users$value, c("ada", "bo", "Unknown"))
   expect_identical(users$n, c(2L, 1L, 2L))
+  expect_identical(users$n_assessed, c(2L, 1L, 1L))
   expect_identical(cohort_breakdown(data, ids, "source_type")$n, 5L)
   expect_error(cohort_breakdown(data, ids, "agent"))
 })

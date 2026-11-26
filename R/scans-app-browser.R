@@ -232,7 +232,8 @@ scans_app_browser_server <- function(
         facets = state$facets(),
         pattern = state$pattern_filter(),
         findings_only = isTRUE(input$scans_app_findings_only),
-        review = state$review_filter()
+        review = state$review_filter(),
+        export_users = isTRUE(shiny::isolate(input$scans_app_export_users))
       )
     )
   })

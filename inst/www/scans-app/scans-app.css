@@ -1965,6 +1965,8 @@ td.scans-app-cell-meter .scans-app-meter { margin-left: auto; }
 /* Exports. */
 .scans-app-export { margin-left: auto; }
 .scans-app-export .dropdown-item { font-size: .9rem; }
+.scans-app-export-option { font-size: .9rem; }
+.scans-app-export-option .form-group { margin-bottom: 0; }
 .scans-app-export-text { font-family: var(--bs-font-monospace); font-size: .8rem; line-height: 1.5; white-space: pre; resize: vertical; }
 .scans-app-export-note { font-size: .88rem; color: var(--scans-app-muted); }
 .scans-app-copy-status { margin-right: auto; font-size: .85rem; color: var(--scans-app-muted); }
