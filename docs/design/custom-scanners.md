@@ -108,6 +108,12 @@ results without it. Recomputing needs the scanner again:
 with an error that says so, and the app names the saved scanners it cannot
 rerun, both before and after "Apply current scanners".
 
+A trajectory is assessed when any selected scan assessed it, so a scanner
+that fails everywhere leaves trajectories "clean" if the built-ins assessed
+them. The class stays as it is; instead the review queue lists "Execution
+failure" as a reason and the overview tile and Markdown report count the
+trajectories with at least one failed scan, built-in or custom.
+
 `scans_tools()` accepts `scanners` for a bundle and refuses them for a saved
 investigation, whose analysis is fixed. The findings tool accepts any scan
 name present in the analysis. The app's copied R snippet says that custom

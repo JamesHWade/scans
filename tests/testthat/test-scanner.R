@@ -841,3 +841,42 @@ test_that("a custom explanation cannot add markdown structure to a trajectory ex
       markdown
   )
 })
+
+test_that("a trajectory with a failed scan says so in the queue and the headline", {
+  boom <- scanner_toy_fixture("toy_boom", function(trajectory, settings) {
+    if (trajectory$trajectory_id %in% c("chat-hit", "chat-clean")) {
+      stop("boom")
+    }
+    scanner_findings()
+  })
+  data <- scans_app_data(scanner_bundle_fixture(), scanners = boom)
+  ids <- data$info$trajectory_id
+  trajectories <- cohort_trajectories(data, ids)
+
+  expect_identical(trajectories$class, rep("clean", 4L))
+  expect_identical(trajectories$execution_failure, c(TRUE, TRUE, FALSE, FALSE))
+  queue <- cohort_review_queue(data, ids)
+  expect_identical(
+    vapply(queue$reasons, function(x) "Execution failure" %in% x, logical(1)),
+    queue$trajectory_id %in% c("chat-hit", "chat-clean")
+  )
+  headline <- cohort_headline(data, ids)
+  expect_identical(headline$n_execution_failure, 2L)
+  expect_match(
+    as.character(scans_app_tiles_ui(headline)),
+    "2 with an execution failure",
+    fixed = TRUE
+  )
+  report <- export_report(scans_app_performance_data(data, seq_along(ids)), "app")
+  expect_true(
+    "- 2 trajectories had a scan that failed to run; that scan's result for them is unknown." %in%
+      report
+  )
+
+  plain <- scans_app_data(scanner_bundle_fixture())
+  expect_identical(cohort_headline(plain, ids)$n_execution_failure, 0L)
+  expect_no_match(
+    as.character(scans_app_tiles_ui(cohort_headline(plain, ids))),
+    "execution failure"
+  )
+})
