@@ -147,21 +147,40 @@ values are on the scale gets a `change` (`improved`, `regressed`,
 baseline for numeric and binary scales and `NA` for ordered scales, whose
 steps are not known to be equal.
 
-**Patterns**, per case and scan, from the saved assessments:
+**Patterns**, per case and scan, from the saved assessments. Every pair of
+saved statuses has one change; rows are the baseline, columns the candidate:
 
-| Baseline | Candidate | Change |
-| --- | --- | --- |
-| no finding | finding | `appeared` |
-| finding | no finding | `resolved` |
-| finding | finding | `persisted` |
-| no finding | no finding | `absent` |
-| either side `insufficient_evidence`, `execution_failure`, or scan not selected | | `not_comparable` |
-| scanner version or thresholds differ | | `not_comparable` |
+| Baseline \ Candidate | with findings | no findings | not applicable | insufficient evidence | execution failure |
+| --- | --- | --- | --- | --- | --- |
+| with findings | `persisted` | `resolved` | `no_longer_applicable` | `not_comparable` | `not_comparable` |
+| no findings | `appeared` | `absent` | `absent` | `not_comparable` | `not_comparable` |
+| not applicable | `newly_applicable` | `absent` | `absent` | `not_comparable` | `not_comparable` |
+| insufficient evidence | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` |
+| execution failure | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` | `not_comparable` |
 
-`not_applicable` counts as no finding: the scanner determined that the
-pattern cannot occur in that capture, which is an assessment. An unassessed
-side is never read as clean. Rows carry the finding identifiers and the event
-identifiers those findings cite on each side.
+A scan not selected on a side, a missing assessment, or a different scanner
+version or thresholds is `not_comparable` whatever the statuses.
+
+`not_applicable` is an assessment: the scanner determined that the pattern
+cannot occur in that capture. Against no findings on the other side it is
+`absent`, since neither side has the pattern. Against findings on the other
+side it is not a fix or a regression. A pattern found on the baseline whose
+scan does not apply to the candidate's capture is `no_longer_applicable`:
+the pattern can no longer occur there, which may mean the capture changed
+shape (for example, the candidate stopped calling tools) rather than that
+anything was repaired. The mirror case, not applicable on the baseline and
+found on the candidate, is `newly_applicable`. Both are counted on their own
+in `cases`, in the summaries, and in print, and neither feeds
+`share_resolved` or its sign test, which compare only `resolved` with
+`appeared`.
+
+Rejected: counting `no_longer_applicable` as `resolved` (it would credit a
+change with removing a pattern it only made impossible to observe), and
+counting it as `not_comparable` (both sides were assessed, and the finding
+on the baseline is evidence a reviewer should see).
+
+An unassessed side is never read as clean. Rows carry the finding
+identifiers and the event identifiers those findings cite on each side.
 
 **Resources**, per case and measure, from `measure_trajectories()`. A delta
 needs, on both sides, a recorded value with `complete` coverage, and the same

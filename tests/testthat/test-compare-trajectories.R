@@ -243,6 +243,83 @@ test_that("a resource row whose sides differ in unit shows both units", {
   expect_identical(output$median_delta, NA_real_)
 })
 
+test_that("every pair of assessment statuses has one deliberate change", {
+  statuses <- c(
+    "assessed_with_findings",
+    "assessed_no_findings",
+    "not_applicable",
+    "insufficient_evidence",
+    "execution_failure"
+  )
+  expected <- matrix(
+    "not_comparable",
+    5L,
+    5L,
+    dimnames = list(baseline = statuses, candidate = statuses)
+  )
+  # Rows are the baseline status, columns the candidate status.
+  expected[1:3, 1:3] <- rbind(
+    c("persisted", "resolved", "no_longer_applicable"),
+    c("appeared", "absent", "absent"),
+    c("newly_applicable", "absent", "absent")
+  )
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(1),
+    comparison_manual_investigation(1),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  set_status <- function(pairing, side, status) {
+    assessments <- pairing[[side]]$analysis$assessments
+    assessments$status[assessments$scan == "event_error"] <- status
+    pairing[[side]]$analysis$assessments <- assessments
+    pairing
+  }
+  for (b in statuses) {
+    for (c in statuses) {
+      changed <- set_status(set_status(pairing, "baseline", b), "candidate", c)
+      patterns <- comparison_patterns(changed)
+      expect_identical(
+        patterns$change[patterns$scan == "event_error"],
+        expected[[b, c]],
+        info = paste(b, "->", c)
+      )
+    }
+  }
+})
+
+test_that("a pattern that no longer applies is not counted as resolved", {
+  pairing <- pair_trajectories(
+    comparison_changed_investigation("candidate"),
+    comparison_changed_investigation("baseline"),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  assessments <- pairing$candidate$analysis$assessments
+  assessments$status[assessments$scan == "event_error"] <- "not_applicable"
+  pairing$candidate$analysis$assessments <- assessments
+  tables <- list(
+    outcomes = comparison_outcomes(pairing),
+    patterns = comparison_patterns(pairing),
+    resources = comparison_resources(pairing)
+  )
+  summaries <- comparison_paired_summaries(tables, pairing, 0.95)
+  expect_match(
+    comparison_summary_lines(summaries),
+    "Pattern event_error: appeared in 0, resolved in 0, persisted in 0, no longer applicable in 7; counts only",
+    fixed = TRUE,
+    all = FALSE
+  )
+  summary <- summaries$patterns[summaries$patterns$scan == "event_error", ]
+  expect_identical(summary$n_no_longer_applicable, 7L)
+  expect_identical(summary$n_resolved, 0L)
+  expect_identical(summary$method, "counts")
+  expect_true(is.na(summary$share_resolved))
+  cases <- comparison_cases(pairing$pairs, tables)
+  expect_identical(cases$patterns_no_longer_applicable, rep(1L, 7L))
+  expect_identical(cases$patterns_resolved, rep(0L, 7L))
+})
+
 test_that("each case counts its changes per family without combining them", {
   skip_if_not_installed("vitals")
   cases <- compare_trajectories(comparison_pairing())$cases

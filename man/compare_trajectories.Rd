@@ -35,7 +35,12 @@ a compatible scorer pair whose values are on the declared scale.
 \item \code{patterns}: one row per case and scan: \code{"appeared"}, \code{"resolved"},
 \code{"persisted"}, \code{"absent"}, or \code{"not_comparable"} when either side was not
 assessed, did not run the scan, or ran it under a different version or
-settings. A scan that does not apply to a capture counts as absent.
+settings. A pattern found on one side whose scan does not apply to the
+other side's capture is \code{"no_longer_applicable"} (found on the baseline)
+or \code{"newly_applicable"} (found on the candidate): the pattern could not
+occur in the other capture, which is not a fix or a regression. These are
+counted on their own and never feed the share resolved or its test. A
+scan that does not apply, with no finding on the other side, is absent.
 \item \code{resources}: one row per case and measure. A delta is reported only when
 both sides have a recorded value with complete coverage under the same
 unit, aggregation, source, measurement contract, and cache inclusion.

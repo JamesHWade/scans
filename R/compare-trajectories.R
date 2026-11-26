@@ -13,7 +13,12 @@
 #' * `patterns`: one row per case and scan: `"appeared"`, `"resolved"`,
 #'   `"persisted"`, `"absent"`, or `"not_comparable"` when either side was not
 #'   assessed, did not run the scan, or ran it under a different version or
-#'   settings. A scan that does not apply to a capture counts as absent.
+#'   settings. A pattern found on one side whose scan does not apply to the
+#'   other side's capture is `"no_longer_applicable"` (found on the baseline)
+#'   or `"newly_applicable"` (found on the candidate): the pattern could not
+#'   occur in the other capture, which is not a fix or a regression. These are
+#'   counted on their own and never feed the share resolved or its test. A
+#'   scan that does not apply, with no finding on the other side, is absent.
 #' * `resources`: one row per case and measure. A delta is reported only when
 #'   both sides have a recorded value with complete coverage under the same
 #'   unit, aggregation, source, measurement contract, and cache inclusion.
@@ -338,6 +343,12 @@ comparison_patterns <- function(pairing) {
     ifelse(present[[2L]], "persisted", "resolved"),
     ifelse(present[[2L]], "appeared", "absent")
   )
+  # A scan that stops or starts applying to the capture says the pattern can
+  # no longer, or can now, occur there: not that it was fixed or introduced.
+  not_applicable <- lapply(state, \(x) x$status %in% "not_applicable")
+  change[present[[1L]] %in% TRUE & not_applicable[[2L]]] <-
+    "no_longer_applicable"
+  change[not_applicable[[1L]] & present[[2L]] %in% TRUE] <- "newly_applicable"
   change[unassessed | !same_scanner] <- "not_comparable"
   side_reason <- function(status, side) {
     ifelse(
@@ -356,7 +367,19 @@ comparison_patterns <- function(pairing) {
     ifelse(
       is.na(present[[2L]]),
       side_reason(state[[2L]]$status, "candidate"),
-      ifelse(same_scanner, NA, "Scanner version or settings differ.")
+      ifelse(
+        !same_scanner,
+        "Scanner version or settings differ.",
+        ifelse(
+          change == "no_longer_applicable",
+          "The scan does not apply to the candidate capture.",
+          ifelse(
+            change == "newly_applicable",
+            "The scan did not apply to the baseline capture.",
+            NA
+          )
+        )
+      )
     )
   )
   tibble::tibble(
@@ -518,6 +541,14 @@ comparison_cases <- function(pairs, tables) {
     outcomes_not_comparable = count(outcomes, !outcomes$comparable),
     patterns_appeared = count(patterns, patterns$change == "appeared"),
     patterns_resolved = count(patterns, patterns$change == "resolved"),
+    patterns_no_longer_applicable = count(
+      patterns,
+      patterns$change == "no_longer_applicable"
+    ),
+    patterns_newly_applicable = count(
+      patterns,
+      patterns$change == "newly_applicable"
+    ),
     patterns_persisted = count(patterns, patterns$change == "persisted"),
     patterns_not_comparable = count(
       patterns,
@@ -595,7 +626,15 @@ comparison_paired_summaries <- function(tables, pairing, conf_level) {
     x <- patterns[patterns$scan == scan, ]
     tally <- table(factor(
       x$change,
-      c("appeared", "resolved", "persisted", "absent", "not_comparable")
+      c(
+        "appeared",
+        "resolved",
+        "persisted",
+        "absent",
+        "no_longer_applicable",
+        "newly_applicable",
+        "not_comparable"
+      )
     ))
     tibble::tibble(
       design = "paired",
@@ -606,6 +645,8 @@ comparison_paired_summaries <- function(tables, pairing, conf_level) {
       n_resolved = tally[["resolved"]],
       n_persisted = tally[["persisted"]],
       n_absent = tally[["absent"]],
+      n_no_longer_applicable = tally[["no_longer_applicable"]],
+      n_newly_applicable = tally[["newly_applicable"]],
       n_not_comparable = tally[["not_comparable"]],
       test(tally[["resolved"]], tally[["appeared"]])
     )
@@ -890,19 +931,34 @@ comparison_summary_lines <- function(summaries) {
     ""
   )
   patterns <- summaries$patterns
-  patterns <- patterns[patterns$n_appeared + patterns$n_resolved > 0L, ]
+  patterns <- patterns[
+    patterns$n_appeared +
+      patterns$n_resolved +
+      patterns$n_no_longer_applicable +
+      patterns$n_newly_applicable >
+      0L,
+  ]
   lines <- c(
     lines,
     vapply(
       seq_len(nrow(patterns)),
       function(i) {
         row <- patterns[i, ]
+        applicability <- c(
+          "no longer applicable in %d" = row$n_no_longer_applicable,
+          "newly applicable in %d" = row$n_newly_applicable
+        )
+        applicability <- applicability[applicability > 0L]
         sprintf(
-          "Pattern %s: appeared in %d, resolved in %d, persisted in %d; %s",
+          "Pattern %s: appeared in %d, resolved in %d, persisted in %d%s; %s",
           comparison_plain(row$scan),
           row$n_appeared,
           row$n_resolved,
           row$n_persisted,
+          paste0(
+            sprintf(", %s", sprintf(names(applicability), applicability)),
+            collapse = ""
+          ),
           uncertainty(row, "resolved")
         )
       },
