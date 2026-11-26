@@ -233,7 +233,8 @@ scans_app_export_server <- function(input, output, session, state) {
           bundle = entry$bundle,
           queue = state$queue(),
           reviews = reviews,
-          include_users = isTRUE(input$scans_app_report_users)
+          include_users = isTRUE(input$scans_app_report_users),
+          include_errors = isTRUE(input$scans_app_report_errors)
         )
       )
     )
@@ -372,10 +373,17 @@ scans_app_export_server <- function(input, output, session, state) {
       scans_app_export_modal(
         "Report",
         "Counts, capture limits, and the evidence identities behind each pattern for the trajectories in view. It contains no transcript text. The HTML file and this Markdown hold the same report.",
-        options = shiny::checkboxInput(
-          "scans_app_report_users",
-          "Include user identifiers",
-          value = FALSE
+        options = htmltools::tagList(
+          shiny::checkboxInput(
+            "scans_app_report_users",
+            "Include user identifiers",
+            value = FALSE
+          ),
+          shiny::checkboxInput(
+            "scans_app_report_errors",
+            "Include recorded error text (can contain tool results)",
+            value = FALSE
+          )
         ),
         download = htmltools::tagList(
           shiny::downloadButton(

@@ -363,3 +363,16 @@ test_that("the app's report carries the session's review cases", {
     )
   })
 })
+
+test_that("the report dialog's error option governs recorded error text", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(scans_app_export_report = 1L)
+    expect_no_match(export_text(), "`timeout`", fixed = TRUE)
+    session$setInputs(scans_app_report_errors = TRUE)
+    expect_match(export_text(), "`timeout`", fixed = TRUE, all = FALSE)
+  })
+})
