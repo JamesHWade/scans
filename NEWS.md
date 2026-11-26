@@ -1,5 +1,6 @@
 # scans 0.0.0.9000
 
+* New article "Write and validate a domain-specific scanner", with two example scanners and reviewed fixture cases in `inst/examples/`. `scans_app_connect()` forwards `scanners` (#43).
 * New `validate_scanner()` compares a custom scanner with reviewed cases and reports, per development and test split, true and false positives and negatives, precision and recall with denominators, and the cases it could not score. `validate_review_examples()` gains `scanners` and reports the reviewed scanner version (#43).
 * New `scanner()`, `scanner_findings()`, and `scanner_unassessed()` define custom deterministic scanners, passed per call through the new `scanners` argument of `scan_trajectories()`, `assess_trajectory_scans()`, `investigation_snapshot()`, `scans_tools()`, and `scans_app()`. A scanner that throws, returns anything else, or cites evidence outside a trajectory is an `execution_failure` for that scanner and trajectory only; built-in results are unchanged. Saved investigations record whether each scan is built-in or custom (#43).
 * A trajectory with a failed scan says so in the review queue and the overview.

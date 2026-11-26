@@ -86,7 +86,8 @@ test_that("Connect review controls are optional without reading traces", {
     annotations,
     investigations,
     reviews,
-    chat_factory
+    chat_factory,
+    ...
   ) {
     reviews
   })
