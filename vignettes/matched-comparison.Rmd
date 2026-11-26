@@ -1,0 +1,290 @@
+---
+title: "Compare a change on matched cases"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Compare a change on matched cases}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+ready <- rlang::is_installed(c("vitals", "ellmer", "digest", "jsonlite"))
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = ready)
+library(scans)
+```
+
+You changed a prompt, a tool, or a model, and ran your evaluation again. This
+article compares the two runs case by case: which outcomes changed, which
+diagnostic patterns appeared or went away, and what the change cost.
+
+vitals runs and scores the evaluation. scans reads the two completed records
+and reports the recorded differences. It does not run a solver, a scorer, or
+a model.
+
+## Two runs of the same reviewed cases
+
+The installed recipe builds everything offline. It reviews four trajectories
+of the bundled investigation, turns them into versioned application examples
+with `review_examples()` (one development case, three held-out cases), and
+runs a baseline and a candidate version of the application through vitals
+with one scorer. Every model reply is a fixed transcript, so the numbers
+below show the workflow, not a real improvement.
+
+```{r build}
+source(system.file("examples", "matched-comparison.R", package = "scans"))
+runs <- build_matched_comparison()
+runs$baseline$manifest[c("application", "snapshot_id")]
+runs$candidate$manifest[c("application", "snapshot_id")]
+```
+
+Each side is a saved investigation. That gives the comparison a snapshot
+identity to cite and the frozen scanner assessments and resource measures it
+compares.
+
+`review_dataset()` used each review case identifier as the vitals sample
+`id`, so the recorded `sample_id` leads back to the review:
+
+```{r provenance}
+provenance <- attr(runs$held_out, "scans_provenance")
+provenance[c("group", "split", "expected_behavior")]
+```
+
+## Restrict both runs to held-out cases
+
+Both runs also covered the development case. A change that was tuned on the
+development case must be judged on cases it never saw, so keep only the
+held-out samples on each side. Selecting trajectories creates a new snapshot
+that records the omission.
+
+```{r held-out}
+held_out_only <- function(investigation) {
+  info <- trajectory_info(investigation$bundle)
+  investigation_snapshot(
+    investigation$bundle,
+    trajectory_ids = info$trajectory_id[info$sample_id %in% runs$held_out$id],
+    application = investigation$manifest$application
+  )
+}
+baseline <- held_out_only(runs$baseline)
+candidate <- held_out_only(runs$candidate)
+```
+
+The candidate run also contained a smoke-test sample that is not in the
+dataset. It is not a held-out case, so this selection leaves it out. Pairing
+the unrestricted runs reports it as present only in the candidate:
+
+```{r unrestricted}
+unrestricted <- pair_trajectories(
+  runs$baseline,
+  runs$candidate,
+  by = "sample_id",
+  dataset_version = runs$examples$version_id
+)
+unrestricted$only_candidate$sample_id
+```
+
+## Pair on an explicit key
+
+Name the key. Nothing is matched by position, and there is no default.
+
+vitals does not record a dataset version or a scorer version, so you declare
+both. The version of the example set is the dataset version. The scorer
+declaration states that the label `expected_answer` means the same scorer,
+at version 1, on both sides. vitals recorded that label because the recipe
+passed a function named `expected_answer` as the scorer.
+
+```{r pair}
+scorer <- comparison_scorer(
+  "expected_answer",
+  version = "1",
+  scale = "binary",
+  direction = "higher",
+  levels = c("I", "C")
+)
+pairing <- pair_trajectories(
+  baseline,
+  candidate,
+  by = "sample_id",
+  dataset_version = runs$examples$version_id,
+  scorers = list(scorer)
+)
+pairing$pairs[c("pair_id", "baseline_trajectory_id", "candidate_trajectory_id")]
+pairing$only_baseline["trajectory_id"]
+nrow(pairing$only_candidate)
+```
+
+The candidate run stopped before the last held-out case, so that case exists
+only in the baseline. It is reported, and it is outside every paired number
+below. `pairing$duplicates` and `pairing$missing_key` list the other ways a
+trajectory can fail to pair; both are empty here.
+
+If the samples had run for several epochs, add `"epoch"` to `by`. Without
+it, repeated epochs of a sample are reported as duplicates.
+
+## Per-case changes
+
+```{r compare}
+comparison <- compare_trajectories(pairing)
+group <- function(table) {
+  provenance$group[match(table$sample_id, provenance$case_id)]
+}
+```
+
+Outcomes, patterns, and resources stay in three tables. They are not combined
+into a score.
+
+```{r outcomes}
+outcomes <- comparison$outcomes
+data.frame(
+  group = group(outcomes),
+  outcomes[c("baseline_value", "candidate_value", "change")]
+)
+```
+
+One case improved and one regressed. The patterns table says what the
+scanners saw on each side. A side that could not be assessed is
+`not_comparable`; it is never read as clean.
+
+```{r patterns}
+patterns <- comparison$patterns
+changed <- patterns[patterns$change != "absent", ]
+data.frame(
+  group = group(changed),
+  changed[c("scan", "change", "baseline_status", "candidate_status")]
+)
+```
+
+The regression came with a failed tool call that the baseline did not have.
+
+```{r resources}
+resources <- comparison$resources
+tokens <- resources[resources$measure == "input_tokens", ]
+data.frame(
+  group = group(tokens),
+  tokens[c(
+    "baseline_value", "candidate_value", "delta",
+    "baseline_coverage", "candidate_coverage",
+    "baseline_includes_cached_input", "candidate_includes_cached_input"
+  )]
+)
+```
+
+Both changed cases used more input tokens, including the one that improved.
+A delta appears only when both sides have a complete recorded value under the
+same unit, source, and cache-inclusion rule. Otherwise `delta` is `NA` and
+`reason` says why:
+
+```{r unknown}
+unique(resources$reason[!resources$comparable])
+```
+
+## Open both trajectories
+
+Every row carries both trajectory identities, and pattern rows carry the
+finding and event identities on each side. Use them to read the evidence:
+
+```{r evidence}
+appeared <- changed[changed$scan == "event_error", ]
+events <- trajectory_events(comparison$pairing$candidate$bundle)
+events[
+  events$event_id %in% appeared$candidate_event_ids[[1L]],
+  c("event_type", "name", "status", "text")
+]
+```
+
+Or open the comparison in the review app. The overview lists what could not
+be compared first, then the matched cases, with links from each case to both
+trajectories and to the cited events.
+
+```{r app, eval=FALSE}
+scans_app(comparison)
+```
+
+## Link each case to its review
+
+The sample identity is the review case identity, so each compared case joins
+back to the decision, the expected behavior, and the snapshot the reviewer
+looked at.
+
+```{r review-link}
+reviewed <- merge(
+  comparison$outcomes[c("sample_id", "change")],
+  provenance,
+  by.x = "sample_id",
+  by.y = "case_id"
+)
+reviewed[c("group", "change", "expected_behavior")]
+reviewed$origin[[1L]]$snapshot_id
+```
+
+`runs$examples$cases` holds the reviewed evidence itself: the original
+trajectory, its findings, and the full decision history.
+
+## The paired summary
+
+Printing leads with what was not compared.
+
+```{r summary}
+comparison
+```
+
+The summary counts cases by direction. It adds an exact sign test and an
+interval only when each case has one pair and at least six cases changed.
+Two changed cases cannot separate a change from chance, so this summary is
+counts only and its `note` says so:
+
+```{r note}
+comparison$summaries$outcomes[c("n", "n_improved", "n_regressed", "method")]
+```
+
+If no case had paired, for example because the two runs used different
+dataset versions, the summaries would describe each side separately, labelled
+`unpaired`, with no paired estimate.
+
+## What this establishes
+
+- For each held-out case that both runs completed, the recorded outcome,
+  findings, and resource values of the two runs, and how they differ.
+- That the outcomes were compared under one scorer, at the version you
+  declared, on one dataset version.
+- Which cases are outside the comparison, and why.
+
+## What it does not establish
+
+**That the change caused the difference.** Each case ran once per side. A
+model that gives different answers on repeated runs can produce the same
+table with no change at all. Run several epochs to see that variation.
+
+**Anything about a re-scored run.** Scoring the same saved outputs again with
+a new scorer tests the scorer. scans reports those outcomes as incompatible,
+because the scorer version differs:
+
+```{r rescored}
+rescored <- pair_trajectories(
+  baseline,
+  candidate,
+  by = "sample_id",
+  dataset_version = runs$examples$version_id,
+  scorers = list(
+    baseline = list(scorer),
+    candidate = list(comparison_scorer(
+      "expected_answer", version = "2", scale = "binary", levels = c("I", "C")
+    ))
+  )
+)
+unique(rescored$outcome_pairs[c("compatibility", "reason")])
+```
+
+To test an application or prompt change, generate new outputs for the same
+cases and score both runs with the same scorer version.
+
+**Performance on cases you tuned against.** Use the development split to
+change the application and the held-out split to judge it. Once you adjust
+the application in response to held-out results, those cases are no longer
+held out; review new cases and make a new version of the example set.
+
+**Complete resource use.** Coverage describes the loaded records. A complete
+measure does not prove the source captured every call.
+
+**A property of production traffic.** Three reviewed cases describe three
+reviewed cases.
