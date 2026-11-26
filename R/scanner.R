@@ -29,7 +29,8 @@
 #' assessment; the framework lists them in the assessment's limitations.
 #'
 #' The framework checks every finding. A turn or event reference that is not
-#' in the scanned trajectory, or a malformed finding, makes the whole result
+#' in the scanned trajectory, a primary event outside the finding's turn, or
+#' a malformed finding, makes the whole result
 #' an `execution_failure` for that scanner and trajectory, and none of its
 #' findings are kept. A scanner that throws an error, or raises any other
 #' condition with `stop()`, is an `execution_failure` for that scanner and
@@ -185,7 +186,8 @@ print.scans_scanner <- function(x, ...) {
 #' @rdname scanner
 #' @param event_id,turn_id Primary evidence identities for each finding, from
 #'   the scanned trajectory. `NA` means the finding has none. A finding with
-#'   an event and no turn takes the event's turn.
+#'   an event and no turn takes the event's turn; one with both must name the
+#'   event's own turn.
 #' @param label,explanation A short label and a one-sentence explanation for
 #'   each finding.
 #' @param event_ids Optional list with every supporting event identifier for
@@ -308,7 +310,7 @@ scanner_check_list <- function(scanners, call) {
 scanner_failure_reasons <- c(
   error = "The custom scanner function failed. Other scanners were retained; fix the scanner and rerun.",
   result = "The custom scanner returned a value that is not a findings table or an unassessed result.",
-  reference = "The custom scanner returned a finding with a turn or event reference that is not in this trajectory. Its findings were discarded."
+  reference = "The custom scanner returned a finding with a turn or event reference that is not in this trajectory, or whose event is not in its turn. Its findings were discarded."
 )
 
 # Runs each scanner on each trajectory. With `strict`, a failure is signalled;
@@ -474,10 +476,15 @@ scanner_run_one <- function(item, trajectory, strict, call) {
   turn_ok <- is.na(found$turn_id) | found$turn_id %in% trajectory$turns$turn_id
   owner_ok <- is.null(result[["trajectory_id"]]) ||
     all(result[["trajectory_id"]] %in% trajectory$trajectory_id)
-  if (!all(event_ok) || !all(turn_ok) || !owner_ok) {
+  event_turns <- events$turn_id[match(found$event_id, events$event_id)]
+  same_turn <- is.na(found$turn_id) |
+    is.na(found$event_id) |
+    found$turn_id == event_turns
+  if (
+    !all(event_ok) || !all(turn_ok) || !owner_ok || !all(same_turn %in% TRUE)
+  ) {
     return(failed("reference"))
   }
-  event_turns <- events$turn_id[match(found$event_id, events$event_id)]
   inherit <- is.na(found$turn_id) & !is.na(found$event_id)
   found$turn_id[inherit] <- event_turns[inherit]
   position <- events$event_index[match(found$event_id, events$event_id)]

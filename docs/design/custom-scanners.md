@@ -59,8 +59,9 @@ always appears in `event_ids`. Severity belongs to the scanner, not the
 finding, as it does for every built-in but one.
 
 **The framework checks references.** Every `turn_id` and event identifier
-must be in the scanned trajectory, and a `trajectory_id` column, if present,
-must name it. One bad reference makes that scanner's whole result for that
+must be in the scanned trajectory, a finding that names both a turn and a
+primary event must name the event's own turn, and a `trajectory_id` column,
+if present, must name the trajectory. One bad reference makes that scanner's whole result for that
 trajectory an `execution_failure` and discards its findings. Dropping only the
 bad finding was rejected: a scanner that cites records that do not exist is
 wrong in a way that makes its other findings on that trajectory untrustworthy,

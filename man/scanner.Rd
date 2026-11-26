@@ -52,7 +52,8 @@ environments, or objects of other classes.}
 
 \item{event_id, turn_id}{Primary evidence identities for each finding, from
 the scanned trajectory. \code{NA} means the finding has none. A finding with
-an event and no turn takes the event's turn.}
+an event and no turn takes the event's turn; one with both must name the
+event's own turn.}
 
 \item{label, explanation}{A short label and a one-sentence explanation for
 each finding.}
@@ -108,7 +109,8 @@ than a clean negative, so a scanner that forgets to return cannot report
 assessment; the framework lists them in the assessment's limitations.
 
 The framework checks every finding. A turn or event reference that is not
-in the scanned trajectory, or a malformed finding, makes the whole result
+in the scanned trajectory, a primary event outside the finding's turn, or
+a malformed finding, makes the whole result
 an \code{execution_failure} for that scanner and trajectory, and none of its
 findings are kept. A scanner that throws an error, or raises any other
 condition with \code{stop()}, is an \code{execution_failure} for that scanner and

@@ -187,7 +187,8 @@ test_that("a finding that cites evidence outside the trajectory is an execution 
   for (bad in list(
     citing(event_ids = list("hit-e2", c("hit-e2", "clean-e1"))),
     citing(turn_id = c("hit-2", "clean-2")),
-    citing(event_ids = list(character(), "missing-event"))
+    citing(event_ids = list(character(), "missing-event")),
+    citing(turn_id = "hit-1")
   )) {
     result <- assess_trajectory_scans(
       bundle,
