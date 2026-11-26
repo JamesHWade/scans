@@ -195,7 +195,11 @@ pair_trajectories <- function(
 #' @param version The scorer version: any string that changes whenever the
 #'   scorer's code, prompt, grading model, or rubric changes.
 #' @param scale `"binary"`, `"ordered"`, or `"numeric"`.
-#' @param direction Whether a `"higher"` or `"lower"` value is better.
+#' @param direction Whether a `"higher"` or `"lower"` value is better. An
+#'   undeclared ordered factor score is read as `"higher"`, the vitals
+#'   convention that levels run from worst to best; declare `"lower"` when a
+#'   scorer's levels run the other way. The declared `levels` must still match
+#'   the recorded level order.
 #' @param levels For binary and ordered scales, the possible values from
 #'   lowest to highest. Not used for a numeric scale.
 #' @param id The scorer's identity. Defaults to the recorded label. Supply one
@@ -487,7 +491,7 @@ pairing_empty_scorers <- function() {
 
 # What the saved evaluation values establish on their own. An ordered factor
 # records its levels and their order; vitals scorers use that order from worst
-# to best. Numeric and logical scores record a scale but no direction. A
+# to best, so its direction defaults to "higher". Numeric and logical scores record a scale but no direction. A
 # missing score records nothing, so it neither establishes nor hides a scale.
 pairing_recorded_scale <- function(values) {
   out <- list(scale = NA_character_, direction = NA_character_, levels = NULL)
@@ -545,13 +549,10 @@ pairing_resolve_scorer <- function(label, recorded, declaration, side, call) {
       call
     )
   }
-  for (field in c("scale", "direction")) {
-    if (
-      !is.na(recorded[[field]]) &&
-        !identical(recorded[[field]], declaration[[field]])
-    ) {
-      conflict(field, recorded[[field]], declaration[[field]])
-    }
+  # The recorded direction of an ordered factor is the vitals convention, not
+  # a recorded fact, so a declaration may override it.
+  if (!is.na(recorded$scale) && !identical(recorded$scale, declaration$scale)) {
+    conflict("scale", recorded$scale, declaration$scale)
   }
   if (
     !is.null(recorded$levels) && !identical(recorded$levels, declaration$levels)

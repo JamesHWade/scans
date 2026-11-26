@@ -440,3 +440,31 @@ test_that("keys equal in different encodings pair", {
   expect_identical(nrow(pairing$only_baseline), 0L)
   expect_identical(nrow(pairing$only_candidate), 0L)
 })
+
+test_that("an ordered factor reads higher as better unless declared otherwise", {
+  verdict <- factor(c("I", "C"), levels = c("I", "C"), ordered = TRUE)
+  pair <- function(scorers) {
+    pair_trajectories(
+      comparison_manual_investigation(list(verdict[1L])),
+      comparison_manual_investigation(list(verdict[2L])),
+      by = "sample_id",
+      dataset_version = "v1",
+      scorers = scorers
+    )
+  }
+  expect_identical(pair(NULL)$scorers$direction, rep("higher", 2L))
+
+  lower <- pair(list(
+    comparison_scorer("judge", "1", "binary", "lower", levels = c("I", "C"))
+  ))
+  expect_identical(lower$scorers$direction, rep("lower", 2L))
+  expect_identical(lower$outcome_pairs$compatibility, "compatible")
+  expect_identical(lower$outcome_pairs$direction, "lower")
+
+  expect_error(
+    pair(list(
+      comparison_scorer("judge", "1", "binary", "lower", levels = c("C", "I"))
+    )),
+    class = "scans_error_pairing"
+  )
+})

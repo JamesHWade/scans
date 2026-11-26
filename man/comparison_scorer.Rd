@@ -21,7 +21,11 @@ scorer's code, prompt, grading model, or rubric changes.}
 
 \item{scale}{\code{"binary"}, \code{"ordered"}, or \code{"numeric"}.}
 
-\item{direction}{Whether a \code{"higher"} or \code{"lower"} value is better.}
+\item{direction}{Whether a \code{"higher"} or \code{"lower"} value is better. An
+undeclared ordered factor score is read as \code{"higher"}, the vitals
+convention that levels run from worst to best; declare \code{"lower"} when a
+scorer's levels run the other way. The declared \code{levels} must still match
+the recorded level order.}
 
 \item{levels}{For binary and ordered scales, the possible values from
 lowest to highest. Not used for a numeric scale.}
