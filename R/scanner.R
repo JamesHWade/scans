@@ -56,6 +56,8 @@
 #' @param severity `"warning"` or `"error"`, applied to every finding.
 #' @param settings A named list of data passed to `fn` and recorded with each
 #'   assessment, such as tool names or phrases the application owner chose.
+#'   It must hold only data a saved investigation can store: no functions,
+#'   environments, or objects of other classes.
 #'
 #' @returns `scanner()` returns a `scans_scanner` value.
 #' @export
@@ -139,8 +141,14 @@ scanner <- function(
       call
     )
   }
-  if (!trajectory_is_named_list(settings)) {
-    scanner_abort("{.arg settings} must be a named list of data.", call)
+  if (!trajectory_is_named_list(settings) || !investigation_is_data(settings)) {
+    scanner_abort(
+      c(
+        "{.arg settings} must be a named list of data.",
+        i = "Settings are saved with each assessment, so they cannot hold functions, environments, or objects of other classes."
+      ),
+      call
+    )
   }
   structure(
     list(
@@ -173,7 +181,8 @@ print.scans_scanner <- function(x, ...) {
 #' @param event_ids Optional list with every supporting event identifier for
 #'   each finding. The primary event is always included.
 #' @param value Optional list of scan-specific structured details, one per
-#'   finding.
+#'   finding. Like `settings`, it must hold only data a saved investigation
+#'   can store; otherwise the result is an execution failure.
 #' @returns `scanner_findings()` returns a tibble of findings of class
 #'   `scans_scanner_findings`; call it with no arguments for a clean negative. `scanner_unassessed()` returns a value
 #'   that marks the trajectory as not assessed.
@@ -550,6 +559,7 @@ scanner_normalize_findings <- function(x) {
     any(vapply(columns, is.null, logical(1))) ||
       !is.list(event_ids) ||
       !is.list(value) ||
+      !investigation_is_data(value) ||
       !all(vapply(
         event_ids,
         function(ids) is.null(ids) || (is.character(ids) && !anyNA(ids)),
@@ -560,7 +570,7 @@ scanner_normalize_findings <- function(x) {
   }
   event_ids <- lapply(seq_len(size), function(i) {
     primary <- columns$event_id[[i]]
-    unique(c(if (!is.na(primary)) primary, event_ids[[i]]))
+    as.character(unique(c(if (!is.na(primary)) primary, event_ids[[i]])))
   })
   columns$event_id <- vapply(
     seq_len(size),

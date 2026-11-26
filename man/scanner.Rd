@@ -46,7 +46,9 @@ its meaning changes; it is recorded with every finding and assessment.}
 \item{severity}{\code{"warning"} or \code{"error"}, applied to every finding.}
 
 \item{settings}{A named list of data passed to \code{fn} and recorded with each
-assessment, such as tool names or phrases the application owner chose.}
+assessment, such as tool names or phrases the application owner chose.
+It must hold only data a saved investigation can store: no functions,
+environments, or objects of other classes.}
 
 \item{event_id, turn_id}{Primary evidence identities for each finding, from
 the scanned trajectory. \code{NA} means the finding has none. A finding with
@@ -59,7 +61,8 @@ each finding.}
 each finding. The primary event is always included.}
 
 \item{value}{Optional list of scan-specific structured details, one per
-finding.}
+finding. Like \code{settings}, it must hold only data a saved investigation
+can store; otherwise the result is an execution failure.}
 
 \item{status}{\code{"insufficient_evidence"} or \code{"not_applicable"}.}
 

@@ -660,3 +660,68 @@ test_that("custom scan names are labelled in every export and the review queue",
   )
   expect_true(any(grepl('"toy_keyword", "toy_other"', code, fixed = TRUE)))
 })
+
+test_that("data a saved investigation cannot hold is refused at the scanner boundary", {
+  for (settings in list(
+    list(f = function(x) x),
+    list(e = globalenv()),
+    list(b = scanner_bundle_fixture())
+  )) {
+    expect_error(
+      scanner(
+        "toy_settings",
+        function(trajectory, settings) scanner_findings(),
+        "d",
+        "e",
+        settings = settings
+      ),
+      class = "scans_error_scanner"
+    )
+  }
+  dated <- scanner(
+    "toy_dated",
+    function(trajectory, settings) scanner_findings(),
+    "d",
+    "e",
+    settings = list(since = as.Date("2026-01-01"))
+  )
+  expect_identical(dated$settings$since, as.Date("2026-01-01"))
+
+  valued <- scanner_toy_fixture("toy_valued", function(trajectory, settings) {
+    if (trajectory$trajectory_id != "chat-hit") {
+      return(scanner_findings())
+    }
+    scanner_findings(
+      event_id = "hit-e2",
+      label = "Valued",
+      explanation = "Holds a function.",
+      value = list(list(f = function() 1))
+    )
+  })
+  unlisted <- scanner_toy_fixture("toy_unlisted", function(trajectory, settings) {
+    scanner_findings(
+      event_ids = list(NULL),
+      label = "Record",
+      explanation = "No supporting events."
+    )
+  })
+  bundle <- scanner_bundle_fixture()
+  saved <- investigation_snapshot(bundle, scanners = list(valued, unlisted))
+  assessments <- saved$analysis$assessments
+  expect_identical(
+    assessments$status[assessments$scan == "toy_valued"],
+    c(
+      "execution_failure",
+      "assessed_no_findings",
+      "assessed_no_findings",
+      "assessed_no_findings"
+    )
+  )
+  findings <- saved$analysis$findings
+  expect_identical(
+    findings$event_ids[findings$scan == "toy_unlisted"],
+    rep(list(character()), 4L)
+  )
+  path <- tempfile(fileext = ".json")
+  expect_no_error(write_investigation(saved, path))
+})
