@@ -4,7 +4,13 @@
 \alias{scans_tools}
 \title{Create tools for exploring retained trajectories}
 \usage{
-scans_tools(x, trajectory_ids = NULL, max_rows = 100L, max_chars = 4000L)
+scans_tools(
+  x,
+  trajectory_ids = NULL,
+  max_rows = 100L,
+  max_chars = 4000L,
+  scanners = NULL
+)
 }
 \arguments{
 \item{x}{A \link{TrajectoryBundle} or saved \code{\link[=investigation_snapshot]{investigation_snapshot()}}.}
@@ -18,6 +24,10 @@ narrow this scope but cannot broaden it.}
 \item{max_chars}{Maximum characters per field, from 100 to 16000. Larger
 fields are returned as explicit slices. Repeat the same paginated query
 with \code{content_offset} to retrieve subsequent slices.}
+
+\item{scanners}{Optional custom scanners to run on a bundle: one
+\code{\link[=scanner]{scanner()}} or a list of them. A saved investigation already holds its
+custom findings and assessments, so \code{scanners} must be \code{NULL} for one.}
 }
 \value{
 A named list of ellmer tools: \code{scans_list_trajectories},

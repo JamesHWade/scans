@@ -2,14 +2,15 @@
 % Please edit documentation in R/assess-trajectory-scans.R
 \name{assess_trajectory_scans}
 \alias{assess_trajectory_scans}
-\title{Assess built-in trajectory scans and their evidence coverage}
+\title{Assess trajectory scans and their evidence coverage}
 \usage{
 assess_trajectory_scans(
   x,
   scan_id = "scan-000001",
   repeat_threshold = 2L,
   loop_threshold = 3L,
-  scans = NULL
+  scans = NULL,
+  scanners = NULL
 )
 }
 \arguments{
@@ -27,7 +28,15 @@ between calls do not break a call sequence.}
 \item{scans}{Which detectors to run, as a character vector of names from
 \code{\link[=scan_registry]{scan_registry()}}. \code{NULL} (the default) runs all of them. Selecting a
 subset narrows the findings without changing how any of them are
-computed, so a finding is the same whether or not its neighbours ran.}
+computed, so a finding is the same whether or not its neighbours ran.
+Names of custom \code{scanners} can be selected too.}
+
+\item{scanners}{Optional custom scanners for this call: one \code{\link[=scanner]{scanner()}} or
+a list of them. \code{NULL} (the default) runs built-in scans only. Custom
+findings follow the built-in findings, which are identical whether or
+not custom scanners are supplied. A custom scanner that reports a
+trajectory as not assessed contributes no findings; one that fails
+raises an error here. Use \code{\link[=assess_trajectory_scans]{assess_trajectory_scans()}} to record both.}
 }
 \value{
 A list with two tibbles:
@@ -76,11 +85,20 @@ Built-ins execute in tool, event, record, and Deputy groups. A group failure aff
 its selected scanners on that trajectory; other groups continue. Failure
 reasons omit arbitrary condition messages. Finding identifiers are local to
 the run and can change if a previously failed group later succeeds.
+
+A custom \code{\link[=scanner]{scanner()}} has one assessment per trajectory, after the built-in
+rows. It declares \code{insufficient_evidence} or \code{not_applicable} itself. A
+scanner that throws, returns something other than a result, or cites a
+turn or event that is not in the trajectory is an \code{execution_failure} for
+that scanner and trajectory, with a fixed reason and none of its findings.
+Built-in findings and assessments are identical whether or not custom
+scanners are supplied.
 }
 \description{
-\code{assess_trajectory_scans()} runs the built-in diagnostics and explains whether
-each selected scanner could assess each trajectory. It uses the same
-detectors as \code{\link[=scan_trajectories]{scan_trajectories()}} and never calls a model or tool.
+\code{assess_trajectory_scans()} runs the built-in diagnostics, and any custom
+\code{scanners}, and explains whether each selected scanner could assess each
+trajectory. It uses the same detectors as \code{\link[=scan_trajectories]{scan_trajectories()}} and never
+calls a model or tool.
 }
 \examples{
 bundle <- TrajectoryBundle(

@@ -155,7 +155,7 @@ scans_app_filter_server <- function(
 
   output$scans_app_scan_summary <- shiny::renderText({
     selected <- length(state$scan_config()$scans)
-    total <- nrow(scan_registry())
+    total <- nrow(scanner_registry(state$custom_scanners))
     current <- state$data()
     if (selected == 0L) {
       return("No scans selected \u00b7 findings are hidden")

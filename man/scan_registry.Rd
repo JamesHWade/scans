@@ -4,7 +4,11 @@
 \alias{scan_registry}
 \title{Available trajectory scans}
 \usage{
-scan_registry()
+scan_registry(scanners = NULL)
+}
+\arguments{
+\item{scanners}{Optional custom scanners to list after the built-ins: one
+\code{\link[=scanner]{scanner()}} or a list of them.}
 }
 \value{
 A tibble with \code{scan}, \code{severity}, and \code{description} columns.
@@ -13,6 +17,10 @@ A tibble with \code{scan}, \code{severity}, and \code{description} columns.
 \code{scan_registry()} lists the detectors \code{\link[=scan_trajectories]{scan_trajectories()}} can run,
 with the severity each produces and a one-line description. Use it to
 build a scan selection rather than hard-coding names.
+}
+\details{
+Custom scanners are not registered anywhere. Pass the scanners you intend
+to use in a call to list them after the built-ins, in the same shape.
 }
 \examples{
 scan_registry()

@@ -135,6 +135,13 @@
 #' @param investigations Whether to enable investigation save, upload, and
 #'   rescan controls. Defaults to `TRUE` for a single saved investigation and
 #'   `FALSE` for other inputs. Set explicitly for named sources or lazy loaders.
+#' @param scanners Optional custom scanners: one [scanner()] or a list of
+#'   them. They appear with the built-in scans in Options, run with them on
+#'   the loaded bundle, and their findings and assessment status are shown the
+#'   same way. A saved investigation shows its saved custom results without
+#'   them; applying current scanners reruns only the scanners supplied here.
+#'   Custom scanners are deterministic functions, so browsing never calls a
+#'   model.
 #' @param chat_factory Optional zero-argument function returning an ellmer chat,
 #'   for example `function() ellmer::chat_openai()`. Defaults to `NULL`, which
 #'   omits Ask. Tools configured on this client are replaced with the bounded
@@ -167,9 +174,11 @@ scans_app <- function(
   annotations = NULL,
   investigations = inherits(x, "scans_investigation"),
   reviews = FALSE,
-  chat_factory = NULL
+  chat_factory = NULL,
+  scanners = NULL
 ) {
   sources <- scans_app_sources(x)
+  scanners <- scanner_check_list(scanners, rlang::current_env())
   scans_app_check_packages()
   scans_app_check_annotations(annotations)
   rlang::check_bool(investigations)
@@ -182,14 +191,16 @@ scans_app <- function(
       annotations,
       investigations,
       reviews,
-      chat = !is.null(chat_factory)
+      chat = !is.null(chat_factory),
+      scanners = scanners
     ),
     server = scans_app_server(
       sources,
       annotations,
       investigations = investigations,
       reviews = reviews,
-      chat_factory = chat_factory
+      chat_factory = chat_factory,
+      scanners = scanners
     ),
     onStart = if (investigations || reviews) scans_app_investigation_start
   )

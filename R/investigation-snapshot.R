@@ -39,6 +39,11 @@
 #'   the `read_info` attribute from [read_connect_traces()]. It must contain
 #'   data only; never supply credentials or a loader function.
 #' @inheritParams assess_trajectory_scans
+#' @param scanners Optional custom scanners: one [scanner()] or a list of
+#'   them. Their findings, assessments, names, versions, and settings are
+#'   saved; the functions are not. A reopened investigation shows the saved
+#'   results without the functions. Recomputing them needs the same scanners
+#'   supplied again.
 #' @param view A named list of browser settings. Supported names are `query`,
 #'   `source_type` (`NULL` means all), `status` (`NULL` means all, `NA` means
 #'   unknown), `findings_only`, `annotated_only`, `annotation_ids`, `pattern`,
@@ -73,13 +78,19 @@ investigation_snapshot <- function(
   repeat_threshold = 2L,
   loop_threshold = 3L,
   view = list(),
-  previous = NULL
+  previous = NULL,
+  scanners = NULL
 ) {
   investigation_check_dependencies()
   check_trajectory_bundle(x)
+  scanners <- scanner_check_list(scanners, rlang::caller_env())
   settings <- list(
-    scans = scan_check_selection(scans, rlang::caller_env()) %||%
-      scan_registry()$scan,
+    scans = scan_check_selection(
+      scans,
+      rlang::caller_env(),
+      names(scanners)
+    ) %||%
+      c(scan_registry()$scan, names(scanners)),
     repeat_threshold = scan_check_threshold(
       repeat_threshold,
       "repeat_threshold",
@@ -95,7 +106,8 @@ investigation_snapshot <- function(
     x,
     scans = settings$scans,
     repeat_threshold = settings$repeat_threshold,
-    loop_threshold = settings$loop_threshold
+    loop_threshold = settings$loop_threshold,
+    scanners = scanners
   )
   analysis <- c(
     list(summaries = summarize_trajectories(x)),

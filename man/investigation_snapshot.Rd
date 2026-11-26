@@ -13,7 +13,8 @@ investigation_snapshot(
   repeat_threshold = 2L,
   loop_threshold = 3L,
   view = list(),
-  previous = NULL
+  previous = NULL,
+  scanners = NULL
 )
 }
 \arguments{
@@ -32,7 +33,8 @@ data only; never supply credentials or a loader function.}
 \item{scans}{Which detectors to run, as a character vector of names from
 \code{\link[=scan_registry]{scan_registry()}}. \code{NULL} (the default) runs all of them. Selecting a
 subset narrows the findings without changing how any of them are
-computed, so a finding is the same whether or not its neighbours ran.}
+computed, so a finding is the same whether or not its neighbours ran.
+Names of custom \code{scanners} can be selected too.}
 
 \item{repeat_threshold}{The minimum number of calls with the same tool name
 and arguments that produces a \code{repeated_tool_call} finding.}
@@ -53,6 +55,12 @@ record filter membership only, not judgments or reviewer text.}
 is recorded as the parent; its settings are not inherited. When \code{x} is
 the earlier investigation's bundle, its prior omission count is retained
 and any newly excluded trajectories are added to that count.}
+
+\item{scanners}{Optional custom scanners: one \code{\link[=scanner]{scanner()}} or a list of
+them. Their findings, assessments, names, versions, and settings are
+saved; the functions are not. A reopened investigation shows the saved
+results without the functions. Recomputing them needs the same scanners
+supplied again.}
 }
 \value{
 A \code{scans_investigation} value. Its identifiers are verified when

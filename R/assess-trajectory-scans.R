@@ -1,8 +1,9 @@
-#' Assess built-in trajectory scans and their evidence coverage
+#' Assess trajectory scans and their evidence coverage
 #'
-#' `assess_trajectory_scans()` runs the built-in diagnostics and explains whether
-#' each selected scanner could assess each trajectory. It uses the same
-#' detectors as [scan_trajectories()] and never calls a model or tool.
+#' `assess_trajectory_scans()` runs the built-in diagnostics, and any custom
+#' `scanners`, and explains whether each selected scanner could assess each
+#' trajectory. It uses the same detectors as [scan_trajectories()] and never
+#' calls a model or tool.
 #'
 #' @inheritParams scan_trajectories
 #'
@@ -51,6 +52,14 @@
 #' reasons omit arbitrary condition messages. Finding identifiers are local to
 #' the run and can change if a previously failed group later succeeds.
 #'
+#' A custom [scanner()] has one assessment per trajectory, after the built-in
+#' rows. It declares `insufficient_evidence` or `not_applicable` itself. A
+#' scanner that throws, returns something other than a result, or cites a
+#' turn or event that is not in the trajectory is an `execution_failure` for
+#' that scanner and trajectory, with a fixed reason and none of its findings.
+#' Built-in findings and assessments are identical whether or not custom
+#' scanners are supplied.
+#'
 #' @export
 #' @examples
 #' bundle <- TrajectoryBundle(
@@ -65,12 +74,17 @@ assess_trajectory_scans <- function(
   scan_id = "scan-000001",
   repeat_threshold = 2L,
   loop_threshold = 3L,
-  scans = NULL
+  scans = NULL,
+  scanners = NULL
 ) {
   check_trajectory_bundle(x)
   call <- rlang::caller_env()
   scan_check_id(scan_id, call)
-  scans <- scan_check_selection(scans, call) %||% scan_registry()$scan
+  scanners <- scanner_check_list(scanners, call)
+  scans <- scan_check_selection(scans, call, names(scanners)) %||%
+    c(scan_registry()$scan, names(scanners))
+  scanners <- scanners[names(scanners) %in% scans]
+  scans <- setdiff(scans, names(scanners))
   repeat_threshold <- scan_check_threshold(
     repeat_threshold,
     "repeat_threshold",
@@ -174,7 +188,7 @@ assess_trajectory_scans <- function(
       loss_row_lists[[row]] <- loss_rows
     }
   }
-  list(
+  result <- list(
     findings = findings[retained, , drop = FALSE],
     assessments = if (total > 0L) {
       tibble::tibble(
@@ -201,6 +215,14 @@ assess_trajectory_scans <- function(
     } else {
       scan_empty_assessments()
     }
+  )
+  if (length(scanners) == 0L) {
+    return(result)
+  }
+  custom <- scanner_run(x, scanners, scan_id)
+  list(
+    findings = vctrs::vec_rbind(result$findings, custom$findings),
+    assessments = vctrs::vec_rbind(result$assessments, custom$assessments)
   )
 }
 

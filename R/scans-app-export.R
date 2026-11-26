@@ -323,6 +323,12 @@ export_r_code <- function(recipe, scan_config, ids, application = "") {
     if (nzchar(application)) paste("# Application:", application),
     source,
     "",
+    if (!all(scan_config$scans %in% scan_registry()$scan)) {
+      c(
+        "# Custom scanners ran in the app. Define them with scanner() and add",
+        "# `scanners = list(...)` to this call; it stops without them."
+      )
+    },
     "assessment <- assess_trajectory_scans(",
     "  bundle,",
     sprintf("  repeat_threshold = %dL,", scan_config$repeat_threshold),
