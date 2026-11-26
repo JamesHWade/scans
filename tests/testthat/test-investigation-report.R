@@ -898,6 +898,6 @@ test_that("the report value holds no recorded tool input or output", {
   expect_false(any(content %in% strings(unclass(report))))
   held <- paste(strings(unclass(report)), collapse = "\n")
   for (text in content) {
-    expect_false(grepl(text, held, fixed = TRUE))
+    expect_no_match(held, text, fixed = TRUE)
   }
 })
