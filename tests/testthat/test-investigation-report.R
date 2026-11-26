@@ -723,6 +723,20 @@ test_that("review decisions use the review case's own adjudication", {
   expect_false("## Review decisions" %in% format(investigation_report(saved)))
 })
 
+test_that("a report prints a summary and names an undated cohort's times", {
+  report <- investigation_report(report_fixture())
+  expect_snapshot(print(report))
+
+  # Trajectory "e" has no start time.
+  undated <- investigation_report(
+    investigation_snapshot(cohort_fixture(), trajectory_ids = "e")
+  )
+  expect_true(
+    "- Start times in scope: none recorded; 1 conversation with no recorded time." %in%
+      format(undated)
+  )
+})
+
 test_that("a review row says where its finding is and links only to listed evidence", {
   skip_if_not_installed("htmltools")
   saved <- report_fixture(list(query = "large"))

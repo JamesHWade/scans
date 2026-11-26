@@ -23,6 +23,16 @@
       Error in `investigation_report()`:
       ! A review case was made from a different snapshot than this investigation.
 
+# a report prints a summary and names an undated cohort's times
+
+    Code
+      print(report)
+    Message
+      <scans_investigation_report> Cohort
+      5 of 5 conversations in scope · 3 of 4 assessed with findings · 1 not assessed
+      4 patterns · 7 findings with evidence identities
+      Render with `write_investigation_report()` or `format()`.
+
 # reports are written as standalone files chosen by extension
 
     Code
