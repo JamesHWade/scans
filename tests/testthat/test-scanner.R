@@ -180,12 +180,22 @@ test_that("a finding that cites evidence outside the trajectory is an execution 
 
 test_that("a scanner that returns nothing usable is never a clean negative", {
   bundle <- scanner_bundle_fixture()
+  forged <- function(...) {
+    structure(list(...), class = "scans_scanner_unassessed")
+  }
   for (value in list(
     NULL,
     TRUE,
     "none",
     list(),
-    data.frame(label = "No explanation")
+    data.frame(label = "No explanation"),
+    forged(status = "assessed_no_findings", reason = "Looks clean."),
+    forged(status = "execution_failure", reason = "password=hunter2"),
+    forged(status = "whatever", reason = "Unknown status."),
+    forged(status = "not_applicable", reason = c("One.", "Two.", "Three.")),
+    forged(status = "not_applicable"),
+    forged(status = "not_applicable", reason = NA_character_),
+    forged(status = "not_applicable", reason = strrep("x", 2000L))
   )) {
     silent <- scanner_toy_fixture("toy_silent", function(trajectory, settings) {
       value
@@ -195,9 +205,17 @@ test_that("a scanner that returns nothing usable is never a clean negative", {
       scans = "toy_silent",
       scanners = silent
     )
+    expect_identical(nrow(result$assessments), 4L)
     expect_identical(unique(result$assessments$status), "execution_failure")
-    expect_match(result$assessments$reason[[1L]], "not a findings table")
+    expect_identical(
+      unique(result$assessments$reason),
+      "The custom scanner returned a value that is not a findings table or an unassessed result."
+    )
   }
+  expect_error(
+    scanner_unassessed("not_applicable", strrep("x", 501L)),
+    class = "scans_error_scanner"
+  )
 })
 
 test_that("custom names cannot collide with built-ins or each other", {

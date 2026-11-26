@@ -196,8 +196,8 @@ scanner_findings <- function(
 
 #' @rdname scanner
 #' @param status `"insufficient_evidence"` or `"not_applicable"`.
-#' @param reason One sentence saying what is missing or why the scan does not
-#'   apply. It is shown with the assessment.
+#' @param reason One sentence, at most 500 characters, saying what is missing
+#'   or why the scan does not apply. It is shown with the assessment.
 #' @export
 scanner_unassessed <- function(status, reason) {
   call <- rlang::current_env()
@@ -211,10 +211,28 @@ scanner_unassessed <- function(status, reason) {
     )
   }
   scanner_check_string(reason, "reason", call)
+  if (nchar(reason) > scanner_reason_max) {
+    scanner_abort(
+      "{.arg reason} must be at most {scanner_reason_max} characters.",
+      call
+    )
+  }
   structure(
     list(status = status, reason = reason),
     class = "scans_scanner_unassessed"
   )
+}
+
+scanner_reason_max <- 500L
+
+scanner_is_unassessed <- function(x) {
+  is.list(x) &&
+    rlang::is_string(x$status) &&
+    x$status %in% c("insufficient_evidence", "not_applicable") &&
+    rlang::is_string(x$reason) &&
+    !is.na(x$reason) &&
+    nzchar(trimws(x$reason)) &&
+    nchar(x$reason) <= scanner_reason_max
 }
 
 scanner_abort <- function(message, call) {
@@ -408,6 +426,10 @@ scanner_run_one <- function(item, trajectory, strict, call) {
     return(failed("error", result))
   }
   if (inherits(result, "scans_scanner_unassessed")) {
+    # The class can be set by hand, so the fields are checked again here.
+    if (!scanner_is_unassessed(result)) {
+      return(failed("result"))
+    }
     return(list(
       status = result$status,
       reason = result$reason,
