@@ -231,6 +231,11 @@ scans_app_export_server <- function(input, output, session, state) {
           progress = state$review_progress(),
           app_url = link_base(),
           settings = state$scan_config(),
+          custom_scans = if (!is.null(saved) && !state$rescan_investigation()) {
+            investigation_custom_scans(saved)
+          } else {
+            names(state$custom_scanners)
+          },
           bundle = entry$bundle,
           queue = state$queue(),
           reviews = reviews,
@@ -373,7 +378,15 @@ scans_app_export_server <- function(input, output, session, state) {
     shiny::showModal(
       scans_app_export_modal(
         "Report",
-        "Counts, capture limits, and the evidence identities behind each pattern for the trajectories in view. It contains no transcript text. The HTML file and this Markdown hold the same report.",
+        paste(
+          "Counts, capture limits, and the evidence identities behind each pattern for the trajectories in view.",
+          if (length(state$report()$scope$custom_scans)) {
+            "It contains no transcript text except what a custom scanner's explanation quotes."
+          } else {
+            "It contains no transcript text."
+          },
+          "The HTML file and this Markdown hold the same report."
+        ),
         options = htmltools::tagList(
           shiny::checkboxInput(
             "scans_app_report_users",

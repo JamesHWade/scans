@@ -614,6 +614,71 @@ test_that("a reopened investigation names the custom scanners it cannot rerun", 
   })
 })
 
+test_that("the app's report on saved custom results is the script's report", {
+  saved <- investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = scanner_keyword_fixture()
+  )
+  untimed <- function(text) sub("Generated [0-9: -]+ UTC", "", text)
+  script <- untimed(format(investigation_report(
+    saved,
+    app_url = "http://mocksession:1234/mockpath"
+  )))
+  for (scanners in list(NULL, scanner_keyword_fixture())) {
+    app <- scans_app(saved, scanners = scanners)
+    shiny::testServer(app$serverFuncSource(), {
+      session$flushReact()
+      investigation_ack_inputs(session)
+      session$setInputs(scans_app_export_report = 1L)
+      expect_identical(untimed(export_text()), script)
+    })
+  }
+
+  # Applying current scanners without the custom one leaves it out of the
+  # analysis, and the report then describes built-in scans only.
+  app <- scans_app(saved)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_rescan_investigation = 1L)
+    session$setInputs(scans_app_export_report = 1L)
+    text <- export_text()
+    expect_false(any(grepl("toy", text, ignore.case = TRUE)))
+    expect_false(any(grepl("custom scanner", text, fixed = TRUE)))
+  })
+})
+
+test_that("a live app's report counts failed scans as the overview does", {
+  boom <- scanner_toy_fixture("toy_boom", function(trajectory, settings) {
+    if (trajectory$trajectory_id %in% c("chat-hit", "chat-clean")) {
+      stop("boom")
+    }
+    scanner_findings()
+  })
+  app <- scans_app(scanner_bundle_fixture(), scanners = boom)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    session$setInputs(
+      scans_app_scans = scan_registry(boom)$scan,
+      scans_app_repeat_threshold = 2L,
+      scans_app_loop_threshold = 3L
+    )
+    expect_match(
+      output$scans_app_performance$html,
+      "2 with an execution failure",
+      fixed = TRUE
+    )
+    session$setInputs(scans_app_export_report = 1L)
+    expect_identical(report()$scope$custom_scans, "toy_boom")
+    text <- export_text()
+    expect_true(
+      "- 2 trajectories had a scan that failed to run; that scan's result for them is unknown." %in%
+        text
+    )
+    expect_true("| toy boom | 2 | 0 | 0 | 0 | 2 |" %in% text)
+  })
+})
+
 test_that("the copied R snippet says custom scanners must be supplied", {
   code <- export_r_code(
     NULL,
@@ -653,24 +718,42 @@ test_that("custom scan names are labelled in every export and the review queue",
     scanners = list(scanner_keyword_fixture(), other)
   )
   ids <- data$info$trajectory_id
-  performance <- scans_app_performance_data(data, seq_along(ids))
 
   expect_identical(
     cohort_scan_word(c("toy_keyword", "toy_other", "event_error"), "label"),
     c("Toy keyword", "Toy other", "Event errors")
   )
-  report <- export_report(performance, "app")
-  expect_true(
-    "| Toy keyword | warning | 1 of 2 assessed | unknown |  | 2 findings |" %in%
-      report
-  )
-  expect_true(
-    "| Toy other | warning | 1 of 2 assessed | unknown |  | 1 finding |" %in%
-      report
-  )
-  expect_true(
-    "1. [`chat-hit`](#app/chat-hit): Toy keyword, Toy other" %in% report
-  )
+  # The report labels its pattern, evidence, and coverage rows for both
+  # custom scans, in Markdown and in HTML.
+  report <- investigation_report(investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = list(scanner_keyword_fixture(), other)
+  ))
+  expect_identical(report$patterns$label, c("Toy keyword", "Toy other"))
+  md <- format(report)
+  expect_true(all(
+    c(
+      "| [Toy keyword](<#pattern-1>) | warning | 1 of 2 assessed | 2 of 4 | 2 | unknown | unknown | unknown | 2 findings |",
+      "| [Toy other](<#pattern-2>) | warning | 1 of 2 assessed | 2 of 4 | 1 | unknown | unknown | unknown | 1 finding |",
+      "### Toy keyword",
+      "### Toy other",
+      "`toy_other`: 1 of 2 assessed trajectories, 1 finding.",
+      "| toy keyword | 1 | 1 | 1 | 1 | 0 |",
+      "| toy other | 1 | 1 | 1 | 0 | 1 |"
+    ) %in%
+      md
+  ))
+  if (rlang::is_installed("htmltools")) {
+    html <- format(report, "html")
+    for (text in c(
+      "<a href=\"#pattern-2\">Toy other</a></td>",
+      "<h3 id=\"pattern-1\">Toy keyword</h3>",
+      "<h3 id=\"pattern-2\">Toy other</h3>",
+      "<tr><td>toy other</td><td>1</td><td>1</td><td>1</td><td>0</td><td>1</td></tr>"
+    )) {
+      expect_match(html, text, fixed = TRUE)
+    }
+  }
   markdown <- export_trajectory_markdown(data, 1L)
   expect_identical(
     grep("^- \\*\\*", markdown, value = TRUE),
@@ -851,6 +934,161 @@ test_that("a custom explanation cannot add markdown structure to a trajectory ex
   )
 })
 
+test_that("a custom explanation cannot add structure to the report", {
+  hostile <- scanner_toy_fixture("toy_hostile", function(trajectory, settings) {
+    if (trajectory$trajectory_id != "chat-hit") {
+      return(scanner_findings())
+    }
+    scanner_findings(
+      event_id = "hit-e1",
+      label = "Hostile",
+      explanation = paste(
+        "line1\n\n## Injected heading\n| a | b |\n*bold* [x](y)",
+        "<b>x</b> <script>alert(1)</script> &amp; `code` https://example.com"
+      )
+    )
+  })
+  report <- investigation_report(investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = hostile
+  ))
+  md <- format(report)
+  expect_false(any(grepl("^#+ Injected", md)))
+  expect_false(any(grepl("<script|<b>", md)))
+  row <- grep("finding-1", md, value = TRUE)
+  expect_length(row, 1L)
+  expect_identical(
+    lengths(regmatches(row, gregexpr("(?<!\\\\)\\|", row, perl = TRUE))),
+    6L
+  )
+  expect_match(
+    row,
+    "| line1 \\#\\# Injected heading \\| a \\| b \\| \\*bold\\* \\[x\\](y) &lt;b&gt;x&lt;/b&gt; &lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; \\`code\\` https:\\//example.com |",
+    fixed = TRUE
+  )
+
+  skip_if_not_installed("htmltools")
+  html <- format(report, "html")
+  expect_no_match(html, "<script", fixed = TRUE)
+  expect_no_match(html, "<b>", fixed = TRUE)
+  expect_match(
+    html,
+    "&lt;script&gt;alert(1)&lt;/script&gt; &amp;amp; `code`",
+    fixed = TRUE
+  )
+  expect_identical(
+    lengths(regmatches(html, gregexpr("<h[1-6]", html))),
+    lengths(regmatches(md, gregexpr("^#+ ", md))) |> sum()
+  )
+})
+
+test_that("the report says custom explanations can quote the transcript", {
+  saved <- investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = scanner_keyword_fixture()
+  )
+  md <- format(investigation_report(saved))
+  expect_true(
+    "- User identifiers, transcript text, tool arguments, and tool results are omitted from this report, except what a custom scanner's explanation quotes." %in%
+      md
+  )
+  expect_true(
+    "- Explanations from custom scanners are printed as their scanner wrote them and can quote transcript text: `toy_keyword`." %in%
+      md
+  )
+
+  # Without a custom scan selected, the omission is unqualified.
+  builtin <- format(investigation_report(investigation_snapshot(
+    scanner_bundle_fixture(),
+    scans = "event_error",
+    scanners = scanner_keyword_fixture()
+  )))
+  expect_true(
+    "- User identifiers, transcript text, tool arguments, and tool results are omitted from this report." %in%
+      builtin
+  )
+  expect_false(any(grepl("custom scanner", builtin, fixed = TRUE)))
+})
+
+test_that("a custom scan that assessed nothing is reported as not assessed", {
+  unsure <- scanner_toy_fixture("toy_unsure", function(trajectory, settings) {
+    scanner_unassessed("insufficient_evidence", "Nothing to read.")
+  })
+  report <- investigation_report(investigation_snapshot(
+    scanner_bundle_fixture(),
+    scans = "toy_unsure",
+    scanners = unsure
+  ))
+  expect_identical(report$headline$n_assessed, 0L)
+  expect_identical(report$headline$n_not_assessed, 4L)
+  expect_identical(unique(report$trajectories$class), "unassessed")
+  md <- format(report)
+  expect_true(all(
+    c(
+      "- None of the 4 trajectories could be assessed by a selected scan, so findings are unknown, not absent.",
+      "No findings in 0 assessed trajectories. 4 trajectories could not be assessed.",
+      "### Not assessed",
+      "| toy unsure | 0 | 0 | 4 | 0 | 0 |"
+    ) %in%
+      md
+  ))
+
+  # Beside a built-in that assessed every trajectory, the custom scan's
+  # trajectories count as assessed, and its own row says it assessed none.
+  both <- investigation_report(investigation_snapshot(
+    scanner_bundle_fixture(),
+    scans = c("trajectory_error", "toy_unsure"),
+    scanners = unsure
+  ))
+  expect_identical(both$headline$n_assessed, 4L)
+  expect_true("| toy unsure | 0 | 0 | 4 | 0 | 0 |" %in% format(both))
+})
+
+test_that("a saved custom scan is reported without its scanner", {
+  saved <- investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = scanner_keyword_fixture()
+  )
+  path <- tempfile(fileext = ".json")
+  write_investigation(saved, path)
+  # A new session, without the scanner: the report reads the saved results
+  # and verifies their identifiers.
+  reread <- read_investigation(path)
+  report <- investigation_report(reread, verify = TRUE)
+  expect_identical(
+    report$evidence$finding_id[report$evidence$scan == "toy_keyword"],
+    saved$analysis$findings$finding_id[
+      saved$analysis$findings$scan == "toy_keyword"
+    ]
+  )
+  expect_identical(
+    report$evidence$event_id[report$evidence$scan == "toy_keyword"],
+    c("hit-e2", "hit-e3")
+  )
+  expect_identical(report$scope$custom_scans, "toy_keyword")
+  expect_identical(
+    investigation_report(reread, include_errors = TRUE)$evidence,
+    report$evidence
+  )
+  # The saved origin is covered by the revision identifier.
+  edited <- reread
+  edited$manifest$scanner_versions$origin[
+    edited$manifest$scanner_versions$scan == "toy_keyword"
+  ] <- "builtin"
+  expect_error(
+    investigation_report(edited),
+    class = "scans_error_investigation"
+  )
+  # The report never reruns a scanner, so it does not say one is unavailable;
+  # the app says so where it would rerun them.
+  md <- paste(format(report), collapse = "\n")
+  expect_no_match(md, "unavailable|cannot be rerun|rerun")
+  expect_identical(
+    sub("Generated [0-9: -]+ UTC", "", format(report)),
+    sub("Generated [0-9: -]+ UTC", "", format(investigation_report(saved)))
+  )
+})
+
 test_that("a trajectory with a failed scan says so in the queue and the headline", {
   boom <- scanner_toy_fixture("toy_boom", function(trajectory, settings) {
     if (trajectory$trajectory_id %in% c("chat-hit", "chat-clean")) {
@@ -876,17 +1114,31 @@ test_that("a trajectory with a failed scan says so in the queue and the headline
     "2 with an execution failure",
     fixed = TRUE
   )
-  report <- export_report(
-    scans_app_performance_data(data, seq_along(ids)),
-    "app"
-  )
-  expect_true(
-    "- 2 trajectories had a scan that failed to run; that scan's result for them is unknown." %in%
-      report
-  )
+  report <- investigation_report(investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = boom
+  ))
+  expect_identical(report$headline$n_execution_failure, 2L)
+  failed <- "2 trajectories had a scan that failed to run; that scan's result for them is unknown."
+  expect_true(paste("-", failed) %in% format(report))
+  if (rlang::is_installed("htmltools")) {
+    expect_match(
+      format(report, "html"),
+      paste0("<li>", failed, "</li>"),
+      fixed = TRUE
+    )
+  }
 
   plain <- scans_app_data(scanner_bundle_fixture())
   expect_identical(cohort_headline(plain, ids)$n_execution_failure, 0L)
+  expect_no_match(
+    paste(
+      format(investigation_report(scanner_bundle_fixture())),
+      collapse = "\n"
+    ),
+    "failed to run",
+    fixed = TRUE
+  )
   expect_no_match(
     as.character(scans_app_tiles_ui(cohort_headline(plain, ids))),
     "execution failure"

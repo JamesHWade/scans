@@ -178,7 +178,9 @@ counts, files); any other field is named with its value withheld unless
 `include_users = TRUE`. An allow-list is the smallest rule that cannot
 leak: a deny-list of identifying names would miss the next one.
 Explanations are scanner-written sentences; a custom scanner that quotes
-transcript text in an explanation would put that text in the report.
+transcript text in an explanation would put that text in the report. When a
+selected scan is custom, the report names those scans and says its omission
+of transcript text excepts what their explanations quote.
 
 User identifiers are omitted unless `include_users = TRUE`. The user count
 per pattern is a count and stays. A text filter is described without its term

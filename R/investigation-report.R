@@ -24,7 +24,10 @@
 #'
 #' @section Content:
 #' The report contains identities and scanner explanations, not transcript
-#' text: no message text, tool arguments, or tool results. Tool names, model
+#' text: no message text, tool arguments, or tool results. A [scanner()]
+#' writes its own explanations, which the report prints as written, so a
+#' custom scanner that quotes the transcript puts that text in the report;
+#' the report then says which scans' explanations it prints. Tool names, model
 #' names, and trajectory, turn, and event identifiers do appear. Recorded
 #' error strings are often tool-result text, so the tool table counts errors
 #' without their text unless `include_errors = TRUE`. User identifiers are
@@ -163,6 +166,7 @@ investigation_report <- function(
         annotated_label = scans_app_annotated_label(x, FALSE),
         app_url = app_url,
         settings = x$settings,
+        custom_scans = investigation_custom_scans(x),
         bundle = x$bundle,
         reviews = report_reviews(reviews, x),
         include_users = include_users,
@@ -506,6 +510,8 @@ report_query_names_user <- function(query, users) {
 # - `app_url`: the app's address, or `NULL` for no links.
 # - `read_info`, `loaded_at`, `source_details`, `snapshot`, `settings`,
 #   `analysis_version`: provenance, as `report_saved_context()` reads it.
+# - `custom_scans`: the selected scans a custom scanner produced, whose
+#   explanations the report prints as written.
 # - `bundle`, for promotion candidates; `queue` and `reviews`: optional state.
 report_build <- function(data, indices, context) {
   include_users <- isTRUE(context$include_users)
@@ -779,6 +785,10 @@ report_build <- function(data, indices, context) {
         ),
         snapshot = context$snapshot,
         settings = context$settings,
+        custom_scans = intersect(
+          as.character(context$custom_scans),
+          context$settings$scans
+        ),
         analysis_version = context$analysis_version,
         app_url = context$app_url,
         link = if (!is.null(open_link)) open_link(),

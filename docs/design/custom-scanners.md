@@ -111,8 +111,23 @@ rerun, both before and after "Apply current scanners".
 A trajectory is assessed when any selected scan assessed it, so a scanner
 that fails everywhere leaves trajectories "clean" if the built-ins assessed
 them. The class stays as it is; instead the review queue lists "Execution
-failure" as a reason and the overview tile and Markdown report count the
-trajectories with at least one failed scan, built-in or custom.
+failure" as a reason, and the overview tile and the report headline count
+the trajectories with at least one failed scan, built-in or custom. The
+report is `investigation_report()`, which the app's Export > Report also
+builds, so both read the count from `cohort_headline()` as the tile does.
+
+**The report prints custom explanations as written.** It labels custom
+patterns and evidence with the scan name in title case, as the overview
+does, and escapes explanations in both its Markdown and HTML writers, so
+one cannot add headings, table cells, links, or tags. Escaping does not
+remove content: a custom scanner that quotes the transcript in an
+explanation puts that text in the report. The report therefore names the
+custom scans whose explanations it prints and qualifies its statement that
+transcript text is omitted; with only built-in scans it is unchanged. A
+saved investigation's custom results are reported from the saved analysis
+whether or not the scanner is supplied, since the report never reruns a
+scanner; saying which scans cannot be rerun is left to the app, where
+rerunning is possible.
 
 **Saved scans record their origin.** A name alone does not say which
 detector produced a saved result: a later release could add a built-in with
