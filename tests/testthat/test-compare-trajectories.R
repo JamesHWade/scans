@@ -424,6 +424,26 @@ test_that("printing reports the exact test of each family that carries one", {
   expect_snapshot(print(comparison))
 })
 
+test_that("an unpaired summary counts non-numeric values as off the scale", {
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(list(TRUE, 2, 4, "x")),
+    comparison_manual_investigation(list(1, 2, NA, Inf)),
+    by = "sample_id",
+    dataset_version = c(baseline = "v1", candidate = "v2"),
+    scorers = list(comparison_scorer("judge", "1", "numeric"))
+  )
+  comparison <- compare_trajectories(pairing)
+  outcomes <- comparison$summaries$outcomes
+  expect_identical(outcomes$n, c(2L, 2L))
+  expect_identical(outcomes$n_off_scale, c(2L, 2L))
+  expect_identical(outcomes$median, c(3, 1.5))
+  comparison$pairing$snapshots$snapshot_id <- c(
+    "sha256:baseline",
+    "sha256:candidate"
+  )
+  expect_snapshot(print(comparison))
+})
+
 test_that("a comparison checks the investigations against the pairing", {
   pairing <- pair_trajectories(
     comparison_manual_investigation(c(0, 1)),

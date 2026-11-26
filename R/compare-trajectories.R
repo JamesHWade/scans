@@ -215,8 +215,7 @@ comparison_outcomes <- function(pairing) {
   })
   position <- function(value, i) {
     if (out$scale[[i]] == "numeric") {
-      numeric <- is.numeric(value) && length(value) == 1L && is.finite(value)
-      return(if (numeric) as.numeric(value) else NA_real_)
+      return(if (comparison_is_number(value)) as.numeric(value) else NA_real_)
     }
     if (length(value) != 1L) {
       return(NA_real_)
@@ -262,6 +261,13 @@ comparison_outcomes <- function(pairing) {
     "baseline_evaluation_id",
     "candidate_evaluation_id"
   )]
+}
+
+comparison_is_number <- function(value) {
+  is.numeric(value) &&
+    !is.factor(value) &&
+    length(value) == 1L &&
+    is.finite(value)
 }
 
 comparison_value_text <- function(value) {
@@ -699,8 +705,9 @@ comparison_unpaired_summaries <- function(pairing) {
       values <- evaluations$value[evaluations$scorer %in% scorers$scorer[[i]]]
       numeric <- scorers$scale[[i]] %in% "numeric"
       text <- vapply(values, comparison_value_text, "")
+      on_scale <- vapply(values, comparison_is_number, logical(1))
       counts <- if (numeric) {
-        c(length(values))
+        sum(on_scale)
       } else {
         table(text, useNA = "ifany")
       }
@@ -712,7 +719,12 @@ comparison_unpaired_summaries <- function(pairing) {
         scale = scorers$scale[[i]],
         value = if (numeric) NA_character_ else names(counts),
         n = as.integer(counts),
-        median = if (numeric) stats::median(unlist(values)) else NA_real_
+        n_off_scale = if (numeric) sum(!on_scale) else NA_integer_,
+        median = if (numeric && any(on_scale)) {
+          stats::median(as.numeric(unlist(values[on_scale])))
+        } else {
+          NA_real_
+        }
       )
     })
     pairing_bind(c(
@@ -724,6 +736,7 @@ comparison_unpaired_summaries <- function(pairing) {
         scale = character(),
         value = character(),
         n = integer(),
+        n_off_scale = integer(),
         median = double()
       )),
       rows
@@ -787,9 +800,13 @@ comparison_gap_bullets <- function(x) {
     "outcome{?s} with an incompatible scorer" = outcome_gap("incompatible"),
     "outcome{?s} with an unknown scorer" = outcome_gap("unknown"),
     "outcome{?s} missing on a side" = outcome_gap("missing"),
-    "outcome value{?s} off the scorer's scale" = sum(
-      outcomes$compatibility == "compatible" & !outcomes$comparable
-    ),
+    "outcome value{?s} off the scorer's scale" = if (
+      x$design$type == "unpaired"
+    ) {
+      sum(x$summaries$outcomes$n_off_scale, na.rm = TRUE)
+    } else {
+      sum(outcomes$compatibility == "compatible" & !outcomes$comparable)
+    },
     "pattern check{?s} not comparable (not assessed, not run, or changed scanner)" = sum(
       patterns$change == "not_comparable"
     ),

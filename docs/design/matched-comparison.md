@@ -204,7 +204,9 @@ interval or test. A case-level reduction for repeated epochs is future work.
 
 When no case pairs (different or undeclared dataset versions, or disjoint
 task mixes) the design is `unpaired`. Summaries then describe each side
-separately: counts by outcome value, trajectories with, without, and without
+separately: counts by outcome value (for a numeric scorer, the count and
+median of finite numeric values, and a count of the other values as off the
+scale; a logical `TRUE` is not read as `1`), trajectories with, without, and without
 assessed findings per scan, and recorded values per measure. Every table is
 labelled `unpaired` and none has an estimate, interval, or test.
 

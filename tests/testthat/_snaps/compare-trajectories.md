@@ -68,3 +68,22 @@
         tokens; 1.00 of changed cases increased (95% interval 0.59 to 1.00; exact
         sign test p = 0.016)
 
+# an unpaired summary counts non-numeric values as off the scale
+
+    Code
+      print(comparison)
+    Message
+      <scans_comparison> Manual -> Manual
+      Key: sample_id; dataset versions v1 and v2
+      Baseline snapshot: sha256:baseline
+      Candidate snapshot: sha256:candidate
+      
+      -- Not compared 
+      ! 4 trajectories only in the baseline
+      ! 4 trajectories only in the candidate
+      ! 4 outcome values off the scorer's scale
+      
+      -- Unpaired description 
+      The sides declare different dataset versions, so no case is matched.
+      See `$summaries` for each side. No paired estimate is produced.
+
