@@ -1,4 +1,4 @@
-scans_app_export_menu_ui <- function(noun = scans_app_noun()) {
+scans_app_export_menu_ui <- function(noun = scans_app_noun(), users = FALSE) {
   htmltools::div(
     class = "dropdown scans-app-export",
     htmltools::tags$button(
@@ -38,7 +38,7 @@ scans_app_export_menu_ui <- function(noun = scans_app_noun()) {
         shiny::checkboxInput(
           "scans_app_export_users",
           "Include user identifiers in CSVs",
-          value = FALSE
+          value = users
         )
       )
     )

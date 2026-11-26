@@ -280,3 +280,12 @@ test_that("pattern rows state affected over the trajectories the scan assessed",
   expect_match(html, "2 of 3 assessed", fixed = TRUE)
   expect_match(html, ": 2 of 3 assessed conversations.", fixed = TRUE)
 })
+
+test_that("the export menu keeps the user option ticked across a re-render", {
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny")
+  html <- as.character(scans_app_export_menu_ui(users = TRUE))
+  expect_match(html, 'id="scans_app_export_users"[^>]*checked')
+  off <- as.character(scans_app_export_menu_ui())
+  expect_no_match(off, 'id="scans_app_export_users"[^>]*checked')
+})

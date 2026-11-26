@@ -742,3 +742,29 @@ test_that("an application link selects that application and its overview", {
     expect_identical(application(), "Other")
   })
 })
+
+test_that("the user option stays ticked when a filter re-renders the overview", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(scans_app_hash = scans_app_scope_hash("Cohort"))
+    expect_no_match(
+      as.character(output$scans_app_performance$html),
+      'id="scans_app_export_users"[^>]*checked'
+    )
+    session$setInputs(scans_app_export_users = TRUE)
+    session$setInputs(
+      scans_app_hash = scans_app_scope_hash(
+        "Cohort",
+        scope = list(user = "ada")
+      )
+    )
+    expect_match(
+      as.character(output$scans_app_performance$html),
+      'id="scans_app_export_users"[^>]*checked'
+    )
+  })
+})

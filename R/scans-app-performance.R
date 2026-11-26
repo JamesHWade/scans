@@ -304,7 +304,7 @@ scans_app_performance_ui <- function(
           class = "btn-outline-secondary"
         )
       },
-      if (n > 0L) scans_app_export_menu_ui(noun)
+      if (n > 0L) scans_app_export_menu_ui(noun, isTRUE(scope$export_users))
     ),
     scans_app_scope_sentence_ui(
       cohort$headline,
