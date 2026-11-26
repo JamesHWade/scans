@@ -73,7 +73,8 @@ scans_app_connect <- function(
   investigations = FALSE,
   reviews = FALSE,
   chat_factory = NULL,
-  days = 7
+  days = 7,
+  scanners = NULL
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
@@ -93,6 +94,7 @@ scans_app_connect <- function(
     investigations = investigations,
     reviews = reviews,
     chat_factory = chat_factory,
+    scanners = scanners,
     x = scans_app_connect_loaders(
       x,
       n,

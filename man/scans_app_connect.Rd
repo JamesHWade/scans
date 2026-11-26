@@ -15,7 +15,8 @@ scans_app_connect(
   investigations = FALSE,
   reviews = FALSE,
   chat_factory = NULL,
-  days = 7
+  days = 7,
+  scanners = NULL
 )
 }
 \arguments{
@@ -54,6 +55,14 @@ scans tools; its system prompt is retained with evidence instructions.}
 
 \item{days}{Length in days of the rolling window read when \code{from} and \code{to}
 are both omitted. The default is 7.}
+
+\item{scanners}{Optional custom scanners: one \code{\link[=scanner]{scanner()}} or a list of
+them. They appear with the built-in scans in Options, run with them on
+the loaded bundle, and their findings and assessment status are shown the
+same way. A saved investigation shows its saved custom results without
+them; applying current scanners reruns only the scanners supplied here.
+Custom scanners are deterministic functions, so browsing never calls a
+model.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.

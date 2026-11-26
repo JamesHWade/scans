@@ -296,7 +296,8 @@ test_that("Connect apps forward the investigation opt-in without loading traces"
     annotations,
     investigations,
     reviews,
-    chat_factory
+    chat_factory,
+    ...
   ) {
     investigations
   })

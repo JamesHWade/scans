@@ -198,3 +198,13 @@ test_that("both recipe scanners run beside the built-in scans and save", {
     builtin$findings
   )
 })
+
+test_that("the Connect app forwards custom scanners to the app", {
+  expect_error(
+    scans_app_connect(
+      c(App = "11111111-1111-4111-8111-111111111111"),
+      scanners = "claims"
+    ),
+    class = "scans_error_scanner"
+  )
+})
