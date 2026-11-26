@@ -483,9 +483,39 @@ scanner_run_one <- function(item, trajectory, strict, call) {
   if (!inherits(result, "scans_scanner_findings")) {
     return(failed("result"))
   }
+  checked <- tryCatch(
+    scanner_check_findings(result, trajectory),
+    error = function(cnd) NULL
+  )
+  if (is.null(checked)) {
+    return(failed("result"))
+  }
+  if (is.character(checked)) {
+    return(failed(checked))
+  }
+  found <- checked
+  if (nrow(found)) {
+    list(
+      status = "assessed_with_findings",
+      reason = "The custom scanner reported findings in the retained evidence.",
+      findings = found
+    )
+  } else {
+    list(
+      status = "assessed_no_findings",
+      reason = "The custom scanner assessed the retained evidence and reported no findings.",
+      findings = found
+    )
+  }
+}
+
+# Normalizes and validates a findings result against its trajectory. Returns
+# the findings, or the name of the failure kind. The caller runs it under
+# `tryCatch()` so an error here fails only this scanner and trajectory.
+scanner_check_findings <- function(result, trajectory) {
   found <- scanner_normalize_findings(result)
   if (is.null(found)) {
-    return(failed("result"))
+    return("result")
   }
   events <- trajectory$events
   event_ok <- vapply(
@@ -503,26 +533,14 @@ scanner_run_one <- function(item, trajectory, strict, call) {
   if (
     !all(event_ok) || !all(turn_ok) || !owner_ok || !all(same_turn %in% TRUE)
   ) {
-    return(failed("reference"))
+    return("reference")
   }
   inherit <- is.na(found$turn_id) & !is.na(found$event_id)
   found$turn_id[inherit] <- event_turns[inherit]
   position <- events$event_index[match(found$event_id, events$event_id)]
   position[is.na(position)] <- 0L
   found <- found[order(position, method = "radix"), , drop = FALSE]
-  if (nrow(found)) {
-    list(
-      status = "assessed_with_findings",
-      reason = "The custom scanner reported findings in the retained evidence.",
-      findings = found
-    )
-  } else {
-    list(
-      status = "assessed_no_findings",
-      reason = "The custom scanner assessed the retained evidence and reported no findings.",
-      findings = found
-    )
-  }
+  found
 }
 
 # `stop()` with a condition that is not an error unwinds the whole call
@@ -589,7 +607,7 @@ scanner_normalize_findings <- function(x) {
   value <- x[["value"]] %||% rep(list(list()), size)
   if (
     any(vapply(columns, is.null, logical(1))) ||
-      !is.list(event_ids) ||
+      !rlang::is_bare_list(event_ids) ||
       !is.list(value) ||
       !investigation_is_data(value) ||
       !all(vapply(

@@ -171,6 +171,78 @@ test_that("a condition raised with stop() fails alone; warnings and messages pas
   expect_identical(unique(result$assessments$status), "assessed_no_findings")
 })
 
+test_that("event_ids that is not a plain list fails only that trajectory", {
+  bundle <- scanner_bundle_fixture()
+  bad <- scanner_toy_fixture("toy_frame", function(trajectory, settings) {
+    if (trajectory$trajectory_id != "chat-hit") {
+      return(scanner_findings())
+    }
+    scanner_findings(
+      label = c("A", "B"),
+      explanation = "Cites evidence.",
+      event_ids = data.frame(ids = c("hit-e1", "hit-e2"))
+    )
+  })
+  result <- assess_trajectory_scans(bundle, scans = "toy_frame", scanners = bad)
+  expect_identical(
+    result$assessments$status,
+    c(
+      "execution_failure",
+      "assessed_no_findings",
+      "assessed_no_findings",
+      "assessed_no_findings"
+    )
+  )
+  expect_identical(nrow(result$findings), 0L)
+})
+
+test_that("an error while normalizing a result fails only that trajectory", {
+  bundle <- scanner_bundle_fixture()
+  scanner <- scanner_toy_fixture("toy_norm", function(trajectory, settings) {
+    scanner_findings(
+      event_id = if (trajectory$trajectory_id == "chat-hit") "hit-e2" else NA,
+      label = if (trajectory$trajectory_id == "chat-hit") {
+        "Hit"
+      } else {
+        character()
+      },
+      explanation = if (trajectory$trajectory_id == "chat-hit") {
+        "Hit."
+      } else {
+        character()
+      }
+    )
+  })
+  real <- scanner_normalize_findings
+  testthat::local_mocked_bindings(
+    scanner_normalize_findings = function(x) {
+      if (nrow(x)) {
+        cli::cli_abort("forced")
+      }
+      real(x)
+    }
+  )
+  result <- assess_trajectory_scans(
+    bundle,
+    scans = "toy_norm",
+    scanners = scanner
+  )
+  expect_identical(
+    result$assessments$status,
+    c(
+      "execution_failure",
+      "assessed_no_findings",
+      "assessed_no_findings",
+      "assessed_no_findings"
+    )
+  )
+  expect_match(result$assessments$reason[[1L]], "result", ignore.case = TRUE)
+  expect_error(
+    scan_trajectories(bundle, scanners = scanner),
+    class = "scans_error_scanner_failure"
+  )
+})
+
 test_that("a finding that cites evidence outside the trajectory is an execution failure", {
   citing <- function(...) {
     scanner_toy_fixture("toy_citing", function(trajectory, settings) {
