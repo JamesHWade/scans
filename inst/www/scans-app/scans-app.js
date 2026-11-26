@@ -196,6 +196,29 @@
         revealEvidence();
         return;
       }
+      // The innermost facet wins, so a failed-calls cell inside a tool row
+      // applies its own, narrower filter.
+      var clear = event.target.closest("[data-scans-facet-clear]");
+      if (clear) {
+        Shiny.setInputValue(
+          "scans_app_facet_clear",
+          { facet: clear.dataset.scansFacetClear, nonce: Date.now() },
+          { priority: "event" }
+        );
+        return;
+      }
+      var facet = event.target.closest("[data-scans-facet]");
+      if (facet) {
+        Shiny.setInputValue(
+          "scans_app_facet",
+          {
+            facet: facet.dataset.scansFacet,
+            value: facet.hasAttribute("data-scans-value") ? facet.dataset.scansValue : null
+          },
+          { priority: "event" }
+        );
+        return;
+      }
       var pattern = event.target.closest("[data-scans-pattern]");
       if (pattern) {
         Shiny.setInputValue("scans_app_pattern", pattern.dataset.scansPattern, {

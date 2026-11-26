@@ -28,6 +28,7 @@ scans_app_server <- function(
     selected <- shiny::reactiveVal(NULL)
     selected_trajectory_id <- shiny::reactiveVal(NULL)
     pattern_filter <- shiny::reactiveVal(NULL)
+    facets <- shiny::reactiveVal(list())
 
     scans_app_loading_server(
       input,

@@ -45,16 +45,9 @@ scans_app_data <- function(
     paste(info$trajectory_id, "elapsed"),
     paste(analysis$measures$trajectory_id, analysis$measures$measure)
   )]
+  tool_calls <- cohort_tool_calls(list(events = events), info$trajectory_id)
   records$n_tool_errors <- tabulate(
-    match(
-      events$trajectory_id[
-        events$event_type %in%
-          c("tool_call", "tool_result") &
-          ((!is.na(events$error) & nzchar(events$error)) |
-            events$status %in% c("failed", "error"))
-      ],
-      info$trajectory_id
-    ),
+    match(tool_calls$trajectory_id[tool_calls$failed], info$trajectory_id),
     nbins = nrow(info)
   )
 
@@ -69,6 +62,7 @@ scans_app_data <- function(
     assessments = analysis$assessments,
     summaries = summaries,
     measures = analysis$measures,
+    tool_calls = tool_calls,
     records = records
   )
 }

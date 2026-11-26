@@ -132,7 +132,11 @@ scans_app_browser_server <- function(
     if (is.null(current)) {
       return(NULL)
     }
-    scans_app_performance_data(current, state$visible())
+    scans_app_performance_data(
+      current,
+      state$visible(),
+      state$activity_scope()
+    )
   })
   output$scans_app_performance <- shiny::renderUI({
     current <- state$performance()
@@ -144,7 +148,12 @@ scans_app_browser_server <- function(
       state$application(),
       input$scans_app_priority %||% "elapsed",
       state$scan_config()$scans,
-      chat = !is.null(chat_factory)
+      chat = !is.null(chat_factory),
+      scope = list(
+        facets = state$facets(),
+        pattern = state$pattern_filter(),
+        findings_only = isTRUE(input$scans_app_findings_only)
+      )
     )
   })
 

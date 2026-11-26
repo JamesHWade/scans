@@ -5,7 +5,10 @@ scans_app_filter_server <- function(
   state
 ) {
   shiny::observeEvent(state$application(), {
-    if (is.null(state$active_source()$investigation)) state$pattern_filter(NULL)
+    if (is.null(state$active_source()$investigation)) {
+      state$pattern_filter(NULL)
+    }
+    state$facets(list())
   })
   shiny::observeEvent(input$scans_app_pattern, {
     pattern <- input$scans_app_pattern
@@ -20,16 +23,75 @@ scans_app_filter_server <- function(
   shiny::observeEvent(input$scans_app_clear_pattern, {
     state$pattern_filter(NULL)
   })
-  output$scans_app_pattern_filter <- shiny::renderUI({
-    pattern <- state$pattern_filter()
-    if (is.null(pattern)) {
-      return(NULL)
+
+  shiny::observeEvent(input$scans_app_facet, {
+    request <- input$scans_app_facet
+    current <- state$data()
+    facet <- request$facet
+    if (is.null(current) || !scans_app_has_string(facet)) {
+      return()
     }
-    htmltools::div(
-      class = "scans-app-active-pattern",
-      htmltools::tags$span(paste("Finding:", gsub("_", " ", pattern))),
-      shiny::actionLink("scans_app_clear_pattern", "Clear")
+    if (identical(facet, "findings")) {
+      bslib::update_switch(
+        "scans_app_findings_only",
+        value = !isTRUE(input$scans_app_findings_only),
+        session = session
+      )
+      return()
+    }
+    if (facet %in% scans_app_facet_names) {
+      state$facets(scans_app_facet_validate(
+        current,
+        scans_app_facet_toggle(state$facets(), facet, request$value)
+      ))
+    }
+  })
+  shiny::observeEvent(input$scans_app_facet_clear, {
+    facet <- input$scans_app_facet_clear$facet
+    all <- identical(facet, "all")
+    facets <- state$facets()
+    if (all) {
+      facets <- list()
+    } else if (identical(facet, "tool")) {
+      facets[c("tool", "tool_failed")] <- NULL
+    } else if (scans_app_has_string(facet)) {
+      facets[[facet]] <- NULL
+    }
+    state$facets(scans_app_facet_list(facets))
+    if (all || identical(facet, "pattern")) {
+      state$pattern_filter(NULL)
+    }
+    if (
+      isTRUE(input$scans_app_findings_only) &&
+        (all || identical(facet, "findings"))
+    ) {
+      bslib::update_switch(
+        "scans_app_findings_only",
+        value = FALSE,
+        session = session
+      )
+    }
+  })
+  shiny::observe({
+    current <- state$data()
+    facets <- state$facets()
+    if (is.null(current) || !length(facets)) {
+      return()
+    }
+    valid <- scans_app_facet_validate(current, facets)
+    if (!identical(valid, facets)) {
+      state$facets(valid)
+    }
+  })
+  state$scope_labels <- shiny::reactive({
+    scans_app_scope_labels(
+      state$facets(),
+      state$pattern_filter(),
+      input$scans_app_findings_only
     )
+  })
+  output$scans_app_pattern_filter <- shiny::renderUI({
+    scans_app_scope_chips_ui(state$scope_labels())
   })
 
   available_patterns <- shiny::reactive({
@@ -129,6 +191,7 @@ scans_app_filter_server <- function(
       if (!is.null(saved)) {
         scans_app_restore_investigation(saved, current, session)
         state$pattern_filter(saved$view$pattern)
+        state$facets(list())
         focus <- saved$view$selected_trajectory_id
         state$selected(
           if (is.null(focus)) {
@@ -156,7 +219,9 @@ scans_app_filter_server <- function(
     }
   )
 
-  state$visible <- shiny::reactive({
+  # Everything except the facets, so the overview can also show the cohort
+  # one facet wider than the browser list.
+  filtered <- shiny::reactive({
     current <- state$data()
     if (is.null(current)) {
       return(integer())
@@ -192,11 +257,28 @@ scans_app_filter_server <- function(
       ]
       indices <- indices[current$records$trajectory_id[indices] %in% matching]
     }
+    indices
+  })
+  state$visible <- shiny::reactive({
+    current <- state$data()
+    if (is.null(current)) {
+      return(integer())
+    }
     scans_app_order_records(
       current$records,
-      indices,
+      scans_app_facet_filter(current, filtered(), state$facets()),
       scans_app_input_or(input$scans_app_sort, "findings")
     )
+  })
+  # The activity chart keeps every bucket while one is selected.
+  state$activity_scope <- shiny::reactive({
+    current <- state$data()
+    if (is.null(current)) {
+      return(integer())
+    }
+    facets <- state$facets()
+    facets$day <- NULL
+    scans_app_facet_filter(current, filtered(), facets)
   })
 
   shiny::observeEvent(
