@@ -31,8 +31,9 @@
 #' The framework checks every finding. A turn or event reference that is not
 #' in the scanned trajectory, or a malformed finding, makes the whole result
 #' an `execution_failure` for that scanner and trajectory, and none of its
-#' findings are kept. A scanner that throws is an `execution_failure` for that
-#' scanner and trajectory only. [assess_trajectory_scans()] records a fixed
+#' findings are kept. A scanner that throws an error, or raises any other
+#' condition with `stop()`, is an `execution_failure` for that scanner and
+#' trajectory only. Warnings and messages are not failures and pass through. [assess_trajectory_scans()] records a fixed
 #' reason and never copies the condition message; [scan_trajectories()]
 #' re-signals the failure with the original condition as its parent.
 #'
@@ -423,7 +424,10 @@ scanner_run_one <- function(item, trajectory, strict, call) {
     )
   }
   result <- tryCatch(
-    item$fn(trajectory, item$settings),
+    withCallingHandlers(
+      item$fn(trajectory, item$settings),
+      condition = scanner_contain_stop
+    ),
     error = function(cnd) cnd
   )
   if (inherits(result, "error")) {
@@ -476,6 +480,24 @@ scanner_run_one <- function(item, trajectory, strict, call) {
       status = "assessed_no_findings",
       reason = "The custom scanner assessed the retained evidence and reported no findings.",
       findings = found
+    )
+  }
+}
+
+# `stop()` with a condition that is not an error unwinds the whole call
+# without reaching an `error` handler. Such a condition is re-raised as an
+# error so it fails only its scanner and trajectory. The frame below a
+# calling handler is the one that signalled; a condition signalled any other
+# way returns normally and is left alone, as are warnings and messages.
+scanner_contain_stop <- function(cnd) {
+  if (
+    !inherits(cnd, c("error", "warning", "message", "interrupt")) &&
+      identical(sys.function(sys.nframe() - 1L), base::stop)
+  ) {
+    rlang::abort(
+      "A custom scanner raised a condition with `stop()`.",
+      class = "scans_error_scanner_condition",
+      parent = cnd
     )
   }
 }

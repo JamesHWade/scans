@@ -107,8 +107,9 @@ assessment; the framework lists them in the assessment's limitations.
 The framework checks every finding. A turn or event reference that is not
 in the scanned trajectory, or a malformed finding, makes the whole result
 an \code{execution_failure} for that scanner and trajectory, and none of its
-findings are kept. A scanner that throws is an \code{execution_failure} for that
-scanner and trajectory only. \code{\link[=assess_trajectory_scans]{assess_trajectory_scans()}} records a fixed
+findings are kept. A scanner that throws an error, or raises any other
+condition with \code{stop()}, is an \code{execution_failure} for that scanner and
+trajectory only. Warnings and messages are not failures and pass through. \code{\link[=assess_trajectory_scans]{assess_trajectory_scans()}} records a fixed
 reason and never copies the condition message; \code{\link[=scan_trajectories]{scan_trajectories()}}
 re-signals the failure with the original condition as its parent.
 

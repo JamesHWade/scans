@@ -115,6 +115,60 @@ test_that("a scanner that throws fails alone and leaks no condition text", {
   expect_match(conditionMessage(error$parent), "hunter2")
 })
 
+test_that("a condition raised with stop() fails alone; warnings and messages pass", {
+  signal <- structure(
+    class = c("toy_condition", "condition"),
+    list(message = "token=secret", call = NULL)
+  )
+  stopper <- scanner_toy_fixture("toy_stopper", function(trajectory, settings) {
+    signalCondition(signal)
+    if (trajectory$trajectory_id == "chat-clean") {
+      stop(signal)
+    }
+    scanner_findings()
+  })
+  result <- assess_trajectory_scans(
+    scanner_bundle_fixture(),
+    scans = "toy_stopper",
+    scanners = stopper
+  )
+  expect_identical(
+    result$assessments$status,
+    c(
+      "assessed_no_findings",
+      "execution_failure",
+      "assessed_no_findings",
+      "assessed_no_findings"
+    )
+  )
+  expect_false(any(grepl("secret", unlist(result), fixed = TRUE)))
+  error <- expect_error(
+    scan_trajectories(scanner_bundle_fixture(), scanners = stopper),
+    class = "scans_error_scanner_failure"
+  )
+  expect_s3_class(error$parent$parent, "toy_condition")
+
+  noisy <- scanner_toy_fixture("toy_noisy", function(trajectory, settings) {
+    if (trajectory$trajectory_id == "chat-hit") {
+      warning("toy warning")
+      message("toy message")
+    }
+    scanner_findings()
+  })
+  expect_warning(
+    expect_message(
+      result <- assess_trajectory_scans(
+        scanner_bundle_fixture(),
+        scans = "toy_noisy",
+        scanners = noisy
+      ),
+      "toy message"
+    ),
+    "toy warning"
+  )
+  expect_identical(unique(result$assessments$status), "assessed_no_findings")
+})
+
 test_that("a finding that cites evidence outside the trajectory is an execution failure", {
   citing <- function(...) {
     scanner_toy_fixture("toy_citing", function(trajectory, settings) {
