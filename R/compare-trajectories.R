@@ -468,7 +468,13 @@ comparison_resources <- function(pairing) {
   comparable <- is.na(reason)
   tibble::tibble(
     grid,
-    unit = as.character(ifelse(is.na(b$unit), c$unit, b$unit)),
+    unit = as.character(ifelse(
+      is.na(b$unit),
+      c$unit,
+      ifelse(is.na(c$unit) | b$unit == c$unit, b$unit, NA)
+    )),
+    baseline_unit = b$unit,
+    candidate_unit = c$unit,
     baseline_value = b$value,
     candidate_value = c$value,
     delta = as.double(ifelse(comparable, c$value - b$value, NA_real_)),
@@ -607,17 +613,29 @@ comparison_paired_summaries <- function(tables, pairing, conf_level) {
   resource_rows <- lapply(unique(resources$measure), function(measure) {
     x <- resources[resources$measure == measure, ]
     delta <- x$delta[x$comparable]
+    units <- unique(x$unit[x$comparable])
     tibble::tibble(
       design = "paired",
       unit = unit,
       measure = measure,
-      measure_unit = x$unit[[1L]],
+      measure_unit = if (length(units) == 1L) {
+        units
+      } else if (!length(units)) {
+        x$unit[[1L]]
+      } else {
+        NA_character_
+      },
       n = length(delta),
       n_increased = sum(delta > 0),
       n_decreased = sum(delta < 0),
       n_unchanged = sum(delta == 0),
       n_unknown = sum(!x$comparable),
-      median_delta = if (length(delta)) stats::median(delta) else NA_real_,
+      # A median across cases needs one unit.
+      median_delta = if (length(units) == 1L) {
+        stats::median(delta)
+      } else {
+        NA_real_
+      },
       test(sum(delta > 0), sum(delta < 0))
     )
   })
@@ -769,15 +787,20 @@ comparison_unpaired_summaries <- function(pairing) {
     rows <- lapply(names, function(measure) {
       m <- measures[measures$measure == measure, ]
       known <- !is.na(m$value) & m$coverage == "complete"
+      units <- unique(m$unit[known])
       tibble::tibble(
         design = "unpaired",
         side = side,
         measure = measure,
-        measure_unit = m$unit[[1L]],
+        measure_unit = if (length(units) <= 1L) m$unit[[1L]] else NA_character_,
         n_trajectories = nrow(m),
         n_recorded = sum(known),
         n_unknown = sum(!known),
-        median = if (any(known)) stats::median(m$value[known]) else NA_real_
+        median = if (length(units) == 1L) {
+          stats::median(m$value[known])
+        } else {
+          NA_real_
+        }
       )
     })
     pairing_bind(rows)

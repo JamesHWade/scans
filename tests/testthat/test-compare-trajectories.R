@@ -203,6 +203,46 @@ test_that("resource values under different or unknown semantics give no delta", 
   expect_identical(unknown$reason, "Cache inclusion is unknown on both sides.")
 })
 
+test_that("a resource row whose sides differ in unit shows both units", {
+  pairing <- pair_trajectories(
+    comparison_changed_investigation("baseline"),
+    comparison_changed_investigation("candidate"),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  # A saved investigation fixes each measure's unit, so change one directly
+  # to reach the rows a different measurement contract would produce.
+  measures <- pairing$candidate$analysis$measures
+  measures$unit[
+    measures$measure == "output_tokens" & measures$trajectory_id == "run/case-1"
+  ] <- "k tokens"
+  pairing$candidate$analysis$measures <- measures
+  resources <- comparison_resources(pairing)
+  output <- resources[resources$measure == "output_tokens", ]
+
+  expect_identical(output$baseline_unit, rep("tokens", 7L))
+  expect_identical(output$candidate_unit, c("k tokens", rep("tokens", 6L)))
+  expect_identical(output$unit, c(NA, rep("tokens", 6L)))
+  expect_true(is.na(output$delta[[1L]]))
+  expect_match(output$reason[[1L]], "different semantics \\(unit\\)")
+
+  measures <- pairing$baseline$analysis$measures
+  measures$unit[
+    measures$measure == "output_tokens" & measures$trajectory_id == "run/case-1"
+  ] <- "k tokens"
+  pairing$baseline$analysis$measures <- measures
+  tables <- list(
+    outcomes = comparison_outcomes(pairing),
+    patterns = comparison_patterns(pairing),
+    resources = comparison_resources(pairing)
+  )
+  summary <- comparison_paired_summaries(tables, pairing, 0.95)$resources
+  output <- summary[summary$measure == "output_tokens", ]
+  expect_identical(output$n, 7L)
+  expect_identical(output$measure_unit, NA_character_)
+  expect_identical(output$median_delta, NA_real_)
+})
+
 test_that("each case counts its changes per family without combining them", {
   skip_if_not_installed("vitals")
   cases <- compare_trajectories(comparison_pairing())$cases

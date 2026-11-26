@@ -167,8 +167,11 @@ identifiers those findings cite on each side.
 needs, on both sides, a recorded value with `complete` coverage, and the same
 unit, aggregation, source, measurement contract version, and cache inclusion.
 For `input_tokens` the inclusion must also be known. Otherwise the delta is
-`NA` with the reason, and both values, coverages, denominators, sources, and
-cache-inclusion flags stay on the row. A partial sum is a lower bound, so a
+`NA` with the reason, and both values, units, coverages, denominators,
+sources, and cache-inclusion flags stay on the row. `unit` is the unit the
+two sides share and `NA` when they differ, so a row never shows both values
+under one side's unit. A summary's median delta needs one unit across its
+cases. A partial sum is a lower bound, so a
 difference of two of them has no sign that can be trusted. A resource change
 is `increased` or `decreased`, never better or worse.
 
