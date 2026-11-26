@@ -45,3 +45,26 @@
       No dataset version was declared, so no case can be matched.
       See `$summaries` for each side. No paired estimate is produced.
 
+# printing reports the exact test of each family that carries one
+
+    Code
+      print(comparison)
+    Message
+      <scans_comparison> Manual baseline -> Manual candidate
+      Key: sample_id; dataset version v1
+      Baseline snapshot: sha256:baseline
+      Candidate snapshot: sha256:candidate
+      
+      -- Not compared 
+      ! 42 pattern checks not comparable (not assessed, not run, or changed scanner)
+      ! 7 resource values recorded on a side but not comparable
+      
+      -- Paired changes in 7 matched cases 
+      * Outcome judge (version 1): 7 improved, 0 regressed, 0 unchanged; 1.00 of
+        changed cases improved (95% interval 0.59 to 1.00; exact sign test p = 0.016)
+      * Pattern event_error: appeared in 7, resolved in 0, persisted in 0; 0.00 of
+        changed cases resolved (95% interval 0.00 to 0.41; exact sign test p = 0.016)
+      * Resource output_tokens: increased in 7, decreased in 0, median change 5
+        tokens; 1.00 of changed cases increased (95% interval 0.59 to 1.00; exact
+        sign test p = 0.016)
+

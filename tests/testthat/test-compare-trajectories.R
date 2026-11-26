@@ -398,6 +398,32 @@ test_that("printing leads with what was not compared", {
   expect_snapshot(print(unpaired))
 })
 
+test_that("printing reports the exact test of each family that carries one", {
+  pairing <- pair_trajectories(
+    comparison_changed_investigation("baseline"),
+    comparison_changed_investigation("candidate"),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(comparison_scorer("judge", "1", "numeric"))
+  )
+  comparison <- compare_trajectories(pairing)
+  summaries <- comparison$summaries
+  expect_identical(summaries$outcomes$method, "exact sign test")
+  expect_identical(
+    summaries$patterns$method[summaries$patterns$scan == "event_error"],
+    "exact sign test"
+  )
+  expect_identical(
+    summaries$resources$method[summaries$resources$measure == "output_tokens"],
+    "exact sign test"
+  )
+  comparison$pairing$snapshots$snapshot_id <- c(
+    "sha256:baseline",
+    "sha256:candidate"
+  )
+  expect_snapshot(print(comparison))
+})
+
 test_that("compare_trajectories() validates its inputs", {
   saved <- comparison_manual_investigation(c(1, 0))
   pairing <- pair_trajectories(

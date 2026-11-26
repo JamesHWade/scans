@@ -794,7 +794,7 @@ comparison_summary_lines <- function(summaries) {
     }
     sprintf(
       "%s of changed cases %s (%s%% interval %s to %s; exact sign test p = %s)",
-      format(round(row$share, 2), nsmall = 2),
+      format(round(row[[paste0("share_", label)]], 2), nsmall = 2),
       label,
       format(100 * row$conf_level),
       format(round(row$conf_low, 2), nsmall = 2),
