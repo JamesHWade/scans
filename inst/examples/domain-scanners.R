@@ -443,6 +443,34 @@ answer_without_support_scanner <- function(
       unusable <- domain_result_failed(results) |
         (domain_result_completed(results) & empty)
       succeeded <- domain_result_completed(results) & !empty
+
+      # A retrieval whose outcome is unknown (no recorded completion and no
+      # error) cannot show that an answer after it was supported or not.
+      # Unless a successful retrieval precedes the answer, or recognised
+      # provenance covers its exchange, the answer is unsettled.
+      covered <- exchange[placed]
+      for (i in which(!unusable & !succeeded)) {
+        same <- result_exchange %in% result_exchange[[i]]
+        after <- which(
+          answers$event_index > results$event_index[[i]] &
+            answer_exchange %in% result_exchange[[i]] &
+            !answer_exchange %in% covered &
+            substantive
+        )
+        supported <- vapply(
+          answers$event_index[after],
+          function(answered) {
+            any(succeeded & same & results$event_index < answered)
+          },
+          logical(1)
+        )
+        if (!all(supported)) {
+          return(scans::scanner_unassessed(
+            "insufficient_evidence",
+            "A retrieval before the answer has no recorded completion, so whether the answer was supported is unknown."
+          ))
+        }
+      }
       for (i in which(unusable)) {
         at <- results$event_index[[i]]
         after <- which(

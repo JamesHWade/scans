@@ -57,8 +57,9 @@ identity is left unlinked, as the package's own tool correlation leaves it.
 A result is a success only with status `completed` and no error; `failed`,
 `cancelled`, or an error is a failure; a missing, `interrupted`, `running`, or
 `pending` status is unknown. An unlinked call or an unknown result before the
-claim (or, for retrieval, between the empty result and the answer) is
-`insufficient_evidence`, not a failure and not a success. A success that
+claim (or, for retrieval, before the answer, unless a successful retrieval or
+recognised provenance settles it) is `insufficient_evidence`, not a failure
+and not a success. A success that
 arrives after the claim does not support it.
 
 **An empty retrieval followed by an answer needs a capture that would keep a

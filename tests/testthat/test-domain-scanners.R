@@ -370,6 +370,29 @@ test_that("a retrieval without recorded completion leaves the answer unsettled",
   }
 })
 
+test_that("an answer after a retrieval with an unknown outcome is unsettled", {
+  recipe <- domain_scanner_recipe()
+  question <- recipe$domain_user("How much leave can I carry over?")
+  for (state in c("interrupted", "running", "pending", NA_character_)) {
+    only <- recipe$domain_tool_result(
+      "search_docs",
+      "call-1",
+      list(documents = list(list(title = "Leave policy")))
+    )
+    only["status"] <- list(state)
+    expect_identical(
+      domain_retrieval_status(
+        recipe,
+        question,
+        recipe$domain_tool_call("search_docs", "call-1"),
+        only,
+        recipe$domain_assistant(domain_long_answer)
+      ),
+      "insufficient_evidence"
+    )
+  }
+})
+
 test_that("an answer after an empty retrieval needs a capture that kept retries", {
   recipe <- domain_scanner_recipe()
   question <- recipe$domain_user("How much leave can I carry over?")
