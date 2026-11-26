@@ -61,8 +61,11 @@ them. They appear with the built-in scans in Options, run with them on
 the loaded bundle, and their findings and assessment status are shown the
 same way. A saved investigation shows its saved custom results without
 them; applying current scanners reruns only the scanners supplied here.
-Custom scanners are deterministic functions, so browsing never calls a
-model.}
+Scanners that could never run are refused rather than ignored: with a
+single saved investigation opened with \code{investigations = FALSE}, and
+with a comparison, whose sides are the saved analyses it compares (rerun
+each side with \code{\link[=investigation_snapshot]{investigation_snapshot()}} and compare again). Custom
+scanners are deterministic functions, so browsing never calls a model.}
 }
 \value{
 A \code{\link[shiny:shinyApp]{shiny::shinyApp()}} object.
