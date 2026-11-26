@@ -26,10 +26,26 @@ The findings-only API remains available for raw detector output. The new API
 retains its finding identities but excludes candidates from unassessed scans;
 a missing call identity or redacted arguments must not become a diagnosed tool
 failure. Successful, assessable findings have exactly the legacy representation.
-Built-ins currently execute in three existing groups (tool, event, record).
+Built-ins currently execute in four groups (tool, event, record, Deputy).
 Failure in a group marks its selected scanners as failed for that trajectory,
 leaves other groups and trajectories available, and displays a fixed reason
 without copying arbitrary condition messages into the result or browser.
+
+The Deputy scans (`cut_off_answer`, `run_intervention`, issue #72) apply when a
+trajectory records Deputy run evidence: `metadata$ending`,
+`metadata$delegation`, any `deputy:*` event, or a `"deputy"` source type. Applicability does not depend on the
+source type alone, so an OTel projection of `deputy.run` spans with the same
+ending and events is assessed identically. A cut-off assessment needs the
+ending's `cut_off` or `finish_reason`. An intervention assessment needs
+recorded `deputy:*` events: captured events with no intervention are a clean
+negative, while a capture with no lifecycle events is insufficient unless the
+ending itself shows a limit, which is then a qualified positive. A delegation
+child has no lifecycle events by design, so it is assessed from the subagent's
+claims: any reported claim (`""` means none) is assessable, and two unreported
+(`NA`) claims are insufficient. Lifecycle interventions are not ruled out for
+a child, and a claim Deputy truncated is a qualified positive. The
+repeated-compaction threshold (2) is fixed and recorded in `settings` until it
+can be configured end to end alongside the other thresholds.
 
 Acceptance examples, all offline:
 

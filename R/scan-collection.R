@@ -25,7 +25,7 @@ scan_collect_findings <- function(
     ]
     turns <- turn_groups[[index]]
     roles <- turns$role[match(events$turn_id, turns$turn_id)]
-    for (group in c("record", "tool", "event")) {
+    for (group in c("record", "tool", "event", "deputy")) {
       run <- function() {
         switch(
           group,
@@ -41,7 +41,12 @@ scan_collect_findings <- function(
             loop_threshold,
             roles
           ),
-          event = scan_error_findings(events, scan_id)
+          event = scan_error_findings(events, scan_id),
+          deputy = scan_deputy_findings(
+            info[index, , drop = FALSE],
+            events,
+            scan_id
+          )
         )
       }
       if (capture_errors) {

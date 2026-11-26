@@ -36,6 +36,11 @@ evidence references, coverage limitations, and explicit pagination. Counts
 and descriptive statistics are computed over the requested population in R,
 not over the returned page. Missing values remain JSON \code{null}.
 
+When any retained trajectory records a Deputy run ending, trajectory
+listings add \code{run_ending}, \code{ending_reason}, \code{finish_reason}, \code{cut_off}, and
+\code{wrapped_up}, so a cut-off answer is visible even though its status is
+\code{"completed"}. Findings can be narrowed to named scans.
+
 A saved investigation retains its saved diagnostics and scanner settings.
 To recompute them, explicitly create a new \code{\link[=investigation_snapshot]{investigation_snapshot()}} from
 its bundle and supply that separate investigation.

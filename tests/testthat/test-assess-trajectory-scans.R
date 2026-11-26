@@ -8,11 +8,12 @@ test_that("public ellmer exchange distinguishes clean assessment and inapplicabi
     c(
       rep("assessed_no_findings", 6),
       "not_applicable",
-      rep("assessed_no_findings", 2)
+      rep("assessed_no_findings", 2),
+      rep("not_applicable", 2)
     )
   )
   expect_identical(result$assessments$scan, scan_registry()$scan)
-  expect_equal(result$assessments$scan_version, rep("1", 9))
+  expect_equal(result$assessments$scan_version, rep("1", 11))
   expect_equal(result$assessments$settings[[4]], list(repeat_threshold = 2L))
   expect_equal(result$assessments$settings[[5]], list(loop_threshold = 3L))
   expect_all_true(nzchar(result$assessments$required_evidence))
@@ -400,7 +401,8 @@ test_that("metadata loss names do not imply missing semantic records", {
     c(
       rep("assessed_no_findings", 6),
       "not_applicable",
-      rep("assessed_no_findings", 2)
+      rep("assessed_no_findings", 2),
+      rep("not_applicable", 2)
     )
   )
   expect_identical(result$loss_rows[[1]], seq_len(nrow(losses)))
