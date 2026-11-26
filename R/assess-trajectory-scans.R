@@ -92,75 +92,112 @@ assess_trajectory_scans <- function(
   findings <- scan_bind_findings(collected$findings, scan_id, info)
   event_groups <- scan_split_trajectory_rows(events, info$trajectory_id)
   turn_groups <- scan_split_trajectory_rows(turns, info$trajectory_id)
-  assessments <- list()
   retained <- rep(FALSE, nrow(findings))
+  # One row per trajectory and scan, filled column by column: building and
+  # binding a tibble per pair dominated the run on large cohorts.
+  n_scans <- length(scans)
+  total <- nrow(info) * n_scans
+  finding_rows <- split(
+    seq_len(nrow(findings)),
+    factor(
+      match(findings$trajectory_id, info$trajectory_id),
+      levels = seq_len(nrow(info))
+    )
+  )
+  scan_groups <- vapply(scans, scan_assessment_group, character(1))
+  scan_settings <- lapply(scans, function(scan) {
+    switch(
+      scan,
+      repeated_tool_call = list(repeat_threshold = repeat_threshold),
+      suspicious_tool_loop = list(loop_threshold = loop_threshold),
+      run_intervention = list(
+        compaction_threshold = scan_compaction_threshold
+      ),
+      list()
+    )
+  })
+  status <- character(total)
+  reason <- character(total)
+  finding_ids <- vector("list", total)
+  limitations <- vector("list", total)
+  loss_row_lists <- vector("list", total)
   for (i in seq_len(nrow(info))) {
     id <- info$trajectory_id[[i]]
     loss_rows <- which(is.na(owners) | owners == id)
     scoped_losses <- losses[loss_rows, , drop = FALSE]
-    for (scan in scans) {
-      rows <- which(findings$trajectory_id == id & findings$scan == scan)
+    loss_notes <- if (nrow(scoped_losses)) {
+      paste0(
+        scoped_losses$field,
+        ": ",
+        scoped_losses$reason,
+        " - ",
+        scoped_losses$detail
+      )
+    }
+    record <- info[i, , drop = FALSE]
+    own <- finding_rows[[i]]
+    for (j in seq_len(n_scans)) {
+      scan <- scans[[j]]
+      rows <- own[findings$scan[own] == scan]
       evidence <- scan_assess_evidence(
         scan,
-        info[i, , drop = FALSE],
+        record,
         turn_groups[[i]],
         event_groups[[i]],
         scoped_losses,
         length(rows) > 0L
       )
-      status <- evidence$status
-      reason <- evidence$reason
-      if (scan_assessment_group(scan) %in% collected$failures[[i]]) {
-        status <- "execution_failure"
-        reason <- "The built-in detector group failed. Other groups were retained; reload or retry the scan."
+      row <- (i - 1L) * n_scans + j
+      status[[row]] <- evidence$status
+      reason[[row]] <- evidence$reason
+      if (scan_groups[[j]] %in% collected$failures[[i]]) {
+        status[[row]] <- "execution_failure"
+        reason[[
+          row
+        ]] <- "The built-in detector group failed. Other groups were retained; reload or retry the scan."
       }
-      assessed <- status %in%
+      assessed <- status[[row]] %in%
         c("assessed_no_findings", "assessed_with_findings")
       if (assessed) {
         retained[rows] <- TRUE
       }
-      settings <- switch(
-        scan,
-        repeated_tool_call = list(repeat_threshold = repeat_threshold),
-        suspicious_tool_loop = list(loop_threshold = loop_threshold),
-        run_intervention = list(
-          compaction_threshold = scan_compaction_threshold
-        ),
-        list()
-      )
-      assessments[[length(assessments) + 1L]] <- tibble::tibble(
-        scan_id = scan_id,
-        trajectory_id = id,
-        scan = scan,
-        scan_version = "1",
-        status = status,
-        required_evidence = scan_required_evidence(scan),
-        reason = reason,
-        settings = list(settings),
-        finding_ids = list(
-          if (assessed) findings$finding_id[rows] else character()
-        ),
-        limitations = list(unique(c(
-          "Assessment covers retained records only; complete capture is not established.",
-          evidence$limitations,
-          if (nrow(scoped_losses)) {
-            paste0(
-              scoped_losses$field,
-              ": ",
-              scoped_losses$reason,
-              " - ",
-              scoped_losses$detail
-            )
-          }
-        ))),
-        loss_rows = list(loss_rows)
-      )
+      finding_ids[[row]] <- if (assessed) {
+        findings$finding_id[rows]
+      } else {
+        character()
+      }
+      limitations[[row]] <- unique(c(
+        "Assessment covers retained records only; complete capture is not established.",
+        evidence$limitations,
+        loss_notes
+      ))
+      loss_row_lists[[row]] <- loss_rows
     }
   }
   list(
     findings = findings[retained, , drop = FALSE],
-    assessments = if (length(assessments)) {
-      trajectory_bind_rows(assessments)
+    assessments = if (total > 0L) {
+      tibble::tibble(
+        scan_id = scan_id,
+        trajectory_id = rep(info$trajectory_id, each = n_scans),
+        scan = rep(scans, times = nrow(info)),
+        scan_version = "1",
+        status = status,
+        required_evidence = rep(
+          vapply(
+            scans,
+            scan_required_evidence,
+            character(1),
+            USE.NAMES = FALSE
+          ),
+          times = nrow(info)
+        ),
+        reason = reason,
+        settings = rep(scan_settings, times = nrow(info)),
+        finding_ids = finding_ids,
+        limitations = limitations,
+        loss_rows = loss_row_lists
+      )
     } else {
       scan_empty_assessments()
     }

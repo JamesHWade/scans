@@ -245,6 +245,9 @@ report_blocks <- function(x, max_evidence = 100L) {
             )
           } else {
             list(", revision ", report_code(scope$snapshot$revision_id), ".")
+          },
+          if (isFALSE(scope$snapshot$verified)) {
+            " These identifiers were not re-verified against the content (verify = FALSE)."
           }
         )
       },
@@ -895,7 +898,10 @@ report_review_blocks <- function(x, listed) {
   list(
     report_heading("Review decisions"),
     report_para(
-      "Status is the adjudicated state of each supplied review case: one active decision gives its judgment, several active decisions are disputed, and none is unreviewed. Rationales are not printed."
+      "Status is the adjudicated state of each supplied review case: one active decision gives its judgment, several active decisions are disputed, and none is unreviewed. Rationales are not printed.",
+      if (isFALSE(x$scope$snapshot$verified)) {
+        " Cases were matched to this investigation by identifiers that were not re-verified."
+      }
     ),
     report_table(
       c(

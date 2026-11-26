@@ -185,30 +185,25 @@ investigation_build <- function(
     nbins = length(ids)
   )[summary_rows]
   if (nrow(analysis$assessments)) {
-    analysis$assessments$loss_rows <- lapply(
-      analysis$assessments$loss_rows,
-      function(rows) {
-        unname(match(rows, selected$loss_rows))
-      }
-    )
-    for (i in seq_len(nrow(analysis$assessments))) {
-      extra <- which(
-        trajectory_losses(selected$bundle)$reason ==
-          "scans:selection_omission" &
-          trajectory_losses(selected$bundle)$trajectory_id ==
-            analysis$assessments$trajectory_id[[i]]
-      )
-      analysis$assessments$loss_rows[[i]] <- unique(c(
-        analysis$assessments$loss_rows[[i]],
-        extra
+    # Work on plain lists and assign each column once: replacing one element
+    # of a tibble column per assessment copies the column every time.
+    selected_losses <- trajectory_losses(selected$bundle)
+    omissions <- which(selected_losses$reason == "scans:selection_omission")
+    owners <- selected_losses$trajectory_id[omissions]
+    loss_rows <- lapply(analysis$assessments$loss_rows, function(rows) {
+      unique(unname(match(rows, selected$loss_rows)))
+    })
+    limitations <- analysis$assessments$limitations
+    for (i in which(analysis$assessments$trajectory_id %in% owners)) {
+      extra <- omissions[owners %in% analysis$assessments$trajectory_id[[i]]]
+      loss_rows[[i]] <- unique(c(loss_rows[[i]], extra))
+      limitations[[i]] <- unique(c(
+        limitations[[i]],
+        "The parent trajectory was excluded from this saved selection."
       ))
-      if (length(extra)) {
-        analysis$assessments$limitations[[i]] <- unique(c(
-          analysis$assessments$limitations[[i]],
-          "The parent trajectory was excluded from this saved selection."
-        ))
-      }
     }
+    analysis$assessments$loss_rows <- loss_rows
+    analysis$assessments$limitations <- limitations
   }
   omitted <- nrow(info) - length(ids)
   parent <- NA_character_
@@ -248,7 +243,9 @@ investigation_build <- function(
   )
   out$manifest$snapshot_id <- investigation_snapshot_id(out)
   out$manifest$revision_id <- investigation_revision_id(out)
-  investigation_validate(out)
+  # The identifiers were computed from this value a line ago; hashing it
+  # again to compare them is most of the cost of a large snapshot.
+  investigation_validate(out, identifiers = FALSE)
   out
 }
 
@@ -369,7 +366,9 @@ investigation_revision_id <- function(x) {
   investigation_hash(payload)
 }
 
-investigation_validate <- function(x) {
+# `identifiers = FALSE` checks everything except that the identifiers match
+# the content, for a caller that has just computed them.
+investigation_validate <- function(x, identifiers = TRUE) {
   if (
     !inherits(x, "scans_investigation") ||
       !is.list(x) ||
@@ -619,8 +618,9 @@ investigation_validate <- function(x) {
     )
   }
   if (
-    !identical(manifest$snapshot_id, investigation_snapshot_id(x)) ||
-      !identical(manifest$revision_id, investigation_revision_id(x))
+    identifiers &&
+      (!identical(manifest$snapshot_id, investigation_snapshot_id(x)) ||
+        !identical(manifest$revision_id, investigation_revision_id(x)))
   ) {
     investigation_abort(
       "The investigation identifiers do not match its evidence or analysis."

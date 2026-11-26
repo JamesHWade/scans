@@ -722,6 +722,21 @@
   padding: 0.8rem 0.3rem;
 }
 
+.scans-app-entries-more {
+  color: var(--scans-app-muted);
+  font-size: 0.8rem;
+  margin: 0;
+  padding: 0.8rem 0.9rem 1.2rem;
+}
+
+.scans-app-entries-open {
+  border-top: 1px solid var(--scans-app-line);
+}
+
+.scans-app-entries-open .scans-app-entries-more {
+  padding-bottom: 0.4rem;
+}
+
 @media (max-width: 900px) {
   .scans-app-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;

@@ -901,3 +901,80 @@ test_that("the report value holds no recorded tool input or output", {
     expect_no_match(held, text, fixed = TRUE)
   }
 })
+
+test_that("a report verifies identifiers unless told the value is fresh", {
+  saved <- report_fixture()
+  edited <- saved
+  edited$analysis$findings <- edited$analysis$findings[0L, ]
+  flagged <- edited$analysis$assessments$status == "assessed_with_findings"
+  edited$analysis$assessments$status[flagged] <- "assessed_no_findings"
+  edited$analysis$assessments$finding_ids <- lapply(
+    edited$analysis$assessments$finding_ids,
+    function(ids) character()
+  )
+  viewed <- saved
+  viewed$view$query <- "large"
+  for (changed in list(edited, viewed)) {
+    expect_error(
+      investigation_report(changed),
+      class = "scans_error_investigation"
+    )
+  }
+
+  # verify = FALSE checks structure, hashes nothing, and says so.
+  hashed <- new.env(parent = emptyenv())
+  hashed$n <- 0L
+  hash <- investigation_hash
+  local_mocked_bindings(
+    investigation_hash = function(x) {
+      hashed$n <- hashed$n + 1L
+      hash(x)
+    }
+  )
+  report <- investigation_report(saved, verify = FALSE)
+  expect_identical(hashed$n, 0L)
+  expect_false(report$scope$snapshot$verified)
+  expect_identical(
+    report$scope$snapshot$snapshot_id,
+    saved$manifest$snapshot_id
+  )
+  text <- format(report)
+  expect_match(
+    text,
+    "These identifiers were not re-verified against the content (verify = FALSE).",
+    fixed = TRUE,
+    all = FALSE
+  )
+  expect_true(investigation_report(saved)$scope$snapshot$verified)
+  expect_no_match(
+    format(investigation_report(saved)),
+    "not re-verified",
+    fixed = TRUE
+  )
+
+  # Review cases matched against unverified identifiers say so.
+  case <- review_case(saved, "a")
+  unverified <- format(investigation_report(
+    saved,
+    reviews = list(case),
+    verify = FALSE
+  ))
+  expect_match(
+    unverified,
+    "Cases were matched to this investigation by identifiers that were not re-verified.",
+    fixed = TRUE,
+    all = FALSE
+  )
+
+  broken <- saved
+  broken$analysis$findings$event_id[[1L]] <- "no-such-event"
+  expect_error(
+    investigation_report(broken, verify = FALSE),
+    class = "scans_error_investigation"
+  )
+  expect_error(
+    investigation_report(unclass(saved), verify = FALSE),
+    class = "scans_error_investigation"
+  )
+  expect_snapshot(investigation_report(saved, verify = NA), error = TRUE)
+})

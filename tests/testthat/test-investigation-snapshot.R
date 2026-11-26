@@ -142,6 +142,62 @@ test_that("omitted parents remain explicit without importing their records", {
   expect_identical(read_investigation(path), saved)
 })
 
+test_that("an omitted parent qualifies only its own child's assessments", {
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = c("lead", "child", "sibling", "other"),
+      parent_trajectory_id = c(NA, "lead", "lead", NA),
+      source_type = "manual",
+      status = "completed"
+    ),
+    tibble::tibble(
+      trajectory_id = c("child", "other"),
+      turn_id = c("child-1", "other-1"),
+      turn_index = 1L,
+      role = "assistant"
+    ),
+    NULL,
+    losses = tibble::tibble(
+      turn_id = c("other-1", "child-1", NA),
+      field = "usage",
+      reason = "unsupported",
+      detail = "Usage unavailable"
+    )
+  )
+  saved <- investigation_snapshot(
+    bundle,
+    c("child", "other"),
+    scans = c("trajectory_error", "turn_error")
+  )
+  losses <- trajectory_losses(saved$bundle)
+  owner <- scan_loss_trajectory_ids(
+    losses,
+    trajectory_turns(saved$bundle),
+    trajectory_events(saved$bundle)
+  )
+  omission <- which(losses$reason == "scans:selection_omission")
+  expect_identical(owner[omission], "child")
+  assessments <- saved$analysis$assessments
+  note <- "The parent trajectory was excluded from this saved selection."
+  for (row in seq_len(nrow(assessments))) {
+    id <- assessments$trajectory_id[[row]]
+    # Its own losses, the capture-wide loss, and for the child the omission.
+    expect_setequal(
+      assessments$loss_rows[[row]],
+      which(is.na(owner) | owner == id)
+    )
+    expect_identical(
+      note %in% assessments$limitations[[row]],
+      id == "child"
+    )
+    expect_identical(anyDuplicated(assessments$limitations[[row]]), 0L)
+  }
+  expect_identical(
+    assessments$loss_rows[assessments$trajectory_id == "child"],
+    rep(list(c(2L, 3L, omission)), 2L)
+  )
+})
+
 test_that("empty selections and no selected scanners round trip", {
   bundle <- investigation_bundle_fixture()
   for (saved in list(
@@ -316,4 +372,77 @@ test_that("print methods dispatch for callers outside the package", {
   caller <- list2env(list(x = saved), parent = globalenv())
   printed <- testthat::capture_messages(evalq(print(x), caller))
   expect_match(printed[[1L]], "scans_investigation", fixed = TRUE)
+})
+
+test_that("a snapshot fingerprints its content once and still rejects edits", {
+  hashed <- new.env(parent = emptyenv())
+  hashed$n <- 0L
+  hash <- investigation_hash
+  local_mocked_bindings(
+    investigation_hash = function(x) {
+      hashed$n <- hashed$n + 1L
+      hash(x)
+    }
+  )
+  saved <- investigation_snapshot(investigation_bundle_fixture())
+  # One snapshot identifier and one revision identifier.
+  expect_identical(hashed$n, 2L)
+
+  expect_no_error(investigation_validate(saved))
+  expect_identical(hashed$n, 4L)
+  edited <- saved
+  edited$analysis$findings$explanation[[1L]] <- "Edited"
+  expect_error(
+    investigation_validate(edited),
+    class = "scans_error_investigation"
+  )
+  expect_error(
+    write_investigation(edited, tempfile()),
+    class = "scans_error_investigation"
+  )
+  missing <- saved
+  missing$manifest$revision_id <- NULL
+  expect_error(
+    investigation_validate(missing, identifiers = FALSE),
+    class = "scans_error_investigation"
+  )
+})
+
+test_that("the bundled example keeps its snapshot and revision identifiers", {
+  skip_if_not_installed("jsonlite")
+  saved <- investigation_snapshot(
+    investigation_bundle_fixture(),
+    application = "Support assistant example"
+  )
+  expect_identical(
+    saved$manifest$snapshot_id,
+    "sha256:a85034486ae5615b770d381220f685816f63135488233f2eb8e8482ea774b015"
+  )
+  # The revision covers the package version, so pin the one these
+  # identifiers were recorded with.
+  saved$manifest$package_version <- "0.0.0.9000"
+  expect_identical(
+    investigation_revision_id(saved),
+    "sha256:fee200ae5473d643c5ede96a6528465fdacf6b32ab3e2ac888f6893706b76415"
+  )
+})
+
+test_that("a build rejects an analysis that does not fit its evidence", {
+  skip_if_not_installed("jsonlite")
+  bundle <- investigation_bundle_fixture()
+  saved <- investigation_snapshot(bundle, application = "Support assistant")
+  analysis <- saved$analysis
+  analysis$findings$event_id[[1L]] <- "no-such-event"
+  expect_error(
+    investigation_build(
+      bundle,
+      NULL,
+      "Support assistant",
+      list(),
+      saved$settings,
+      list(),
+      analysis
+    ),
+    class = "scans_error_investigation"
+  )
 })

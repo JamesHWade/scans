@@ -39,6 +39,18 @@
 #' `lines_dropped`). Any other field is free-form and may name a person, so
 #' it is listed by name with its value withheld unless `include_users = TRUE`.
 #'
+#' @section Integrity:
+#' The report checks the investigation's structure and evidence references,
+#' and recomputes the snapshot and revision identifiers to check that they
+#' still describe the content, so an investigation edited in R after it was
+#' read is refused rather than reported under its original identifiers.
+#' Recomputing them hashes the whole investigation, which on a large one takes
+#' longer than the report. A caller that has just read or built the value can
+#' pass `verify = FALSE`; the report then labels its identifiers as not
+#' re-verified, and says so beside any review cases matched by them. Build a
+#' changed revision with [investigation_snapshot()] rather than editing a
+#' saved value.
+#'
 #' @section Links:
 #' With `app_url`, each trajectory and event links to that app. A link sets
 #' the filters the report names and clears every other filter in the app that
@@ -61,6 +73,10 @@
 #'   free-form source details. Defaults to `FALSE`.
 #' @param include_errors Whether to print the most frequent recorded error
 #'   text per tool. Defaults to `FALSE`, which prints the count only.
+#' @param verify Whether to recompute the snapshot and revision identifiers
+#'   and refuse an investigation they no longer describe. Defaults to `TRUE`.
+#'   Use `FALSE` only for a value just returned by [read_investigation()] or
+#'   [investigation_snapshot()].
 #'
 #' @returns `investigation_report()` returns a `scans_investigation_report`: a
 #'   list of ordinary tibbles and scope details.
@@ -105,13 +121,21 @@ investigation_report <- function(
   reviews = NULL,
   app_url = NULL,
   include_users = FALSE,
-  include_errors = FALSE
+  include_errors = FALSE,
+  verify = TRUE
 ) {
   investigation_check_dependencies()
-  if (is_trajectory_bundle(x)) {
-    x <- investigation_snapshot(x)
+  if (!rlang::is_bool(verify)) {
+    report_abort("{.arg verify} must be TRUE or FALSE.")
   }
-  investigation_validate(x)
+  verified <- verify
+  if (is_trajectory_bundle(x)) {
+    # Its identifiers were computed from this value a line ago.
+    x <- investigation_snapshot(x)
+    verify <- FALSE
+    verified <- TRUE
+  }
+  investigation_validate(x, identifiers = verify)
   if (!rlang::is_bool(include_users)) {
     report_abort("{.arg include_users} must be TRUE or FALSE.")
   }
@@ -126,11 +150,13 @@ investigation_report <- function(
     x$view,
     annotated = ids %in% x$view$annotation_ids
   )
+  context <- report_saved_context(x)
+  context$snapshot$verified <- verified
   report_build(
     data,
     indices,
     c(
-      report_saved_context(x),
+      context,
       list(
         application = x$manifest$application,
         view = x$view,

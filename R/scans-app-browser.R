@@ -1,5 +1,75 @@
 scans_app_outside_filters <- "Outside the current filters"
 
+# Rendering an entry costs about a millisecond and a kilobyte of HTML, so a
+# list of every trajectory in a large cohort takes tens of seconds to redraw
+# on each filter change. docs/design/scale-profile.md records the measurement
+# behind this number.
+scans_app_entry_limit <- 500L
+
+# The browser list: one entry per visible trajectory, in the order given, up
+# to `limit`. Past that the list says how many it left out; they stay in the
+# cohort, the overview, and the next and previous controls. `chosen` is the
+# row to mark as open, if any; one past the limit is shown after the note,
+# with its position, so the open entry is never missing from the list.
+scans_app_entries_ui <- function(
+  data,
+  indices,
+  queue,
+  chosen = NULL,
+  limit = scans_app_entry_limit
+) {
+  listed <- utils::head(indices, limit)
+  entry <- function(index) {
+    scans_app_entry_ui(
+      data$records[index, , drop = FALSE],
+      selected = identical(chosen, index),
+      queue = queue[match(index, queue$index), , drop = FALSE]
+    )
+  }
+  position <- if (!is.null(chosen)) match(chosen, indices)
+  htmltools::tagList(
+    lapply(listed, entry),
+    if (length(listed) < length(indices)) {
+      htmltools::tags$p(
+        class = "scans-app-entries-more",
+        role = "status",
+        sprintf(
+          "Listing the first %s of %s %s in this order. Narrow the filters or change the order to list others; all %s stay in the overview and in next and previous.",
+          scans_app_count(length(listed)),
+          scans_app_count(length(indices)),
+          data$noun$many,
+          scans_app_count(length(indices))
+        )
+      )
+    },
+    if (isTRUE(position > length(listed))) {
+      htmltools::tags$div(
+        class = "scans-app-entries-open",
+        htmltools::tags$p(
+          class = "scans-app-entries-more",
+          sprintf(
+            "The open %s is number %s of %s in this order:",
+            data$noun$one,
+            scans_app_count(position),
+            scans_app_count(length(indices))
+          )
+        ),
+        entry(chosen)
+      )
+    }
+  )
+}
+
+# The open entry when it lies past the listed head, else `NULL`.
+scans_app_entry_beyond <- function(indices, selected, limit) {
+  if (
+    !is.null(selected) &&
+      isTRUE(match(selected, indices) > limit)
+  ) {
+    selected
+  }
+}
+
 scans_app_browser_server <- function(
   input,
   output,
@@ -40,13 +110,26 @@ scans_app_browser_server <- function(
     }
   })
 
+  # An entry needs its click observer only once it is listed. Creating one
+  # per trajectory up front took most of a session's start on a large cohort.
   entry_observers <- new.env(parent = emptyenv())
+  # The open entry past the head. A reactive value changes only when this
+  # does, so stepping within the head does not redraw the list.
+  beyond <- shiny::reactiveVal(NULL)
+  shiny::observe({
+    beyond(scans_app_entry_beyond(
+      state$visible(),
+      state$selected(),
+      scans_app_entry_limit
+    ))
+  })
   shiny::observe({
     current <- state$data()
     if (is.null(current) || nrow(current$records) == 0L) {
       return()
     }
-    for (index in seq_len(nrow(current$records))) {
+    listed <- c(utils::head(state$visible(), scans_app_entry_limit), beyond())
+    for (index in listed) {
       id <- scans_app_entry_id(index)
       if (exists(id, envir = entry_observers, inherits = FALSE)) {
         next
@@ -122,18 +205,19 @@ scans_app_browser_server <- function(
         }
       ))
     }
-    chosen <- shiny::isolate(state$selected())
-    queue <- state$queue()
-    rows <- match(indices, queue$index)
-    htmltools::tagList(lapply(seq_along(indices), function(i) {
-      index <- indices[[i]]
-      scans_app_entry_ui(
-        current$records[index, , drop = FALSE],
-        selected = identical(chosen, index) &&
-          !identical(shiny::isolate(input$scans_app_view), "application"),
-        queue = queue[rows[[i]], , drop = FALSE]
-      )
-    }))
+    open <- beyond()
+    scans_app_entries_ui(
+      current,
+      indices,
+      state$queue(),
+      if (!is.null(open)) {
+        open
+      } else if (
+        !identical(shiny::isolate(input$scans_app_view), "application")
+      ) {
+        shiny::isolate(state$selected())
+      }
+    )
   })
 
   # Progress ignores the review-state filters: "needs review" would
