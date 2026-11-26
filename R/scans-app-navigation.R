@@ -42,6 +42,10 @@ scans_app_navigation_server <- function(
     if (is.null(target)) {
       return()
     }
+    # A comparison link returns from any investigation opened over a side.
+    if (state$fixed_sides && !is.null(state$opened_investigation())) {
+      state$close_opened_investigation()
+    }
     state$pending_hash(target)
     if (!identical(target$application, state$application())) {
       shiny::updateSelectInput(

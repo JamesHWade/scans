@@ -95,6 +95,22 @@
 #' ceiling and its investigation reader limit; `Inf` disables the size limit.
 #' See [investigation_files()].
 #'
+#' @section Comparisons:
+#' Pass a [compare_trajectories()] result to open a comparison. The baseline
+#' and candidate investigations become the two applications in the switcher,
+#' and the overview leads with the comparison: what could not be compared
+#' first, then the matched cases, which can be narrowed to regressions,
+#' improvements, pattern changes, resource changes, or cases with something
+#' not comparable. Each case links to both trajectories and to the events its
+#' findings cite. Every number shown is read from the comparison value.
+#'
+#' A comparison is a fixed pair of saved analyses. With `investigations =
+#' TRUE` a side's visible trajectories can be saved, but the app offers no
+#' opening of another investigation and no "Apply current scanners", so each
+#' side keeps the analysis the comparison reports. Ask evidence from the other
+#' side switches to that side, and a comparison link leaves any investigation
+#' opened over a side.
+#'
 #' @section Posit Connect:
 #' Use [scans_app_connect()] when Connect content observability is enabled. It
 #' reads native OTLP traces for named deployed applications and supplies the
@@ -107,8 +123,9 @@
 #'   filter membership when opening a saved investigation. Without a store,
 #'   saved membership is used and the app writes only explicitly requested
 #'   investigation downloads.
-#' @param x A [TrajectoryBundle], a saved [investigation_snapshot()], or a named
-#'   list of application sources. Each source can be either value or a
+#' @param x A [TrajectoryBundle], a saved [investigation_snapshot()], a
+#'   comparison from [compare_trajectories()], or a named list of application
+#'   sources. Each source can be a bundle, a saved investigation, or a
 #'   zero-argument function that returns one. Source names are shown in the
 #'   application switcher.
 #'
@@ -196,6 +213,9 @@ scans_app_check_annotations <- function(
 }
 
 scans_app_sources <- function(x, call = rlang::caller_env()) {
+  if (inherits(x, "scans_comparison")) {
+    return(scans_app_comparison_sources(x, call))
+  }
   if (inherits(x, "scans_investigation")) {
     investigation_validate(x)
     return(scans_app_source_catalog(list(

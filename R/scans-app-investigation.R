@@ -10,7 +10,9 @@ scans_app_investigation_start <- function() {
   shiny::onStop(function() options(old), session = NULL)
 }
 
-scans_app_investigation_ui <- function() {
+# A comparison's sides are fixed, so it offers no opening of another
+# investigation (`open = FALSE`).
+scans_app_investigation_ui <- function(open = TRUE) {
   max_bytes <- scans_app_investigation_max_bytes()
   limit <- if (identical(max_bytes, Inf)) {
     "Unlimited"
@@ -28,18 +30,24 @@ scans_app_investigation_ui <- function() {
           "Save visible trajectories",
           width = "100%"
         ),
-        shiny::fileInput(
-          "scans_app_open_investigation",
-          "Open an investigation",
-          accept = ".json",
-          width = "100%"
-        ),
-        htmltools::tags$small(
-          paste0(
-            "Files include selected retained content. Opening stays in this session. Upload limit: ",
-            limit,
-            "."
+        if (open) {
+          shiny::fileInput(
+            "scans_app_open_investigation",
+            "Open an investigation",
+            accept = ".json",
+            width = "100%"
           )
+        },
+        htmltools::tags$small(
+          if (open) {
+            paste0(
+              "Files include selected retained content. Opening stays in this session. Upload limit: ",
+              limit,
+              "."
+            )
+          } else {
+            "Files include selected retained content."
+          }
         )
       )
     ),
@@ -47,7 +55,12 @@ scans_app_investigation_ui <- function() {
   )
 }
 
-scans_app_investigation_status_ui <- function(saved, rescanned, uploaded) {
+scans_app_investigation_status_ui <- function(
+  saved,
+  rescanned,
+  uploaded,
+  rescan = TRUE
+) {
   if (is.null(saved)) {
     return(NULL)
   }
@@ -57,6 +70,8 @@ scans_app_investigation_status_ui <- function(saved, rescanned, uploaded) {
     htmltools::tags$p(
       if (rescanned) {
         "Showing a new analysis with the installed scanners. Save to create a revision."
+      } else if (!rescan) {
+        "Showing the saved analysis this comparison reports."
       } else {
         paste0(
           "Showing saved analysis from scans ",
@@ -65,7 +80,11 @@ scans_app_investigation_status_ui <- function(saved, rescanned, uploaded) {
         )
       }
     ),
-    if (!rescanned && !all(saved$settings$scans %in% scan_registry()$scan)) {
+    if (
+      rescan &&
+        !rescanned &&
+        !all(saved$settings$scans %in% scan_registry()$scan)
+    ) {
       htmltools::tags$p(
         "Some saved scanners are unavailable in this installation. Saved results remain visible; choose current scanners below to run a new analysis."
       )
@@ -74,7 +93,7 @@ scans_app_investigation_status_ui <- function(saved, rescanned, uploaded) {
       "Snapshot",
       substr(saved$manifest$snapshot_id, 8, 19)
     )),
-    if (!rescanned) {
+    if (rescan && !rescanned) {
       shiny::actionButton(
         "scans_app_rescan_investigation",
         "Apply current scanners",
@@ -243,7 +262,7 @@ scans_app_investigation_server <- function(
   shiny::observeEvent(
     input$scans_app_open_investigation,
     {
-      shiny::req(investigations)
+      shiny::req(investigations, !state$fixed_sides)
       file <- input$scans_app_open_investigation
       saved <- tryCatch(
         read_investigation(
@@ -278,7 +297,7 @@ scans_app_investigation_server <- function(
   shiny::observeEvent(
     input$scans_app_rescan_investigation,
     {
-      shiny::req(investigations)
+      shiny::req(investigations, !state$fixed_sides)
       state$rescan_investigation(TRUE)
     },
     ignoreInit = TRUE
@@ -287,7 +306,8 @@ scans_app_investigation_server <- function(
     scans_app_investigation_status_ui(
       state$active()$investigation,
       state$rescan_investigation(),
-      !is.null(state$opened_investigation())
+      !is.null(state$opened_investigation()),
+      rescan = !state$fixed_sides
     )
   })
 
@@ -332,7 +352,7 @@ scans_app_investigation_server <- function(
         investigation_build(
           entry$bundle,
           ids,
-          state$application(),
+          state$application_id(),
           source,
           state$scan_config(),
           view,

@@ -249,6 +249,63 @@ and small evaluation sets are the norm); an asymptotic McNemar test; a
 single improvement score across the three families; resource totals summed
 across cases (partial coverage would be mixed into the sum).
 
+## Review app
+
+`scans_app()` accepts a comparison. Its baseline and candidate investigations
+become the two applications in the switcher, labelled `Baseline: ...` and
+`Candidate: ...`, and the overview leads with the comparison: what was not
+compared, then the summary, then matched cases with a filter for regressions,
+improvements, pattern changes, resource changes, and cases with something not
+comparable. Each case links to both trajectories and to the events its
+findings cite, through the app's existing `#application/trajectory?event=`
+addresses, so opening a link switches side and reveals the event.
+
+The side labels are for display. Each side keeps the application its
+investigation records: annotations are read and written under it, and a
+snapshot saved from a side records it, so annotations made in the plain app
+appear in a comparison and the reverse. The annotation store keys on
+application and trajectory identifier only, so when both sides record the
+same application and a case has the same trajectory identifier on both, an
+annotation made on one side shows on the other too, as it does across any
+two snapshots of one application.
+
+"Pattern changes" selects cases with a pattern that appeared, resolved, no
+longer applies, or newly applies; each is shown under its own name. A
+resource row whose sides differ in unit shows each value with its own unit.
+
+The view reads `compare_trajectories()` output only. The filter selects pairs
+by the counts in `cases`; the Shiny code computes no change, count, or test.
+The view is capped at 100 cases and 100 excluded trajectories and says so
+when it truncates.
+
+A comparison is a fixed pair of saved analyses, and the panel reports only
+that pair. So while a comparison is the source, nothing replaces or
+reanalyses a side: with `investigations = TRUE` the app keeps "Save visible
+trajectories" but offers no "Open an investigation" and no "Apply current
+scanners", and the server ignores both inputs. Ask evidence cited from the
+other side switches the application selector to that side instead of opening
+the snapshot as a separate investigation. Any other path that opens an
+investigation over a side (a review import's evidence) is left when a
+comparison link is followed, so every link can switch sides.
+
+Rejected: refusing `scans_app(comparison, investigations = TRUE)` (it would
+also remove saving a side, which works, and leave the Ask path, which opens
+snapshots without `investigations`); reanalysing a side and recomputing the
+comparison in the app (the app holds no diagnostic logic, and the panel
+would then report a comparison no saved value records).
+
+Rejected: a `comparison =` argument beside two separately supplied sources
+(the comparison already holds both investigations, and a second copy could
+disagree with it); a third value of the app's view switch (saved view state
+allows only `application` and `trajectory`, and several observers treat any
+other value as an open trajectory).
+
+No comparison tool was added to `scans_tools()`. Its tools are built around
+one bundle, one snapshot identity, and one permitted trajectory set; a
+comparison has two of each, so it does not fit that context without changing
+the evidence-reference contract. A model can still read either side through
+the existing tools.
+
 ## What a result can establish
 
 - A re-scored copy of the same outputs has a different scorer version, so

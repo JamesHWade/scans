@@ -26,6 +26,28 @@ scans_app_loading_server <- function(
     label
   })
 
+  # A comparison is a fixed pair of saved analyses: no side is replaced or
+  # reanalysed, and a snapshot of a side is shown by switching to that side.
+  state$fixed_sides <- !is.null(sources$comparison)
+  state$comparison_side <- function(snapshot) {
+    if (!state$fixed_sides) {
+      return(NULL)
+    }
+    revisions <- vapply(
+      sources$sources,
+      \(source) source$investigation$manifest$revision_id,
+      ""
+    )
+    side <- match(snapshot$manifest$revision_id, revisions)
+    if (is.na(side)) NULL else sources$labels[[side]]
+  }
+
+  # The application identity annotations and saved snapshots key on. It is
+  # the label unless a source records its own, as a comparison side does.
+  state$application_id <- shiny::reactive({
+    state$active_source()$application %||% state$application()
+  })
+
   state$active_source <- shiny::reactive({
     opened <- state$opened_investigation()
     if (!is.null(opened)) {

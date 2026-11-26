@@ -97,7 +97,9 @@ scans_app_ui <- function(
           icon = shiny::icon("ellipsis")
         ),
         title = "Snapshot options",
-        if (investigations) scans_app_investigation_ui(),
+        if (investigations) {
+          scans_app_investigation_ui(open = is.null(sources$comparison))
+        },
         scans_app_scanner_ui()
       )
     ),
@@ -191,6 +193,7 @@ scans_app_ui <- function(
         selected = "application",
         bslib::nav_panel_hidden(
           "application",
+          if (!is.null(sources$comparison)) scans_app_comparison_ui(sources),
           shiny::uiOutput("scans_app_performance")
         ),
         bslib::nav_panel_hidden(
