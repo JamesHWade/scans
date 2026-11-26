@@ -38,7 +38,9 @@ reviewer saw, the review evidence (\code{review_finding_id}, \code{review_event_
 \code{review_turn_ids}, \code{decision_ids}, \code{snapshot_id}, \code{revision_id}), and what
 the scanner cited (\code{finding_ids} for the agreeing findings,
 \code{other_finding_ids} for its other findings in the trajectory, and
-\code{scanner_event_ids} for every event it cited there). A rerun finding that
+\code{scanner_event_ids} for every event it cited there, and \code{finding_keys} and
+\code{other_finding_keys}, the revision-independent identities the summary
+counts by). A rerun finding that
 cites the same turn and events as a saved finding of the scan carries
 that saved identifier, the one \code{review_finding_id} uses; a finding the
 saved analysis does not hold, such as one a new version adds, keeps an
