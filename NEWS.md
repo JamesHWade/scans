@@ -1,5 +1,6 @@
 # scans 0.0.0.9000
 
+* New article `vignette("matched-comparison")` and offline recipe `inst/examples/matched-comparison.R` compare a baseline and a candidate on reviewed held-out cases (#42).
 * `scans_app()` opens a comparison: what could not be compared first, then matched cases filterable to regressions, improvements, pattern changes, and resource changes, each linked to both trajectories (#42).
 * New `compare_trajectories()` reports per-case changes in outcomes, diagnostic patterns, and resource measures as three separate tables, with paired counts and an exact sign test where justified, and an unpaired description when no case matches. A pattern whose scan stops or starts applying is counted apart from resolved and appeared (#42).
 * New `pair_trajectories()` matches the trajectories of two saved investigations on an explicit key and a declared dataset version, and reports unmatched, duplicated, and missing-key cases instead of dropping them. `comparison_scorer()` declares the scorer version, scale, and direction that vitals does not record; outcomes pair only under a compatible scorer (#42).

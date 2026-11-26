@@ -177,8 +177,8 @@ suit your budget. dsprrr owns enforcement, including its documented postflight
 overshoot and handling of unknown usage. Those controls cover optimization;
 the recipe then runs one held-out solver case. Configure your chat's response
 limits for that evaluation too. Re-evaluate a baseline and candidate
-on the same held-out cases before concluding that a change helped. General
-matched-comparison UI remains a separate feature.
+on the same held-out cases before concluding that a change helped;
+`vignette("matched-comparison")` compares the two runs case by case.
 
 Manual application changes use the same regression cases: replace the optimized
 program in the recipe's held-out Task with the revised application solver.

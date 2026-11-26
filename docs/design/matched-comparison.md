@@ -306,6 +306,31 @@ comparison has two of each, so it does not fit that context without changing
 the evidence-reference contract. A model can still read either side through
 the existing tools.
 
+## Reviewed examples
+
+The review contract already carries what a held-out comparison needs, so it
+is unchanged. `review_dataset(x, "vitals", split)` uses each review case
+identifier as the vitals sample `id`, which `as_trajectory_vitals()` records
+as `sample_id`. Its `scans_provenance` attribute gives the split, group,
+decision, expected behavior, example-set version, and origin snapshot for
+that identifier, and `x$cases` holds the reviewed evidence. So:
+
+- the example-set `version_id` is the declared dataset version;
+- restricting a run to held-out cases is a trajectory selection by
+  `sample_id`, saved with `investigation_snapshot(trajectory_ids = )`;
+- joining a comparison table to the provenance on `sample_id` links each
+  compared case to its review.
+
+One limit: the provenance does not record a scorer or expected-behavior
+version. Expected behavior is covered by the example-set version, because
+the version identifier covers the decisions. The scorer version stays a
+caller declaration through `comparison_scorer()`.
+
+`vignette("matched-comparison")` runs this path offline with the builder in
+`inst/examples/matched-comparison.R`: reviewed cases, two vitals runs with
+fixed transcripts, an improvement that uses more tokens, a regression with a
+new tool failure, and unmatched cases on both sides.
+
 ## What a result can establish
 
 - A re-scored copy of the same outputs has a different scorer version, so
