@@ -132,7 +132,10 @@ report_source_items <- function(source, noun) {
       )
     }
   )
-  known <- !is.null(source$truncated) || !is.null(source$incomplete)
+  # "No cap" needs every recorded cap flag to be FALSE; an NA flag is
+  # unknown.
+  flags <- Filter(Negate(is.null), list(source$truncated, source$incomplete))
+  known <- length(flags) > 0L && all(vapply(flags, isFALSE, logical(1)))
   structure(
     list(paste0(
       "Source read: ",

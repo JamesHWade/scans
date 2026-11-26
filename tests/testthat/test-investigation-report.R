@@ -220,6 +220,27 @@ test_that("the scope names every active filter and the capped source read", {
     ),
     "- Source read: no time window recorded. The read recorded no cap."
   )
+  # A cap recorded as NA is unknown, not absent.
+  for (read_info in list(
+    list(truncated = NA, incomplete = NA),
+    list(truncated = FALSE, incomplete = NA)
+  )) {
+    unrecorded <- investigation_snapshot(
+      cohort_fixture(),
+      source = list(read_info = read_info)
+    )
+    expect_identical(
+      grep(
+        "^- Source read",
+        format(investigation_report(unrecorded)),
+        value = TRUE
+      ),
+      rep(
+        "- Source read: no time window recorded. Whether the read was capped is unknown.",
+        2L
+      )
+    )
+  }
   # A reader's read details passed as the source itself are read the same;
   # other source fields are named, never read as a cap, and their free-form
   # values print only with user identifiers.
