@@ -376,3 +376,72 @@ test_that("the report dialog's error option governs recorded error text", {
     expect_match(export_text(), "`timeout`", fixed = TRUE, all = FALSE)
   })
 })
+
+test_that("a review carried across a rescan follows its evidence, not its finding id", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  saved <- report_fixture()
+  findings <- saved$analysis$findings
+  # A stricter repeat threshold removes the repeated-call findings (ids 1 and
+  # 7), so the next analysis gives id 1 to another scanner's finding and
+  # shifts the rest.
+  repeated <- findings[findings$scan == "repeated_tool_call", ][1L, ]
+  unresolved <- findings[findings$scan == "unresolved_tool_call", ]
+  app <- scans_app(saved, reviews = TRUE)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_export_report = 1L)
+    record <- function(trajectory_id, finding_id) {
+      session$setInputs(scans_app_inspect = trajectory_id)
+      session$setInputs(
+        scans_app_review_finding_id = finding_id,
+        scans_app_review_scan = "",
+        scans_app_review_author = "Reviewer One",
+        scans_app_review_judgment = "confirmed",
+        scans_app_review_rationale = "Private rationale text",
+        scans_app_review_expectation = "",
+        scans_app_review_adjudicate = FALSE,
+        scans_app_record_review = session$input$scans_app_record_review %||%
+          0L +
+          1L
+      )
+    }
+    record(repeated$trajectory_id, repeated$finding_id)
+    record(unresolved$trajectory_id, unresolved$finding_id)
+    reviews <- report()$reviews
+    expect_identical(nrow(reviews), 2L)
+    expect_true(all(reviews$in_analysis))
+    expect_true(all(reviews$same_revision))
+
+    session$setInputs(scans_app_repeat_threshold = 6L)
+    session$setInputs(scans_app_rescan_investigation = 1L)
+    current <- data()$findings
+    expect_false("repeated_tool_call" %in% current$scan)
+    expect_identical(
+      current$scan[current$finding_id == repeated$finding_id],
+      "event_error"
+    )
+    reviews <- report()$reviews
+    gone <- reviews[reviews$finding_id == repeated$finding_id, ]
+    kept <- reviews[reviews$finding_id == unresolved$finding_id, ]
+    # The id now names other evidence: the review is not attached to it.
+    expect_false(gone$in_analysis)
+    expect_false(gone$same_revision)
+    expect_true(is.na(gone$anchor))
+    # A review whose evidence is still found follows it to its new id.
+    expect_true(kept$in_analysis)
+    expect_identical(
+      kept$anchor,
+      report()$evidence$anchor[
+        report()$evidence$scan == "unresolved_tool_call"
+      ]
+    )
+    expect_match(
+      export_text(),
+      "made on another revision",
+      fixed = TRUE,
+      all = FALSE
+    )
+  })
+})

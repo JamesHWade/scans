@@ -387,7 +387,12 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
         case$origin$revision_id,
         x$manifest$revision_id
       ),
-      reviewers = list(unique(vapply(active, `[[`, "", "reviewer")))
+      reviewers = list(unique(vapply(active, `[[`, "", "reviewer"))),
+      scan_evidence = list(list(
+        scan = case$scan %||% NA_character_,
+        event_ids = as.character(case$event_ids),
+        turn_ids = as.character(case$turn_ids)
+      ))
     )
   })
   if (!length(rows)) {
@@ -398,6 +403,48 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
     report_abort("Supply each review case only once.", call)
   }
   out
+}
+
+# The id of the current finding each review case's recorded evidence
+# identifies, `NA` for an unflagged case or one whose evidence no current
+# finding has.
+report_review_findings <- function(reviews, findings) {
+  vapply(
+    seq_len(nrow(reviews)),
+    function(i) {
+      if (is.na(reviews$finding_id[[i]])) {
+        return(NA_character_)
+      }
+      recorded <- reviews$scan_evidence[[i]]
+      same <- findings$trajectory_id == reviews$trajectory_id[[i]] &
+        findings$scan == recorded$scan &
+        vapply(
+          seq_len(nrow(findings)),
+          function(row) {
+            events <- as.character(c(
+              findings$event_ids[[row]],
+              findings$event_id[[row]]
+            ))
+            events <- events[!is.na(events)]
+            turn <- findings$turn_id[[row]]
+            all(events %in% recorded$event_ids) &&
+              (is.na(turn) || turn %in% recorded$turn_ids)
+          },
+          logical(1)
+        )
+      rows <- which(same)
+      if (!length(rows)) {
+        return(NA_character_)
+      }
+      ids <- findings$finding_id[rows]
+      if (reviews$finding_id[[i]] %in% ids) {
+        reviews$finding_id[[i]]
+      } else {
+        ids[[1L]]
+      }
+    },
+    ""
+  )
 }
 
 report_query_hidden_label <- "Text filter (term omitted: it matches a user identifier)"
@@ -588,12 +635,17 @@ report_build <- function(data, indices, context) {
 
   reviews <- context$reviews
   if (!is.null(reviews)) {
+    # Finding ids are positional, so a new analysis can reuse an id for
+    # different evidence. A case belongs to the current finding with the
+    # evidence it recorded (scan, trajectory, turn, events), not to whatever
+    # holds its id now; one with none is shown as made on another revision.
+    current <- report_review_findings(reviews, data$findings)
     reviews$in_scope <- reviews$trajectory_id %in% ids
-    reviews$in_analysis <- reviews$finding_id %in% data$findings$finding_id
-    reviews$anchor <- evidence$anchor[match(
-      reviews$finding_id,
-      evidence$finding_id
-    )]
+    reviews$in_analysis <- !is.na(current)
+    reviews$same_revision <- reviews$same_revision &
+      (is.na(reviews$finding_id) | reviews$in_analysis)
+    reviews$anchor <- evidence$anchor[match(current, evidence$finding_id)]
+    reviews$scan_evidence <- NULL
     if (!include_users) {
       reviews$reviewers <- NULL
     }
