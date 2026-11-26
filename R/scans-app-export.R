@@ -243,6 +243,14 @@ export_csv <- function(table, file) {
   utils::write.csv(table, file, row.names = FALSE, na = "")
 }
 
+# Inline text from a scanner: one line, with characters that would start
+# emphasis, code, links, HTML, or table cells escaped. Plain sentences, such
+# as every built-in explanation, are unchanged.
+export_md_inline <- function(x) {
+  x <- trimws(gsub("[[:space:]]+", " ", as.character(x)))
+  gsub("([][\\\\`*_<>|])", "\\\\\\1", x)
+}
+
 export_r_time <- function(time) {
   if (is.null(time)) {
     return("NULL")
@@ -439,7 +447,7 @@ export_trajectory_markdown <- function(
         "- **%s** (%s): %s%s",
         scans_app_pattern_label(findings$scan),
         findings$severity,
-        findings$explanation,
+        export_md_inline(findings$explanation),
         vapply(
           findings$event_ids,
           function(ids) {

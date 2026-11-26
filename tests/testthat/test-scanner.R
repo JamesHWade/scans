@@ -782,3 +782,31 @@ test_that("scanner_findings() recycles only length-one arguments", {
     )
   )
 })
+
+test_that("a custom explanation cannot add markdown structure to a trajectory export", {
+  hostile <- scanner_toy_fixture("toy_hostile", function(trajectory, settings) {
+    if (trajectory$trajectory_id != "chat-hit") {
+      return(scanner_findings())
+    }
+    scanner_findings(
+      event_id = "hit-e1",
+      label = "Hostile",
+      explanation = "line1\n\n## Injected heading\n| a | b |\n*bold* [x](y) <b>"
+    )
+  })
+  data <- scans_app_data(scanner_bundle_fixture(), scanners = hostile)
+  markdown <- strsplit(
+    paste(export_trajectory_markdown(data, 1L), collapse = "\n"),
+    "\n"
+  )[[1L]]
+
+  expect_false("## Injected heading" %in% markdown)
+  expect_false(any(grepl("^\\|", markdown)))
+  expect_true(
+    paste0(
+      "- **Toy hostile** (warning): line1 ## Injected heading \\| a \\| b \\| ",
+      "\\*bold\\* \\[x\\](y) \\<b\\> Evidence: content, event 1."
+    ) %in%
+      markdown
+  )
+})
