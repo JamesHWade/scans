@@ -8,11 +8,18 @@
 #'
 #' @param x A scanner example set from [review_examples()].
 #' @param split One of `"development"` or `"test"`.
-#' @returns A tibble with case identity, judgment, scanner/assessment version,
-#'   observed count, predicate, and `passed`. A pass validates the scanner
+#' @param scanners Optional custom scanners that the cases target: one
+#'   [scanner()] or a list of them. A case whose custom scanner is not
+#'   supplied has assessment `"scanner_not_supplied"` and an unknown result.
+#'   See [validate_scanner()] for false positives, false negatives, precision,
+#'   and recall.
+#' @returns A tibble with case identity, judgment, the `scan_version` that ran
+#'   beside the `reviewed_scan_version` recorded in the case's saved analysis,
+#'   assessment, observed count, predicate, and `passed`. A pass validates the scanner
 #'   predicate on retained evidence; it does not establish application quality.
 #' @export
-validate_review_examples <- function(x, split) {
+validate_review_examples <- function(x, split, scanners = NULL) {
+  scanners <- scanner_check_list(scanners, rlang::current_env())
   review_examples_validate(x)
   review_choice(split, c("development", "test"), "split")
   if (x$purpose != "scanner") {
@@ -27,12 +34,35 @@ validate_review_examples <- function(x, split) {
     saved <- review_evidence(case$evidence)
     status <- review_status(case)$status
     p <- x$predicates[[i]]
+    versions <- saved$manifest$scanner_versions
+    reviewed_version <- versions$scan_version[match(case$scan, versions$scan)]
+    # A saved custom scan reruns only with its scanner; it is never replaced
+    # by a built-in of the same name.
+    if (
+      identical(investigation_scan_origins(saved)[[case$scan]], "custom") &&
+        !case$scan %in% names(scanners)
+    ) {
+      return(tibble::tibble(
+        case_id = case$case_id,
+        judgment = status,
+        scan = case$scan,
+        scan_version = NA_character_,
+        reviewed_scan_version = reviewed_version,
+        assessment = "scanner_not_supplied",
+        count = NA_integer_,
+        operator = p$operator,
+        target = p$value,
+        passed = NA,
+        version_id = x$version_id
+      ))
+    }
     assessment <- tryCatch(
       assess_trajectory_scans(
         saved$bundle,
         scans = case$scan,
         repeat_threshold = saved$settings$repeat_threshold,
-        loop_threshold = saved$settings$loop_threshold
+        loop_threshold = saved$settings$loop_threshold,
+        scanners = scanners
       ),
       error = function(cnd) NULL
     )
@@ -84,6 +114,7 @@ validate_review_examples <- function(x, split) {
       } else {
         assessment$assessments$scan_version[[1L]]
       },
+      reviewed_scan_version = reviewed_version,
       assessment = assessed,
       count = count,
       operator = p$operator,

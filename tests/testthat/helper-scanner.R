@@ -185,3 +185,120 @@ scanner_applicable_fixture <- function(version = "1", keyword = "guaranteed") {
     settings = list(keyword = keyword)
   )
 }
+
+# One user question and the given assistant replies per trajectory. `NULL`
+# replies leave a trajectory with no captured turns or events.
+scanner_chat_bundle <- function(replies) {
+  ids <- names(replies)
+  rows <- lapply(ids[lengths(replies) > 0L], function(id) {
+    text <- c("Where is my parcel?", replies[[id]])
+    tibble::tibble(
+      trajectory_id = id,
+      event_id = paste0(id, "-e", seq_along(text)),
+      event_index = seq_along(text),
+      turn_id = paste0(id, "-t", seq_along(text)),
+      event_type = "content",
+      text = text,
+      role = c("user", rep("assistant", length(replies[[id]])))
+    )
+  })
+  events <- vctrs::vec_rbind(!!!rows)
+  TrajectoryBundle(
+    trajectories = tibble::tibble(
+      trajectory_id = ids,
+      source_type = "manual",
+      status = "completed"
+    ),
+    turns = tibble::tibble(
+      trajectory_id = events$trajectory_id,
+      turn_id = events$turn_id,
+      turn_index = events$event_index,
+      role = events$role
+    ),
+    events = events[setdiff(names(events), "role")]
+  )
+}
+
+# Reviewed cases for the keyword scanner, covering every outcome:
+# development has a confirmed and a rejected finding in one trajectory, a
+# clean negative, an uncertain review, and a disputed one; test has a finding
+# the scanner misses, a confirmed finding, a trajectory with no capture, and
+# an unreviewed case.
+scanner_validation_fixture <- function() {
+  saved <- investigation_snapshot(
+    scanner_chat_bundle(list(
+      "dev-two" = c("It is guaranteed today.", "Refunds are not guaranteed."),
+      "dev-clean" = "It is on its way.",
+      "dev-unsure" = "Guaranteed, probably.",
+      "dev-disputed" = "Our guaranteed window is noon.",
+      "test-missed" = "I promise it arrives today.",
+      "test-hit" = "Delivery is guaranteed.",
+      "test-empty" = NULL,
+      "test-unreviewed" = "It left the depot."
+    )),
+    scans = "toy_keyword",
+    scanners = scanner_keyword_fixture(),
+    application = "Parcel support"
+  )
+  finding <- function(event_id) {
+    saved$analysis$findings$finding_id[
+      saved$analysis$findings$event_id == event_id
+    ]
+  }
+  decide <- function(case, judgment, reviewer = "Alex") {
+    review_decision(case, judgment, reviewer, "Read the cited evidence.")
+  }
+  cases <- list(
+    decide(review_case(saved, "dev-two", finding("dev-two-e2")), "confirmed"),
+    decide(review_case(saved, "dev-two", finding("dev-two-e3")), "rejected"),
+    decide(review_case(saved, "dev-clean", scan = "toy_keyword"), "rejected"),
+    decide(
+      review_case(saved, "dev-unsure", finding("dev-unsure-e2")),
+      "uncertain"
+    ),
+    decide(
+      decide(
+        review_case(saved, "dev-disputed", finding("dev-disputed-e2")),
+        "confirmed"
+      ),
+      "rejected",
+      "Sam"
+    ),
+    decide(
+      review_case(
+        saved,
+        "test-missed",
+        scan = "toy_keyword",
+        event_ids = "test-missed-e2"
+      ),
+      "missed"
+    ),
+    decide(review_case(saved, "test-hit", finding("test-hit-e2")), "confirmed"),
+    decide(
+      review_case(saved, "test-empty", scan = "toy_keyword"),
+      "insufficient_capture"
+    ),
+    review_case(saved, "test-unreviewed", scan = "toy_keyword")
+  )
+  ids <- vapply(cases, `[[`, "", "trajectory_id")
+  positive <- vapply(
+    cases,
+    function(case) {
+      review_status(case)$status %in% c("confirmed", "missed")
+    },
+    logical(1)
+  )
+  review_examples(
+    cases,
+    "scanner",
+    groups = ids,
+    splits = ifelse(startsWith(ids, "dev-"), "development", "test"),
+    predicates = lapply(positive, function(flag) {
+      if (flag) {
+        list(operator = "gte", value = 1L)
+      } else {
+        list(operator = "eq", value = 0L)
+      }
+    })
+  )
+}
