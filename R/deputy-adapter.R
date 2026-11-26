@@ -1,20 +1,25 @@
-#' Convert completed Deputy agent results
+#' Convert completed Deputy agent results and delegations
 #'
 #' `as_trajectory_deputy()` snapshots one or more completed
-#' `deputy::AgentResult` objects into a canonical [TrajectoryBundle]. It
-#' delegates model-visible turns to [as_trajectory_ellmer()] and adds ordered,
+#' `deputy::AgentResult` objects, and the disclosed delegation views of a
+#' `deputy::LeadAgent`, into a canonical [TrajectoryBundle]. It delegates
+#' model-visible turns to [as_trajectory_ellmer()] and adds ordered,
 #' namespaced Deputy lifecycle events. Results and events are read through
 #' their public S7 properties.
 #'
 #' Run, session, agent, delegation, usage, ending, and immutable run-context
-#' values are retained as sanitized data. When a result's parent run occurs in
-#' the same input, the adapter resolves `parent_trajectory_id`. Otherwise it
-#' retains the parent run ID as metadata and records an adapter loss. Missing
-#' run identity is also explicit. Source objects, providers, tools, callbacks,
-#' and credentials are never retained.
+#' values are retained as sanitized data. When a run's parent occurs in the
+#' same input, the adapter resolves `parent_trajectory_id` from Deputy's
+#' lineage: the parent run ID, then, for a nested delegation, the parent
+#' delegation ID. Otherwise it retains the parent IDs as metadata, leaves
+#' `parent_trajectory_id` missing, and records an adapter loss. Missing run
+#' identity is also explicit. Source objects, providers, tools, callbacks, and
+#' credentials are never retained.
 #'
 #' `as_trajectory()` dispatches to this adapter for Deputy results and non-empty
-#' lists containing only Deputy results when Deputy is installed.
+#' lists containing only Deputy results when Deputy is installed. Delegation
+#' views are plain lists without a class of their own, so they need this
+#' function.
 #'
 #' @details
 #' # Run ending
@@ -70,15 +75,72 @@
 #' `tool_name` and `tool_call_id`; `text` carries `text`, a `start` task, or a
 #' `warning` message.
 #'
-#' @param x A completed `deputy::AgentResult`, or a non-empty list of completed
-#'   results.
+#' # Delegation views
+#'
+#' Each view becomes one trajectory with `source_type = "deputy"`. Its turns
+#' are the view's replayed ellmer `turns`; a view has no lifecycle events,
+#' timestamps, or run context. `status` follows `outcome$runtime$status`:
+#' `"completed"` and `"failed"` keep their names, `"stopped"` and
+#' `"suspended"` are `"interrupted"`, and `"not_started"` is `"cancelled"`.
+#' As with results, `"completed"` means the run ended normally, not that the
+#' task succeeded. `metadata$ending` has the ten fields above, with only
+#' `finish_reason` and `cut_off` set.
+#'
+#' The view's metadata keeps the result keys `session_id`, `agent_id`,
+#' `parent_agent_id`, `parent_run_id`, `delegation_id`, `usage` (the
+#' delegation's `AgentUsage` fields), and `stop_reason`, adds
+#' `parent_delegation_id`, and sets `source_class` to `"delegation_view"`.
+#' `metadata$delegation` holds:
+#'
+#' - `task` (character): the delegated task label.
+#' - `answer` (character): the subagent's final reply, which Deputy cuts to
+#'   8 KiB.
+#' - `claims$missing_evidence`, `claims$unresolved_work` (each `character(1)`):
+#'   what the subagent reported in its structured output, entries joined by
+#'   newlines. `""` means it reported none; `NA` means it did not report, not
+#'   that nothing is missing.
+#' - `references` (list): one record per saved artifact, with `reference`,
+#'   `source` (`"tool_result"` or `"delegation_answer"`), `tool_call_id`, and
+#'   `availability`: `"available"` or `"missing"` from a live
+#'   `$inspect_subagents()` view, or `"unresolved"` from
+#'   `delegation_history()`, whose saved status may be stale. References are
+#'   never read.
+#' - `manifest` (list or `NULL`): the `DelegationManifest` fields
+#'   `schema_version`, `definition_id`, `provider`, `model`, `params`,
+#'   `tools`, `policies`, and `size`. The manifest's task, evidence, prompt,
+#'   and message text are not copied.
+#' - `runtime` (list): Deputy's whole runtime record, including `depth`,
+#'   `root_agent_id`, `answer_truncated`, and `claim_omissions`.
+#' - `cumulative_usage`, `errors`, and `retention`, as in the view.
+#'
+#' # Delegation losses
+#'
+#' - `capture$transcript` is `"redacted"` when disclosure withheld a
+#'   delegation's transcript, so its turns and tool activity are absent, and
+#'   `"unsupported"` when the view was read without one.
+#' - `contents$value` is `"externalized"` on each tool result, in a result or
+#'   a view, that Deputy moved out of the model context: the event holds only a
+#'   preview, and the loss metadata holds its `reference`.
+#' - `metadata$delegation$answer` and `metadata$delegation$claims$<name>` are
+#'   `"truncated"` when Deputy bounded them.
+#' - `parent_run_id` or `parent_delegation_id` is `"unsupported"` when the
+#'   parent is not in the same call.
+#'
+#' @param x A completed `deputy::AgentResult`, a non-empty list of completed
+#'   results, or a list of disclosed delegation views on its own.
 #' @param trajectory_id A bundle-unique trajectory ID. When `NULL`, a stable ID
-#'   is derived from the Deputy run ID. It must be `NULL` when `x` contains
-#'   multiple results.
+#'   is derived from the Deputy run ID (or, for a delegation that never ran,
+#'   its delegation ID). It must be `NULL` when the input holds several runs.
 #' @param source_uri An optional source locator. Credentials, query parameters,
 #'   and fragments are removed.
 #' @param metadata A uniquely named list of safe application metadata, applied
-#'   to every result. Sensitive fields are redacted and recorded as losses.
+#'   to every trajectory. Sensitive fields are redacted and recorded as losses.
+#' @param delegations Optional disclosed delegation views to convert beside
+#'   the results in `x`, usually the lead result's own delegations. Use the
+#'   value of `deputy::delegation_history()` or of
+#'   `lead$inspect_subagents(transcript = TRUE)`. A raw `$export_subagents()`
+#'   snapshot is an error: read it with `deputy::delegation_history()` first,
+#'   so Deputy checks your `DelegationDisclosure` again.
 #'
 #' @returns A [TrajectoryBundle].
 #' @export
@@ -100,12 +162,19 @@
 #'   bundle <- as_trajectory_deputy(result)
 #'   trajectory_events(bundle)
 #'   trajectory_info(bundle)$metadata[[1]]$ending
+#'
+#'   # With a LeadAgent `lead`, convert its delegations beside its result:
+#'   # history <- deputy::delegation_history(
+#'   #   lead$export_subagents("reviewer"), "reviewer", disclosure, scope
+#'   # )
+#'   # as_trajectory_deputy(result, delegations = history)
 #' }
 as_trajectory_deputy <- function(
   x,
   trajectory_id = NULL,
   source_uri = NULL,
-  metadata = list()
+  metadata = list(),
+  delegations = NULL
 ) {
   call <- rlang::caller_env()
   deputy_check_installed(call)
@@ -113,19 +182,49 @@ as_trajectory_deputy <- function(
   rlang::check_string(source_uri, allow_null = TRUE, call = call)
   metadata <- deputy_check_metadata(metadata, call)
 
-  results <- deputy_source_results(x, call)
-  if (length(results) > 1L) {
-    if (!is.null(trajectory_id)) {
+  if (deputy_is_delegation_source(x)) {
+    if (!is.null(delegations)) {
       scans_abort(
-        "{.arg trajectory_id} must be {.code NULL} for multiple Deputy results.",
+        "{.arg delegations} must be {.code NULL} when {.arg x} is delegation history.",
         class = "scans_error_deputy_argument",
         call = call
       )
     }
-    return(deputy_results_bundle(results, source_uri, metadata, call))
+    results <- list()
+    views <- deputy_source_views(x, "x", call)
+  } else {
+    results <- deputy_source_results(x, call)
+    # A run with no disclosed children reads back as an empty history.
+    views <- if (is.null(delegations) || identical(delegations, list())) {
+      list()
+    } else {
+      deputy_source_views(delegations, "delegations", call)
+    }
   }
-  x <- results[[1L]]
 
+  if (length(results) + length(views) > 1L) {
+    if (!is.null(trajectory_id)) {
+      scans_abort(
+        "{.arg trajectory_id} must be {.code NULL} for multiple Deputy runs.",
+        class = "scans_error_deputy_argument",
+        call = call
+      )
+    }
+    return(deputy_collection_bundle(results, views, source_uri, metadata, call))
+  }
+  if (length(views) == 1L) {
+    return(deputy_view_bundle(
+      views[[1L]],
+      trajectory_id %||% deputy_view_trajectory_id(views[[1L]], 1L),
+      source_uri,
+      metadata,
+      call
+    ))
+  }
+  deputy_result_bundle(results[[1L]], trajectory_id, source_uri, metadata, call)
+}
+
+deputy_result_bundle <- function(x, trajectory_id, source_uri, metadata, call) {
   snapshot <- deputy_result_snapshot(x, call)
   run_id <- deputy_source_string(snapshot$run_id)
   if (is.null(trajectory_id)) {
@@ -180,6 +279,7 @@ as_trajectory_deputy <- function(
   source_losses <- c(
     safe_metadata$losses,
     deputy_correlation_losses(snapshot, ids),
+    deputy_offloaded_result_losses(snapshot$turns, base),
     event_tables$losses
   )
   losses <- trajectory_bind_rows(list(
@@ -275,42 +375,55 @@ deputy_source_results <- function(x, call) {
   unname(x)
 }
 
-deputy_results_bundle <- function(results, source_uri, metadata, call) {
-  bundles <- lapply(seq_along(results), function(index) {
+deputy_collection_bundle <- function(
+  results,
+  views,
+  source_uri,
+  metadata,
+  call
+) {
+  result_bundles <- lapply(seq_along(results), function(index) {
     run_id <- deputy_source_string(results[[index]]$run_id)
     trajectory_id <- if (is.na(run_id)) {
       sprintf("trajectory-%06d", index)
     } else {
       NULL
     }
-    as_trajectory_deputy(
+    deputy_result_bundle(
       results[[index]],
-      trajectory_id = trajectory_id,
-      source_uri = source_uri,
-      metadata = metadata
+      trajectory_id,
+      source_uri,
+      metadata,
+      call
     )
   })
-  info <- trajectory_bind_rows(lapply(bundles, trajectory_info))
-  duplicate <- !is.na(info$run_id) & duplicated(info$run_id)
-  if (any(duplicate)) {
-    rows <- which(duplicate)
-    scans_abort(
-      c(
-        "Each Deputy result must identify a distinct run.",
-        "x" = "Rows {.val {rows}} duplicate an earlier {.field run_id}."
-      ),
-      class = "scans_error_deputy_identity",
-      call = call
+  view_bundles <- lapply(seq_along(views), function(index) {
+    deputy_view_bundle(
+      views[[index]],
+      deputy_view_trajectory_id(views[[index]], length(results) + index),
+      source_uri,
+      metadata,
+      call
     )
-  }
+  })
+  bundles <- c(result_bundles, view_bundles)
 
-  info <- deputy_resolve_parents(info)
+  info <- trajectory_bind_rows(lapply(bundles, trajectory_info))
+  deputy_check_distinct(info$run_id, "run_id", call)
+  delegation_ids <- vapply(
+    info$metadata,
+    \(x) deputy_source_string(x$delegation_id),
+    character(1)
+  )
+  deputy_check_distinct(delegation_ids, "delegation_id", call)
+
+  info <- deputy_resolve_parents(info, delegation_ids)
   losses <- trajectory_bind_rows(lapply(bundles, trajectory_losses))
   resolved <- !is.na(info$parent_trajectory_id)
-  if (!is.null(losses) && any(resolved)) {
-    resolved_ids <- info$trajectory_id[resolved]
-    unresolved_parent <- losses$field == "parent_run_id" &
-      losses$trajectory_id %in% resolved_ids
+  if (nrow(losses) > 0L && any(resolved)) {
+    unresolved_parent <- losses$field %in%
+      deputy_parent_fields &
+      losses$trajectory_id %in% info$trajectory_id[resolved]
     losses <- losses[!unresolved_parent, , drop = FALSE]
   }
 
@@ -322,14 +435,47 @@ deputy_results_bundle <- function(results, source_uri, metadata, call) {
   )
 }
 
-deputy_resolve_parents <- function(info) {
-  run_map <- stats::setNames(info$trajectory_id, info$run_id)
-  for (index in seq_len(nrow(info))) {
-    parent_run_id <- deputy_source_string(
-      info$metadata[[index]]$parent_run_id
+deputy_check_distinct <- function(ids, field, call) {
+  duplicate <- !is.na(ids) & duplicated(ids)
+  if (any(duplicate)) {
+    rows <- which(duplicate)
+    scans_abort(
+      c(
+        "Each Deputy run must have a distinct {.field {field}}.",
+        "x" = "Rows {.val {rows}} duplicate an earlier {.field {field}}."
+      ),
+      class = "scans_error_deputy_identity",
+      call = call
     )
-    if (!is.na(parent_run_id) && parent_run_id %in% names(run_map)) {
-      info$parent_trajectory_id[[index]] <- run_map[[parent_run_id]]
+  }
+  invisible(ids)
+}
+
+deputy_parent_fields <- c("parent_run_id", "parent_delegation_id")
+
+# Parents resolve only through Deputy's own lineage: the delegating run's ID,
+# then the parent delegation's ID for nested delegations.
+deputy_resolve_parents <- function(info, delegation_ids) {
+  run_map <- stats::setNames(info$trajectory_id, info$run_id)
+  run_map <- run_map[!is.na(names(run_map))]
+  delegation_map <- stats::setNames(info$trajectory_id, delegation_ids)
+  delegation_map <- delegation_map[!is.na(names(delegation_map))]
+  for (index in seq_len(nrow(info))) {
+    source <- info$metadata[[index]]
+    parent_run_id <- deputy_source_string(source$parent_run_id)
+    parent_delegation_id <- deputy_source_string(source$parent_delegation_id)
+    parent <- if (!is.na(parent_run_id) && parent_run_id %in% names(run_map)) {
+      run_map[[parent_run_id]]
+    } else if (
+      !is.na(parent_delegation_id) &&
+        parent_delegation_id %in% names(delegation_map)
+    ) {
+      delegation_map[[parent_delegation_id]]
+    } else {
+      NA_character_
+    }
+    if (!identical(parent, info$trajectory_id[[index]])) {
+      info$parent_trajectory_id[[index]] <- parent
     }
   }
   info
