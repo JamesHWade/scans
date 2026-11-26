@@ -660,8 +660,14 @@ test_that("custom scan names are labelled in every export and the review queue",
     c("Toy keyword", "Toy other", "Event errors")
   )
   report <- export_report(performance, "app")
-  expect_true("| Toy keyword | warning | 1 of 2 assessed | unknown |  | 2 findings |" %in% report)
-  expect_true("| Toy other | warning | 1 of 2 assessed | unknown |  | 1 finding |" %in% report)
+  expect_true(
+    "| Toy keyword | warning | 1 of 2 assessed | unknown |  | 2 findings |" %in%
+      report
+  )
+  expect_true(
+    "| Toy other | warning | 1 of 2 assessed | unknown |  | 1 finding |" %in%
+      report
+  )
   expect_true(
     "1. [`chat-hit`](#app/chat-hit): Toy keyword, Toy other" %in% report
   )
@@ -732,13 +738,16 @@ test_that("data a saved investigation cannot hold is refused at the scanner boun
       value = list(list(f = function() 1))
     )
   })
-  unlisted <- scanner_toy_fixture("toy_unlisted", function(trajectory, settings) {
-    scanner_findings(
-      event_ids = list(NULL),
-      label = "Record",
-      explanation = "No supporting events."
-    )
-  })
+  unlisted <- scanner_toy_fixture(
+    "toy_unlisted",
+    function(trajectory, settings) {
+      scanner_findings(
+        event_ids = list(NULL),
+        label = "Record",
+        explanation = "No supporting events."
+      )
+    }
+  )
   bundle <- scanner_bundle_fixture()
   saved <- investigation_snapshot(bundle, scanners = list(valued, unlisted))
   assessments <- saved$analysis$assessments
@@ -867,7 +876,10 @@ test_that("a trajectory with a failed scan says so in the queue and the headline
     "2 with an execution failure",
     fixed = TRUE
   )
-  report <- export_report(scans_app_performance_data(data, seq_along(ids)), "app")
+  report <- export_report(
+    scans_app_performance_data(data, seq_along(ids)),
+    "app"
+  )
   expect_true(
     "- 2 trajectories had a scan that failed to run; that scan's result for them is unknown." %in%
       report
@@ -878,5 +890,68 @@ test_that("a trajectory with a failed scan says so in the queue and the headline
   expect_no_match(
     as.character(scans_app_tiles_ui(cohort_headline(plain, ids))),
     "execution failure"
+  )
+})
+
+test_that("a saved investigation records whether each scan is built-in or custom", {
+  saved <- investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = scanner_keyword_fixture()
+  )
+  versions <- saved$manifest$scanner_versions
+  expect_named(versions, c("scan", "scan_version", "origin"))
+  expect_identical(
+    versions$origin[versions$scan %in% c("event_error", "toy_keyword")],
+    c("builtin", "custom")
+  )
+  path <- tempfile(fileext = ".json")
+  write_investigation(saved, path)
+  expect_identical(read_investigation(path), saved)
+
+  # A file written before origins were saved still reads; its origins are
+  # inferred from the built-in names of that release.
+  legacy <- saved
+  legacy$manifest$scanner_versions$origin <- NULL
+  legacy$manifest$revision_id <- investigation_revision_id(legacy)
+  legacy_path <- tempfile(fileext = ".json")
+  write_investigation(legacy, legacy_path)
+  legacy <- read_investigation(legacy_path)
+  expect_identical(
+    investigation_scan_origins(legacy),
+    investigation_scan_origins(saved)
+  )
+
+  # A later release adds a built-in with the saved custom name.
+  registry <- scan_registry
+  local_mocked_bindings(scan_registry = function(scanners = NULL) {
+    out <- registry(scanners)
+    tibble::add_row(
+      out,
+      scan = "toy_keyword",
+      severity = "error",
+      description = "A later built-in."
+    )
+  })
+  for (opened in list(read_investigation(path), legacy)) {
+    expect_identical(
+      investigation_scan_origins(opened)[["toy_keyword"]],
+      "custom"
+    )
+    expect_false("toy_keyword" %in% investigation_rerunnable_scans(opened))
+    expect_true("event_error" %in% investigation_rerunnable_scans(opened))
+    expect_match(
+      as.character(scans_app_investigation_status_ui(opened, FALSE, FALSE)),
+      "or session: toy_keyword.",
+      fixed = TRUE
+    )
+  }
+  reviewed <- review_case(
+    read_investigation(path),
+    "chat-hit",
+    finding_id = "scan-000001/toy_keyword/finding-000001"
+  )
+  expect_identical(
+    investigation_scan_origins(reviewed$evidence)[["toy_keyword"]],
+    "custom"
   )
 })

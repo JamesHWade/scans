@@ -59,13 +59,16 @@ scans_app_investigation_status_ui <- function(
   saved,
   rescanned,
   uploaded,
-  available = scan_registry()$scan,
+  custom = character(),
   rescan = TRUE
 ) {
   if (is.null(saved)) {
     return(NULL)
   }
-  unavailable <- setdiff(saved$settings$scans, available)
+  unavailable <- setdiff(
+    saved$settings$scans,
+    investigation_rerunnable_scans(saved, custom)
+  )
   htmltools::div(
     class = "scans-app-investigation-status",
     htmltools::tags$strong(paste("Opened:", saved$manifest$application)),
@@ -189,7 +192,12 @@ scans_app_investigation_view <- function(
   )
 }
 
-scans_app_restore_investigation <- function(saved, data, session) {
+scans_app_restore_investigation <- function(
+  saved,
+  data,
+  session,
+  custom = character()
+) {
   view <- saved$view
   choices <- scans_app_filter_choices(data)
   for (name in c(
@@ -240,7 +248,7 @@ scans_app_restore_investigation <- function(saved, data, session) {
   shiny::updateCheckboxGroupInput(
     session,
     "scans_app_scans",
-    selected = saved$settings$scans
+    selected = investigation_rerunnable_scans(saved, custom)
   )
   shiny::updateNumericInput(
     session,
@@ -315,7 +323,7 @@ scans_app_investigation_server <- function(
       state$active()$investigation,
       state$rescan_investigation(),
       !is.null(state$opened_investigation()),
-      scanner_registry(state$custom_scanners)$scan,
+      names(state$custom_scanners),
       rescan = !state$fixed_sides
     )
   })
@@ -367,7 +375,14 @@ scans_app_investigation_server <- function(
           view,
           current[c("summaries", "findings", "assessments", "measures")],
           previous = previous,
-          package_version = version
+          package_version = version,
+          custom_scans = if (
+            !is.null(previous) && !state$rescan_investigation()
+          ) {
+            investigation_custom_scans(previous)
+          } else {
+            names(state$custom_scanners)
+          }
         ),
         error = function(cnd) {
           shiny::showNotification(

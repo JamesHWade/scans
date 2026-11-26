@@ -58,7 +58,8 @@ and any newly excluded trajectories are added to that count.}
 
 \item{scanners}{Optional custom scanners: one \code{\link[=scanner]{scanner()}} or a list of
 them. Their findings, assessments, names, versions, and settings are
-saved; the functions are not. A reopened investigation shows the saved
+saved, and \code{manifest$scanner_versions} records each scan's \code{origin},
+\code{"builtin"} or \code{"custom"}; the functions are not saved. A reopened investigation shows the saved
 results without the functions. Recomputing them needs the same scanners
 supplied again.}
 }

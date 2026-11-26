@@ -214,7 +214,12 @@ scans_app_filter_server <- function(
         return()
       }
       if (!is.null(saved)) {
-        scans_app_restore_investigation(saved, current, session)
+        scans_app_restore_investigation(
+          saved,
+          current,
+          session,
+          names(state$custom_scanners)
+        )
         state$pattern_filter(saved$view$pattern)
         state$facets(list())
         focus <- saved$view$selected_trajectory_id

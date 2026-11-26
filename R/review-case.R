@@ -106,7 +106,8 @@ review_case <- function(
     list(),
     x$analysis,
     previous = x,
-    package_version = x$manifest$package_version
+    package_version = x$manifest$package_version,
+    custom_scans = investigation_custom_scans(x)
   )
   out <- list(
     format_version = 1L,

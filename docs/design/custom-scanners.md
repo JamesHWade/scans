@@ -114,6 +114,31 @@ them. The class stays as it is; instead the review queue lists "Execution
 failure" as a reason and the overview tile and Markdown report count the
 trajectories with at least one failed scan, built-in or custom.
 
+**Saved scans record their origin.** A name alone does not say which
+detector produced a saved result: a later release could add a built-in with
+the name of a saved custom scan, and the app would then show and rerun the
+saved custom findings as the built-in. `manifest$scanner_versions` therefore
+gains an `origin` column, `"builtin"` or `"custom"`, beside `scan` and
+`scan_version`. The app counts a saved custom scan as rerunnable only when a
+scanner of that name is supplied again, and a saved built-in only when it is
+still installed; anything else is named as unavailable and is not selected
+for "Apply current scanners".
+
+The change is additive and leaves the format version and identifier rules
+alone. The revision identifier hashes the saved payload as written, so a new
+file's hash covers its `origin` column and an older file, which has none,
+still hashes to the identifier stored in it. Validation accepts the
+manifest's versions table with or without the column. For a file without it,
+origin is inferred, never written back: a name is built-in when it is in the
+registry of the release that wrote the file, otherwise custom. Every such
+file was written by scans 0.0.0.9000, whose registry never held a name
+outside the eleven built-ins present when origins started being saved, and a
+custom scanner could never take a built-in name, so that fixed list is the
+registry for all of them. It is a literal, not `scan_registry()`, so a
+built-in added later does not change how an older file reads. A scan with no
+assessment rows, which happens only with no selected trajectories, has no
+row to record its origin and falls back to the same inference.
+
 `scans_tools()` accepts `scanners` for a bundle and refuses them for a saved
 investigation, whose analysis is fixed. The findings tool accepts any scan
 name present in the analysis. The app's copied R snippet says that custom

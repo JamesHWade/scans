@@ -41,7 +41,8 @@
 #' @inheritParams assess_trajectory_scans
 #' @param scanners Optional custom scanners: one [scanner()] or a list of
 #'   them. Their findings, assessments, names, versions, and settings are
-#'   saved; the functions are not. A reopened investigation shows the saved
+#'   saved, and `manifest$scanner_versions` records each scan's `origin`,
+#'   `"builtin"` or `"custom"`; the functions are not saved. A reopened investigation shows the saved
 #'   results without the functions. Recomputing them needs the same scanners
 #'   supplied again.
 #' @param view A named list of browser settings. Supported names are `query`,
@@ -122,7 +123,8 @@ investigation_snapshot <- function(
     settings,
     view,
     analysis,
-    previous
+    previous,
+    custom_scans = names(scanners)
   )
 }
 
@@ -148,7 +150,8 @@ investigation_build <- function(
   view,
   analysis,
   previous = NULL,
-  package_version = as.character(utils::packageVersion("scans"))
+  package_version = as.character(utils::packageVersion("scans")),
+  custom_scans = setdiff(analysis$assessments$scan, scan_registry()$scan)
 ) {
   investigation_check_dependencies()
   if (
@@ -227,6 +230,9 @@ investigation_build <- function(
     }
   }
   versions <- unique(analysis$assessments[c("scan", "scan_version")])
+  versions$origin <- c("builtin", "custom")[
+    (versions$scan %in% custom_scans) + 1L
+  ]
   manifest <- list(
     format_version = 1L,
     created_at = as.POSIXct(Sys.time(), tz = "UTC"),
@@ -609,7 +615,7 @@ investigation_validate <- function(x, identifiers = TRUE) {
       length(manifest$created_at) != 1L ||
       is.na(manifest$created_at) ||
       !trajectory_is_named_list(manifest$source) ||
-      !identical(
+      !investigation_valid_versions(
         manifest$scanner_versions,
         unique(assessments[c("scan", "scan_version")])
       ) ||
@@ -639,4 +645,68 @@ investigation_validate <- function(x, identifiers = TRUE) {
     )
   }
   invisible(x)
+}
+
+# Files written before scan origins were saved have only `scan` and
+# `scan_version`; later files add `origin`.
+investigation_valid_versions <- function(versions, expected) {
+  if (identical(versions, expected)) {
+    return(TRUE)
+  }
+  is.data.frame(versions) &&
+    identical(names(versions), c("scan", "scan_version", "origin")) &&
+    identical(versions[c("scan", "scan_version")], expected) &&
+    is.character(versions$origin) &&
+    all(versions$origin %in% c("builtin", "custom"))
+}
+
+# Built-in scan names when origins started being saved. Every file without
+# an `origin` column was written by scans 0.0.0.9000, whose registry never
+# held a name outside this list, and a custom scanner could never take a
+# built-in name, so in such a file these names are built-in and any other
+# name is custom. The list is fixed: built-ins added later must not change
+# how an older file reads.
+investigation_legacy_builtin_scans <- c(
+  "ambiguous_tool_correlation",
+  "unresolved_tool_call",
+  "unmatched_tool_result",
+  "repeated_tool_call",
+  "suspicious_tool_loop",
+  "event_error",
+  "error_chain",
+  "turn_error",
+  "trajectory_error",
+  "cut_off_answer",
+  "run_intervention"
+)
+
+# "builtin" or "custom" for each saved scan, named by scan.
+investigation_scan_origins <- function(x) {
+  scans <- x$settings$scans
+  versions <- x$manifest$scanner_versions
+  origin <- versions[["origin"]][match(scans, versions$scan)] %||%
+    rep(NA_character_, length(scans))
+  unknown <- is.na(origin)
+  origin[unknown] <- c("custom", "builtin")[
+    (scans[unknown] %in% investigation_legacy_builtin_scans) + 1L
+  ]
+  stats::setNames(origin, scans)
+}
+
+investigation_custom_scans <- function(x) {
+  origin <- investigation_scan_origins(x)
+  names(origin)[origin == "custom"]
+}
+
+# Saved scans this session can rerun under the same identity: built-ins that
+# are still installed and custom scanners supplied again by name. A saved
+# custom scan never reruns as a built-in that later took its name.
+investigation_rerunnable_scans <- function(x, custom = character()) {
+  origin <- investigation_scan_origins(x)
+  rerun <- ifelse(
+    origin == "custom",
+    names(origin) %in% custom,
+    names(origin) %in% scan_registry()$scan
+  )
+  names(origin)[as.logical(rerun)]
 }
