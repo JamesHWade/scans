@@ -493,8 +493,10 @@ pairing_empty_scorers <- function() {
 # records its levels and their order; vitals scorers use that order from worst
 # to best, so its direction defaults to "higher". Numeric and logical scores record a scale but no direction. A
 # missing score records nothing, so it neither establishes nor hides a scale.
-# Scores of several kinds, or ordered factors with different levels, record
-# conflicting scales: the scale stays unknown and `conflict` names them.
+# Ordered factors with different levels, or an ordered factor beside scores of
+# another kind, record conflicting scales: the scale stays unknown and
+# `conflict` names them. A mix of other kinds records no scale, so a
+# declaration applies and values off its scale are counted as such.
 pairing_recorded_scale <- function(values) {
   out <- list(
     scale = NA_character_,
@@ -505,7 +507,10 @@ pairing_recorded_scale <- function(values) {
   values <- Filter(Negate(pairing_missing_score), values)
   kinds <- unique(lapply(values, pairing_score_kind))
   if (length(kinds) > 1L) {
-    out$conflict <- vapply(kinds, pairing_score_kind_label, "")
+    ordered <- vapply(kinds, function(kind) kind[[1L]] == "ordered", TRUE)
+    if (any(ordered)) {
+      out$conflict <- vapply(kinds, pairing_score_kind_label, "")
+    }
     return(out)
   }
   if (!length(kinds)) {

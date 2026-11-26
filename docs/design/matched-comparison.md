@@ -95,8 +95,10 @@ its `levels` must still list the recorded levels in their recorded order); for n
 non-missing scores; a missing score records nothing, so one `NA` neither
 establishes a scale nor hides one from the check below. When one side records
 conflicting scores under one label (ordered factors with different levels, or
-scores of different types), its scale stays unknown, and a declaration for that
-label is an error: no single declaration matches every record. Version is never
+an ordered factor beside scores of another type), its scale stays unknown, and a
+declaration for that label is an error: no single declaration matches every
+record. A mix of other types (numbers, logicals, text) records no scale; a
+declaration applies, and values off the declared scale are counted as off-scale. Version is never
 recorded. So an undeclared vitals scorer is `unknown`, not compatible: the
 caller has to say that the scorer did not change.
 

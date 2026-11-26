@@ -509,3 +509,14 @@ test_that("recorded levels that differ are incompatible even without a version",
   expect_identical(pairing$outcome_pairs$compatibility, "incompatible")
   expect_identical(pairing$outcome_pairs$reason, "Scorer levels differs.")
 })
+
+test_that("mixed scores without an ordered factor take a declared scale", {
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(list(TRUE, 2)),
+    comparison_manual_investigation(list(1, 2)),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(comparison_scorer("judge", "1", "numeric"))
+  )
+  expect_identical(pairing$scorers$scale[[1L]], "numeric")
+})
