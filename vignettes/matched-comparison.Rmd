@@ -234,7 +234,7 @@ Two changed cases cannot separate a change from chance, so this summary is
 counts only and its `note` says so:
 
 ```{r note}
-comparison$summaries$outcomes[c("n", "n_improved", "n_regressed", "method")]
+comparison$summaries$outcomes[c("n", "n_improved", "n_regressed", "method", "note")]
 ```
 
 If no case had paired, for example because the two runs used different
