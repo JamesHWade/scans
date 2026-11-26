@@ -312,6 +312,7 @@ test_that("an exact sign test is reported only with enough changed cases", {
   expect_identical(few$method, "counts")
   expect_true(all(is.na(c(few$p_value, few$conf_low, few$share_improved))))
   expect_match(few$note, "Fewer than 6 changed cases")
+  expect_identical(few$paired_difference, 1)
 })
 
 test_that("repeated epochs are counted but never tested", {

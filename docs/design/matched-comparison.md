@@ -194,12 +194,16 @@ adds uncertainty only when both conditions hold:
 Then it reports the share of changed cases that moved in the named direction
 (improved, resolved, increased), an exact Clopper-Pearson interval for that
 share, and the exact two-sided sign test against an even split. For a binary
-scorer this is the exact McNemar test, and `paired_difference` gives the
-difference in the proportion at the better level. The sign test uses only
-direction, so it is also valid for ordered and numeric scales. Numeric
-outcomes and resources also get the median delta, with no interval: nothing
-recorded justifies a distribution for it. P-values are per row and
+scorer this is the exact McNemar test. The sign test uses only direction, so
+it is also valid for ordered and numeric scales. P-values are per row and
 unadjusted.
+
+Two descriptive numbers carry no interval and so need neither condition on
+the number of changed cases. For a binary scorer without repeated epochs,
+`paired_difference` is the difference in the proportion at the better level,
+(improved - regressed) / n, reported whatever the number of changes. Numeric
+outcomes and resources get the median delta: nothing recorded justifies a
+distribution for it, so it has no interval either.
 
 Under repeated epochs the pairs of one case are not independent and their
 alignment is a convention, so summaries count epoch pairs and report no

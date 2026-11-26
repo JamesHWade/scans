@@ -31,7 +31,11 @@
 #' (Clopper-Pearson) interval for that share, and an exact two-sided sign test
 #' of an even split. For a binary scorer this is the exact McNemar test. With
 #' fewer changed cases, or with repeated epochs, summaries are counts only and
-#' `note` says why. P-values are per row and unadjusted.
+#' `note` says why. P-values are per row and unadjusted. Two descriptive
+#' numbers have no interval and are reported whatever the number of changed
+#' cases: `paired_difference`, the difference in the proportion at the better
+#' level for a binary scorer without repeated epochs, and `median_delta` for
+#' numeric outcomes and resources.
 #'
 #' When no case pairs, for example under different dataset versions, the
 #' design is `"unpaired"`: `summaries` describes each side separately, every
