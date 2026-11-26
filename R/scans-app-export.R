@@ -135,7 +135,11 @@ export_conversations <- function(
   review <- queue[match(ids, queue$trajectory_id), , drop = FALSE]
   count <- function(rows) tabulate(match(rows, ids), nbins = length(ids))
   # A trajectory no scan could assess has no finding count, not a count of 0.
-  found <- function(n) ifelse(trajectories$class == "unassessed", NA, n)
+  found <- function(n) {
+    n <- as.integer(n)
+    n[trajectories$class %in% "unassessed"] <- NA_integer_
+    n
+  }
   out <- tibble::tibble(
     trajectory_id = ids,
     started_at = export_time(trajectories$started_at),

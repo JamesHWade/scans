@@ -166,6 +166,19 @@ test_that("the conversations export has one row per trajectory in view", {
   )
 })
 
+test_that("finding counts stay integer when no trajectory is assessed", {
+  fixture <- export_fixture()
+  for (ids in list("e", character())) {
+    table <- export_conversations(fixture$data, ids)
+    expect_type(table$n_findings, "integer")
+    expect_type(table$n_error_findings, "integer")
+  }
+  expect_identical(
+    export_conversations(fixture$data, "e")$n_findings,
+    NA_integer_
+  )
+})
+
 test_that("the report's pattern table counts affected over assessed", {
   fixture <- export_fixture()
   text <- paste(
