@@ -103,6 +103,16 @@
 #' without that attribute anywhere in its ancestry falls back to its trace id,
 #' which groups a single model call rather than a session.
 #'
+#' A trace-id group is then joined to the conversation it continues, when
+#' there is one: the group in the same Shiny session (`session.id` on the
+#' spans or their ancestors) holding the earliest later model call whose
+#' input history begins with the group's latest history and the answer to
+#' it. This recovers the first turn of an app that only learns its
+#' conversation id at the first save, and chains the turns of an app that
+#' records no id at all. The joined trace ids are kept in
+#' `metadata$otel$stitched`. A turn whose answer was not recorded, or with no
+#' recorded session, is left on its own.
+#'
 #' @param x A list of conversations, as returned by [read_connect_traces()]
 #'   or [read_otel_traces()], or a flat list of spans to be grouped.
 #' @param trajectory_id Optional trajectory identifier. Must be `NULL` when
@@ -387,6 +397,7 @@ otel_info_metadata <- function(spans, chat_spans, metadata) {
   usage$user <- context$user %||% otel_user_id(spans)
   usage$attributes <- context$attributes %||% otel_extra_attributes(spans)
   usage$resource <- context$resource %||% otel_resource_attributes(spans)
+  usage$stitched <- context$stitched
   usage$failed_spans <- metadata$otel_failed_spans
   usage$measures <- otel_resource_measures(spans, chat_spans)
   metadata$otel_failed_spans <- NULL
@@ -1157,7 +1168,10 @@ otel_group_conversations <- function(spans) {
     function(span) otel_conversation_id(span, index),
     character(1)
   )
+  recorded <- unique(ids[!is.na(ids)])
   ids <- otel_infer_trace_conversations(spans, ids)
+  stitch <- otel_stitch_conversations(spans, ids, recorded, index)
+  ids <- stitch$ids
   keep <- !is.na(ids)
   groups <- split(spans[keep], ids[keep])
   # A group with no chat span holds only tool or framework activity and has
@@ -1168,26 +1182,174 @@ otel_group_conversations <- function(spans) {
     },
     groups
   )
-  groups <- lapply(groups, function(group) {
-    context_spans <- otel_group_context_spans(group, index)
-    members <- seq_along(context_spans) <= length(group)
-    # A companion found only as an ancestor belongs to another conversation:
-    # Deputy files a compaction summary under its session, not the run's.
-    keep <- vapply(
-      seq_along(context_spans),
-      function(i) {
-        otel_is_conversation_span(context_spans[[i]]) &&
-          (members[[i]] || !otel_is_companion_span(context_spans[[i]]))
-      },
-      logical(1)
-    )
-    conversation <- otel_deputy_assign_runs(context_spans[keep], index)
-    context <- otel_context(context_spans)
-    context$ancestry <- otel_unexposed_ancestry(context_spans)
-    attr(conversation, "otel_context") <- context
-    conversation
-  })
+  groups <- Map(
+    function(group, id) {
+      context_spans <- otel_group_context_spans(group, index)
+      members <- seq_along(context_spans) <= length(group)
+      # A companion found only as an ancestor belongs to another conversation:
+      # Deputy files a compaction summary under its session, not the run's.
+      keep <- vapply(
+        seq_along(context_spans),
+        function(i) {
+          otel_is_conversation_span(context_spans[[i]]) &&
+            (members[[i]] || !otel_is_companion_span(context_spans[[i]]))
+        },
+        logical(1)
+      )
+      conversation <- otel_deputy_assign_runs(context_spans[keep], index)
+      context <- otel_context(context_spans)
+      context$ancestry <- otel_unexposed_ancestry(context_spans)
+      context$stitched <- stitch$stitched[[id]]
+      attr(conversation, "otel_context") <- context
+      conversation
+    },
+    groups,
+    names(groups)
+  )
   otel_order_conversations(groups)
+}
+
+# A conversation's first turn can be recorded without its conversation id.
+# An app that learns the id only when the conversation is first saved, after
+# the first answer, tags every later turn but not the first; each turn is its
+# own trace, so the first turn falls back to its trace id and shows as a
+# conversation of its own. An app that records no id at all splits every
+# turn this way.
+#
+# A group without a recorded id is joined to the conversation it continues:
+# the group in the same Shiny session holding the earliest later model call
+# whose input history begins with the group's latest history and the answer
+# to it, and goes on past them. Both are required, so a new conversation that
+# reuses an opening message, or a conversation in another session, is never
+# joined; a turn whose answer was not recorded is left as it is. Joins chain,
+# so a run of id-less turns ends in the conversation the last one continues.
+#
+# Returns the remapped `ids`, and `stitched`: for each conversation that
+# absorbed groups, the ids they were filed under.
+otel_stitch_conversations <- function(spans, ids, recorded, index) {
+  unchanged <- list(ids = ids, stitched = list())
+  if (all(ids %in% recorded)) {
+    return(unchanged)
+  }
+  members <- split(seq_along(spans), ids)
+  groups <- lapply(members, function(rows) {
+    group <- spans[rows]
+    chats <- Filter(otel_is_selected_chat_span, group)
+    chats <- Filter(Negate(otel_is_title_span), chats)
+    if (length(chats) == 0L) {
+      return(NULL)
+    }
+    session <- otel_group_session(group, index)
+    if (is.na(session)) {
+      return(NULL)
+    }
+    starts <- vapply(chats, function(s) otel_nanos(s$start_time), numeric(1))
+    starts[!is.finite(starts)] <- -Inf
+    latest <- chats[[which.max(starts)]]
+    list(
+      session = session,
+      starts = starts,
+      inputs = vapply(
+        chats,
+        function(s) otel_attribute(s, "gen_ai.input.messages"),
+        character(1)
+      ),
+      latest_start = max(starts),
+      latest_input = otel_attribute(latest, "gen_ai.input.messages"),
+      latest_output = otel_attribute(latest, "gen_ai.output.messages")
+    )
+  })
+  groups <- Filter(Negate(is.null), groups)
+  idless <- setdiff(names(groups), recorded)
+  if (length(idless) == 0L) {
+    return(unchanged)
+  }
+  idless <- idless[order(vapply(
+    groups[idless],
+    `[[`,
+    numeric(1),
+    "latest_start"
+  ))]
+
+  target <- character()
+  for (id in idless) {
+    group <- groups[[id]]
+    prefix <- otel_continuation_prefix(group$latest_input, group$latest_output)
+    if (is.na(prefix)) {
+      next
+    }
+    best <- NULL
+    best_start <- Inf
+    for (other in setdiff(names(groups), id)) {
+      candidate <- groups[[other]]
+      if (!identical(candidate$session, group$session)) {
+        next
+      }
+      continues <- candidate$starts > group$latest_start &
+        !is.na(candidate$inputs) &
+        startsWith(candidate$inputs, prefix)
+      if (any(continues) && min(candidate$starts[continues]) < best_start) {
+        best <- other
+        best_start <- min(candidate$starts[continues])
+      }
+    }
+    if (!is.null(best)) {
+      target[[id]] <- best
+    }
+  }
+  if (length(target) == 0L) {
+    return(unchanged)
+  }
+
+  # Later conversations start later, so following the joins always ends.
+  final <- vapply(
+    names(target),
+    function(id) {
+      while (id %in% names(target)) {
+        id <- target[[id]]
+      }
+      id
+    },
+    character(1)
+  )
+  ids[ids %in% names(final)] <- final[ids[ids %in% names(final)]]
+  list(ids = ids, stitched = lapply(split(names(final), final), sort))
+}
+
+# The text a continuing call's input history starts with, compared as the
+# recorded JSON: the earlier call's input elements, then its output elements,
+# then a comma before the next turn. `NA` unless both are non-empty arrays.
+otel_continuation_prefix <- function(input, output) {
+  elements <- function(json) {
+    json <- trimws(json)
+    if (
+      is.na(json) ||
+        !startsWith(json, "[") ||
+        !endsWith(json, "]") ||
+        !nzchar(trimws(substr(json, 2L, nchar(json) - 1L)))
+    ) {
+      return(NA_character_)
+    }
+    substr(json, 2L, nchar(json) - 1L)
+  }
+  input <- elements(input)
+  output <- elements(output)
+  if (is.na(input) || is.na(output)) {
+    return(NA_character_)
+  }
+  paste0("[", input, ",", output, ",")
+}
+
+# The Shiny session a group ran in, read from its spans and their ancestors;
+# `NA` when none records one or they disagree.
+otel_group_session <- function(group, index) {
+  sessions <- vapply(
+    otel_group_context_spans(group, index),
+    function(span) otel_string(span$attributes[["session.id"]]),
+    character(1)
+  )
+  sessions <- unique(sessions[!is.na(sessions)])
+  if (length(sessions) == 1L) sessions else NA_character_
 }
 
 # Include ancestors while extracting conversation context, even when a wrapper
