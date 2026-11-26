@@ -645,7 +645,9 @@ pairing_match_evaluations <- function(
       length(c_rest) == 1L &&
       !anyNA(c(baseline$scorer_id[b_rest], candidate$scorer_id[c_rest])) &&
       !b_repeated[b_rest] &&
-      !c_repeated[c_rest]
+      !c_repeated[c_rest] &&
+      !baseline$scorer_id[b_rest] %in% candidate_scorers$scorer_id &&
+      !candidate$scorer_id[c_rest] %in% baseline_scorers$scorer_id
   ) {
     out <- c(
       out,

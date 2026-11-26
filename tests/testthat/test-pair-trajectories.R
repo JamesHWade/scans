@@ -186,10 +186,9 @@ test_that("outcomes pair only under one scorer identity, version, scale, and dir
   outcomes <- pairing$outcome_pairs
   rescored <- outcomes[outcomes$sample_id == "rescored", ]
 
-  expect_identical(rescored$compatibility, "incompatible")
-  expect_identical(rescored$reason, "Scorer identity differs.")
-  expect_identical(rescored$baseline_scorer, "exact_scorer")
-  expect_identical(rescored$candidate_scorer, "lenient_scorer")
+  expect_identical(rescored$compatibility, rep("missing", 2L))
+  expect_identical(rescored$baseline_scorer, c("exact_scorer", NA))
+  expect_identical(rescored$candidate_scorer, c(NA, "lenient_scorer"))
   expect_true(all(
     outcomes$compatibility[outcomes$sample_id != "rescored"] == "compatible"
   ))
@@ -372,4 +371,57 @@ test_that("a single evaluation against repeated ones is unknown, not missing", {
     outcomes$reason[!is.na(outcomes$baseline_evaluation_id)],
     "The candidate has several evaluations by this scorer."
   )
+})
+
+test_that("leftover scorers recorded elsewhere on the other side are missing", {
+  info <- tibble::tibble(
+    trajectory_id = c("run/a", "run/b"),
+    sample_id = c("a", "b"),
+    source_type = "manual",
+    status = "completed"
+  )
+  saved <- function(scorers_a) {
+    scorer <- c(scorers_a, "A", "B")
+    trajectory_id <- rep(c("run/a", "run/b"), c(length(scorers_a), 2L))
+    evaluations <- tibble::tibble(
+      trajectory_id = trajectory_id,
+      evaluation_id = paste0(trajectory_id, "/", scorer),
+      scorer = scorer,
+      value = as.list(rep(1, length(scorer)))
+    )
+    bundle <- TrajectoryBundle(
+      info,
+      data.frame(),
+      data.frame(),
+      evaluations = evaluations
+    )
+    investigation_snapshot(bundle, application = "Manual")
+  }
+  pairing <- pair_trajectories(
+    saved("A"),
+    saved("B"),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(
+      comparison_scorer("A", "1", "numeric"),
+      comparison_scorer("B", "1", "numeric")
+    )
+  )
+  outcomes <- pairing$outcome_pairs[pairing$outcome_pairs$sample_id == "a", ]
+  expect_identical(outcomes$compatibility, rep("missing", 2L))
+  expect_identical(outcomes$baseline_scorer, c("A", NA))
+  expect_identical(outcomes$candidate_scorer, c(NA, "B"))
+
+  renamed <- pair_trajectories(
+    comparison_manual_investigation(1, scorer = "A"),
+    comparison_manual_investigation(1, scorer = "B"),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(
+      comparison_scorer("A", "1", "numeric"),
+      comparison_scorer("B", "1", "numeric")
+    )
+  )
+  expect_identical(renamed$outcome_pairs$compatibility, "incompatible")
+  expect_identical(renamed$outcome_pairs$reason, "Scorer identity differs.")
 })

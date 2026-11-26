@@ -105,9 +105,17 @@ an error too, so a typo cannot silently leave a scorer undeclared.
 | `compatibility` | Meaning |
 | --- | --- |
 | `compatible` | Same identity, version, scale, direction, and levels |
-| `incompatible` | A known attribute differs, or the two sides were scored by different scorers. The reason names the attribute |
+| `incompatible` | A known attribute differs, or the two sides were scored by different scorers (see below). The reason names the attribute |
 | `unknown` | An attribute is neither recorded nor declared, the scorer label is absent, or either trajectory of the pair has several evaluations from one scorer (both sides are then `unknown` for it) |
 | `missing` | One side, or both, has no evaluation from this scorer |
+
+Evaluations of a pair match by scorer identity. When exactly one evaluation
+is left on each side, under two different identities, the row is
+`incompatible` ("Scorer identity differs") only if neither identity is
+recorded anywhere on the other side: the sides then used different scorers.
+If either identity is recorded on the other side, that scorer simply has no
+evaluation of this case there, and each leftover is `missing`. Pairing the
+two leftovers anyway would match them by position.
 
 Only `compatible` rows can carry an outcome change. Nothing is coerced: a
 score of `"C"` under one scorer is not compared with `1` under another.
