@@ -182,7 +182,9 @@ htmltools rather than in scans, so it could not be removed by a local fix.
 Five hundred keeps a list redraw under a second (0.78 s). This is a bound,
 not paging: there is no page state, the count and every aggregate still
 cover the whole cohort, next and previous step through all of it, and the
-list says how many entries it left out and how to reach them.
+list says how many entries it left out and how to reach them. An open
+trajectory past the first 500 (from a link, or by stepping) is shown after
+that note with its position, marked as open, so the list never hides it.
 
 ## What remains slow, and why it was left
 

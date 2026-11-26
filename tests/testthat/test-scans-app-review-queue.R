@@ -308,13 +308,14 @@ test_that("a long browser list shows a bounded head and says what it left out", 
     chosen = queue$index[[4L]],
     limit = 3L
   ))
-  expect_identical(entries(head), 3L)
+  expect_identical(entries(head), 4L)
   expect_match(
     head,
     "Listing the first 3 of 5 conversations in this order.",
     fixed = TRUE
   )
-  # The listed entries are the first three in the order given.
+  # The listed entries are the first three in the order given, and the open
+  # one past them is shown after the note, marked as open.
   present <- vapply(
     queue$index,
     function(index) {
@@ -322,7 +323,16 @@ test_that("a long browser list shows a bounded head and says what it left out", 
     },
     logical(1)
   )
-  expect_identical(present, c(TRUE, TRUE, TRUE, FALSE, FALSE))
+  expect_identical(present, c(TRUE, TRUE, TRUE, TRUE, FALSE))
+  expect_match(
+    head,
+    "The open conversation is number 4 of 5 in this order:",
+    fixed = TRUE
+  )
+  expect_identical(
+    lengths(regmatches(head, gregexpr("scans-app-entry-selected", head))),
+    1L
+  )
   expect_identical(
     as.character(scans_app_entries_ui(data, queue$index, queue, limit = 5L)),
     whole
@@ -364,5 +374,72 @@ test_that("an entry opens its trajectory once it is listed", {
     session$setInputs(scans_app_query = "")
     session$setInputs(scans_app_nav = list(direction = "next", nonce = 1))
     expect_identical(selected_trajectory_id(), "e")
+  })
+})
+
+test_that("an open trajectory past the listed head is shown and marked", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  n <- 600L
+  ids <- sprintf("t%03d", seq_len(n))
+  start <- as.POSIXct("2026-09-01", tz = "UTC")
+  bundle <- TrajectoryBundle(
+    tibble::tibble(
+      trajectory_id = ids,
+      source_type = "manual",
+      status = "completed",
+      started_at = start + seq_len(n) * 60
+    ),
+    tibble::tibble(
+      trajectory_id = ids,
+      turn_id = paste0(ids, "-1"),
+      turn_index = 1L,
+      role = "assistant",
+      content = "plain"
+    ),
+    NULL
+  )
+  app <- scans_app(list(Cohort = bundle))
+  listed <- function(html) {
+    found <- regmatches(html, gregexpr("id=\"scans_app_entry_[0-9]+\"", html))
+    as.integer(sub(".*_([0-9]+)\"$", "\\1", found[[1L]]))
+  }
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_scans = scan_registry()$scan,
+      scans_app_sort = "oldest"
+    )
+    html <- output$scans_app_entries$html
+    expect_identical(listed(html), seq_len(scans_app_entry_limit))
+    expect_no_match(html, "The open trajectory is number", fixed = TRUE)
+
+    session$setInputs(scans_app_hash = "Cohort/t550")
+    expect_identical(selected_trajectory_id(), "t550")
+    html <- output$scans_app_entries$html
+    expect_identical(listed(html), c(seq_len(scans_app_entry_limit), 550L))
+    expect_match(
+      html,
+      "The open trajectory is number 550 of 600 in this order:",
+      fixed = TRUE
+    )
+    expect_match(
+      html,
+      'class="[^"]*scans-app-entry-selected[^"]*"[^>]*id="scans_app_entry_550"|id="scans_app_entry_550"[^>]*class="[^"]*scans-app-entry-selected'
+    )
+
+    # Stepping on past the head keeps the open entry shown, and the shown
+    # entry opens its trajectory when clicked.
+    session$setInputs(scans_app_next = 1L)
+    expect_identical(selected_trajectory_id(), "t551")
+    html <- output$scans_app_entries$html
+    expect_identical(listed(html), c(seq_len(scans_app_entry_limit), 551L))
+    session$setInputs(scans_app_hash = "Cohort/t010")
+    session$setInputs(scans_app_entry_551 = 1L)
+    expect_identical(selected_trajectory_id(), "t551")
+
+    # Back inside the head, nothing is appended.
+    session$setInputs(scans_app_hash = "Cohort/t010")
+    html <- output$scans_app_entries$html
+    expect_identical(listed(html), seq_len(scans_app_entry_limit))
   })
 })
