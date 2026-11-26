@@ -56,9 +56,11 @@ list of ordinary tibbles and scope details.
 cannot restore.
 \item \code{headline}: one row of counts with their denominators, including
 \code{n_assessed} and \code{n_not_assessed}.
-\item \code{patterns}: one row per finding type with affected trajectories, the
-number each scan could assess, and first and last occurrence.
-\item \code{tools}, \code{models}, and, when requested, \code{users}: breakdowns.
+\item \code{patterns}: one row per finding type with affected \code{trajectories}, the
+number the scan \code{assessed}, the \code{share} of those affected (\code{NA}
+when it assessed none), and first and last occurrence.
+\item \code{tools}, \code{models}, and, when requested, \code{users}: breakdowns. Findings
+in a model or user are counted over its \code{n_assessed} trajectories.
 \item \code{measures}: each resource measure by recording coverage.
 \item \code{coverage}: trajectories per scanner and assessment status.
 \item \code{losses}: capture losses by field and reason.

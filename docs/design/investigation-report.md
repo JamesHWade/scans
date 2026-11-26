@@ -65,8 +65,12 @@ share them:
   medians now read;
 - capture losses by field and reason (`cohort_losses()`).
 
-`patterns$assessed` is the sum of the two assessed columns of the coverage
-table the overview already shows.
+`patterns$assessed` is the number of trajectories in scope each scan could
+assess, from `cohort_patterns()`, and a pattern's reach (`share`) is over
+that number, as the overview states it: a trajectory the scan could not
+assess is not an unaffected one. Model and user breakdowns count findings
+over their `n_assessed` trajectories and print "not assessed" when that is
+zero.
 
 The cohort is the saved selection narrowed by the saved view. Facets and
 review-state filters are session state in the app and are not part of a saved

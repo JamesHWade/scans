@@ -57,9 +57,11 @@
 #'   cannot restore.
 #' - `headline`: one row of counts with their denominators, including
 #'   `n_assessed` and `n_not_assessed`.
-#' - `patterns`: one row per finding type with affected trajectories, the
-#'   number each scan could assess, and first and last occurrence.
-#' - `tools`, `models`, and, when requested, `users`: breakdowns.
+#' - `patterns`: one row per finding type with affected `trajectories`, the
+#'   number the scan `assessed`, the `share` of those affected (`NA`
+#'   when it assessed none), and first and last occurrence.
+#' - `tools`, `models`, and, when requested, `users`: breakdowns. Findings
+#'   in a model or user are counted over its `n_assessed` trajectories.
 #' - `measures`: each resource measure by recording coverage.
 #' - `coverage`: trajectories per scanner and assessment status.
 #' - `losses`: capture losses by field and reason.
@@ -495,24 +497,16 @@ report_build <- function(data, indices, context) {
   )
 
   coverage <- performance$assessment_coverage
-  assessed_by <- function(scan) {
-    sum(coverage$trajectories[
-      coverage$scan == scan &
-        coverage$status %in% c("assessed_no_findings", "assessed_with_findings")
-    ])
-  }
+  # Reach is over the trajectories each scan assessed, as on screen: one the
+  # scan could not assess is not an unaffected one.
   patterns <- tibble::tibble(
     scan = patterns$scan,
     label = scans_app_pattern_label(patterns$scan),
     severity = patterns$severity,
     trajectories = patterns$trajectories,
     n = rep(headline$n, nrow(patterns)),
-    assessed = vapply(
-      patterns$scan,
-      assessed_by,
-      integer(1),
-      USE.NAMES = FALSE
-    ),
+    assessed = patterns$assessed,
+    share = patterns$share,
     findings = patterns$findings,
     users = patterns$users,
     first_seen = patterns$first_seen,

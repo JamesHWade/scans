@@ -56,6 +56,15 @@ report_count <- function(x) {
   if (is.null(x) || is.na(x)) report_unknown else scans_app_count(round(x))
 }
 
+# A count over the trajectories a scan could assess. With none assessed the
+# count is unknown, so it is not printed as a share of anything.
+report_assessed <- function(x, assessed) {
+  if (assessed == 0L) {
+    return("not assessed")
+  }
+  sprintf("%s of %s assessed", report_count(x), report_count(assessed))
+}
+
 report_seconds <- function(x) {
   if (is.na(x)) report_unknown else scans_app_seconds(x)
 }
@@ -386,11 +395,7 @@ report_pattern_blocks <- function(x) {
         list(
           list(report_link(row$label, paste0("#", row$anchor))),
           row$severity,
-          sprintf(
-            "%s of %s",
-            report_count(row$trajectories),
-            report_count(row$n)
-          ),
+          report_assessed(row$trajectories, row$assessed),
           sprintf("%s of %s", report_count(row$assessed), report_count(row$n)),
           report_count(row$findings),
           report_count(row$users),
@@ -415,7 +420,7 @@ report_cohort_blocks <- function(x) {
         list(
           row$value,
           report_count(row$n),
-          report_count(row$n_findings),
+          report_assessed(row$n_findings, row$n_assessed),
           report_count(row$median_tokens),
           report_seconds(row$median_elapsed)
         )
@@ -731,9 +736,22 @@ report_evidence_blocks <- function(x, max_evidence) {
         report_para(
           list(report_code(row$scan)),
           sprintf(
-            ": %s of %s, %s.%s",
-            report_count(row$trajectories),
-            scans_app_n(row$n, noun),
+            ": %s, %s.%s",
+            if (row$assessed == 0L) {
+              sprintf("%s, not assessed", scans_app_n(row$trajectories, noun))
+            } else {
+              sprintf(
+                "%s of %s",
+                report_count(row$trajectories),
+                scans_app_n(
+                  row$assessed,
+                  list(
+                    one = paste("assessed", noun$one),
+                    many = paste("assessed", noun$many)
+                  )
+                )
+              )
+            },
             scans_app_plural(row$findings, "finding"),
             if (length(shown) < length(affected)) {
               sprintf(

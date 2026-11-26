@@ -26,6 +26,8 @@ test_that("the report's numbers and evidence are the app's for the same view", {
     expect_identical(report$patterns$scan, shown$patterns$scan)
     expect_identical(report$patterns$trajectories, shown$patterns$trajectories)
     expect_identical(report$patterns$findings, shown$patterns$findings)
+    expect_identical(report$patterns$assessed, shown$patterns$assessed)
+    expect_identical(report$patterns$share, shown$patterns$share)
     expect_identical(report$tools, shown$cohort$tools)
     expect_identical(report$models, shown$cohort$models)
     expect_identical(report$measures, shown$cohort$measures)
@@ -64,6 +66,36 @@ test_that("the report's numbers and evidence are the app's for the same view", {
   }
 })
 
+test_that("the report counts findings over the trajectories a scan assessed", {
+  report <- investigation_report(report_fixture())
+  expect_identical(report$patterns$assessed[[1L]], 3L)
+  expect_identical(report$patterns$share[[1L]], 2 / 3)
+  expect_identical(report$models$n_assessed, c(2L, 2L, 0L))
+
+  text <- format(report)
+  expect_match(
+    text,
+    "| error | 2 of 3 assessed | 3 of 5 | 3 |",
+    fixed = TRUE,
+    all = FALSE
+  )
+  expect_no_match(text, "| error | 2 of 5 |", fixed = TRUE)
+  expect_true(
+    "`event_error`: 2 of 3 assessed conversations, 3 findings." %in% text
+  )
+  expect_true("| large | 2 | 2 of 2 assessed | 100 | 40.0 s |" %in% text)
+  # No scan assessed the model-less trajectory, so it has no finding count.
+  expect_true("| Unknown | 1 | not assessed | unknown | unknown |" %in% text)
+
+  named <- format(investigation_report(report_fixture(), include_users = TRUE))
+  expect_true("| ada | 2 | 1 of 2 assessed | 22 | 15.0 s |" %in% named)
+
+  skip_if_not_installed("htmltools")
+  html <- format(report, "html")
+  expect_match(html, "<td>2 of 3 assessed</td>", fixed = TRUE)
+  expect_match(html, "<td>not assessed</td>", fixed = TRUE)
+})
+
 test_that("the rendered report prints those numbers with their denominators", {
   saved <- report_fixture()
   report <- investigation_report(saved)
@@ -99,8 +131,9 @@ test_that("the rendered report prints those numbers with their denominators", {
       startsWith(text, sprintf("| [%s](<#%s>) |", row$label, row$anchor)) &
         grepl(
           sprintf(
-            "| %d of 5 | %d of 5 | %d |",
+            "| %d of %d assessed | %d of 5 | %d |",
             row$trajectories,
+            row$assessed,
             row$assessed,
             row$findings
           ),
