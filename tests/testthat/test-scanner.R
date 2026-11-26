@@ -599,3 +599,64 @@ test_that("the copied R snippet says custom scanners must be supplied", {
     "scanners"
   )
 })
+
+test_that("custom scan names are labelled in every export and the review queue", {
+  other <- scanner_toy_fixture("toy_other", function(trajectory, settings) {
+    switch(
+      trajectory$trajectory_id,
+      "chat-hit" = scanner_findings(
+        event_id = "hit-e3",
+        label = "Other",
+        explanation = "Second scanner."
+      ),
+      "chat-clean" = stop("boom"),
+      "chat-empty" = scanner_unassessed("insufficient_evidence", "None."),
+      scanner_findings()
+    )
+  })
+  data <- scans_app_data(
+    scanner_bundle_fixture(),
+    scanners = list(scanner_keyword_fixture(), other)
+  )
+  ids <- data$info$trajectory_id
+  performance <- scans_app_performance_data(data, seq_along(ids))
+
+  expect_identical(
+    cohort_scan_word(c("toy_keyword", "toy_other", "event_error"), "label"),
+    c("Toy keyword", "Toy other", "Event errors")
+  )
+  report <- export_report(performance, "app")
+  expect_true("| Toy keyword | warning | 1 of 2 assessed | unknown |  | 2 findings |" %in% report)
+  expect_true("| Toy other | warning | 1 of 2 assessed | unknown |  | 1 finding |" %in% report)
+  expect_true(
+    "1. [`chat-hit`](#app/chat-hit): Toy keyword, Toy other" %in% report
+  )
+  markdown <- export_trajectory_markdown(data, 1L)
+  expect_identical(
+    grep("^- \\*\\*", markdown, value = TRUE),
+    c(
+      "- **Toy keyword** (warning): The assistant used the keyword. Evidence: content, event 2.",
+      "- **Toy keyword** (warning): The assistant used the keyword. Evidence: content, event 3.",
+      "- **Toy other** (warning): Second scanner. Evidence: content, event 3."
+    )
+  )
+  queue <- cohort_review_queue(data, ids)
+  expect_identical(
+    queue$reasons[[match("chat-hit", queue$trajectory_id)]],
+    c("Toy keyword", "Toy other")
+  )
+
+  findings <- export_findings(data, ids)
+  expect_identical(
+    findings$scan,
+    c("toy_keyword", "toy_keyword", "toy_other")
+  )
+  conversations <- export_conversations(data, ids)
+  expect_identical(conversations$n_findings, c(3L, 0L, 0L, 0L))
+  code <- export_r_code(
+    NULL,
+    scans_app_scan_config(unique(data$assessments$scan)),
+    ids
+  )
+  expect_true(any(grepl('"toy_keyword", "toy_other"', code, fixed = TRUE)))
+})

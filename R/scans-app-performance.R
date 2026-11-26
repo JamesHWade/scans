@@ -158,7 +158,16 @@ cohort_scan_word <- function(scan, column, kind = NA_character_) {
     paste(cohort_scan_wording$scan, cohort_scan_wording$kind)
   )
   word <- cohort_scan_wording[[column]][row]
-  ifelse(is.na(word), scans_app_title_case(gsub("_", " ", scan)), word)
+  # A custom scan has no wording row. scans_app_title_case() takes one
+  # string, so each name is title-cased on its own.
+  missing <- which(is.na(word))
+  word[missing] <- vapply(
+    rep_len(scan, length(word))[missing],
+    scans_app_title_case,
+    character(1),
+    USE.NAMES = FALSE
+  )
+  word
 }
 
 scans_app_pattern_evidence <- function(findings) {
