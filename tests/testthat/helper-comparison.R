@@ -145,9 +145,9 @@ comparison_manual_investigation <- function(
   values,
   scorer = "judge",
   ids = paste0("case-", seq_along(values)),
-  task_id = NA_character_
+  task_id = NA_character_,
+  trajectory_ids = paste0("run/", ids)
 ) {
-  trajectory_ids <- paste0("run/", ids)
   bundle <- TrajectoryBundle(
     tibble::tibble(
       trajectory_id = trajectory_ids,

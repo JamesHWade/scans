@@ -1,3 +1,19 @@
+expect_each_trajectory_placed_once <- function(pairing) {
+  for (side in c("baseline", "candidate")) {
+    placed <- c(
+      pairing$pairs[[paste0(side, "_trajectory_id")]],
+      pairing[[paste0("only_", side)]]$trajectory_id,
+      pairing$duplicates$trajectory_id[pairing$duplicates$side == side],
+      pairing$missing_key$trajectory_id[pairing$missing_key$side == side]
+    )
+    expect_setequal(
+      placed,
+      trajectory_info(pairing[[side]]$bundle)$trajectory_id
+    )
+    expect_identical(anyDuplicated(placed), 0L)
+  }
+}
+
 test_that("every trajectory lands in exactly one pairing table", {
   skip_if_not_installed("vitals")
   pairing <- comparison_pairing()
@@ -30,17 +46,38 @@ test_that("every trajectory lands in exactly one pairing table", {
   expect_identical(nrow(pairing$duplicates), 0L)
   expect_identical(nrow(pairing$missing_key), 0L)
 
-  for (side in c("baseline", "candidate")) {
-    placed <- c(
-      pairing$pairs[[paste0(side, "_trajectory_id")]],
-      pairing[[paste0("only_", side)]]$trajectory_id
-    )
-    expect_setequal(
-      placed,
-      trajectory_info(pairing[[side]]$bundle)$trajectory_id
-    )
-    expect_identical(anyDuplicated(placed), 0L)
-  }
+  expect_each_trajectory_placed_once(pairing)
+  expect_each_trajectory_placed_once(comparison_pairing(by = "sample_id"))
+
+  baseline <- comparison_manual_investigation(
+    c(1, 0, 1, 0, 1),
+    ids = c("a", "b", "b", NA, "c"),
+    task_id = c("t", "t", "t", "t", NA),
+    trajectory_ids = paste0("base/", 1:5)
+  )
+  candidate <- comparison_manual_investigation(
+    c(1, 1, 0, 1),
+    ids = c("a", "b", NA, "d"),
+    task_id = "t",
+    trajectory_ids = paste0("cand/", 1:4)
+  )
+  mixed <- pair_trajectories(
+    baseline,
+    candidate,
+    by = c("task_id", "sample_id"),
+    dataset_version = "v1"
+  )
+  expect_identical(mixed$pairs$sample_id, "a")
+  expect_identical(
+    mixed$duplicates$trajectory_id,
+    c("base/2", "base/3", "cand/2")
+  )
+  expect_identical(
+    mixed$missing_key$trajectory_id,
+    c("base/4", "base/5", "cand/3")
+  )
+  expect_identical(mixed$only_candidate$trajectory_id, "cand/4")
+  expect_each_trajectory_placed_once(mixed)
 })
 
 test_that("repeated epochs are duplicates unless the key names the epoch", {
