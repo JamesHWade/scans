@@ -36,6 +36,13 @@ domain_assistant_text <- function(trajectory) {
   ]
 }
 
+# Content with nothing in it: no values, or only blank strings and empty
+# JSON containers such as "[]".
+domain_is_blank <- function(x) {
+  x <- trimws(as.character(x[!is.na(x)]))
+  all(x %in% c("", "[]", "{}", "null"))
+}
+
 domain_result_failed <- function(results) {
   results$status %in% c("failed", "cancelled") | !is.na(results$error)
 }
@@ -270,11 +277,12 @@ answer_without_support_scanner <- function(
       # A retrieval result with no usable content, then a substantive answer
       # before the user speaks again and before a later retrieval succeeds.
       empty <- vapply(
-        results$value,
-        function(value) length(unlist(value)) == 0L,
+        seq_len(nrow(results)),
+        function(i) {
+          domain_is_blank(c(unlist(results$value[[i]]), results$text[[i]]))
+        },
         logical(1)
-      ) &
-        (is.na(results$text) | !nzchar(trimws(results$text)))
+      )
       unusable <- domain_result_failed(results) | empty
       for (i in which(unusable)) {
         at <- results$event_index[[i]]

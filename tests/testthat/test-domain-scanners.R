@@ -298,3 +298,19 @@ test_that("a provenance loss means missing provenance is not evidence", {
     "insufficient_evidence"
   )
 })
+
+test_that("a blank retrieval result is not usable content", {
+  recipe <- domain_scanner_recipe()
+  for (blank in list("", "   ", "[]", list(documents = list()))) {
+    expect_identical(
+      domain_retrieval_status(
+        recipe,
+        recipe$domain_user("How much leave can I carry over?"),
+        recipe$domain_tool_call("search_docs", "call-1"),
+        recipe$domain_tool_result("search_docs", "call-1", blank),
+        recipe$domain_assistant(domain_long_answer)
+      ),
+      "assessed_with_findings"
+    )
+  }
+})
