@@ -79,9 +79,12 @@ evidence: a finding counts when it shares an event with the case's
 \code{event_ids} and, when the case names turns, lies in one of its \code{turn_ids}.
 A case that cites no evidence is a whole-trajectory judgment, and any
 finding in the trajectory counts. Findings elsewhere in the trajectory are
-not scored for that case. \code{unreviewed_findings} counts the findings that
-agree with no case in the split: nobody reviewed them, so they are neither
-true nor false positives. With \code{unit = "trajectory"} any finding in the trajectory counts for
+not scored for that case. \code{unreviewed_findings} counts the findings in the
+split's trajectories that agree with no scored case: no positive or
+negative judgment covers them, either because no case cites them or
+because the cases that do are uncertain, insufficient, unreviewed, or
+disputed. They are neither true nor false positives. With
+\code{unit = "trajectory"} any finding in the trajectory counts for
 every case, whatever evidence the case cites. Use it only when each
 trajectory has one case, since two cases on one trajectory would both be
 scored against the same flag.

@@ -47,10 +47,14 @@ same way. A finding the saved analysis does not hold keeps a rerun identifier
 that starts with `rerun/`, which cannot be mistaken for a saved one.
 
 **Unreviewed findings are neither true nor false positives.** A finding that
-agrees with no case in the split was never reviewed. It is counted in
-`unreviewed_findings` and listed per case in `other_finding_ids`, so the
-reviewer can open it and add a case. Counting it as a false positive would
-punish a scanner for finding something nobody had looked at.
+agrees with no scored case in the split has no positive or negative judgment
+behind it. It is counted in `unreviewed_findings` and listed per case in
+`other_finding_ids` or `finding_ids`, so the reviewer can open it and add or
+settle a case. Counting it as a false positive would punish a scanner for
+finding something nobody had judged. A finding that agrees only with an
+uncertain, insufficient, unreviewed, or disputed case is counted too: the
+count is for findings outside every rate, and leaving those out would hide
+scanner output that no rate reflects.
 
 **Unscored cases are a partition, and scanner failure comes first.** Every
 case has one outcome. `scanner_unassessed` (with separate counts for

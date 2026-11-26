@@ -35,7 +35,8 @@ test_that("each split reports its own agreement, denominators, and unscored case
   expect_identical(summary$insufficient_evidence, c(0L, 1L))
   expect_identical(summary$reviewer_uncertain, c(1L, 0L))
   expect_identical(summary$not_adjudicated, c(1L, 1L))
-  expect_identical(summary$unreviewed_findings, c(0L, 0L))
+  # The uncertain and disputed cases' findings have no scored judgment.
+  expect_identical(summary$unreviewed_findings, c(2L, 0L))
   expect_identical(
     summary$scored +
       summary$scanner_unassessed +
@@ -205,10 +206,10 @@ test_that("the trajectory unit ignores which evidence a case cites", {
   expect_identical(by_evidence$summary$true_positive, c(0L, 0L))
   expect_identical(by_evidence$summary$false_negative, c(1L, 2L))
   expect_identical(by_evidence$summary$false_positive, c(1L, 0L))
-  expect_identical(by_evidence$summary$unreviewed_findings, c(3L, 2L))
+  expect_identical(by_evidence$summary$unreviewed_findings, c(3L, 3L))
   expect_identical(by_trajectory$summary$true_positive, c(1L, 2L))
   expect_identical(by_trajectory$summary$false_positive, c(2L, 0L))
-  expect_identical(by_trajectory$summary$unreviewed_findings, c(0L, 0L))
+  expect_identical(by_trajectory$summary$unreviewed_findings, c(2L, 1L))
 })
 
 test_that("validation needs scanner cases that target the scanner", {

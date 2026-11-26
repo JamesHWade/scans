@@ -30,9 +30,12 @@
 #' `event_ids` and, when the case names turns, lies in one of its `turn_ids`.
 #' A case that cites no evidence is a whole-trajectory judgment, and any
 #' finding in the trajectory counts. Findings elsewhere in the trajectory are
-#' not scored for that case. `unreviewed_findings` counts the findings that
-#' agree with no case in the split: nobody reviewed them, so they are neither
-#' true nor false positives. With `unit = "trajectory"` any finding in the trajectory counts for
+#' not scored for that case. `unreviewed_findings` counts the findings in the
+#' split's trajectories that agree with no scored case: no positive or
+#' negative judgment covers them, either because no case cites them or
+#' because the cases that do are uncertain, insufficient, unreviewed, or
+#' disputed. They are neither true nor false positives. With
+#' `unit = "trajectory"` any finding in the trajectory counts for
 #' every case, whatever evidence the case cites. Use it only when each
 #' trajectory has one case, since two cases on one trajectory would both be
 #' scored against the same flag.
@@ -226,6 +229,12 @@ validate_scanner_summary <- function(scanner, cases, split) {
   unassessed <- function(status) {
     sum(cases$outcome == "scanner_unassessed" & cases$assessment == status)
   }
+  scored_outcomes <- c(
+    "true_positive",
+    "false_positive",
+    "false_negative",
+    "true_negative"
+  )
   tp <- n("true_positive")
   fp <- n("false_positive")
   fn <- n("false_negative")
@@ -262,14 +271,20 @@ validate_scanner_summary <- function(scanner, cases, split) {
     reviewer_insufficient_capture = n("reviewer_insufficient_capture"),
     not_adjudicated = n("not_adjudicated"),
     unreviewed_findings = length(setdiff(
-      validate_scanner_keys(cases, "other_finding_ids"),
-      validate_scanner_keys(cases, "finding_ids")
+      c(
+        validate_scanner_keys(cases, "other_finding_ids"),
+        validate_scanner_keys(cases, "finding_ids")
+      ),
+      validate_scanner_keys(
+        cases[cases$outcome %in% scored_outcomes, ],
+        "finding_ids"
+      )
     ))
   )
 }
 
-# Finding identifiers restart in each case's evidence, so a finding is
-# identified with its snapshot and trajectory.
+# Saved identifiers are unique within a snapshot and rerun identifiers within
+# a trajectory, so a finding is identified with both.
 validate_scanner_keys <- function(cases, column) {
   unique(unlist(
     lapply(seq_len(nrow(cases)), function(i) {
