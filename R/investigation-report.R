@@ -707,7 +707,11 @@ report_build <- function(data, indices, context) {
       reviews = reviews,
       interventions = cohort$interventions,
       provenance = cohort$provenance,
-      candidates = cohort$candidates,
+      # The app's candidate view shows recorded tool inputs and outputs as
+      # `snippets`; the report holds none of that.
+      candidates = if (!is.null(cohort$candidates)) {
+        cohort$candidates[setdiff(names(cohort$candidates), "snippets")]
+      },
       review_progress = cohort$progress
     ),
     class = "scans_investigation_report"

@@ -870,3 +870,34 @@ test_that("an empty scan selection reports unknown, not clean", {
   )
   expect_no_match(text, "No findings in", fixed = TRUE)
 })
+
+test_that("the report value holds no recorded tool input or output", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  bundle <- as_trajectory_commons(route_commons_cohort())
+  data <- scans_app_data(bundle)
+  recorded <- route_candidates(
+    bundle,
+    trajectory_ids = data$info$trajectory_id,
+    exchanges = data$exchanges,
+    measures = NULL
+  )
+  snippets <- vctrs::vec_rbind(!!!recorded$snippets)
+  content <- unique(stats::na.omit(c(snippets$input, snippets$output)))
+  expect_gt(length(content), 0L)
+
+  report <- investigation_report(bundle)
+  expect_gt(nrow(report$candidates), 0L)
+  strings <- function(x) {
+    if (is.character(x)) {
+      x
+    } else if (is.list(x) || is.data.frame(x)) {
+      unlist(lapply(x, strings), use.names = FALSE)
+    }
+  }
+  expect_false("snippets" %in% names(report$candidates))
+  expect_false(any(content %in% strings(unclass(report))))
+  held <- paste(strings(unclass(report)), collapse = "\n")
+  for (text in content) {
+    expect_false(grepl(text, held, fixed = TRUE))
+  }
+})
