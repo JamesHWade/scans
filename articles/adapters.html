@@ -40,7 +40,9 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul>
 </li>
@@ -122,6 +124,13 @@ foundation the other adapters reuse for model-visible turns.</p>
 events. Tool results link to their request through <code>call_id</code>;
 an ambiguous match is left unlinked and reported by the
 <code>ambiguous_tool_correlation</code> scan rather than guessed.</p>
+<p>A shinychat app has no adapter of its own. Convert the
+<code>client</code> that <code><a href="https://posit-dev.github.io/shinychat/r/reference/chat_app.html" class="external-link">shinychat::chat_server()</a></code> returns,
+which is the ellmer <code>Chat</code>. When a user edits a message or
+switches branch, shinychat resets the client to the active path, so the
+trajectory holds what the model last saw and not the turns that were
+edited away. shinychat 0.5.0 has no public snapshot of those branches or
+of the displayed messages, so scans does not read them.</p>
 </div>
 <div class="section level2">
 <h2 id="opentelemetry-genai-spans">OpenTelemetry GenAI spans<a class="anchor" aria-label="anchor" href="#opentelemetry-genai-spans"></a>

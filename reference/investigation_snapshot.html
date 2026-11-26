@@ -27,7 +27,9 @@ Use write_investigation() to save the result and scans_app() to view it."><meta 
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -64,7 +66,8 @@ Use <code><a href="investigation_files.html">write_investigation()</a></code> to
 <span>  repeat_threshold <span class="op">=</span> <span class="fl">2L</span>,</span>
 <span>  loop_threshold <span class="op">=</span> <span class="fl">3L</span>,</span>
 <span>  view <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  previous <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  previous <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  scanners <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -96,7 +99,8 @@ data only; never supply credentials or a loader function.</p></dd>
 <dd><p>Which detectors to run, as a character vector of names from
 <code><a href="scan_registry.html">scan_registry()</a></code>. <code>NULL</code> (the default) runs all of them. Selecting a
 subset narrows the findings without changing how any of them are
-computed, so a finding is the same whether or not its neighbours ran.</p></dd>
+computed, so a finding is the same whether or not its neighbours ran.
+Names of custom <code>scanners</code> can be selected too.</p></dd>
 
 
 <dt id="arg-repeat-threshold">repeat_threshold<a class="anchor" aria-label="anchor" href="#arg-repeat-threshold"></a></dt>
@@ -125,6 +129,15 @@ record filter membership only, not judgments or reviewer text.</p></dd>
 is recorded as the parent; its settings are not inherited. When <code>x</code> is
 the earlier investigation's bundle, its prior omission count is retained
 and any newly excluded trajectories are added to that count.</p></dd>
+
+
+<dt id="arg-scanners">scanners<a class="anchor" aria-label="anchor" href="#arg-scanners"></a></dt>
+<dd><p>Optional custom scanners: one <code><a href="scanner.html">scanner()</a></code> or a list of
+them. Their findings, assessments, names, versions, and settings are
+saved, and <code>manifest$scanner_versions</code> records each scan's <code>origin</code>,
+<code>"builtin"</code> or <code>"custom"</code>; the functions are not saved. A reopened investigation shows the saved
+results without the functions. Recomputing them needs the same scanners
+supplied again.</p></dd>
 
 </dl></div>
     <div class="section level2">

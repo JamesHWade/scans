@@ -8,12 +8,26 @@ it to build a scan selection rather than hard-coding names.
 ## Usage
 
 ``` r
-scan_registry()
+scan_registry(scanners = NULL)
 ```
+
+## Arguments
+
+- scanners:
+
+  Optional custom scanners to list after the built-ins: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them.
 
 ## Value
 
 A tibble with `scan`, `severity`, and `description` columns.
+
+## Details
+
+Custom scanners are not registered anywhere. Pass the scanners you
+intend to use in a call to list them after the built-ins, in the same
+shape.
 
 ## Examples
 

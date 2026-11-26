@@ -21,7 +21,8 @@ investigation_snapshot(
   repeat_threshold = 2L,
   loop_threshold = 3L,
   view = list(),
-  previous = NULL
+  previous = NULL,
+  scanners = NULL
 )
 ```
 
@@ -56,7 +57,8 @@ investigation_snapshot(
   [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md).
   `NULL` (the default) runs all of them. Selecting a subset narrows the
   findings without changing how any of them are computed, so a finding
-  is the same whether or not its neighbours ran.
+  is the same whether or not its neighbours ran. Names of custom
+  `scanners` can be selected too.
 
 - repeat_threshold:
 
@@ -86,6 +88,16 @@ investigation_snapshot(
   as the parent; its settings are not inherited. When `x` is the earlier
   investigation's bundle, its prior omission count is retained and any
   newly excluded trajectories are added to that count.
+
+- scanners:
+
+  Optional custom scanners: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them. Their findings, assessments, names, versions, and
+  settings are saved, and `manifest$scanner_versions` records each
+  scan's `origin`, `"builtin"` or `"custom"`; the functions are not
+  saved. A reopened investigation shows the saved results without the
+  functions. Recomputing them needs the same scanners supplied again.
 
 ## Value
 

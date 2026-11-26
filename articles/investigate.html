@@ -40,7 +40,9 @@
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul>
 </li>
@@ -384,6 +386,146 @@ restores supported data types without deserializing R code or
 reconnecting to the original source.</p>
 </div>
 <div class="section level2">
+<h2 id="share-a-report">Share a report<a class="anchor" aria-label="anchor" href="#share-a-report"></a>
+</h2>
+<p>A saved investigation is evidence, including retained text. A report
+is what you send to someone who needs the conclusion and a way to check
+it: counts with their denominators, capture limits, and the identities
+of the events behind each pattern, without transcript text.</p>
+<p><code><a href="../reference/investigation_report.html">investigation_report()</a></code> applies the saved view to the
+saved evidence, as the app does when it opens the file, and returns the
+overview’s tables. It does not run scanners, start the app, or contact
+the source.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">report</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_report.html">investigation_report</a></span><span class="op">(</span><span class="va">reopened</span><span class="op">)</span></span>
+<span><span class="va">report</span><span class="op">$</span><span class="va">headline</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"n"</span>, <span class="st">"total"</span>, <span class="st">"n_assessed"</span>, <span class="st">"n_not_assessed"</span>, <span class="st">"n_findings"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 5</span></span></span>
+<span><span class="co">#&gt;       n total n_assessed n_not_assessed n_findings</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>          <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;int&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span>     2     2          2              0          1</span></span>
+<span><span class="va">report</span><span class="op">$</span><span class="va">patterns</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"label"</span>, <span class="st">"trajectories"</span>, <span class="st">"n"</span>, <span class="st">"assessed"</span>, <span class="st">"share"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 5</span></span></span>
+<span><span class="co">#&gt;   label                trajectories     n assessed share</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> Event errors                    1     2        1     1</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> Repeated tool calls             1     2        1     1</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> Suspicious tool loop            1     2        1     1</span></span></code></pre></div>
+<p>Both saved conversations were assessed by at least one scan, and one
+has findings. <code>assessed</code> counts the conversations each scan
+could read, and a pattern’s reach, <code>share</code>, is over those.
+Each scan with findings here could assess one of the two conversations,
+so each pattern reads “1 of 1 assessed”, not “1 of 2”: the other
+conversation was not assessed by those scans, which is not the claim
+that it is clean.</p>
+<p>Every pattern leads to its evidence. These are the same event
+identifiers the loop finding showed above:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">loop</span> <span class="op">&lt;-</span> <span class="va">report</span><span class="op">$</span><span class="va">evidence</span><span class="op">[</span><span class="va">report</span><span class="op">$</span><span class="va">evidence</span><span class="op">$</span><span class="va">scan</span> <span class="op">==</span> <span class="st">"suspicious_tool_loop"</span>, <span class="op">]</span></span>
+<span><span class="va">loop</span><span class="op">$</span><span class="va">trajectory_id</span></span>
+<span><span class="co">#&gt; [1] "otel/retry"</span></span>
+<span><span class="va">loop</span><span class="op">$</span><span class="va">event_ids</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
+<span><span class="co">#&gt; [1] "otel/retry/event-000002" "otel/retry/event-000004"</span></span>
+<span><span class="co">#&gt; [3] "otel/retry/event-000006"</span></span></code></pre></div>
+<p>Measurements keep their recording coverage, so a median is never read
+without the number of records behind it:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">report</span><span class="op">$</span><span class="va">measures</span><span class="op">[</span></span>
+<span>  <span class="va">report</span><span class="op">$</span><span class="va">measures</span><span class="op">$</span><span class="va">measure</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"elapsed"</span>, <span class="st">"recorded_work"</span>, <span class="st">"cost"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"measure"</span>, <span class="st">"n"</span>, <span class="st">"complete"</span>, <span class="st">"partial"</span>, <span class="st">"unavailable"</span>, <span class="st">"median_complete"</span><span class="op">)</span></span>
+<span><span class="op">]</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 6</span></span></span>
+<span><span class="co">#&gt;   measure           n complete partial unavailable median_complete</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;int&gt;</span>           <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> elapsed           2        1       0           1              33</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> recorded_work     2        1       1           0              33</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> cost              2        0       0           2              <span style="color: #BB0000;">NA</span></span></span></code></pre></div>
+<p>Write the report as one HTML file with no scripts or external assets,
+or as Markdown to paste into an issue. Both hold the same content.</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">html</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".html"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/investigation_report.html">write_investigation_report</a></span><span class="op">(</span><span class="va">report</span>, <span class="va">html</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">markdown</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="va">report</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/writeLines.html" class="external-link">writeLines</a></span><span class="op">(</span><span class="va">markdown</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq_len</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/match.html" class="external-link">match</a></span><span class="op">(</span><span class="st">"## Patterns"</span>, <span class="va">markdown</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1L</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # Support assistant example: review of recorded conversations</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; - Scope: 2 of 2 conversations in this saved investigation.</span></span>
+<span><span class="co">#&gt; - Filters: none.</span></span>
+<span><span class="co">#&gt; - Start times in scope: Sep 01 UTC.</span></span>
+<span><span class="co">#&gt; - Source read: not recorded, so whether it was capped is unknown.</span></span>
+<span><span class="co">#&gt; - Source details as recorded: `kind` (value withheld); `incomplete` TRUE. Free-form details may name a person, so their values print only with user identifiers.</span></span>
+<span><span class="co">#&gt; - Snapshot `sha256:7431550c1837469f5f746502b7f2d8195948cd84c517d290b6e4bf5bf967b65a`, revision `sha256:b0a236c42d0194fc2599cea4d069d4b363121f38bdfd487ef140d7949175e51a`.</span></span>
+<span><span class="co">#&gt; - Scans: 11 selected, repeat threshold 2, loop threshold 3; analysis by scans 0.0.0.9000.</span></span>
+<span><span class="co">#&gt; - Generated 2026-11-26 23:26 UTC by scans 0.0.0.9000.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; ## Headline</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; - 2 of 2 conversations are in scope.</span></span>
+<span><span class="co">#&gt; - Findings in 1 of 2 assessed conversations (1 with error-severity findings).</span></span>
+<span><span class="co">#&gt; - 3 of 3 tool calls failed, in 1 conversation.</span></span></code></pre></div>
+<p>The scope names the saved selection, every active filter, and what is
+known about the source read. This example recorded source details but no
+read window, so the report says that whether the read was capped is
+unknown rather than assuming it was complete. A free-form detail such as
+<code>kind</code> is named with its value withheld, since such fields
+can name a person; pass <code>include_users = TRUE</code> to print
+it.</p>
+<p>A saved view’s filters narrow the report the way they narrow the
+app:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">flagged</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_snapshot.html">investigation_snapshot</a></span><span class="op">(</span></span>
+<span>  <span class="va">reopened</span><span class="op">$</span><span class="va">bundle</span>,</span>
+<span>  application <span class="op">=</span> <span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">application</span>,</span>
+<span>  source <span class="op">=</span> <span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">source</span>,</span>
+<span>  view <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>findings_only <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  previous <span class="op">=</span> <span class="va">reopened</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">narrowed</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_report.html">investigation_report</a></span><span class="op">(</span><span class="va">flagged</span><span class="op">)</span></span>
+<span><span class="va">narrowed</span><span class="op">$</span><span class="va">scope</span><span class="op">$</span><span class="va">filters</span></span>
+<span><span class="co">#&gt;        findings </span></span>
+<span><span class="co">#&gt; "With findings"</span></span>
+<span><span class="va">narrowed</span><span class="op">$</span><span class="va">trajectories</span><span class="op">$</span><span class="va">trajectory_id</span></span>
+<span><span class="co">#&gt; [1] "otel/retry"</span></span></code></pre></div>
+<p>Pass the address of a deployed app to turn each trajectory and event
+identity into a link. A link carries the filters, not the trajectories,
+and clears any other filter in the app that opens it: it reopens exactly
+this cohort when that app serves this saved investigation, and the
+report says so under its scope.</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">linked</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_report.html">investigation_report</a></span><span class="op">(</span><span class="va">flagged</span>, app_url <span class="op">=</span> <span class="st">"https://connect.example/scans/"</span><span class="op">)</span></span>
+<span><span class="va">linked</span><span class="op">$</span><span class="va">evidence</span><span class="op">$</span><span class="va">link</span><span class="op">[[</span><span class="fl">1</span><span class="op">]</span><span class="op">]</span></span>
+<span><span class="co">#&gt; [1] "https://connect.example/scans/#Support%20assistant%20example/otel%2Fretry?scope=findings=TRUE?event=otel%2Fretry%2Fevent-000002"</span></span>
+<span><span class="va">linked</span><span class="op">$</span><span class="va">scope</span><span class="op">$</span><span class="va">link_limits</span></span>
+<span><span class="co">#&gt; [1] "Links set the filters named above and clear every other filter. They reopen exactly this cohort when the app at that address serves this saved investigation (snapshot 7431550c1837). An app reading the live source applies the same filters to what it holds then, which can include records this saved selection left out."</span></span></code></pre></div>
+<p>In the app, <strong>Export &gt; Report</strong> produces the same
+report for the trajectories in view. For an opened investigation shown
+with its saved filters, the downloaded file matches the one written here
+for the same app address except for the time it was generated. Once a
+filter is changed in the app, or the annotation filter reads the app’s
+own annotation store, the report keeps the snapshot identifier but omits
+the revision identifier, because that revision describes a different
+view.</p>
+<div class="section level3">
+<h3 id="what-the-report-can-and-cannot-establish">What the report can and cannot establish<a class="anchor" aria-label="anchor" href="#what-the-report-can-and-cannot-establish"></a>
+</h3>
+<p>It can establish what the retained records show: which conversations
+a scan flagged, on which events, out of how many it could assess, and
+how completely each measurement was recorded. A reader can follow any
+count to the events behind it.</p>
+<p>It cannot establish that an answer was right or wrong, that a
+conversation with no findings succeeded, or that the source captured
+every call. A conversation no scan could assess is reported as not
+assessed, and an unrecorded measurement as unknown; neither is a zero.
+User identifiers are left out unless you pass
+<code>include_users = TRUE</code>, and the report never prints message
+text, tool arguments, or tool results. Recorded error strings are often
+tool-result text, so they are counted but not printed unless you pass
+<code>include_errors = TRUE</code>. The report does print tool names,
+model names, and identifiers. Review those before sending it outside
+your team.</p>
+</div>
+</div>
+<div class="section level2">
 <h2 id="bring-your-own-completed-evidence">Bring your own completed evidence<a class="anchor" aria-label="anchor" href="#bring-your-own-completed-evidence"></a>
 </h2>
 <table class="table">
@@ -405,6 +547,15 @@ reconnecting to the original source.</p>
 not asserted to be one model call.</td>
 </tr>
 <tr class="even">
+<td>shinychat app (&gt;= 0.5.0)</td>
+<td>
+<code><a href="../reference/as_trajectory_ellmer.html">as_trajectory_ellmer()</a></code> on the <code>client</code> that
+<code>chat_server()</code> returns, or the OTel path below</td>
+<td>The active path of the current conversation only. Turns a user
+edited away, other saved conversations, and display-only state are not
+captured: shinychat has no public snapshot of them.</td>
+</tr>
+<tr class="odd">
 <td>OTel GenAI / Connect</td>
 <td>
 <code><a href="../reference/as_trajectory_otel.html">as_trajectory_otel()</a></code> /
@@ -414,14 +565,14 @@ not asserted to be one model call.</td>
 conversation IDs determine whether a meaningful transcript can be
 reconstructed. Keep read limits with the snapshot.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>vitals evaluation (&gt;= 0.3.0)</td>
 <td><code><a href="../reference/as_trajectory_vitals.html">as_trajectory_vitals()</a></code></td>
 <td>Outcome evaluations joined to solver trajectories; resource coverage
 follows the supplied turns. Reading development vitals logs requires its
 supported development API.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Deputy and dsprrr public results</td>
 <td>
 <code><a href="../reference/as_trajectory_deputy.html">as_trajectory_deputy()</a></code> /
@@ -431,13 +582,13 @@ supported development API.</td>
 model-call timing. dsprrr millisecond latency is normalized to canonical
 seconds.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>Tempest public review</td>
 <td><code><a href="../reference/as_trajectory_tempest.html">as_trajectory_tempest()</a></code></td>
 <td>Product review evidence is not a full call trace. The bundled public
 review fixture has no canonical token counts or model durations.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>Commons conversations</td>
 <td><code><a href="../reference/as_trajectory_commons.html">as_trajectory_commons()</a></code></td>
 <td>Already-read conversation evidence; availability depends on what the

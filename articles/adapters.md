@@ -49,6 +49,14 @@ events. Tool results link to their request through `call_id`; an
 ambiguous match is left unlinked and reported by the
 `ambiguous_tool_correlation` scan rather than guessed.
 
+A shinychat app has no adapter of its own. Convert the `client` that
+[`shinychat::chat_server()`](https://posit-dev.github.io/shinychat/r/reference/chat_app.html)
+returns, which is the ellmer `Chat`. When a user edits a message or
+switches branch, shinychat resets the client to the active path, so the
+trajectory holds what the model last saw and not the turns that were
+edited away. shinychat 0.5.0 has no public snapshot of those branches or
+of the displayed messages, so scans does not read them.
+
 ## OpenTelemetry GenAI spans
 
 [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)

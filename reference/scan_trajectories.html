@@ -29,7 +29,9 @@ regard to key order."><meta property="og:image" content="https://jameshwade.gith
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -63,7 +65,8 @@ regard to key order.</p>
 <span>  scan_id <span class="op">=</span> <span class="st">"scan-000001"</span>,</span>
 <span>  repeat_threshold <span class="op">=</span> <span class="fl">2L</span>,</span>
 <span>  loop_threshold <span class="op">=</span> <span class="fl">3L</span>,</span>
-<span>  scans <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  scans <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  scanners <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -94,14 +97,24 @@ between calls do not break a call sequence.</p></dd>
 <dd><p>Which detectors to run, as a character vector of names from
 <code><a href="scan_registry.html">scan_registry()</a></code>. <code>NULL</code> (the default) runs all of them. Selecting a
 subset narrows the findings without changing how any of them are
-computed, so a finding is the same whether or not its neighbours ran.</p></dd>
+computed, so a finding is the same whether or not its neighbours ran.
+Names of custom <code>scanners</code> can be selected too.</p></dd>
+
+
+<dt id="arg-scanners">scanners<a class="anchor" aria-label="anchor" href="#arg-scanners"></a></dt>
+<dd><p>Optional custom scanners for this call: one <code><a href="scanner.html">scanner()</a></code> or
+a list of them. <code>NULL</code> (the default) runs built-in scans only. Custom
+findings follow the built-in findings, which are identical whether or
+not custom scanners are supplied. A custom scanner that reports a
+trajectory as not assessed contributes no findings; one that fails
+raises an error here. Use <code><a href="assess_trajectory_scans.html">assess_trajectory_scans()</a></code> to record both.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
     <p>A tibble with one row per finding and these columns:</p><ul><li><p><code>finding_id</code>: deterministic identifier within <code>scan_id</code>; <code>scan_id</code>: the
 caller-supplied diagnostic-run identifier.</p></li>
-<li><p><code>scan</code>: one of <code>ambiguous_tool_correlation</code>, <code>unresolved_tool_call</code>,
+<li><p><code>scan</code>: a custom scanner's name, or one of <code>ambiguous_tool_correlation</code>, <code>unresolved_tool_call</code>,
 <code>unmatched_tool_result</code>, <code>repeated_tool_call</code>, <code>suspicious_tool_loop</code>,
 <code>event_error</code>, <code>error_chain</code>, <code>turn_error</code>, <code>trajectory_error</code>,
 <code>cut_off_answer</code>, or <code>run_intervention</code>; <code>scan_version</code>: detector version.</p></li>

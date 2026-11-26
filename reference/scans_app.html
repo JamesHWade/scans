@@ -31,7 +31,9 @@ without downloading every snapshot when the review app starts."><meta property="
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -66,7 +68,8 @@ without downloading every snapshot when the review app starts.</p>
 <span>  annotations <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  investigations <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">x</span>, <span class="st">"scans_investigation"</span><span class="op">)</span>,</span>
 <span>  reviews <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  chat_factory <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  chat_factory <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  scanners <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -75,8 +78,9 @@ without downloading every snapshot when the review app starts.</p>
 
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
-<dd><p>A <a href="TrajectoryBundle.html">TrajectoryBundle</a>, a saved <code><a href="investigation_snapshot.html">investigation_snapshot()</a></code>, or a named
-list of application sources. Each source can be either value or a
+<dd><p>A <a href="TrajectoryBundle.html">TrajectoryBundle</a>, a saved <code><a href="investigation_snapshot.html">investigation_snapshot()</a></code>, a
+comparison from <code><a href="compare_trajectories.html">compare_trajectories()</a></code>, or a named list of application
+sources. Each source can be a bundle, a saved investigation, or a
 zero-argument function that returns one. Source names are shown in the
 application switcher.</p></dd>
 
@@ -107,6 +111,19 @@ them after closing the session; no shared review store is written.</p></dd>
 for example <code>function() ellmer::chat_openai()</code>. Defaults to <code>NULL</code>, which
 omits Ask. Tools configured on this client are replaced with the bounded
 scans tools; its system prompt is retained with evidence instructions.</p></dd>
+
+
+<dt id="arg-scanners">scanners<a class="anchor" aria-label="anchor" href="#arg-scanners"></a></dt>
+<dd><p>Optional custom scanners: one <code><a href="scanner.html">scanner()</a></code> or a list of
+them. They appear with the built-in scans in Options, run with them on
+the loaded bundle, and their findings and assessment status are shown the
+same way. A saved investigation shows its saved custom results without
+them; applying current scanners reruns only the scanners supplied here.
+Scanners that could never run are refused rather than ignored: with a
+single saved investigation opened with <code>investigations = FALSE</code>, and
+with a comparison, whose sides are the saved analyses it compares (rerun
+each side with <code><a href="investigation_snapshot.html">investigation_snapshot()</a></code> and compare again). Custom
+scanners are deterministic functions, so browsing never calls a model.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -155,12 +172,18 @@ app is read-only and claims no review state.</p>
 
 
 <p>The overview's Export menu offers the trajectories and findings in view as
-CSV, a Markdown report, and an R snippet that rebuilds the snapshot and
-scan settings. The report carries counts, tables, and links; it contains
-no transcript text, and user identifiers only when requested. A single
-trajectory can be copied as Markdown, which does contain its content.
-Links are the app's own address with the trajectory and active filters, so
-they reopen the same scope. No export contains credentials.</p>
+CSV, a report, and an R snippet that rebuilds the snapshot and scan
+settings. The report is the one <code><a href="investigation_report.html">investigation_report()</a></code> produces, as a
+standalone HTML file or as Markdown to paste into an issue: for an opened
+investigation the app and a script give the same report. It names every
+active filter, carries counts with their denominators and the evidence
+identities behind each pattern, and contains no transcript text, and user
+identifiers and recorded error text only when requested. A single
+trajectory can be copied as
+Markdown, which does contain its content. Links are the app's own address
+with the trajectory and every active filter, and opening one clears any
+filter it does not set. They select whatever matches those filters where
+they are opened, and the report states what a link cannot restore. No export contains credentials.</p>
     </div>
     <div class="section level2">
     <h2 id="deputy-runs-and-provenance">Deputy runs and provenance<a class="anchor" aria-label="anchor" href="#deputy-runs-and-provenance"></a></h2>
@@ -210,6 +233,23 @@ Opening does not contact the original source. The default upload limit is
 50 MiB. An explicit <code>shiny.maxRequestSize</code> option sets both the app upload
 ceiling and its investigation reader limit; <code>Inf</code> disables the size limit.
 See <code><a href="investigation_files.html">investigation_files()</a></code>.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="comparisons">Comparisons<a class="anchor" aria-label="anchor" href="#comparisons"></a></h2>
+
+
+<p>Pass a <code><a href="compare_trajectories.html">compare_trajectories()</a></code> result to open a comparison. The baseline
+and candidate investigations become the two applications in the switcher,
+and the overview leads with the comparison: what could not be compared
+first, then the matched cases, which can be narrowed to regressions,
+improvements, pattern changes, resource changes, or cases with something
+not comparable. Each case links to both trajectories and to the events its
+findings cite. Every number shown is read from the comparison value.</p>
+<p>A comparison is a fixed pair of saved analyses. With <code>investigations = TRUE</code> a side's visible trajectories can be saved, but the app offers no
+opening of another investigation and no "Apply current scanners", so each
+side keeps the analysis the comparison reports. Ask evidence from the other
+side switches to that side, and a comparison link leaves any investigation
+opened over a side.</p>
     </div>
     <div class="section level2">
     <h2 id="posit-connect">Posit Connect<a class="anchor" aria-label="anchor" href="#posit-connect"></a></h2>

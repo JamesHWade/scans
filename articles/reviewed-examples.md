@@ -33,7 +33,7 @@ review_status(retry)
 #> [1] "confirmed"
 #> 
 #> $decision_ids
-#> [1] "sha256:6919bba8566c166af1a06c8b6b10f1bff9e3e0c3c01b840420aedf390b543e62"
+#> [1] "sha256:f08f7c3f452576abeb59f87dcbedd887ce7b27905ec29add3730aca055db4ca8"
 ```
 
 The case contains only the selected trajectory and relevant losses,
@@ -214,8 +214,9 @@ postflight overshoot and handling of unknown usage. Those controls cover
 optimization; the recipe then runs one held-out solver case. Configure
 your chat’s response limits for that evaluation too. Re-evaluate a
 baseline and candidate on the same held-out cases before concluding that
-a change helped. General matched-comparison UI remains a separate
-feature.
+a change helped;
+[`vignette("matched-comparison")`](https://jameshwade.github.io/scans/articles/matched-comparison.md)
+compares the two runs case by case.
 
 Manual application changes use the same regression cases: replace the
 optimized program in the recipe’s held-out Task with the revised

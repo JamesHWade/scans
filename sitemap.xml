@@ -8,8 +8,10 @@
 <url><loc>https://jameshwade.github.io/scans/SUPPORT.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/adapters.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/connect.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/articles/custom-scanners.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/index.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/investigate.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/articles/matched-comparison.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/reviewed-examples.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/scans.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/authors.html</loc></url>
@@ -25,11 +27,15 @@
 <url><loc>https://jameshwade.github.io/scans/reference/as_trajectory_tempest.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/as_trajectory_vitals.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/assess_trajectory_scans.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/compare_trajectories.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/comparison_scorer.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/filter_trajectory_events.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/index.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/investigation_files.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/investigation_report.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/investigation_snapshot.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/measure_trajectories.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/pair_trajectories.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/read_connect_traces.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/read_otel_traces.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/review_case.html</loc></url>
@@ -38,6 +44,7 @@
 <url><loc>https://jameshwade.github.io/scans/reference/review_examples.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scan_registry.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scan_trajectories.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/scanner.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scans-package.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scans_annotations.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/scans_app.html</loc></url>
@@ -46,5 +53,6 @@
 <url><loc>https://jameshwade.github.io/scans/reference/summarize_trajectories.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/trajectory_accessors.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/validate_review_examples.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/validate_scanner.html</loc></url>
 </urlset>
 

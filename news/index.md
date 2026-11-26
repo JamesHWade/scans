@@ -2,6 +2,132 @@
 
 ## scans 0.0.0.9000
 
+- New article “Write and validate a domain-specific scanner”, with two
+  example scanners and reviewed fixture cases in `inst/examples/`.
+  [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
+  forwards `scanners`
+  ([\#43](https://github.com/JamesHWade/scans/issues/43)).
+
+- New
+  [`validate_scanner()`](https://jameshwade.github.io/scans/reference/validate_scanner.md)
+  compares a custom scanner with reviewed cases and reports, per
+  development and test split, true and false positives and negatives,
+  precision and recall with denominators, and the cases it could not
+  score.
+  [`validate_review_examples()`](https://jameshwade.github.io/scans/reference/validate_review_examples.md)
+  gains `scanners` and reports the reviewed scanner version
+  ([\#43](https://github.com/JamesHWade/scans/issues/43)).
+
+- New
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md),
+  [`scanner_findings()`](https://jameshwade.github.io/scans/reference/scanner.md),
+  and
+  [`scanner_unassessed()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  define custom deterministic scanners, passed per call through the new
+  `scanners` argument of
+  [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md),
+  [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md),
+  [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md),
+  [`scans_tools()`](https://jameshwade.github.io/scans/reference/scans_tools.md),
+  and
+  [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md).
+  A scanner that throws, returns anything else, or cites evidence
+  outside a trajectory is an `execution_failure` for that scanner and
+  trajectory only; built-in results are unchanged. Saved investigations
+  record whether each scan is built-in or custom
+  ([\#43](https://github.com/JamesHWade/scans/issues/43)).
+
+- A trajectory with a failed scan says so in the review queue and the
+  overview.
+
+- New article
+  [`vignette("matched-comparison")`](https://jameshwade.github.io/scans/articles/matched-comparison.md)
+  and offline recipe `inst/examples/matched-comparison.R` compare a
+  baseline and a candidate on reviewed held-out cases
+  ([\#42](https://github.com/JamesHWade/scans/issues/42)).
+
+- [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  opens a comparison: what could not be compared first, then matched
+  cases filterable to regressions, improvements, pattern changes, and
+  resource changes, each linked to both trajectories
+  ([\#42](https://github.com/JamesHWade/scans/issues/42)).
+
+- New
+  [`compare_trajectories()`](https://jameshwade.github.io/scans/reference/compare_trajectories.md)
+  reports per-case changes in outcomes, diagnostic patterns, and
+  resource measures as three separate tables, with paired counts and an
+  exact sign test where justified, and an unpaired description when no
+  case matches. A pattern whose scan stops or starts applying is counted
+  apart from resolved and appeared
+  ([\#42](https://github.com/JamesHWade/scans/issues/42)).
+
+- New
+  [`pair_trajectories()`](https://jameshwade.github.io/scans/reference/pair_trajectories.md)
+  matches the trajectories of two saved investigations on an explicit
+  key and a declared dataset version, and reports unmatched, duplicated,
+  and missing-key cases instead of dropping them.
+  [`comparison_scorer()`](https://jameshwade.github.io/scans/reference/comparison_scorer.md)
+  declares the scorer version, scale, and direction that vitals does not
+  record; outcomes pair only under a compatible scorer
+  ([\#42](https://github.com/JamesHWade/scans/issues/42)).
+
+- The browser lists the first 500 trajectories of a large cohort, says
+  how many it left out, and always shows the open trajectory.
+  [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+  is about seven times faster on a 10,000-trajectory bundle, and an app
+  session over one starts in seconds. `docs/design/scale-profile.md`
+  records the measured baseline and its limits
+  ([\#44](https://github.com/JamesHWade/scans/issues/44)).
+
+- The review app’s Export \> Report is now
+  [`investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md),
+  downloadable as HTML or Markdown and identical to the script-rendered
+  report for an opened investigation. Exported links and CSV scope carry
+  source, status, text, and annotation filters; a text filter that
+  matches a user identifier is left out unless user identifiers are
+  requested. The offline investigation article gains a report recipe
+  ([\#44](https://github.com/JamesHWade/scans/issues/44)).
+
+- New
+  [`investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+  computes a shareable report from a saved investigation without
+  starting the app, and
+  [`write_investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+  writes it as one standalone HTML file or as Markdown. It names every
+  active filter and what the source read covered, reports assessed and
+  not-assessed denominators, measurement coverage, and capture losses,
+  and lists the trajectory, turn, and event identities behind each
+  pattern. User identifiers, transcript text, recorded error text, and
+  free-form source details are omitted unless requested
+  ([\#44](https://github.com/JamesHWade/scans/issues/44)).
+
+- Links exported from the review app set their whole scope, so opening
+  one resets filters it does not name, and the app says when it cannot
+  apply a filter a link carries.
+
+- The ecosystem audit records a 2026-11-26 refresh for shinychat 0.5.0:
+  there is still no public settled snapshot of displayed messages or
+  branches, so shinychat apps continue to convert through the ellmer
+  client or OTel spans. The capture table and adapters article say so
+  ([\#9](https://github.com/JamesHWade/scans/issues/9)).
+
+- The review app no longer presents a trajectory that no selected scan
+  could assess as having zero findings. The conversations CSV leaves
+  `n_findings` and `n_error_findings` empty for it and adds an
+  `assessed` column; the Models and Users tables, pattern rows, the
+  trajectory summary, and the timing table state findings over the
+  assessed count or say “Not assessed”. `scans_summarize` returns
+  `n_assessed` and `scans_list_trajectories` returns `assessed`.
+
+- CSV exports from the review app no longer carry user identifiers by
+  default. The conversations CSV omits its `user` column, and neither
+  CSV names a user filter in `scope` or `link`, unless “Include user
+  identifiers in CSVs” is ticked in the Export menu.
+
+- Fixed [`print()`](https://rdrr.io/r/base/print.html) for saved
+  investigations and annotation stores falling back to the default list
+  print under S7 1.0.0.
+
 - [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md),
   [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md),
   and

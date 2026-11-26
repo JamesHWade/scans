@@ -18,7 +18,8 @@ scans_app(
   annotations = NULL,
   investigations = inherits(x, "scans_investigation"),
   reviews = FALSE,
-  chat_factory = NULL
+  chat_factory = NULL,
+  scanners = NULL
 )
 ```
 
@@ -30,9 +31,11 @@ scans_app(
   [TrajectoryBundle](https://jameshwade.github.io/scans/reference/TrajectoryBundle.md),
   a saved
   [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md),
-  or a named list of application sources. Each source can be either
-  value or a zero-argument function that returns one. Source names are
-  shown in the application switcher.
+  a comparison from
+  [`compare_trajectories()`](https://jameshwade.github.io/scans/reference/compare_trajectories.md),
+  or a named list of application sources. Each source can be a bundle, a
+  saved investigation, or a zero-argument function that returns one.
+  Source names are shown in the application switcher.
 
 - annotations:
 
@@ -63,6 +66,22 @@ scans_app(
   `function() ellmer::chat_openai()`. Defaults to `NULL`, which omits
   Ask. Tools configured on this client are replaced with the bounded
   scans tools; its system prompt is retained with evidence instructions.
+
+- scanners:
+
+  Optional custom scanners: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them. They appear with the built-in scans in Options, run
+  with them on the loaded bundle, and their findings and assessment
+  status are shown the same way. A saved investigation shows its saved
+  custom results without them; applying current scanners reruns only the
+  scanners supplied here. Scanners that could never run are refused
+  rather than ignored: with a single saved investigation opened with
+  `investigations = FALSE`, and with a comparison, whose sides are the
+  saved analyses it compares (rerun each side with
+  [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md)
+  and compare again). Custom scanners are deterministic functions, so
+  browsing never calls a model.
 
 ## Value
 
@@ -112,12 +131,20 @@ review state.
 ## Exports
 
 The overview's Export menu offers the trajectories and findings in view
-as CSV, a Markdown report, and an R snippet that rebuilds the snapshot
-and scan settings. The report carries counts, tables, and links; it
-contains no transcript text, and user identifiers only when requested. A
-single trajectory can be copied as Markdown, which does contain its
-content. Links are the app's own address with the trajectory and active
-filters, so they reopen the same scope. No export contains credentials.
+as CSV, a report, and an R snippet that rebuilds the snapshot and scan
+settings. The report is the one
+[`investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+produces, as a standalone HTML file or as Markdown to paste into an
+issue: for an opened investigation the app and a script give the same
+report. It names every active filter, carries counts with their
+denominators and the evidence identities behind each pattern, and
+contains no transcript text, and user identifiers and recorded error
+text only when requested. A single trajectory can be copied as Markdown,
+which does contain its content. Links are the app's own address with the
+trajectory and every active filter, and opening one clears any filter it
+does not set. They select whatever matches those filters where they are
+opened, and the report states what a link cannot restore. No export
+contains credentials.
 
 ## Deputy runs and provenance
 
@@ -165,6 +192,25 @@ original source. The default upload limit is 50 MiB. An explicit
 `shiny.maxRequestSize` option sets both the app upload ceiling and its
 investigation reader limit; `Inf` disables the size limit. See
 [`investigation_files()`](https://jameshwade.github.io/scans/reference/investigation_files.md).
+
+## Comparisons
+
+Pass a
+[`compare_trajectories()`](https://jameshwade.github.io/scans/reference/compare_trajectories.md)
+result to open a comparison. The baseline and candidate investigations
+become the two applications in the switcher, and the overview leads with
+the comparison: what could not be compared first, then the matched
+cases, which can be narrowed to regressions, improvements, pattern
+changes, resource changes, or cases with something not comparable. Each
+case links to both trajectories and to the events its findings cite.
+Every number shown is read from the comparison value.
+
+A comparison is a fixed pair of saved analyses. With
+`investigations = TRUE` a side's visible trajectories can be saved, but
+the app offers no opening of another investigation and no "Apply current
+scanners", so each side keeps the analysis the comparison reports. Ask
+evidence from the other side switches to that side, and a comparison
+link leaves any investigation opened over a side.
 
 ## Posit Connect
 

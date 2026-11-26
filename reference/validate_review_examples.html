@@ -29,7 +29,9 @@ produce an unknown result (NA), not a negative label."><meta property="og:image"
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -58,7 +60,7 @@ produce an unknown result (<code>NA</code>), not a negative label.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validate_review_examples</span><span class="op">(</span><span class="va">x</span>, <span class="va">split</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">validate_review_examples</span><span class="op">(</span><span class="va">x</span>, <span class="va">split</span>, scanners <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,11 +74,20 @@ produce an unknown result (<code>NA</code>), not a negative label.</p>
 <dt id="arg-split">split<a class="anchor" aria-label="anchor" href="#arg-split"></a></dt>
 <dd><p>One of <code>"development"</code> or <code>"test"</code>.</p></dd>
 
+
+<dt id="arg-scanners">scanners<a class="anchor" aria-label="anchor" href="#arg-scanners"></a></dt>
+<dd><p>Optional custom scanners that the cases target: one
+<code><a href="scanner.html">scanner()</a></code> or a list of them. A case whose custom scanner is not
+supplied has assessment <code>"scanner_not_supplied"</code> and an unknown result.
+See <code><a href="validate_scanner.html">validate_scanner()</a></code> for false positives, false negatives, precision,
+and recall.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A tibble with case identity, judgment, scanner/assessment version,
-observed count, predicate, and <code>passed</code>. A pass validates the scanner
+    <p>A tibble with case identity, judgment, the <code>scan_version</code> that ran
+beside the <code>reviewed_scan_version</code> recorded in the case's saved analysis,
+assessment, observed count, predicate, and <code>passed</code>. A pass validates the scanner
 predicate on retained evidence; it does not establish application quality.</p>
     </div>
 

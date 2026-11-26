@@ -354,11 +354,173 @@ and invalid evidence references fail explicitly. The JSON reader
 restores supported data types without deserializing R code or
 reconnecting to the original source.
 
+## Share a report
+
+A saved investigation is evidence, including retained text. A report is
+what you send to someone who needs the conclusion and a way to check it:
+counts with their denominators, capture limits, and the identities of
+the events behind each pattern, without transcript text.
+
+[`investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+applies the saved view to the saved evidence, as the app does when it
+opens the file, and returns the overview’s tables. It does not run
+scanners, start the app, or contact the source.
+
+``` r
+
+report <- investigation_report(reopened)
+report$headline[c("n", "total", "n_assessed", "n_not_assessed", "n_findings")]
+#> # A tibble: 1 × 5
+#>       n total n_assessed n_not_assessed n_findings
+#>   <int> <int>      <int>          <int>      <int>
+#> 1     2     2          2              0          1
+report$patterns[c("label", "trajectories", "n", "assessed", "share")]
+#> # A tibble: 3 × 5
+#>   label                trajectories     n assessed share
+#>   <chr>                       <int> <int>    <int> <dbl>
+#> 1 Event errors                    1     2        1     1
+#> 2 Repeated tool calls             1     2        1     1
+#> 3 Suspicious tool loop            1     2        1     1
+```
+
+Both saved conversations were assessed by at least one scan, and one has
+findings. `assessed` counts the conversations each scan could read, and
+a pattern’s reach, `share`, is over those. Each scan with findings here
+could assess one of the two conversations, so each pattern reads “1 of 1
+assessed”, not “1 of 2”: the other conversation was not assessed by
+those scans, which is not the claim that it is clean.
+
+Every pattern leads to its evidence. These are the same event
+identifiers the loop finding showed above:
+
+``` r
+
+loop <- report$evidence[report$evidence$scan == "suspicious_tool_loop", ]
+loop$trajectory_id
+#> [1] "otel/retry"
+loop$event_ids[[1]]
+#> [1] "otel/retry/event-000002" "otel/retry/event-000004"
+#> [3] "otel/retry/event-000006"
+```
+
+Measurements keep their recording coverage, so a median is never read
+without the number of records behind it:
+
+``` r
+
+report$measures[
+  report$measures$measure %in% c("elapsed", "recorded_work", "cost"),
+  c("measure", "n", "complete", "partial", "unavailable", "median_complete")
+]
+#> # A tibble: 3 × 6
+#>   measure           n complete partial unavailable median_complete
+#>   <chr>         <int>    <int>   <int>       <int>           <dbl>
+#> 1 elapsed           2        1       0           1              33
+#> 2 recorded_work     2        1       1           0              33
+#> 3 cost              2        0       0           2              NA
+```
+
+Write the report as one HTML file with no scripts or external assets, or
+as Markdown to paste into an issue. Both hold the same content.
+
+``` r
+
+html <- tempfile(fileext = ".html")
+write_investigation_report(report, html)
+
+markdown <- format(report)
+writeLines(markdown[seq_len(match("## Patterns", markdown) - 1L)])
+#> # Support assistant example: review of recorded conversations
+#> 
+#> - Scope: 2 of 2 conversations in this saved investigation.
+#> - Filters: none.
+#> - Start times in scope: Sep 01 UTC.
+#> - Source read: not recorded, so whether it was capped is unknown.
+#> - Source details as recorded: `kind` (value withheld); `incomplete` TRUE. Free-form details may name a person, so their values print only with user identifiers.
+#> - Snapshot `sha256:7431550c1837469f5f746502b7f2d8195948cd84c517d290b6e4bf5bf967b65a`, revision `sha256:b0a236c42d0194fc2599cea4d069d4b363121f38bdfd487ef140d7949175e51a`.
+#> - Scans: 11 selected, repeat threshold 2, loop threshold 3; analysis by scans 0.0.0.9000.
+#> - Generated 2026-11-26 23:26 UTC by scans 0.0.0.9000.
+#> 
+#> ## Headline
+#> 
+#> - 2 of 2 conversations are in scope.
+#> - Findings in 1 of 2 assessed conversations (1 with error-severity findings).
+#> - 3 of 3 tool calls failed, in 1 conversation.
+```
+
+The scope names the saved selection, every active filter, and what is
+known about the source read. This example recorded source details but no
+read window, so the report says that whether the read was capped is
+unknown rather than assuming it was complete. A free-form detail such as
+`kind` is named with its value withheld, since such fields can name a
+person; pass `include_users = TRUE` to print it.
+
+A saved view’s filters narrow the report the way they narrow the app:
+
+``` r
+
+flagged <- investigation_snapshot(
+  reopened$bundle,
+  application = reopened$manifest$application,
+  source = reopened$manifest$source,
+  view = list(findings_only = TRUE),
+  previous = reopened
+)
+narrowed <- investigation_report(flagged)
+narrowed$scope$filters
+#>        findings 
+#> "With findings"
+narrowed$trajectories$trajectory_id
+#> [1] "otel/retry"
+```
+
+Pass the address of a deployed app to turn each trajectory and event
+identity into a link. A link carries the filters, not the trajectories,
+and clears any other filter in the app that opens it: it reopens exactly
+this cohort when that app serves this saved investigation, and the
+report says so under its scope.
+
+``` r
+
+linked <- investigation_report(flagged, app_url = "https://connect.example/scans/")
+linked$evidence$link[[1]]
+#> [1] "https://connect.example/scans/#Support%20assistant%20example/otel%2Fretry?scope=findings=TRUE?event=otel%2Fretry%2Fevent-000002"
+linked$scope$link_limits
+#> [1] "Links set the filters named above and clear every other filter. They reopen exactly this cohort when the app at that address serves this saved investigation (snapshot 7431550c1837). An app reading the live source applies the same filters to what it holds then, which can include records this saved selection left out."
+```
+
+In the app, **Export \> Report** produces the same report for the
+trajectories in view. For an opened investigation shown with its saved
+filters, the downloaded file matches the one written here for the same
+app address except for the time it was generated. Once a filter is
+changed in the app, or the annotation filter reads the app’s own
+annotation store, the report keeps the snapshot identifier but omits the
+revision identifier, because that revision describes a different view.
+
+### What the report can and cannot establish
+
+It can establish what the retained records show: which conversations a
+scan flagged, on which events, out of how many it could assess, and how
+completely each measurement was recorded. A reader can follow any count
+to the events behind it.
+
+It cannot establish that an answer was right or wrong, that a
+conversation with no findings succeeded, or that the source captured
+every call. A conversation no scan could assess is reported as not
+assessed, and an unrecorded measurement as unknown; neither is a zero.
+User identifiers are left out unless you pass `include_users = TRUE`,
+and the report never prints message text, tool arguments, or tool
+results. Recorded error strings are often tool-result text, so they are
+counted but not printed unless you pass `include_errors = TRUE`. The
+report does print tool names, model names, and identifiers. Review those
+before sending it outside your team.
+
 ## Bring your own completed evidence
 
 | Source | Public entry point | Resource and capture boundary |
 |----|----|----|
 | ellmer chat or turns (\>= 0.5.0) | [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md) | Canonical turn usage and duration where supplied. A turn duration is not asserted to be one model call. |
+| shinychat app (\>= 0.5.0) | [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md) on the `client` that `chat_server()` returns, or the OTel path below | The active path of the current conversation only. Turns a user edited away, other saved conversations, and display-only state are not captured: shinychat has no public snapshot of them. |
 | OTel GenAI / Connect | [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md) / [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md) | Call-level usage and intervals when recorded. Message capture and conversation IDs determine whether a meaningful transcript can be reconstructed. Keep read limits with the snapshot. |
 | vitals evaluation (\>= 0.3.0) | [`as_trajectory_vitals()`](https://jameshwade.github.io/scans/reference/as_trajectory_vitals.md) | Outcome evaluations joined to solver trajectories; resource coverage follows the supplied turns. Reading development vitals logs requires its supported development API. |
 | Deputy and dsprrr public results | [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md) / [`as_trajectory_dsprrr()`](https://jameshwade.github.io/scans/reference/as_trajectory_dsprrr.md) | Source execution and trace measurements remain distinct from model-call timing. dsprrr millisecond latency is normalized to canonical seconds. |

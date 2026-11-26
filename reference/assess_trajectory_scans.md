@@ -1,8 +1,8 @@
-# Assess built-in trajectory scans and their evidence coverage
+# Assess trajectory scans and their evidence coverage
 
-`assess_trajectory_scans()` runs the built-in diagnostics and explains
-whether each selected scanner could assess each trajectory. It uses the
-same detectors as
+`assess_trajectory_scans()` runs the built-in diagnostics, and any
+custom `scanners`, and explains whether each selected scanner could
+assess each trajectory. It uses the same detectors as
 [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
 and never calls a model or tool.
 
@@ -14,7 +14,8 @@ assess_trajectory_scans(
   scan_id = "scan-000001",
   repeat_threshold = 2L,
   loop_threshold = 3L,
-  scans = NULL
+  scans = NULL,
+  scanners = NULL
 )
 ```
 
@@ -46,7 +47,19 @@ assess_trajectory_scans(
   [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md).
   `NULL` (the default) runs all of them. Selecting a subset narrows the
   findings without changing how any of them are computed, so a finding
-  is the same whether or not its neighbours ran.
+  is the same whether or not its neighbours ran. Names of custom
+  `scanners` can be selected too.
+
+- scanners:
+
+  Optional custom scanners for this call: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them. `NULL` (the default) runs built-in scans only.
+  Custom findings follow the built-in findings, which are identical
+  whether or not custom scanners are supplied. A custom scanner that
+  reports a trajectory as not assessed contributes no findings; one that
+  fails raises an error here. Use `assess_trajectory_scans()` to record
+  both.
 
 ## Value
 
@@ -103,6 +116,16 @@ failure affects its selected scanners on that trajectory; other groups
 continue. Failure reasons omit arbitrary condition messages. Finding
 identifiers are local to the run and can change if a previously failed
 group later succeeds.
+
+A custom
+[`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+has one assessment per trajectory, after the built-in rows. It declares
+`insufficient_evidence` or `not_applicable` itself. A scanner that
+throws, returns something other than a result, or cites a turn or event
+that is not in the trajectory is an `execution_failure` for that scanner
+and trajectory, with a fixed reason and none of its findings. Built-in
+findings and assessments are identical whether or not custom scanners
+are supplied.
 
 ## Examples
 

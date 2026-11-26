@@ -15,7 +15,8 @@ scan_trajectories(
   scan_id = "scan-000001",
   repeat_threshold = 2L,
   loop_threshold = 3L,
-  scans = NULL
+  scans = NULL,
+  scanners = NULL
 )
 ```
 
@@ -47,7 +48,20 @@ scan_trajectories(
   [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md).
   `NULL` (the default) runs all of them. Selecting a subset narrows the
   findings without changing how any of them are computed, so a finding
-  is the same whether or not its neighbours ran.
+  is the same whether or not its neighbours ran. Names of custom
+  `scanners` can be selected too.
+
+- scanners:
+
+  Optional custom scanners for this call: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them. `NULL` (the default) runs built-in scans only.
+  Custom findings follow the built-in findings, which are identical
+  whether or not custom scanners are supplied. A custom scanner that
+  reports a trajectory as not assessed contributes no findings; one that
+  fails raises an error here. Use
+  [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+  to record both.
 
 ## Value
 
@@ -56,7 +70,8 @@ A tibble with one row per finding and these columns:
 - `finding_id`: deterministic identifier within `scan_id`; `scan_id`:
   the caller-supplied diagnostic-run identifier.
 
-- `scan`: one of `ambiguous_tool_correlation`, `unresolved_tool_call`,
+- `scan`: a custom scanner's name, or one of
+  `ambiguous_tool_correlation`, `unresolved_tool_call`,
   `unmatched_tool_result`, `repeated_tool_call`, `suspicious_tool_loop`,
   `event_error`, `error_chain`, `turn_error`, `trajectory_error`,
   `cut_off_answer`, or `run_intervention`; `scan_version`: detector

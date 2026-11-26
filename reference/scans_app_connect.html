@@ -29,7 +29,9 @@ is thirty minutes old or Reload traces fetches it again."><meta property="og:ima
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/adapters.html">Adapters and building your own</a></li>
     <li><a class="dropdown-item" href="../articles/connect.html">Reviewing Posit Connect traces</a></li>
+    <li><a class="dropdown-item" href="../articles/custom-scanners.html">Write and validate a domain-specific scanner</a></li>
     <li><a class="dropdown-item" href="../articles/investigate.html">Investigate a support assistant offline</a></li>
+    <li><a class="dropdown-item" href="../articles/matched-comparison.html">Compare a change on matched cases</a></li>
     <li><a class="dropdown-item" href="../articles/reviewed-examples.html">Turn a review into an improvement example</a></li>
   </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
@@ -69,7 +71,8 @@ is thirty minutes old or <strong>Reload traces</strong> fetches it again.</p>
 <span>  investigations <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  reviews <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  chat_factory <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  days <span class="op">=</span> <span class="fl">7</span></span>
+<span>  days <span class="op">=</span> <span class="fl">7</span>,</span>
+<span>  scanners <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -131,6 +134,19 @@ scans tools; its system prompt is retained with evidence instructions.</p></dd>
 <dt id="arg-days">days<a class="anchor" aria-label="anchor" href="#arg-days"></a></dt>
 <dd><p>Length in days of the rolling window read when <code>from</code> and <code>to</code>
 are both omitted. The default is 7.</p></dd>
+
+
+<dt id="arg-scanners">scanners<a class="anchor" aria-label="anchor" href="#arg-scanners"></a></dt>
+<dd><p>Optional custom scanners: one <code><a href="scanner.html">scanner()</a></code> or a list of
+them. They appear with the built-in scans in Options, run with them on
+the loaded bundle, and their findings and assessment status are shown the
+same way. A saved investigation shows its saved custom results without
+them; applying current scanners reruns only the scanners supplied here.
+Scanners that could never run are refused rather than ignored: with a
+single saved investigation opened with <code>investigations = FALSE</code>, and
+with a comparison, whose sides are the saved analyses it compares (rerun
+each side with <code><a href="investigation_snapshot.html">investigation_snapshot()</a></code> and compare again). Custom
+scanners are deterministic functions, so browsing never calls a model.</p></dd>
 
 </dl></div>
     <div class="section level2">

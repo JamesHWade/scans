@@ -22,7 +22,8 @@ scans_app_connect(
   investigations = FALSE,
   reviews = FALSE,
   chat_factory = NULL,
-  days = 7
+  days = 7,
+  scanners = NULL
 )
 ```
 
@@ -90,6 +91,22 @@ scans_app_connect(
 
   Length in days of the rolling window read when `from` and `to` are
   both omitted. The default is 7.
+
+- scanners:
+
+  Optional custom scanners: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them. They appear with the built-in scans in Options, run
+  with them on the loaded bundle, and their findings and assessment
+  status are shown the same way. A saved investigation shows its saved
+  custom results without them; applying current scanners reruns only the
+  scanners supplied here. Scanners that could never run are refused
+  rather than ignored: with a single saved investigation opened with
+  `investigations = FALSE`, and with a comparison, whose sides are the
+  saved analyses it compares (rerun each side with
+  [`investigation_snapshot()`](https://jameshwade.github.io/scans/reference/investigation_snapshot.md)
+  and compare again). Custom scanners are deterministic functions, so
+  browsing never calls a model.
 
 ## Value
 

@@ -38,11 +38,15 @@
 - [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
   : Measure recorded trajectory resources
 - [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
-  : Assess built-in trajectory scans and their evidence coverage
+  : Assess trajectory scans and their evidence coverage
 - [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
   : Scan trajectories for diagnostic findings
 - [`scan_registry()`](https://jameshwade.github.io/scans/reference/scan_registry.md)
   : Available trajectory scans
+- [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  [`scanner_findings()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  [`scanner_unassessed()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  : Define a custom deterministic scanner
 - [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md)
   : Read OpenTelemetry traces from Posit Connect
 - [`read_otel_traces()`](https://jameshwade.github.io/scans/reference/read_otel_traces.md)
@@ -63,6 +67,19 @@
 - [`write_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
   [`read_investigation()`](https://jameshwade.github.io/scans/reference/investigation_files.md)
   : Write or read a saved investigation
+- [`investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+  [`write_investigation_report()`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+  [`format(`*`<scans_investigation_report>`*`)`](https://jameshwade.github.io/scans/reference/investigation_report.md)
+  : Report a saved investigation
+
+## Matched comparisons
+
+- [`pair_trajectories()`](https://jameshwade.github.io/scans/reference/pair_trajectories.md)
+  : Pair baseline and candidate trajectories on an explicit key
+- [`comparison_scorer()`](https://jameshwade.github.io/scans/reference/comparison_scorer.md)
+  : Declare what a recorded scorer measures
+- [`compare_trajectories()`](https://jameshwade.github.io/scans/reference/compare_trajectories.md)
+  : Compare a change on matched cases
 
 ## Reviewed examples
 
@@ -79,3 +96,5 @@
   : Save or reopen selected review examples
 - [`validate_review_examples()`](https://jameshwade.github.io/scans/reference/validate_review_examples.md)
   : Check reviewed scanner targets against retained evidence
+- [`validate_scanner()`](https://jameshwade.github.io/scans/reference/validate_scanner.md)
+  : Validate a custom scanner against reviewed cases

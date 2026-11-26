@@ -9,7 +9,13 @@ chat using `chat$set_tools()`.
 ## Usage
 
 ``` r
-scans_tools(x, trajectory_ids = NULL, max_rows = 100L, max_chars = 4000L)
+scans_tools(
+  x,
+  trajectory_ids = NULL,
+  max_rows = 100L,
+  max_chars = 4000L,
+  scanners = NULL
+)
 ```
 
 ## Arguments
@@ -37,6 +43,13 @@ scans_tools(x, trajectory_ids = NULL, max_rows = 100L, max_chars = 4000L)
   Maximum characters per field, from 100 to 16000. Larger fields are
   returned as explicit slices. Repeat the same paginated query with
   `content_offset` to retrieve subsequent slices.
+
+- scanners:
+
+  Optional custom scanners to run on a bundle: one
+  [`scanner()`](https://jameshwade.github.io/scans/reference/scanner.md)
+  or a list of them. A saved investigation already holds its custom
+  findings and assessments, so `scanners` must be `NULL` for one.
 
 ## Value
 
