@@ -736,3 +736,42 @@ test_that("independent collection losses do not qualify intact positive status e
     )
   }
 })
+
+test_that("a cohort's assessments are each trajectory's own, in bundle order", {
+  bundle <- cohort_fixture()
+  ids <- trajectory_info(bundle)$trajectory_id
+  scans <- c("event_error", "repeated_tool_call", "trajectory_error")
+  together <- assess_trajectory_scans(bundle, scans = scans)
+  alone <- lapply(ids, function(id) {
+    assess_trajectory_scans(
+      investigation_select(bundle, id)$bundle,
+      scans = scans
+    )
+  })
+
+  # Finding identifiers are numbered across a bundle; everything else about
+  # an assessment depends only on its own trajectory.
+  columns <- setdiff(names(together$assessments), "finding_ids")
+  expect_identical(
+    together$assessments[columns],
+    trajectory_bind_rows(lapply(alone, `[[`, "assessments"))[columns]
+  )
+  expect_identical(
+    together$assessments[c("trajectory_id", "scan")],
+    tibble::tibble(
+      trajectory_id = rep(ids, each = 3L),
+      scan = rep(scans, times = 5L)
+    )
+  )
+  # Each assessment names exactly the findings of its trajectory and scan.
+  for (row in seq_len(nrow(together$assessments))) {
+    assessment <- together$assessments[row, ]
+    expect_identical(
+      assessment$finding_ids[[1L]],
+      together$findings$finding_id[
+        together$findings$trajectory_id == assessment$trajectory_id &
+          together$findings$scan == assessment$scan
+      ]
+    )
+  }
+})
