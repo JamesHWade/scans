@@ -112,6 +112,8 @@ test_that("a scanner that throws fails alone and leaks no condition text", {
     class = "scans_error_scanner_failure"
   )
   expect_match(conditionMessage(error), "toy_thrower.*chat-clean")
+  expect_no_match(conditionMessage(error), "retained")
+  expect_match(conditionMessage(error), "assess_trajectory_scans")
   expect_match(conditionMessage(error$parent), "hunter2")
 })
 

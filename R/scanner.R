@@ -324,6 +324,14 @@ scanner_failure_reasons <- c(
   reference = "The custom scanner returned a finding with a turn or event reference that is not in this trajectory, or whose event is not in its turn. Its findings were discarded."
 )
 
+# scan_trajectories() returns nothing when a scanner fails, so its error
+# says what went wrong without claiming that other results were kept.
+scanner_strict_reasons <- c(
+  error = "The custom scanner function failed.",
+  result = scanner_failure_reasons[["result"]],
+  reference = "The custom scanner returned a finding with a turn or event reference that is not in this trajectory, or whose event is not in its turn."
+)
+
 # Runs each scanner on each trajectory. With `strict`, a failure is signalled;
 # otherwise it becomes that scanner's assessment for that trajectory.
 scanner_run <- function(x, scanners, scan_id, strict = FALSE, call = NULL) {
@@ -437,7 +445,8 @@ scanner_run_one <- function(item, trajectory, strict, call) {
       scans_abort(
         c(
           "Custom scanner {.val {name}} failed on trajectory {.val {id}}.",
-          x = scanner_failure_reasons[[kind]]
+          x = scanner_strict_reasons[[kind]],
+          i = "No findings were returned. {.fn assess_trajectory_scans} records the failure and keeps the other scanners' results."
         ),
         class = "scans_error_scanner_failure",
         parent = parent,
