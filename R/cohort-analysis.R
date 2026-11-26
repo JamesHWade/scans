@@ -459,6 +459,61 @@ cohort_headline <- function(
   )
 }
 
+# Resource measurements by recording coverage, one row per measure. A median
+# covers completely recorded values only, so a partial total never stands in
+# for a whole one, and `n` is the denominator every count is out of.
+cohort_measures <- function(data, ids) {
+  template <- scans_measure_template()
+  rows <- data$measures[data$measures$trajectory_id %in% ids, , drop = FALSE]
+  group <- match(rows$measure, template$measure)
+  count <- function(keep) {
+    tabulate(group[keep], nbins = nrow(template))
+  }
+  is_complete <- rows$coverage %in% "complete"
+  tibble::tibble(
+    measure = template$measure,
+    unit = template$unit,
+    n = length(ids),
+    complete = count(is_complete),
+    partial = count(rows$coverage %in% "partial"),
+    unavailable = count(rows$coverage %in% "unavailable"),
+    unknown = count(
+      !rows$coverage %in% c("complete", "partial", "unavailable")
+    ),
+    median_complete = vapply(
+      seq_len(nrow(template)),
+      function(measure) {
+        scans_app_median(rows$value[is_complete & group == measure])
+      },
+      double(1)
+    )
+  )
+}
+
+# Capture losses that bear on the cohort, by field and reason. A loss no
+# trajectory owns covers the whole capture and is counted for every cohort.
+cohort_losses <- function(data, ids) {
+  owners <- data$loss_trajectory_ids
+  keep <- is.na(owners) | owners %in% ids
+  owners <- owners[keep]
+  losses <- data$losses[keep, , drop = FALSE]
+  key <- paste(losses$field, losses$reason, sep = "\r")
+  first <- !duplicated(key)
+  group <- match(key, key[first])
+  out <- tibble::tibble(
+    field = losses$field[first],
+    reason = losses$reason[first],
+    losses = tabulate(group, nbins = sum(first)),
+    trajectories = vapply(
+      seq_len(sum(first)),
+      function(row) length(unique(stats::na.omit(owners[group == row]))),
+      integer(1)
+    ),
+    unassigned = tabulate(group[is.na(owners)], nbins = sum(first))
+  )
+  out[order(-out$losses, out$field, out$reason), , drop = FALSE]
+}
+
 # Whether each trajectory descends from one of `among`, following recorded
 # parents through the whole snapshot so a run between the two need not be in
 # the cohort. A parent the snapshot does not hold ends the walk, as does a

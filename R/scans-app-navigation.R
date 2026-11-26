@@ -62,10 +62,43 @@ scans_app_navigation_server <- function(
     if (!identical(target$application, state$application())) {
       return()
     }
-    # A link that names a scope replaces the pattern, facets, findings
-    # switch, and review filter; one without leaves the current filters alone.
+    # A link that names a scope replaces every filter: source, status, text,
+    # annotation, pattern, facets, findings switch, and review. One without
+    # leaves the current filters alone.
     scope <- target$scope
     if (length(scope)) {
+      annotations <- state$has_store ||
+        length(state$active()$investigation$view$annotation_ids) > 0L
+      view <- scans_app_scope_restore(scope, current, annotations)
+      choices <- scans_app_filter_choices(current)
+      bslib::update_toolbar_input_select(
+        "scans_app_source",
+        choices = choices$source,
+        selected = view$source_type %||% choices$source_all,
+        session = session
+      )
+      bslib::update_toolbar_input_select(
+        "scans_app_status",
+        choices = choices$status,
+        selected = scans_app_view_status_input(current, view$status),
+        session = session
+      )
+      shiny::updateTextInput(session, "scans_app_query", value = view$query)
+      if (annotations) {
+        bslib::update_switch(
+          "scans_app_annotated_only",
+          value = view$annotated_only,
+          session = session
+        )
+      }
+      if (!is.null(view$notice)) {
+        shiny::showNotification(
+          view$notice,
+          duration = NULL,
+          type = "warning",
+          session = session
+        )
+      }
       state$facets(scans_app_facet_validate(
         current,
         scope[intersect(names(scope), scans_app_facet_names)]

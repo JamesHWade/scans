@@ -5,8 +5,14 @@
 
 # A shareable hash: "<application>/<trajectory_id>", optionally followed by
 # "?scope=key=value&..." naming the pattern, facets, findings switch, and
-# review filter. Older hashes have no scope and parse as before.
+# review filter, and the source, status, text, and annotation filters. Older
+# hashes have no scope and parse as before.
 scans_app_scope_keys <- c(
+  "source",
+  "status",
+  "status_unknown",
+  "query",
+  "annotated",
   "pattern",
   "findings",
   "review",
@@ -55,7 +61,8 @@ scans_app_parse_scope <- function(text) {
   )
   scope <- lapply(pairs, function(pair) utils::URLdecode(pair[[2L]]))
   names(scope) <- vapply(pairs, function(pair) pair[[1L]], "")
-  for (flag in intersect(c("findings", "tool_failed"), names(scope))) {
+  flags <- c("findings", "tool_failed", "status_unknown", "annotated")
+  for (flag in intersect(flags, names(scope))) {
     scope[[flag]] <- if (identical(scope[[flag]], "TRUE")) TRUE
   }
   scope

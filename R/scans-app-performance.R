@@ -7,6 +7,8 @@
 # progress of the cohort before review-state filters; both are optional.
 # `candidates` are promotion candidates for the same ids, computed from the
 # bundle by the caller because route analysis reads it.
+# `measures` and `losses` are the coverage tables a report prints in full; the
+# overview's work medians read the same rows.
 scans_app_performance_data <- function(
   data,
   indices,
@@ -61,8 +63,10 @@ scans_app_performance_data <- function(
   summaries$n_tool_errors <- data$records$n_tool_errors[indices]
   summaries$elapsed <- trajectories$elapsed
   summaries$tokens <- trajectories$tokens
-  work <- scans_app_measure_rows(data, ids, "recorded_work")
-  gap <- scans_app_measure_rows(data, ids, "unattributed_elapsed")
+  measures <- cohort_measures(data, ids)
+  measured <- function(measure, column) {
+    measures[[column]][[match(measure, measures$measure)]]
+  }
 
   list(
     total = headline$total,
@@ -78,10 +82,10 @@ scans_app_performance_data <- function(
     median_elapsed = headline$median_elapsed,
     p95_elapsed = headline$p95_elapsed,
     median_tokens = headline$median_tokens,
-    n_work = sum(work$coverage == "complete"),
-    n_work_partial = sum(work$coverage == "partial"),
-    median_work = scans_app_median(work$value[work$coverage == "complete"]),
-    median_gap = scans_app_median(gap$value[gap$coverage == "complete"]),
+    n_work = measured("recorded_work", "complete"),
+    n_work_partial = measured("recorded_work", "partial"),
+    median_work = measured("recorded_work", "median_complete"),
+    median_gap = measured("unattributed_elapsed", "median_complete"),
     assessment_coverage = scans_app_assessment_coverage(data$assessments[
       data$assessments$trajectory_id %in% ids,
       ,
@@ -106,6 +110,8 @@ scans_app_performance_data <- function(
         if (attr(provenance, "total_exchanges") > 0L) provenance
       },
       candidates = candidates,
+      measures = measures,
+      losses = cohort_losses(data, ids),
       review_next = cohort_review_next(queue, data$findings, patterns),
       queue = queue,
       progress = progress %||% cohort_review_progress(queue),

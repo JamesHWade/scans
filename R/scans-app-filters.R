@@ -251,58 +251,26 @@ scans_app_filter_server <- function(
     if (is.null(current)) {
       return(integer())
     }
-    choices <- scans_app_filter_choices(current)
-    source <- scans_app_input_or(
-      input$scans_app_source,
-      choices$source_all
+    scans_app_view_indices(
+      current,
+      scans_app_input_view(
+        current,
+        source = input$scans_app_source,
+        status = input$scans_app_status,
+        query = scans_app_input_or(input$scans_app_query, ""),
+        findings_only = input$scans_app_findings_only,
+        annotated_only = state$annotated_only(),
+        pattern = state$pattern_filter()
+      ),
+      annotated = state$annotated()
     )
-    if (!source %in% unname(choices$source)) {
-      source <- choices$source_all
-    }
-    status <- scans_app_input_or(
-      input$scans_app_status,
-      choices$status_all
-    )
-    if (!status %in% unname(choices$status)) {
-      status <- choices$status_all
-    }
-    indices <- scans_app_filter_records(
-      current$records,
-      source = source,
-      status = status,
-      query = scans_app_input_or(input$scans_app_query, ""),
-      findings_only = isTRUE(input$scans_app_findings_only),
-      annotated = state$annotated(),
-      annotated_only = state$annotated_only()
-    )
-    pattern <- state$pattern_filter()
-    if (!is.null(pattern)) {
-      matching <- current$findings$trajectory_id[
-        current$findings$scan %in% pattern
-      ]
-      indices <- indices[current$records$trajectory_id[indices] %in% matching]
-    }
-    indices
   })
   state$filtered <- shiny::reactive({
-    indices <- state$unreviewed_scope()
-    review <- state$review_filter()
-    queue <- state$queue()
-    if (!length(review) || is.null(queue)) {
-      return(indices)
-    }
-    rows <- queue[match(indices, queue$index), , drop = FALSE]
-    keep <- rep(TRUE, length(indices))
-    if (!is.null(review$state)) {
-      keep <- keep & (rows$reviewed %in% TRUE) == (review$state == "reviewed")
-    }
-    if (!is.null(review$label)) {
-      keep <- keep &
-        rows$reviewed %in% TRUE &
-        ifelse(is.na(rows$label), scans_app_no_label, rows$label) ==
-          review$label
-    }
-    indices[keep]
+    scans_app_review_indices(
+      state$unreviewed_scope(),
+      state$review_filter(),
+      state$queue()
+    )
   })
   state$visible <- shiny::reactive({
     current <- state$data()

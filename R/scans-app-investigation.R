@@ -180,10 +180,7 @@ scans_app_restore_investigation <- function(saved, data, session) {
   )) {
     shiny::freezeReactiveValue(session$input, paste0("scans_app_", name))
   }
-  status <- view$status %||% choices$status_all
-  if (is.na(status)) {
-    status <- scans_app_filter_sentinel(data$records$status, "status-unknown")
-  }
+  status <- scans_app_view_status_input(data, view$status)
   bslib::update_toolbar_input_select(
     "scans_app_source",
     choices = choices$source,

@@ -191,15 +191,10 @@ scans_app_browser_server <- function(
   # tool routes worth ranking.
   state$candidates <- shiny::reactive({
     current <- state$data()
-    bundle <- state$active()$bundle
-    if (is.null(current) || is.null(bundle) || is.null(current$exchanges)) {
-      return(NULL)
-    }
-    route_candidates(
-      bundle,
-      trajectory_ids = current$info$trajectory_id[state$visible()],
-      exchanges = current$exchanges,
-      measures = NULL
+    scans_app_candidates(
+      current,
+      state$active()$bundle,
+      current$info$trajectory_id[state$visible()]
     )
   })
   state$performance <- shiny::reactive({
