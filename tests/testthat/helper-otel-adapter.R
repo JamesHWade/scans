@@ -109,3 +109,49 @@ otel_test_framework_envelope <- function(span_id) {
     auto_unbox = TRUE
   )
 }
+
+# Serialise parsed test spans back into one OTLP NDJSON line.
+otel_test_otlp_line <- function(spans) {
+  otlp <- lapply(spans, function(span) {
+    list(
+      traceId = span$trace_id,
+      spanId = span$span_id,
+      parentSpanId = span$parent_span_id,
+      name = span$name,
+      startTimeUnixNano = span$start_time,
+      endTimeUnixNano = span$end_time,
+      attributes = unname(Map(
+        function(key, value) {
+          list(
+            key = key,
+            value = if (is.numeric(value)) {
+              list(intValue = as.character(value))
+            } else {
+              list(stringValue = as.character(value))
+            }
+          )
+        },
+        names(span$attributes),
+        span$attributes
+      ))
+    )
+  })
+  as.character(jsonlite::toJSON(
+    list(resourceSpans = list(list(scopeSpans = list(list(spans = otlp))))),
+    auto_unbox = TRUE
+  ))
+}
+
+# One single-call conversation per id, starting `start` seconds after epoch.
+otel_test_conversation_line <- function(conversation, start) {
+  span <- otel_chat_span(
+    span_id = paste0("chat-", conversation),
+    conversation = conversation,
+    input = list(list(role = "user", parts = text_part(conversation))),
+    output = list(list(role = "assistant", parts = text_part("ok")))
+  )
+  span$trace_id <- paste0("trace-", conversation)
+  span$start_time <- format(start * 1e9, scientific = FALSE)
+  span$end_time <- format((start + 1) * 1e9, scientific = FALSE)
+  otel_test_otlp_line(list(span))
+}

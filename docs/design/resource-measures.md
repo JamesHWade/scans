@@ -52,7 +52,10 @@ intervals within an OTel conversation are unioned before raw spans are discarded
 Never sum these per-trajectory unions to claim application wall time.
 
 OTel message history is reconstructed once from the latest chat span. Resource
-measures instead use each distinct captured span once. Nanosecond span bounds
+measures instead use each distinct captured span once. That includes shinychat
+conversation-titling calls, which are never the transcript source but are work
+the application did for the conversation; `metadata$otel$title_calls` records
+their count and tokens so their share of the totals stays visible. Nanosecond span bounds
 are converted to seconds, with the original unit recorded. Negative, missing,
 or nonfinite measurements are unavailable. The adapter retains bounded
 aggregates and denominators in `metadata$otel$measures`, tagged with adapter

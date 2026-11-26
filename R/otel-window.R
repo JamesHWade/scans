@@ -119,6 +119,59 @@ otel_limit_spans <- function(spans, max_spans = Inf, to = NULL) {
   spans[keep]
 }
 
+# The reader-neutral half of a trace read: de-duplicate, apply the span
+# budget and window, keep the `n` most recent conversations, and record how
+# the read went. `newest_first` applies the budget from the most recent span
+# back, for sources (local files) whose order is oldest-first; the spans keep
+# their source order afterwards.
+otel_read_conversations <- function(
+  spans,
+  from,
+  to,
+  n,
+  max_spans,
+  read_at,
+  truncated = FALSE,
+  incomplete = FALSE,
+  newest_first = FALSE
+) {
+  spans <- otel_unique_spans(spans)
+  if (newest_first && length(spans) > 0L) {
+    span_key <- function(span) paste(span$trace_id, span$span_id)
+    keys <- vapply(spans, span_key, character(1))
+    starts <- vapply(spans, function(s) otel_nanos(s$start_time), numeric(1))
+    starts[!is.finite(starts)] <- -Inf
+    limited <- otel_limit_spans(
+      spans[order(starts, decreasing = TRUE)],
+      max_spans = max_spans,
+      to = to
+    )
+    limited_keys <- vapply(limited, span_key, character(1))
+    spans <- limited[order(match(limited_keys, keys))]
+  } else {
+    spans <- otel_limit_spans(spans, max_spans = max_spans, to = to)
+  }
+  conversations <- otel_group_conversations_in_window(spans, from, to)
+  found <- length(conversations)
+  if (!is.null(n) && found > n) {
+    conversations <- utils::tail(conversations, n)
+  }
+  attr(conversations, "read_info") <- list(
+    read_at = read_at,
+    from = from,
+    to = to,
+    n = n,
+    spans = sum(vapply(spans, otel_is_selected_genai_span, logical(1))),
+    spans_total = length(spans),
+    max_spans = max_spans,
+    truncated = truncated,
+    incomplete = incomplete,
+    conversations_found = found,
+    conversations = length(conversations)
+  )
+  conversations
+}
+
 # Group with the padded ancestry still present, then apply the time window.
 # The window selects conversations: one is kept when a model call started
 # inside [from, to). Within a kept conversation every span before `to` stays,

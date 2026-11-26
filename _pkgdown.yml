@@ -26,6 +26,7 @@ reference:
   - scan_trajectories
   - scan_registry
   - read_connect_traces
+  - read_otel_traces
   - scans_annotations
   - scans_app
   - scans_app_connect

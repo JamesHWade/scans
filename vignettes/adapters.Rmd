@@ -54,7 +54,8 @@ than guessed.
 ## OpenTelemetry GenAI spans
 
 `as_trajectory_otel()` accepts the conversations returned by
-`read_connect_traces()`, or a flat list of spans that it groups itself. The
+`read_connect_traces()` or `read_otel_traces()`, or a flat list of spans that
+it groups itself. The
 most recent `chat` span of a conversation carries the whole message history;
 `execute_tool` spans add each call's duration and failure. Non-GenAI span and
 resource attributes are kept in trajectory metadata. See
