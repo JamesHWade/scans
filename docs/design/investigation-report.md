@@ -105,8 +105,12 @@ only where the same annotations are recorded. A script never sees a store and
 always reports the saved membership. Making the app ignore its store for a
 saved view was rejected: the switch on screen filters by the store, and the
 report must describe the cohort on screen.
-The earlier in-app Markdown builder is removed. The app does not pass its
-session-local review cases to the report yet.
+The earlier in-app Markdown builder is removed. With `reviews = TRUE` the
+app passes its session's review cases to the report through the same
+`report_reviews()` a script uses, for an opened investigation and only the
+cases made from its snapshot. A live view has no snapshot identifier to check
+cases against, and computing one would hash the whole bundle for every
+report, so its report lists no review cases.
 
 ## Scope, unknowns, and limits
 

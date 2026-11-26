@@ -319,3 +319,47 @@ test_that("a time facet is named in the app's report", {
     expect_true("- Filters: Oct 03." %in% export_text())
   })
 })
+
+test_that("the app's report carries the session's review cases", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  saved <- report_fixture()
+  finding <- saved$analysis$findings[
+    saved$analysis$findings$trajectory_id == "c",
+  ][1L, ]
+  app <- scans_app(saved, reviews = TRUE)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_export_report = 1L)
+    expect_null(report()$reviews)
+    session$setInputs(scans_app_inspect = "c")
+    session$setInputs(
+      scans_app_review_finding_id = finding$finding_id,
+      scans_app_review_scan = "",
+      scans_app_review_author = "Reviewer One",
+      scans_app_review_judgment = "confirmed",
+      scans_app_review_rationale = "Private rationale text",
+      scans_app_review_expectation = "",
+      scans_app_review_adjudicate = FALSE,
+      scans_app_record_review = 1L
+    )
+    case <- review_state$current()
+    expect_identical(case$origin$snapshot_id, saved$manifest$snapshot_id)
+    reviews <- report()$reviews
+    expect_identical(reviews$case_id, case$case_id)
+    expect_identical(reviews$status, "confirmed")
+    expect_true(reviews$same_revision)
+    text <- export_text()
+    expect_true("## Review decisions" %in% text)
+    expect_no_match(text, "Reviewer One|Private rationale")
+    expect_identical(
+      report_without_time(text),
+      report_without_time(format(investigation_report(
+        saved,
+        reviews = list(case),
+        app_url = "http://mocksession:1234/mockpath"
+      )))
+    )
+  })
+})

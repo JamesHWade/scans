@@ -58,6 +58,7 @@ scans_app_server <- function(
         opened_investigation
       )
     }
+    state$review_cases <- review_state$cases
     scans_app_investigation_server(
       input,
       output,
