@@ -75,7 +75,8 @@ scans_app_ui <- function(
   annotations = NULL,
   investigations = FALSE,
   reviews = FALSE,
-  chat = FALSE
+  chat = FALSE,
+  scanners = NULL
 ) {
   choices <- scans_app_initial_choices(sources$sources[[1L]])
   noun <- scans_app_initial_noun(sources$sources[[1L]])
@@ -100,7 +101,7 @@ scans_app_ui <- function(
         if (investigations) {
           scans_app_investigation_ui(open = is.null(sources$comparison))
         },
-        scans_app_scanner_ui()
+        scans_app_scanner_ui(scanner_registry(scanners))
       )
     ),
     theme = shinychat::page_chat_theme(

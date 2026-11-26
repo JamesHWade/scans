@@ -39,12 +39,19 @@
 #'   [scan_registry()]. `NULL` (the default) runs all of them. Selecting a
 #'   subset narrows the findings without changing how any of them are
 #'   computed, so a finding is the same whether or not its neighbours ran.
+#'   Names of custom `scanners` can be selected too.
+#' @param scanners Optional custom scanners for this call: one [scanner()] or
+#'   a list of them. `NULL` (the default) runs built-in scans only. Custom
+#'   findings follow the built-in findings, which are identical whether or
+#'   not custom scanners are supplied. A custom scanner that reports a
+#'   trajectory as not assessed contributes no findings; one that fails
+#'   raises an error here. Use [assess_trajectory_scans()] to record both.
 #'
 #' @returns A tibble with one row per finding and these columns:
 #'
 #' - `finding_id`: deterministic identifier within `scan_id`; `scan_id`: the
 #'   caller-supplied diagnostic-run identifier.
-#' - `scan`: one of `ambiguous_tool_correlation`, `unresolved_tool_call`,
+#' - `scan`: a custom scanner's name, or one of `ambiguous_tool_correlation`, `unresolved_tool_call`,
 #'   `unmatched_tool_result`, `repeated_tool_call`, `suspicious_tool_loop`,
 #'   `event_error`, `error_chain`, `turn_error`, `trajectory_error`,
 #'   `cut_off_answer`, or `run_intervention`; `scan_version`: detector version.
@@ -77,12 +84,14 @@ scan_trajectories <- function(
   scan_id = "scan-000001",
   repeat_threshold = 2L,
   loop_threshold = 3L,
-  scans = NULL
+  scans = NULL,
+  scanners = NULL
 ) {
   check_trajectory_bundle(x)
   call <- rlang::caller_env()
   scan_check_id(scan_id, call)
-  scans <- scan_check_selection(scans, call)
+  scanners <- scanner_check_list(scanners, call)
+  scans <- scan_check_selection(scans, call, names(scanners))
   repeat_threshold <- scan_check_threshold(
     repeat_threshold,
     "repeat_threshold",
@@ -108,10 +117,15 @@ scan_trajectories <- function(
   # `scan_id` however the panel is configured: a finding does not change
   # its id because a neighbouring detector was switched off.
   findings <- scan_bind_findings(findings, scan_id, info)
-  if (is.null(scans)) {
+  if (!is.null(scans)) {
+    findings <- findings[findings$scan %in% scans, , drop = FALSE]
+    scanners <- scanners[names(scanners) %in% scans]
+  }
+  if (length(scanners) == 0L) {
     return(findings)
   }
-  findings[findings$scan %in% scans, , drop = FALSE]
+  custom <- scanner_run(x, scanners, scan_id, strict = TRUE, call = call)
+  vctrs::vec_rbind(findings, custom$findings)
 }
 
 #' Available trajectory scans
@@ -120,12 +134,21 @@ scan_trajectories <- function(
 #' with the severity each produces and a one-line description. Use it to
 #' build a scan selection rather than hard-coding names.
 #'
+#' Custom scanners are not registered anywhere. Pass the scanners you intend
+#' to use in a call to list them after the built-ins, in the same shape.
+#'
+#' @param scanners Optional custom scanners to list after the built-ins: one
+#'   [scanner()] or a list of them.
 #' @returns A tibble with `scan`, `severity`, and `description` columns.
 #' @export
 #'
 #' @examples
 #' scan_registry()
-scan_registry <- function() {
+scan_registry <- function(scanners = NULL) {
+  if (!is.null(scanners)) {
+    scanners <- scanner_check_list(scanners, rlang::caller_env())
+    return(scanner_registry(scanners))
+  }
   tibble::tibble(
     scan = c(
       "ambiguous_tool_correlation",
@@ -176,7 +199,7 @@ scan_registry <- function() {
   )
 }
 
-scan_check_selection <- function(scans, call) {
+scan_check_selection <- function(scans, call, custom = character()) {
   if (is.null(scans)) {
     return(NULL)
   }
@@ -187,13 +210,14 @@ scan_check_selection <- function(scans, call) {
       call = call
     )
   }
-  known <- scan_registry()$scan
+  known <- c(scan_registry()$scan, custom)
   unknown <- setdiff(scans, known)
   if (length(unknown) > 0L) {
     scans_abort(
       c(
         "Unknown scan{?s} in {.arg scans}: {.val {unknown}}.",
-        i = "See {.fn scan_registry} for the available scans."
+        i = "See {.fn scan_registry} for the built-in scans.",
+        i = "A custom scanner runs only when it is supplied through {.arg scanners}."
       ),
       class = "scans_error_scan_selection",
       call = call

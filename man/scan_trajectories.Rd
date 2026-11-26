@@ -9,7 +9,8 @@ scan_trajectories(
   scan_id = "scan-000001",
   repeat_threshold = 2L,
   loop_threshold = 3L,
-  scans = NULL
+  scans = NULL,
+  scanners = NULL
 )
 }
 \arguments{
@@ -27,14 +28,22 @@ between calls do not break a call sequence.}
 \item{scans}{Which detectors to run, as a character vector of names from
 \code{\link[=scan_registry]{scan_registry()}}. \code{NULL} (the default) runs all of them. Selecting a
 subset narrows the findings without changing how any of them are
-computed, so a finding is the same whether or not its neighbours ran.}
+computed, so a finding is the same whether or not its neighbours ran.
+Names of custom \code{scanners} can be selected too.}
+
+\item{scanners}{Optional custom scanners for this call: one \code{\link[=scanner]{scanner()}} or
+a list of them. \code{NULL} (the default) runs built-in scans only. Custom
+findings follow the built-in findings, which are identical whether or
+not custom scanners are supplied. A custom scanner that reports a
+trajectory as not assessed contributes no findings; one that fails
+raises an error here. Use \code{\link[=assess_trajectory_scans]{assess_trajectory_scans()}} to record both.}
 }
 \value{
 A tibble with one row per finding and these columns:
 \itemize{
 \item \code{finding_id}: deterministic identifier within \code{scan_id}; \code{scan_id}: the
 caller-supplied diagnostic-run identifier.
-\item \code{scan}: one of \code{ambiguous_tool_correlation}, \code{unresolved_tool_call},
+\item \code{scan}: a custom scanner's name, or one of \code{ambiguous_tool_correlation}, \code{unresolved_tool_call},
 \code{unmatched_tool_result}, \code{repeated_tool_call}, \code{suspicious_tool_loop},
 \code{event_error}, \code{error_chain}, \code{turn_error}, \code{trajectory_error},
 \code{cut_off_answer}, or \code{run_intervention}; \code{scan_version}: detector version.

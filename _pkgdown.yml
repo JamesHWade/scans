@@ -25,6 +25,7 @@ reference:
   - assess_trajectory_scans
   - scan_trajectories
   - scan_registry
+  - scanner
   - read_connect_traces
   - read_otel_traces
   - scans_annotations

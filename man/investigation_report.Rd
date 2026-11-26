@@ -118,7 +118,10 @@ establish that the source captured everything.
 \section{Content}{
 
 The report contains identities and scanner explanations, not transcript
-text: no message text, tool arguments, or tool results. Tool names, model
+text: no message text, tool arguments, or tool results. A \code{\link[=scanner]{scanner()}}
+writes its own explanations, which the report prints as written, so a
+custom scanner that quotes the transcript puts that text in the report;
+the report then says which scans' explanations it prints. Tool names, model
 names, and trajectory, turn, and event identifiers do appear. Recorded
 error strings are often tool-result text, so the tool table counts errors
 without their text unless \code{include_errors = TRUE}. User identifiers are

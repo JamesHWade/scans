@@ -14,7 +14,8 @@ scans_app_scan_config <- function(
 scans_app_data <- function(
   x,
   scan_config = scans_app_scan_config(),
-  analysis = NULL
+  analysis = NULL,
+  scanners = NULL
 ) {
   info <- trajectory_info(x)
   turns <- trajectory_turns(x)
@@ -26,7 +27,8 @@ scans_app_data <- function(
       x,
       scans = scan_config$scans,
       repeat_threshold = scan_config$repeat_threshold,
-      loop_threshold = scan_config$loop_threshold
+      loop_threshold = scan_config$loop_threshold,
+      scanners = scanners
     )
     analysis <- c(
       assessment,

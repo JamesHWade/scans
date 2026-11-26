@@ -147,7 +147,12 @@ scans_app_loading_server <- function(
     analysis <- if (!is.null(saved) && !state$rescan_investigation()) {
       saved$analysis
     }
-    scans_app_data(current$bundle, state$scan_config(), analysis = analysis)
+    scans_app_data(
+      current$bundle,
+      state$scan_config(),
+      analysis = analysis,
+      scanners = state$custom_scanners
+    )
   })
 
   output$scans_app_load_error <- shiny::renderUI({

@@ -136,6 +136,13 @@ scans_app_tiles_ui <- function(
           " assessed",
           if (unassessed > 0L) {
             paste0(" \u00b7 ", scans_app_count(unassessed), " not assessed")
+          },
+          if (isTRUE(headline$n_execution_failure > 0L)) {
+            paste0(
+              " \u00b7 ",
+              scans_app_count(headline$n_execution_failure),
+              " with an execution failure"
+            )
           }
         ),
         facet = "findings",

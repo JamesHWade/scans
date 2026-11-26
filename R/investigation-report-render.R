@@ -305,6 +305,12 @@ report_blocks <- function(x, max_evidence = 100L) {
         scans_app_count(n)
       )
     },
+    if (isTRUE(headline$n_execution_failure > 0L)) {
+      sprintf(
+        "%s had a scan that failed to run; that scan's result for them is unknown.",
+        scans_app_n(headline$n_execution_failure, noun)
+      )
+    },
     if (headline$tool_calls > 0L) {
       sprintf(
         "%s of %s failed, in %s.",
@@ -354,7 +360,7 @@ report_blocks <- function(x, max_evidence = 100L) {
         "Not assessed and unknown are not zero: a scan that could not read a record says nothing about it.",
         "Elapsed time may include user pauses; token totals may be partial.",
         sprintf(
-          "%s are omitted from this report.",
+          "%s are omitted from this report%s.",
           paste(
             c(
               if (!x$include_users) "User identifiers",
@@ -362,8 +368,24 @@ report_blocks <- function(x, max_evidence = 100L) {
               "tool arguments, and tool results"
             ),
             collapse = ", "
-          )
+          ),
+          if (length(scope$custom_scans)) {
+            ", except what a custom scanner's explanation quotes"
+          } else {
+            ""
+          }
         ),
+        if (length(scope$custom_scans)) {
+          c(
+            list(
+              "Explanations from custom scanners are printed as their scanner wrote them and can quote transcript text: "
+            ),
+            lapply(seq_along(scope$custom_scans), function(i) {
+              list(if (i > 1L) ", ", report_code(scope$custom_scans[[i]]))
+            }),
+            list(".")
+          )
+        },
         if (isTRUE(x$include_errors)) {
           "The tool table prints the most frequent recorded error text per tool as recorded; it can contain tool-result text."
         } else {

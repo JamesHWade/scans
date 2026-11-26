@@ -164,6 +164,15 @@ cohort_assessed <- function(data, ids) {
     ]
 }
 
+# Whether any selected scan failed to run on each trajectory. The class does
+# not change, so the failure is reported beside it.
+cohort_execution_failed <- function(data, ids) {
+  ids %in%
+    data$assessments$trajectory_id[
+      data$assessments$status %in% "execution_failure"
+    ]
+}
+
 # Per-trajectory facts every cohort table groups by. `class` partitions the
 # cohort: a trajectory with no findings is "clean" only when a selected scan
 # could assess it, because an unassessed trajectory is not a negative result.
@@ -186,6 +195,7 @@ cohort_trajectories <- function(data, ids) {
     n_findings = records$n_findings,
     n_errors = records$n_errors,
     assessed = assessed,
+    execution_failure = cohort_execution_failed(data, ids),
     class = ifelse(
       records$n_errors > 0L,
       "error",
@@ -420,6 +430,7 @@ cohort_headline <- function(
     n_findings = sum(trajectories$n_findings > 0L),
     n_error = sum(trajectories$n_errors > 0L),
     n_assessed = sum(trajectories$assessed),
+    n_execution_failure = sum(trajectories$execution_failure),
     tool_calls = nrow(calls),
     tool_failed = sum(calls$failed),
     tool_trajectories = length(unique(calls$trajectory_id)),
@@ -601,6 +612,7 @@ cohort_review_reasons <- function(data, ids, class) {
   tool_errors <- data$records$n_tool_errors[rows]
   empty <- data$records$n_turns[rows] == 0L & data$records$n_events[rows] == 0L
   lost <- ids %in% data$loss_trajectory_ids
+  failed <- cohort_execution_failed(data, ids)
   kinds <- split(data$interventions$kind, data$interventions$trajectory_id)
   lapply(seq_along(ids), function(i) {
     found <- unique(scans[[ids[[i]]]] %||% character())
@@ -632,6 +644,7 @@ cohort_review_reasons <- function(data, ids, class) {
       cohort_scan_word(rep("run_intervention", length(kind)), "reason", kind),
       if (empty[[i]]) "No transcript",
       if (lost[[i]]) "Capture gap",
+      if (failed[[i]]) "Execution failure",
       if (class[[i]] == "unassessed") "Not assessed"
     )))
   })

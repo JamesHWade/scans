@@ -30,6 +30,9 @@
 #' @param trajectory_ids Permitted trajectory identifiers. `NULL` permits all
 #'   retained trajectories; `character()` permits none. Model arguments can
 #'   narrow this scope but cannot broaden it.
+#' @param scanners Optional custom scanners to run on a bundle: one
+#'   [scanner()] or a list of them. A saved investigation already holds its
+#'   custom findings and assessments, so `scanners` must be `NULL` for one.
 #' @param max_rows Maximum rows returned by each query, from 1 to 1000.
 #' @param max_chars Maximum characters per field, from 100 to 16000. Larger
 #'   fields are returned as explicit slices. Repeat the same paginated query
@@ -51,19 +54,30 @@ scans_tools <- function(
   x,
   trajectory_ids = NULL,
   max_rows = 100L,
-  max_chars = 4000L
+  max_chars = 4000L,
+  scanners = NULL
 ) {
   ellmer_check_installed()
   rlang::check_installed(c("jsonlite", "digest"))
   scans_tools_integer(max_rows, "max_rows", 1L, 1000L)
   scans_tools_integer(max_chars, "max_chars", 100L, 16000L)
-  context <- scans_tools_context(x, trajectory_ids)
+  context <- scans_tools_context(x, trajectory_ids, scanners)
   scans_tools_build(context, max_rows, max_chars)
 }
 
-scans_tools_context <- function(x, trajectory_ids = NULL) {
+scans_tools_context <- function(x, trajectory_ids = NULL, scanners = NULL) {
   saved <- inherits(x, "scans_investigation")
+  scanners <- scanner_check_list(scanners, rlang::caller_env())
   if (saved) {
+    if (length(scanners)) {
+      scans_abort(
+        c(
+          "{.arg scanners} cannot be applied to a saved investigation.",
+          i = "Create a new {.fn investigation_snapshot} from its bundle with the scanners."
+        ),
+        class = "scans_error_tools_input"
+      )
+    }
     investigation_validate(x)
   } else if (!is_trajectory_bundle(x)) {
     scans_abort(
@@ -80,7 +94,7 @@ scans_tools_context <- function(x, trajectory_ids = NULL) {
   }
   scans_tools_ids(trajectory_ids, ids)
   settings <- if (saved) x$settings else scans_app_scan_config()
-  data <- scans_app_data(bundle, settings, if (saved) x$analysis)
+  data <- scans_app_data(bundle, settings, if (saved) x$analysis, scanners)
   list(
     bundle = bundle,
     data = data,
@@ -451,7 +465,11 @@ scans_tools_build <- function(
     table <- rlang::arg_match(table, c("findings", "assessments"))
     result <- rows_for(context$data[[table]], trajectory_ids)
     if (!is.null(scans)) {
-      scans <- scan_check_selection(unlist(scans), rlang::current_env())
+      scans <- scan_check_selection(
+        unlist(scans),
+        rlang::current_env(),
+        unique(context$data$assessments$scan)
+      )
       result <- result[result$scan %in% scans, , drop = FALSE]
     }
     reply(

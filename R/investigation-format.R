@@ -195,13 +195,13 @@ investigation_check_class <- function(x, path) {
   }
 }
 
-investigation_encode <- function(x, path = "data", depth = 0L) {
+# The type rule of the format, applied to one value without its contents.
+investigation_check_node <- function(x, path, depth) {
   if (depth > 50L) {
     investigation_abort("The investigation data is nested too deeply.")
   }
-  type <- typeof(x)
   if (
-    !type %in%
+    !typeof(x) %in%
       c(
         "NULL",
         "logical",
@@ -216,6 +216,29 @@ investigation_encode <- function(x, path = "data", depth = 0L) {
     investigation_abort("Unsupported data type at {.field {path}}.")
   }
   investigation_check_class(x, path)
+}
+
+# Whether `x`, its elements, and their attributes can be saved, by the same
+# rule investigation_encode() enforces. It needs no suggested package.
+investigation_is_data <- function(x, path = "data", depth = 0L) {
+  tryCatch(
+    {
+      investigation_check_node(x, path, depth)
+      all(vapply(
+        c(if (is.list(x)) unclass(x), attributes(x)),
+        investigation_is_data,
+        logical(1),
+        path = path,
+        depth = depth + 1L
+      ))
+    },
+    scans_error_investigation = function(cnd) FALSE
+  )
+}
+
+investigation_encode <- function(x, path = "data", depth = 0L) {
+  investigation_check_node(x, path, depth)
+  type <- typeof(x)
   if (is.null(x)) {
     return(list(type = "NULL"))
   }

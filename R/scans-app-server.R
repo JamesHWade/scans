@@ -10,7 +10,8 @@ scans_app_server <- function(
   annotation_poll_interval = 2000,
   investigations = FALSE,
   reviews = FALSE,
-  chat_factory = NULL
+  chat_factory = NULL,
+  scanners = NULL
 ) {
   sources <- scans_app_runtime_sources(sources)
   cache <- new.env(parent = emptyenv())
@@ -20,6 +21,7 @@ scans_app_server <- function(
     # registers its reactives here and reads the others' through `state`,
     # lazily, so helpers may refer to reactives a later helper defines.
     state <- environment()
+    custom_scanners <- scanners
     opened_investigation <- shiny::reactiveVal(NULL)
     pending_investigation <- shiny::reactiveVal(NULL)
     rescan_investigation <- shiny::reactiveVal(FALSE)
