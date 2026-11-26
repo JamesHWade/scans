@@ -56,20 +56,61 @@ inspection does not call a model, replay tools, or modify a bundle.
 Caller-supplied loaders are invoked only when their application is first
 selected in a session or explicitly reloaded.
 
-The app opens with an application overview of the filtered trajectories:
-recurring findings, elapsed-time quantiles, recorded token usage, and
-evidence coverage. Selecting a pattern filters the browser; selecting a
-trajectory opens its evidence. Elapsed time includes any pauses between
-user messages and is not model response latency. Unknown measurements
-remain unknown. Token counts use preserved conversation totals when
-available, otherwise sum known turn values, and may be partial.
+The app opens with an overview of the trajectories in view. Stat tiles
+state counted facts with their denominators: how many are in view, how many
+have findings out of those a scan could assess, how many tool calls failed,
+and median elapsed time and tokens with the number of records that carry
+each. An activity chart shows them by start day or hour, patterns list each
+finding type with its reach and trend, and tables break the cohort down by
+tool, model, and user. Every count is a control: selecting a bar, pattern,
+tool, user, or model narrows the overview, the browser, and Ask together,
+and the active filters appear as removable chips. Elapsed time includes any
+pauses between user messages and is not model response latency. Unknown
+measurements remain unknown, and no findings is not evidence of success.
 
-The app also provides filters and a trajectory browser, a source-neutral
-transcript and event stream, and the findings, evaluations, and adapter
-losses associated with the selected trajectory. Built-in findings are
-computed with \code{\link[=scan_trajectories]{scan_trajectories()}} when each application snapshot is first
-loaded.
+Selecting a trajectory opens a source-neutral transcript and event stream
+with the findings, evaluations, and adapter losses recorded for it.
+Built-in findings are computed with \code{\link[=scan_trajectories]{scan_trajectories()}} when each
+application snapshot is first loaded.
 }
+\section{Review queue and dispositions}{
+
+With an \code{annotations} store the browser is a review queue. Entries show why
+they are flagged and whether they are reviewed, and "Needs review" orders
+them by a fixed rule (unreviewed first, then error findings, warnings,
+unassessed, and clean, newest first) rather than a score. A bar above the
+transcript marks the open trajectory with one of the store's labels, or as
+reviewed without a label, by button or by key (\code{1}-\code{9}, \code{E}); \code{U} opens the
+next unreviewed trajectory and \verb{?} lists the shortcuts. Each mark appends
+one record to the store; nothing is edited or deleted. Without a store the
+app is read-only and claims no review state.
+}
+
+\section{Exports}{
+
+The overview's Export menu offers the trajectories and findings in view as
+CSV, a Markdown report, and an R snippet that rebuilds the snapshot and
+scan settings. The report carries counts, tables, and links; it contains
+no transcript text, and user identifiers only when requested. A single
+trajectory can be copied as Markdown, which does contain its content.
+Links are the app's own address with the trajectory and active filters, so
+they reopen the same scope. No export contains credentials.
+}
+
+\section{Deputy runs and provenance}{
+
+For Deputy runs the header states the recorded run ending, including an
+answer the provider cut short on a run whose status is still completed,
+and links a delegated run to its lead through the recorded lineage. The
+overview lists run interventions by kind. A Deputy result's usage includes
+its delegated runs at every level, while a trace records each run's own
+model calls; token totals count each delegated run once either way. For sources
+that record commons provenance, the overview counts exchanges as trusted,
+cited, untrusted, or unclassified, and ranks recurring exploratory tool
+routes as candidates for governed measures, with the recorded tool input
+and output shown as text and never executed.
+}
+
 \section{Ask about the evidence}{
 
 Supply \code{chat_factory} to enable an optional Ask tab beside Findings. It must

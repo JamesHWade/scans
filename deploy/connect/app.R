@@ -1,19 +1,26 @@
 # scans review app for Posit Connect content observability traces.
 #
-# Serves the read-only scans explorer over the completed conversations of one
-# or more deployed applications, read lazily from Connect's trace store with
-# scans' native OpenTelemetry reader. Configure it entirely through Connect
-# Vars:
+# Serves the scans review app over the completed conversations of one or more
+# deployed applications, read lazily from Connect's trace store. Configure it
+# entirely through Connect Vars; config.R validates each one.
 #
-#   CONNECT_SERVER          injected by Connect; configure only if disabled
-#   CONNECT_API_KEY         injected ephemeral deployment-owner key; the owner
-#                           must own or collaborate on every source
-#   SCANS_CONNECT_SOURCES   "Label=<guid>;Other label=<guid>" -- one entry per
-#                           application shown in the switcher
-#   SCANS_CONNECT_N         optional; max recent conversations per app
-#                           (default 100, "all" for no limit)
-#   SCANS_ANNOTATIONS_DIR   optional; persistent directory for reviewer
-#                           labels and notes (no controls when unset)
+#   CONNECT_SERVER           injected by Connect; configure only if disabled
+#   CONNECT_API_KEY          injected ephemeral deployment-owner key; the owner
+#                            must own or collaborate on every source
+#   SCANS_CONNECT_SOURCES    "Label=<guid>;Other label=<guid>" -- one entry per
+#                            application shown in the switcher
+#   SCANS_CONNECT_N          optional; max recent conversations per app
+#                            (default 100, "all" for no limit)
+#   SCANS_CONNECT_DAYS       optional; days of activity read per load
+#                            (default 7)
+#   SCANS_CONNECT_READER     optional; "otel" (default) or "commons"
+#   SCANS_CONNECT_JOBS       optional; "true" (default) or "false" to skip the
+#                            retained per-job trace stores
+#   SCANS_ANNOTATIONS_DIR    optional; persistent directory for reviewer
+#                            labels and notes (read-only app when unset)
+#   SCANS_ANNOTATION_LABELS  optional; comma-separated labels for the store
+#   SCANS_REVIEWS            optional; "true" for session-local evidence review
+#   SCANS_INVESTIGATIONS     optional; "true" to save and reopen investigations
 
 # These packages are Suggests of scans; attaching them here makes rsconnect /
 # Posit Publisher bundle the app and native trace-reader dependencies.
@@ -23,40 +30,25 @@ library(httr2)
 library(jsonlite)
 library(scans)
 
-parse_sources <- function(spec) {
-  entries <- trimws(strsplit(spec, ";", fixed = TRUE)[[1]])
-  entries <- entries[nzchar(entries)]
-  if (length(entries) == 0) {
-    cli::cli_abort(
-      "Set {.envvar SCANS_CONNECT_SOURCES} to {.code Label=<guid>;Label=<guid>}."
-    )
+source("config.R", local = TRUE)
+config <- scans_connect_config()
+
+annotations <- if (!is.null(config$annotations_dir)) {
+  path <- file.path(config$annotations_dir, "annotations.jsonl")
+  if (is.null(config$annotation_labels)) {
+    scans_annotations(path)
+  } else {
+    scans_annotations(path, labels = config$annotation_labels)
   }
-  parts <- regmatches(
-    entries,
-    regexec("^(.*?)\\s*=\\s*([0-9a-fA-F-]{36})$", entries)
-  )
-  bad <- lengths(parts) != 3L
-  if (any(bad)) {
-    cli::cli_abort(
-      "Malformed {.envvar SCANS_CONNECT_SOURCES} entry: {.val {entries[bad][[1]]}}."
-    )
-  }
-  stats::setNames(
-    vapply(parts, `[[`, character(1), 3L),
-    vapply(parts, `[[`, character(1), 2L)
-  )
 }
 
-sources <- parse_sources(Sys.getenv("SCANS_CONNECT_SOURCES"))
-
-n <- Sys.getenv("SCANS_CONNECT_N", "100")
-n <- if (identical(tolower(n), "all")) NULL else as.integer(n)
-
-annotations_dir <- Sys.getenv("SCANS_ANNOTATIONS_DIR", "")
-annotations <- if (nzchar(annotations_dir)) {
-  scans_annotations(file.path(annotations_dir, "annotations.jsonl"))
-} else {
-  NULL
-}
-
-scans_app_connect(sources, n = n, annotations = annotations)
+scans_app_connect(
+  config$sources,
+  n = config$n,
+  days = config$days,
+  reader = config$reader,
+  jobs = config$jobs,
+  annotations = annotations,
+  reviews = config$reviews,
+  investigations = config$investigations
+)

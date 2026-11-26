@@ -6,6 +6,13 @@
 #' and the snapshot is then shared by every session of the deployment until it
 #' is thirty minutes old or **Reload traces** fetches it again.
 #'
+#' The app is described in [scans_app()]: an overview with facets, a review
+#' queue with one-key dispositions when an annotation store is supplied,
+#' exports, and Deputy and provenance sections when the traces record them.
+#' Exports and the R snippet never contain the Connect server address or API
+#' key; the snippet names the content GUID and window so the read can be
+#' repeated.
+#'
 #' Two readers are available. The default, `"otel"`, uses this package's own
 #' [read_connect_traces()] with [as_trajectory_otel()]: it needs no other
 #' package, falls back to Connect's per-job trace endpoint when the aggregate
@@ -34,8 +41,10 @@
 #'   deployments with many past jobs. Ignored by the `"commons"` reader.
 #' @param from,to Optional lower-inclusive and upper-exclusive activity bounds
 #'   passed to the reader. When both are omitted, each load
-#'   reads the seven days ending at load time. Supply either bound as `NULL`
+#'   reads the `days` days ending at load time. Supply either bound as `NULL`
 #'   explicitly to leave that side of the window open.
+#' @param days Length in days of the rolling window read when `from` and `to`
+#'   are both omitted. The default is 7.
 #'
 #' @param reviews Whether to enable session-local review/example controls,
 #'   forwarded to [scans_app()]. Defaults to `FALSE`.
@@ -63,7 +72,8 @@ scans_app_connect <- function(
   jobs = TRUE,
   investigations = FALSE,
   reviews = FALSE,
-  chat_factory = NULL
+  chat_factory = NULL,
+  days = 7
 ) {
   default_from <- missing(from)
   default_to <- missing(to)
@@ -71,6 +81,7 @@ scans_app_connect <- function(
   rlang::check_bool(jobs)
   rlang::check_bool(investigations)
   rlang::check_bool(reviews)
+  rlang::check_number_whole(days, min = 1)
   from <- otel_check_bound(from, "from", class = connect_window_class)
   to <- otel_check_bound(to, "to", class = connect_window_class)
   reader <- rlang::arg_match(reader)
@@ -90,7 +101,8 @@ scans_app_connect <- function(
       default_from,
       default_to,
       reader = reader,
-      jobs = jobs
+      jobs = jobs,
+      days = days
     )
   )
 }
@@ -104,6 +116,7 @@ scans_app_connect_loaders <- function(
   default_to,
   reader = "otel",
   jobs = TRUE,
+  days = 7,
   call = rlang::caller_env()
 ) {
   if (is.character(x)) {
@@ -145,7 +158,7 @@ scans_app_connect_loaders <- function(
       function() {
         read_now <- Sys.time()
         read_from <- if (default_from) {
-          read_now - 7 * 24 * 60 * 60
+          read_now - days * 24 * 60 * 60
         } else {
           from
         }
@@ -167,7 +180,10 @@ scans_app_connect_loaders <- function(
               from = read_from,
               to = read_to
             ) |>
-              as_trajectory_commons(metadata = list(application = label)),
+              as_trajectory_commons(
+                source_uri = scans_app_connect_source_uri(source),
+                metadata = list(application = label)
+              ),
             recipe = recipe
           ))
         }
@@ -200,7 +216,7 @@ scans_app_connect_loaders <- function(
     lapply(function(loader) {
       # Shown while the read is in progress; see scans_app_loading_text().
       attr(loader, "scans_app_window") <- if (default_from && default_to) {
-        "the last 7 days"
+        sprintf("the last %d day%s", days, if (days == 1) "" else "s")
       } else {
         scans_app_window_string(
           if (!default_from) from,
@@ -211,6 +227,12 @@ scans_app_connect_loaders <- function(
     })
 }
 
+# Where a commons read came from, in the form the native reader records.
+scans_app_connect_source_uri <- function(guid) {
+  server <- sub("/+$", "", Sys.getenv("CONNECT_SERVER"))
+  if (nzchar(server)) paste0(server, "/content/", guid, "/")
+}
+
 scans_app_connect_guid <- function(x) {
   grepl(
     "^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$",
@@ -219,7 +241,7 @@ scans_app_connect_guid <- function(x) {
 }
 
 scans_app_connect_check_package <- function(call = rlang::caller_env()) {
-  minimum <- numeric_version("0.0.0.9002")
+  minimum <- numeric_version("0.2.0")
   available <- requireNamespace("commons", quietly = TRUE)
   if (available && utils::packageVersion("commons") >= minimum) {
     return(invisible(TRUE))

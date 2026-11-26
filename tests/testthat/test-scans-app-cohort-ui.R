@@ -184,3 +184,44 @@ test_that("empty and loading states say what is specific about them", {
   )
   expect_identical(attr(loaders$App, "scans_app_window"), "the last 7 days")
 })
+
+test_that("counts in the findings pane and header agree in number", {
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("bslib", "0.11.0")
+  data <- cohort_fixture_data()
+  text <- function(index) {
+    gsub(
+      "\\s+",
+      " ",
+      gsub(
+        "<[^>]+>",
+        " ",
+        as.character(
+          scans_app_evidence_ui(data, index)
+        )
+      )
+    )
+  }
+  expect_match(text(4L), "1 finding describes this conversation.", fixed = TRUE)
+  expect_match(
+    text(1L),
+    "1 tool call recorded an error. 2 findings describe this conversation.",
+    fixed = TRUE
+  )
+  expect_match(
+    text(3L),
+    "2 tool calls recorded errors. 4 findings describe this conversation.",
+    fixed = TRUE
+  )
+  expect_match(
+    as.character(scans_app_header_ui(data, 1L)),
+    "1 tool error\\s"
+  )
+  ui <- as.character(scans_app_ui(scans_app_sources(cohort_fixture())))
+  expect_match(ui, 'placeholder="Search conversations"', fixed = TRUE)
+  expect_match(
+    as.character(scans_app_ui(scans_app_sources(performance_fixture()))),
+    'placeholder="Search trajectories"',
+    fixed = TRUE
+  )
+})

@@ -171,6 +171,9 @@ cohort_trajectories <- function(data, ids) {
   tibble::tibble(
     trajectory_id = ids,
     started_at = records$started_at,
+    at = records$active_at %||% records$started_at,
+    parent_trajectory_id = records$parent_trajectory_id %||%
+      rep(NA_character_, length(ids)),
     user = records$user,
     model = records$model,
     source_type = records$source_type,
@@ -218,7 +221,7 @@ cohort_activity <- function(
   unit = NULL,
   trajectories = cohort_trajectories(data, ids)
 ) {
-  started <- trajectories$started_at
+  started <- trajectories$at
   known <- !is.na(started)
   if (is.null(unit)) {
     span <- if (any(known)) diff(range(as.numeric(started[known]))) else 0
@@ -248,6 +251,11 @@ cohort_activity <- function(
   )
   attr(out, "unit") <- unit
   attr(out, "n_undated") <- sum(!known)
+  attr(out, "basis") <- if (all(!known | !is.na(trajectories$started_at))) {
+    "start"
+  } else {
+    "activity"
+  }
   out
 }
 
@@ -272,7 +280,7 @@ cohort_patterns <- function(
       ,
       drop = FALSE
     ]
-    started <- affected$started_at[!is.na(affected$started_at)]
+    started <- affected$at[!is.na(affected$at)]
     tibble::tibble(
       scan = scan,
       severity = if (any(rows$severity %in% "error")) "error" else "warning",
@@ -376,7 +384,18 @@ cohort_headline <- function(
   trajectories = cohort_trajectories(data, ids),
   calls = cohort_tool_calls(data, ids)
 ) {
-  started <- trajectories$started_at[!is.na(trajectories$started_at)]
+  started <- trajectories$at[!is.na(trajectories$at)]
+  # Deputy adds a delegated run's usage to its parent's at every level, so a
+  # run with Deputy's run usage accounts for all of its descendants and a
+  # total leaves those out. Usage read from a trace is each run's own calls.
+  usage <- data$measures[
+    data$measures$measure %in%
+      c("input_tokens", "output_tokens") &
+      data$measures$source %in% "deputy_run_usage" &
+      !is.na(data$measures$value),
+  ]
+  counted <- !is.na(trajectories$tokens) &
+    !cohort_has_ancestor(data, ids, intersect(ids, usage$trajectory_id))
   tibble::tibble(
     n = length(ids),
     total = nrow(data$info),
@@ -404,7 +423,49 @@ cohort_headline <- function(
     } else {
       as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
     },
-    n_undated = sum(is.na(trajectories$started_at))
+    n_undated = sum(is.na(trajectories$at)),
+    time_basis = if (
+      all(is.na(trajectories$at) | !is.na(trajectories$started_at))
+    ) {
+      "start"
+    } else {
+      "activity"
+    },
+    total_tokens = if (any(counted)) {
+      sum(trajectories$tokens[counted])
+    } else {
+      NA_real_
+    },
+    n_tokens_counted = sum(counted),
+    n_delegated = sum(cohort_has_ancestor(data, ids, ids))
+  )
+}
+
+# Whether each trajectory descends from one of `among`, following recorded
+# parents through the whole snapshot so a run between the two need not be in
+# the cohort. A parent the snapshot does not hold ends the walk, as does a
+# cycle.
+cohort_has_ancestor <- function(data, ids, among) {
+  known <- data$records$trajectory_id
+  parents <- data$records$parent_trajectory_id %||%
+    rep(NA_character_, length(known))
+  vapply(
+    ids,
+    function(id) {
+      seen <- id
+      repeat {
+        id <- parents[match(id, known)]
+        if (is.na(id) || id %in% seen) {
+          return(FALSE)
+        }
+        if (id %in% among) {
+          return(TRUE)
+        }
+        seen <- c(seen, id)
+      }
+    },
+    logical(1),
+    USE.NAMES = FALSE
   )
 }
 
@@ -418,7 +479,7 @@ cohort_review_state <- function(annotations, ids) {
       reviewed = NA,
       label = NA_character_,
       n_annotations = NA_integer_,
-      reviewed_at = as.POSIXct(NA_real_, tz = "UTC"),
+      reviewed_at = as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC"),
       reviewed_by = NA_character_
     ))
   }
@@ -462,17 +523,20 @@ cohort_review_reasons <- function(data, ids, class) {
   tool_errors <- data$records$n_tool_errors[rows]
   empty <- data$records$n_turns[rows] == 0L & data$records$n_events[rows] == 0L
   lost <- ids %in% data$loss_trajectory_ids
+  kinds <- split(data$interventions$kind, data$interventions$trajectory_id)
   lapply(seq_along(ids), function(i) {
     found <- unique(scans[[ids[[i]]]] %||% character())
+    kind <- unique(stats::na.omit(kinds[[ids[[i]]]] %||% character()))
     quiet <- c(
       "trajectory_error",
+      "run_intervention",
       if (tool_errors[[i]] > 0L) "event_error",
       if (cut_off[[i]]) "turn_error",
       if ("suspicious_tool_loop" %in% found) "repeated_tool_call"
     )
-    listed <- intersect(cohort_scan_wording$scan, found)
+    listed <- intersect(unique(cohort_scan_wording$scan), found)
     other <- setdiff(found, cohort_scan_wording$scan)
-    as.character(c(
+    unique(as.character(c(
       if (
         "trajectory_error" %in% found || status[[i]] %in% c("failed", "error")
       ) {
@@ -487,10 +551,11 @@ cohort_review_reasons <- function(data, ids, class) {
       },
       if (cut_off[[i]]) "Answer cut off",
       cohort_scan_word(setdiff(c(listed, sort(other)), quiet), "reason"),
+      cohort_scan_word(rep("run_intervention", length(kind)), "reason", kind),
       if (empty[[i]]) "No transcript",
       if (lost[[i]]) "Capture gap",
       if (class[[i]] == "unassessed") "Not assessed"
-    ))
+    )))
   })
 }
 
@@ -508,7 +573,7 @@ cohort_review_queue <- function(
 ) {
   state <- cohort_review_state(annotations, ids)
   index <- match(ids, data$info$trajectory_id)
-  started <- as.numeric(trajectories$started_at)
+  started <- as.numeric(trajectories$at)
   ordering <- order(
     state$reviewed %in% TRUE,
     match(trajectories$class, cohort_class_order),
@@ -553,4 +618,300 @@ cohort_review_progress <- function(queue) {
     reviewed = if (known) sum(is_reviewed) else NA_integer_,
     labels = list(stats::setNames(as.integer(counts), names(counts)))
   )
+}
+
+# The kind of each run intervention finding, one row per finding.
+cohort_intervention_kinds <- function(findings) {
+  rows <- findings[findings$scan %in% "run_intervention", , drop = FALSE]
+  tibble::tibble(
+    trajectory_id = rows$trajectory_id,
+    finding_id = rows$finding_id,
+    kind = vapply(
+      rows$value,
+      function(value) {
+        kind <- if (is.list(value)) value$kind
+        if (rlang::is_string(kind)) kind else NA_character_
+      },
+      character(1)
+    )
+  )
+}
+
+# Whether each trajectory carries Deputy run evidence, by the same rule the
+# Deputy scans use to decide what they can assess.
+cohort_has_deputy_evidence <- function(info, events) {
+  groups <- split(seq_len(nrow(events)), events$trajectory_id)
+  vapply(
+    seq_len(nrow(info)),
+    function(row) {
+      scan_has_deputy_evidence(
+        info[row, , drop = FALSE],
+        events[
+          groups[[info$trajectory_id[[row]]]] %||% integer(),
+          ,
+          drop = FALSE
+        ]
+      )
+    },
+    logical(1)
+  )
+}
+
+# Run interventions by kind over the runs that carry Deputy evidence. The
+# denominator and any stated capture limitation travel as attributes.
+cohort_interventions <- function(
+  data,
+  ids,
+  trajectories = cohort_trajectories(data, ids)
+) {
+  rows <- data$interventions[
+    data$interventions$trajectory_id %in% ids & !is.na(data$interventions$kind),
+    ,
+    drop = FALSE
+  ]
+  kinds <- cohort_scan_wording$kind[
+    cohort_scan_wording$scan == "run_intervention" &
+      !is.na(cohort_scan_wording$kind)
+  ]
+  kinds <- c(intersect(kinds, rows$kind), sort(setdiff(rows$kind, kinds)))
+  at <- trajectories$at[match(rows$trajectory_id, trajectories$trajectory_id)]
+  out <- tibble::tibble(
+    kind = kinds,
+    label = cohort_scan_word("run_intervention", "label", kinds),
+    trajectories = vapply(
+      kinds,
+      function(kind) length(unique(rows$trajectory_id[rows$kind == kind])),
+      integer(1),
+      USE.NAMES = FALSE
+    ),
+    findings = vapply(
+      kinds,
+      function(kind) sum(rows$kind == kind),
+      integer(1),
+      USE.NAMES = FALSE
+    ),
+    last_seen = do.call(
+      c,
+      c(
+        list(as.POSIXct(character(), tz = "UTC")),
+        lapply(kinds, function(kind) {
+          seen <- at[rows$kind == kind & !is.na(at)]
+          if (length(seen)) {
+            max(seen)
+          } else {
+            as.POSIXct(NA_real_, origin = "1970-01-01", tz = "UTC")
+          }
+        })
+      )
+    )
+  )
+  out <- out[order(-out$trajectories, -out$findings), , drop = FALSE]
+  assessed <- data$assessments[
+    data$assessments$scan %in%
+      "run_intervention" &
+      data$assessments$trajectory_id %in% ids,
+    ,
+    drop = FALSE
+  ]
+  generic <- "Assessment covers retained records only; complete capture is not established."
+  attr(out, "n_deputy") <- sum(
+    data$deputy[match(ids, data$info$trajectory_id)]
+  )
+  attr(out, "limitations") <- setdiff(
+    unique(unlist(assessed$limitations)),
+    generic
+  )
+  out
+}
+
+cohort_provenance_classes <- c(
+  trusted = "Trusted",
+  cited = "Cited",
+  untrusted = "Untrusted",
+  unclassified = "Unclassified"
+)
+
+# Exchanges by recorded provenance class, over the conversations in scope
+# that are provenance sources. Unclassified is its own class and is never
+# folded into untrusted. `series` aligns to the activity buckets, placing an
+# exchange at its conversation's time.
+cohort_provenance <- function(
+  data,
+  ids,
+  trajectories = cohort_trajectories(data, ids),
+  activity = cohort_activity(data, ids, trajectories = trajectories)
+) {
+  rows <- data$exchanges
+  if (is.null(rows)) {
+    rows <- tibble::tibble(
+      trajectory_id = character(),
+      provenance_class = character()
+    )
+  }
+  rows <- rows[
+    rows$trajectory_id %in%
+      ids &
+      rows$provenance_class %in% names(cohort_provenance_classes),
+    ,
+    drop = FALSE
+  ]
+  unit <- attr(activity, "unit")
+  at <- trajectories$at[match(
+    rows$trajectory_id,
+    trajectories$trajectory_id
+  )]
+  bucket <- match(
+    as.numeric(cohort_bucket(at, unit)),
+    as.numeric(activity$bucket)
+  )
+  classes <- names(cohort_provenance_classes)
+  total <- nrow(rows)
+  out <- tibble::tibble(
+    class = classes,
+    label = unname(cohort_provenance_classes),
+    exchanges = vapply(
+      classes,
+      function(class) sum(rows$provenance_class == class),
+      integer(1),
+      USE.NAMES = FALSE
+    ),
+    trajectories = vapply(
+      classes,
+      function(class) {
+        length(unique(
+          rows$trajectory_id[rows$provenance_class == class]
+        ))
+      },
+      integer(1),
+      USE.NAMES = FALSE
+    ),
+    share = if (total > 0L) {
+      vapply(
+        classes,
+        function(class) sum(rows$provenance_class == class) / total,
+        double(1),
+        USE.NAMES = FALSE
+      )
+    } else {
+      rep(NA_real_, length(classes))
+    },
+    series = lapply(classes, function(class) {
+      tabulate(
+        bucket[rows$provenance_class == class],
+        nbins = nrow(activity)
+      )
+    })
+  )
+  attr(out, "total_exchanges") <- total
+  attr(out, "total_trajectories") <- length(unique(rows$trajectory_id))
+  attr(out, "n_undated") <- sum(is.na(bucket))
+  out
+}
+
+# Review next offers coverage rather than the head of the queue: the top
+# unreviewed trajectory of each of the most prevalent patterns, one per
+# pattern, then the best of the rest.
+cohort_review_next <- function(queue, findings, patterns, n = 5L) {
+  open <- queue[!queue$reviewed %in% TRUE, , drop = FALSE]
+  chosen <- character()
+  pattern <- character()
+  for (scan in patterns$scan) {
+    if (length(chosen) >= n) {
+      break
+    }
+    affected <- findings$trajectory_id[findings$scan == scan]
+    pick <- setdiff(
+      open$trajectory_id[open$trajectory_id %in% affected],
+      chosen
+    )
+    if (length(pick)) {
+      chosen <- c(chosen, pick[[1L]])
+      pattern <- c(pattern, scan)
+    }
+  }
+  rest <- utils::head(setdiff(open$trajectory_id, chosen), n - length(chosen))
+  out <- queue[match(c(chosen, rest), queue$trajectory_id), , drop = FALSE]
+  out$pattern <- c(pattern, rep(NA_character_, length(rest)))
+  out
+}
+
+cohort_timeline_lanes <- c(
+  model = "Model",
+  tool = "Tools",
+  lifecycle = "Run events",
+  provenance = "Provenance",
+  other = "Other"
+)
+
+# One mark per timed event of a trajectory, placed on a compressed time axis.
+# An idle gap longer than `max_gap` seconds (elapsed time includes user
+# pauses) is shortened to a fixed break so the recorded work stays readable;
+# `breaks` records where. A mark with no recorded duration is a tick, never a
+# zero-length bar. Positions `x` and `width` are fractions of the axis.
+cohort_timeline <- function(data, id, max_gap = 30) {
+  events <- data$events[
+    data$events$trajectory_id %in% id & !is.na(data$events$timestamp),
+    ,
+    drop = FALSE
+  ]
+  events <- events[
+    order(events$timestamp, events$event_index, method = "radix"),
+    ,
+    drop = FALSE
+  ]
+  type <- events$event_type
+  lane <- ifelse(
+    type %in% c("tool_call", "tool_result"),
+    "tool",
+    ifelse(
+      scan_is_deputy_event(type),
+      "lifecycle",
+      ifelse(
+        type %in% "commons:provenance",
+        "provenance",
+        ifelse(type %in% "content", "model", "other")
+      )
+    )
+  )
+  turn <- match(events$turn_id, data$turns$turn_id)
+  first_in_turn <- !duplicated(events$turn_id) & !is.na(events$turn_id)
+  duration <- ifelse(
+    lane == "model" & first_in_turn & is.na(events$duration),
+    data$turns$duration[turn],
+    events$duration
+  )
+  duration[!is.na(duration) & duration <= 0] <- NA_real_
+  calls <- data$tool_calls
+  start <- as.numeric(events$timestamp)
+  end <- start + ifelse(is.na(duration), 0, duration)
+  covered <- cummax(end)
+  gap <- c(0, start[-1L] - covered[-length(covered)])
+  gap[gap < 0] <- 0
+  long <- gap > max_gap
+  active <- if (length(start)) max(end) - min(start) - sum(gap[long]) else 0
+  break_width <- if (any(long)) max(active, 1) * 0.06 else 0
+  shift <- cumsum(ifelse(long, gap - break_width, 0))
+  total <- max(active + sum(long) * break_width, .Machine$double.eps)
+  position <- (start - min(start, Inf) - shift) / total
+  out <- tibble::tibble(
+    event_id = events$event_id,
+    lane = lane,
+    label = ifelse(
+      is.na(events$name),
+      gsub("^deputy:|^commons:", "", type),
+      events$name
+    ),
+    timestamp = events$timestamp,
+    duration = duration,
+    failed = cohort_event_failed(events) |
+      events$event_id %in% calls$event_id[calls$failed],
+    x = position,
+    width = ifelse(is.na(duration), NA_real_, duration / total)
+  )
+  attr(out, "breaks") <- tibble::tibble(
+    x = (position[long] - break_width / total),
+    width = rep(break_width / total, sum(long)),
+    seconds = gap[long]
+  )
+  out
 }

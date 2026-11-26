@@ -5,12 +5,15 @@
 # next to the rows it can be compared with.
 # `queue` is the review queue for the whole snapshot and `progress` the review
 # progress of the cohort before review-state filters; both are optional.
+# `candidates` are promotion candidates for the same ids, computed from the
+# bundle by the caller because route analysis reads it.
 scans_app_performance_data <- function(
   data,
   indices,
   scopes = list(),
   queue = NULL,
-  progress = NULL
+  progress = NULL,
+  candidates = NULL
 ) {
   summaries <- data$summaries[indices, , drop = FALSE]
   ids <- summaries$trajectory_id
@@ -93,6 +96,15 @@ scans_app_performance_data <- function(
       },
       models = breakdown("model"),
       users = breakdown("user"),
+      interventions = if (any(data$deputy[indices])) {
+        cohort_interventions(data, ids, trajectories)
+      },
+      provenance = if (any(ids %in% data$exchanges$trajectory_id)) {
+        provenance <- cohort_provenance(data, ids, trajectories, activity)
+        if (attr(provenance, "total_exchanges") > 0L) provenance
+      },
+      candidates = candidates,
+      review_next = cohort_review_next(queue, data$findings, patterns),
       queue = queue,
       progress = progress %||% cohort_review_progress(queue),
       noun = data$noun %||% scans_app_noun(data$info$source_type)
@@ -102,46 +114,42 @@ scans_app_performance_data <- function(
 }
 
 # One wording per scan: `label` names the pattern in the overview, `reason`
-# is the short fact shown on a queue entry. A scan not listed here falls back
-# to its own name.
-cohort_scan_wording <- tibble::tibble(
-  scan = c(
-    "trajectory_error",
-    "turn_error",
-    "error_chain",
-    "event_error",
-    "suspicious_tool_loop",
-    "repeated_tool_call",
-    "unresolved_tool_call",
-    "unmatched_tool_result",
-    "ambiguous_tool_correlation"
-  ),
-  label = c(
-    "Trajectory error",
-    "Turn error",
-    "Error chain",
-    "Event errors",
-    "Suspicious tool loop",
-    "Repeated tool calls",
-    "Unresolved tool call",
-    "Unmatched tool result",
-    "Ambiguous tool correlation"
-  ),
-  reason = c(
-    "Run failed",
-    "Turn failed",
-    "Error chain",
-    "Event errors",
-    "Tool loop",
-    "Repeated tool call",
-    "Call without result",
-    "Result without call",
-    "Ambiguous call ids"
-  )
+# is the short fact shown on a queue entry. `run_intervention` findings carry
+# a kind, and each kind has its own row. A scan not listed here falls back to
+# its own name.
+cohort_scan_wording <- tibble::tribble(
+  ~scan                        , ~kind                         , ~label                         , ~reason                        ,
+  "trajectory_error"           , NA                            , "Trajectory error"             , "Run failed"                   ,
+  "cut_off_answer"             , NA                            , "Cut-off answers"              , "Answer cut off"               ,
+  "turn_error"                 , NA                            , "Turn error"                   , "Turn failed"                  ,
+  "error_chain"                , NA                            , "Error chain"                  , "Error chain"                  ,
+  "event_error"                , NA                            , "Event errors"                 , "Event errors"                 ,
+  "run_intervention"           , NA                            , "Run interventions"            , "Run intervention"             ,
+  "run_intervention"           , "limit_stop"                  , "Stopped at limit"             , "Stopped at limit"             ,
+  "run_intervention"           , "limit_wrap_up"               , "Wrapped up at limit"          , "Wrapped up at limit"          ,
+  "run_intervention"           , "permission_denied"           , "Permission denied"            , "Permission denied"            ,
+  "run_intervention"           , "approval_pending"            , "Approval pending"             , "Approval pending"             ,
+  "run_intervention"           , "compaction_failure"          , "Compaction failed"            , "Compaction failed"            ,
+  "run_intervention"           , "repeated_compaction"         , "Repeated compaction"          , "Repeated compaction"          ,
+  "run_intervention"           , "provider_fallback"           , "Provider fallback"            , "Provider fallback"            ,
+  "run_intervention"           , "delegation_missing_evidence" , "Delegation: missing evidence" , "Delegation: missing evidence" ,
+  "run_intervention"           , "delegation_unresolved_work"  , "Delegation: unresolved work"  , "Delegation: unresolved work"  ,
+  "suspicious_tool_loop"       , NA                            , "Suspicious tool loop"         , "Tool loop"                    ,
+  "repeated_tool_call"         , NA                            , "Repeated tool calls"          , "Repeated tool call"           ,
+  "unresolved_tool_call"       , NA                            , "Unresolved tool call"         , "Call without result"          ,
+  "unmatched_tool_result"      , NA                            , "Unmatched tool result"        , "Result without call"          ,
+  "ambiguous_tool_correlation" , NA                            , "Ambiguous tool correlation"   , "Ambiguous call ids"
 )
 
-cohort_scan_word <- function(scan, column) {
-  word <- cohort_scan_wording[[column]][match(scan, cohort_scan_wording$scan)]
+cohort_scan_word <- function(scan, column, kind = NA_character_) {
+  if (!length(scan)) {
+    return(character())
+  }
+  row <- match(
+    paste(scan, kind),
+    paste(cohort_scan_wording$scan, cohort_scan_wording$kind)
+  )
+  word <- cohort_scan_wording[[column]][row]
   ifelse(is.na(word), scans_app_title_case(gsub("_", " ", scan)), word)
 }
 
@@ -352,6 +360,32 @@ scans_app_performance_ui <- function(
             )
           }
         ),
+        if (!is.null(cohort$interventions)) {
+          htmltools::tags$section(
+            class = "scans-app-performance-section",
+            htmltools::tags$h2("Run interventions"),
+            scans_app_interventions_ui(cohort$interventions, facets, noun)
+          )
+        },
+        if (!is.null(cohort$provenance)) {
+          htmltools::tags$section(
+            class = "scans-app-performance-section",
+            htmltools::tags$h2("Answer provenance"),
+            scans_app_provenance_ui(
+              cohort$provenance,
+              cohort$activity,
+              facets,
+              noun
+            )
+          )
+        },
+        if (!is.null(cohort$candidates) && nrow(cohort$candidates) > 0L) {
+          htmltools::tags$section(
+            class = "scans-app-performance-section",
+            htmltools::tags$h2("Promotion candidates"),
+            scans_app_candidates_ui(cohort$candidates, facets, noun)
+          )
+        },
         if (nrow(cohort$tools) > 0L) {
           htmltools::tags$section(
             class = "scans-app-performance-section",
@@ -367,7 +401,7 @@ scans_app_performance_ui <- function(
         htmltools::tags$section(
           class = "scans-app-performance-section",
           htmltools::tags$h2("Review next"),
-          scans_app_review_next_ui(cohort$queue, noun)
+          scans_app_review_next_ui(cohort$queue, cohort$review_next, noun)
         ),
         htmltools::tags$details(
           class = "scans-app-overview-disclosure",

@@ -63,7 +63,15 @@ scans_app_scope_sentence_ui <- function(
       )
     }),
     if (!is.null(window) && !"day" %in% names(labels)) {
-      paste0(" \u00b7 started ", window, " UTC")
+      paste0(
+        if (identical(headline$time_basis, "activity")) {
+          " \u00b7 active "
+        } else {
+          " \u00b7 started "
+        },
+        window,
+        " UTC"
+      )
     }
   )
 }
@@ -206,10 +214,19 @@ scans_app_tiles_ui <- function(
       } else {
         scans_app_count(round(headline$median_tokens))
       },
-      sprintf(
-        "recorded for %s of %s",
-        scans_app_count(headline$n_tokens),
-        scans_app_count(n)
+      paste0(
+        sprintf(
+          "recorded for %s of %s",
+          scans_app_count(headline$n_tokens),
+          scans_app_count(n)
+        ),
+        if (!is.na(headline$total_tokens %||% NA)) {
+          paste0(
+            " \u00b7 total ",
+            scans_app_count(headline$total_tokens),
+            if (headline$n_delegated > 0L) " (delegated runs counted once)"
+          )
+        }
       )
     )
   )
@@ -247,24 +264,44 @@ scans_app_activity_ticks <- function(buckets, unit) {
   labels
 }
 
+# A stacked count per time bucket, one focusable bar per bucket. `classes`
+# names the stacked series (keys match `n_<key>` columns and the
+# `scans-app-series-<key>` colours); `noun` names what is counted. The
+# activity and provenance charts are both this component.
 scans_app_activity_ui <- function(
   activity,
   selected = NULL,
-  noun = scans_app_noun()
+  noun = scans_app_noun(),
+  classes = scans_app_activity_classes,
+  phrases = c(
+    "with error findings",
+    "with warnings only",
+    "with no findings",
+    "not assessed"
+  ),
+  about = "recorded findings"
 ) {
   unit <- attr(activity, "unit")
-  undated <- attr(activity, "n_undated")
+  undated <- attr(activity, "n_undated") %||% 0L
+  # Buckets use the start time, or the last recorded activity for sources
+  # that keep no start.
+  started <- !identical(attr(activity, "basis"), "activity")
+  timing <- if (started) {
+    paste("start", unit)
+  } else {
+    paste(unit, "of last activity")
+  }
   counts <- as.list(colSums(activity[paste0(
     "n_",
-    names(scans_app_activity_classes)
+    names(classes)
   )]))
-  names(counts) <- names(scans_app_activity_classes)
+  names(counts) <- names(classes)
   breakdown <- function(row) {
     paste(
       sprintf(
         "%d %s",
-        unlist(row[paste0("n_", names(scans_app_activity_classes))]),
-        tolower(scans_app_activity_classes)
+        unlist(row[paste0("n_", names(classes))]),
+        tolower(classes)
       ),
       collapse = ", "
     )
@@ -273,12 +310,13 @@ scans_app_activity_ui <- function(
     htmltools::tags$p(
       class = "scans-app-activity-note",
       sprintf(
-        "%s no recorded start time and %s not charted.",
+        "%s no recorded %s and %s not charted.",
         if (undated == 1L) {
           paste("1", noun$one, "has")
         } else {
           paste(scans_app_count(undated), noun$many, "have")
         },
+        if (started) "start time" else "time",
         if (undated == 1L) "is" else "are"
       )
     )
@@ -287,28 +325,23 @@ scans_app_activity_ui <- function(
     return(htmltools::tagList(
       htmltools::tags$p(
         class = "scans-app-activity-note",
-        "No start times were recorded, so activity over time is unknown."
+        "No times were recorded, so activity over time is unknown."
       )
     ))
   }
   if (nrow(activity) == 1L) {
-    values <- unlist(activity[paste0("n_", names(scans_app_activity_classes))])
-    phrases <- c(
-      "with error findings",
-      "with warnings only",
-      "with no findings",
-      "not assessed"
-    )
+    values <- unlist(activity[paste0("n_", names(classes))])
     return(htmltools::tagList(
       htmltools::tags$p(
         class = "scans-app-activity-note",
         sprintf(
-          "%s started %s %s UTC: %s.",
+          "%s %s %s %s UTC: %s.",
           if (activity$n == 1L) {
             paste("The only dated", noun$one)
           } else {
             sprintf("All %s dated %s", scans_app_count(activity$n), noun$many)
           },
+          if (started) "started" else "last active",
           if (unit == "hour") "in the hour of" else "on",
           scans_app_bucket_title(activity$bucket, unit),
           paste(
@@ -331,7 +364,7 @@ scans_app_activity_ui <- function(
   bars <- lapply(seq_len(n), function(i) {
     row <- activity[i, ]
     title <- scans_app_bucket_title(row$bucket, unit)
-    values <- unlist(row[paste0("n_", names(scans_app_activity_classes))])
+    values <- unlist(row[paste0("n_", names(classes))])
     tops <- top - cumsum(values)
     pressed <- identical(selected, keys[[i]])
     htmltools::tags$button(
@@ -362,7 +395,7 @@ scans_app_activity_ui <- function(
           htmltools::tags$rect(
             class = paste0(
               "scans-app-series-",
-              names(scans_app_activity_classes)[[j]]
+              names(classes)[[j]]
             ),
             x = 0,
             y = tops[[j]],
@@ -393,13 +426,13 @@ scans_app_activity_ui <- function(
             htmltools::tags$i(
               class = paste0(
                 "scans-app-swatch scans-app-series-",
-                names(scans_app_activity_classes)[[j]]
+                names(classes)[[j]]
               )
             ),
             sprintf(
               "%d %s",
               values[[j]],
-              tolower(scans_app_activity_classes[[j]])
+              tolower(classes[[j]])
             )
           )
         })
@@ -415,9 +448,9 @@ scans_app_activity_ui <- function(
     htmltools::tags$p(
       class = "scans-app-activity-caption",
       sprintf(
-        "%s by start %s (UTC). Select a bar to filter; arrow keys move between bars.",
+        "%s by %s (UTC). Select a bar to filter; arrow keys move between bars.",
         scans_app_title_case(noun$many),
-        unit
+        timing
       )
     ),
     htmltools::div(
@@ -436,9 +469,9 @@ scans_app_activity_ui <- function(
         class = paste0("scans-app-activity-bars scans-app-activity-", unit),
         role = "group",
         `aria-label` = sprintf(
-          "%s started per %s, UTC. Select a %s to filter.",
+          "%s by %s, UTC. Select a %s to filter.",
           scans_app_title_case(noun$many),
-          unit,
+          timing,
           unit
         ),
         htmltools::div(
@@ -453,12 +486,12 @@ scans_app_activity_ui <- function(
     ),
     htmltools::tags$ul(
       class = "scans-app-legend",
-      lapply(names(scans_app_activity_classes), function(class) {
+      lapply(names(classes), function(class) {
         htmltools::tags$li(
           htmltools::tags$i(
             class = paste0("scans-app-swatch scans-app-series-", class)
           ),
-          scans_app_activity_classes[[class]],
+          classes[[class]],
           htmltools::tags$span(scans_app_count(counts[[class]]))
         )
       })
@@ -472,15 +505,16 @@ scans_app_activity_ui <- function(
         htmltools::tags$table(
           class = "table table-sm",
           htmltools::tags$caption(sprintf(
-            "%s by start %s (UTC) and recorded findings.",
+            "%s by %s (UTC) and %s.",
             scans_app_title_case(noun$many),
-            unit
+            timing,
+            about
           )),
           htmltools::tags$thead(htmltools::tags$tr(lapply(
             c(
               if (unit == "hour") "Hour" else "Day",
               scans_app_title_case(noun$many),
-              unname(scans_app_activity_classes)
+              unname(classes)
             ),
             function(label) htmltools::tags$th(scope = "col", label)
           ))),
@@ -491,7 +525,7 @@ scans_app_activity_ui <- function(
                 scans_app_bucket_title(activity$bucket[[i]], unit)
               ),
               lapply(
-                unlist(activity[i, -1L]),
+                unlist(activity[i, c("n", paste0("n_", names(classes)))]),
                 htmltools::tags$td
               )
             )

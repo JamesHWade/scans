@@ -344,15 +344,23 @@ scans_app_filter_server <- function(
     scopes
   })
 
+  # A run the filters drop is replaced by the first one they keep. A run
+  # opened from outside them, by a link, was never in the list and stays open
+  # when the list is recomputed, as it is after every saved judgement.
+  listed <- new.env(parent = emptyenv())
   shiny::observeEvent(
     state$visible(),
     ignoreNULL = FALSE,
     {
       indices <- state$visible()
-      if (length(indices) == 0L) {
-        state$selected(NULL)
-      } else if (is.null(state$selected()) || !state$selected() %in% indices) {
-        state$selected(indices[[1L]])
+      ids <- state$data()$info$trajectory_id
+      chosen <- state$selected()
+      outside <- !is.null(chosen) &&
+        !chosen %in% indices &&
+        !isTRUE(ids[chosen] %in% listed$ids)
+      listed$ids <- ids[indices]
+      if (is.null(chosen) || (!chosen %in% indices && !outside)) {
+        state$selected(if (length(indices)) indices[[1L]])
       }
     }
   )

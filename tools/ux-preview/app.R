@@ -11,9 +11,20 @@ local({
     demo_cohort_spans(),
     metadata = list(application = "Support assistant")
   )
+  source(file.path(root, "tools/ux-preview/commons.R"), local = TRUE)
+  deputy <- as_trajectory_otel(
+    read_otel_traces(file.path(root, "tests/testthat/fixtures/deputy/otel")),
+    metadata = list(application = "Deputy agent")
+  )
+  commons <- as_trajectory_commons(
+    demo_commons_cohort(),
+    metadata = list(application = "Commons analyst")
+  )
   scans_app(
     list(
       "Support assistant" = cohort,
+      "Deputy agent (captured trace)" = deputy,
+      "Commons analyst" = commons,
       "Small example" = function() scans_support_bundle()
     ),
     annotations = scans_annotations(

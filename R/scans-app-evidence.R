@@ -12,14 +12,24 @@ scans_app_evidence_ui <- function(data, index) {
       class = "scans-app-findings-summary",
       htmltools::tags$h2("Recorded findings"),
       htmltools::tags$p(
-        if (tool_errors > 0L) {
-          sprintf(
-            "%d tool events recorded errors. %d findings describe this trajectory.",
-            tool_errors,
-            length(finding_rows)
+        if (length(finding_rows)) {
+          paste0(
+            if (tool_errors > 0L) {
+              sprintf(
+                "%s recorded %s. ",
+                scans_app_plural(tool_errors, "tool call"),
+                if (tool_errors == 1L) "an error" else "errors"
+              )
+            },
+            scans_app_plural(length(finding_rows), "finding"),
+            if (length(finding_rows) == 1L) {
+              " describes this "
+            } else {
+              " describe this "
+            },
+            data$noun$one %||% "trajectory",
+            "."
           )
-        } else if (length(finding_rows)) {
-          sprintf("%d findings describe this trajectory.", length(finding_rows))
         } else {
           "No findings from the selected scans. Check coverage before drawing a conclusion."
         }

@@ -22,6 +22,15 @@ requests.
   directory, so the review flow works: open a conversation, press `1`-`4` or
   `E` to mark it, and watch the queue advance and the Reviewed tile update.
   **Export** offers both CSVs, the Markdown report, and the R snippet.
+- **Deputy agent (captured trace)** is the captured Deputy OpenTelemetry
+  fixture from the tests: a compaction with provider fallbacks, a denied
+  permission, a cut-off answer on a completed run, and a lead run with a
+  delegated subagent. It shows the run ending, lineage links, the Run
+  interventions section, and the timeline's lifecycle ticks.
+- **Commons analyst** is the authored cohort from `commons.R`: 18
+  conversations that repeat a few exploratory tool routes. It shows Answer
+  provenance, Promotion candidates with recorded snippets, provenance chips,
+  and folded internal reminder turns.
 - **Small example** is the bundled support-assistant recording. It exercises
   native shinychat streaming, suggestions, tool disclosure, and evidence
   navigation, and shows how the overview degrades for a handful of trajectories.

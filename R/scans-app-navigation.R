@@ -24,13 +24,10 @@ scans_app_navigation_server <- function(
         } else {
           scans_app_entry_id(index)
         },
-        hash = scans_app_hash(
-          if (is.null(index) || !showing_trajectory) {
-            NULL
-          } else {
-            shiny::isolate(state$application())
-          },
-          if (showing_trajectory) trajectory_id else NULL
+        hash = scans_app_view_hash(
+          state$application(),
+          if (showing_trajectory) trajectory_id,
+          multiple = length(sources$labels) > 1L
         )
       )
     )
@@ -224,6 +221,16 @@ scans_app_hash <- function(application, trajectory_id) {
     utils::URLencode(trajectory_id, reserved = TRUE, repeated = TRUE),
     sep = "/"
   )
+}
+
+# The hash the address bar should show: the open trajectory, or, where there
+# is more than one application to tell apart, the application whose overview
+# is showing. A single-application app keeps a bare address on its overview.
+scans_app_view_hash <- function(application, trajectory_id, multiple) {
+  if (!is.null(trajectory_id)) {
+    return(scans_app_hash(application, trajectory_id))
+  }
+  if (multiple) scans_app_scope_hash(application) else ""
 }
 
 scans_app_parse_hash <- function(hash, labels) {

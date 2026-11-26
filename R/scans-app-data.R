@@ -63,6 +63,16 @@ scans_app_data <- function(
     summaries = summaries,
     measures = analysis$measures,
     tool_calls = tool_calls,
+    interventions = cohort_intervention_kinds(findings),
+    deputy = cohort_has_deputy_evidence(info, events),
+    # Route analysis reads the bundle, so the exchange table is built here,
+    # and only for sources that record provenance.
+    exchanges = if (
+      any(events$event_type %in% "commons:provenance") ||
+        any(info$source_type %in% "commons")
+    ) {
+      route_exchanges(x)
+    },
     noun = scans_app_noun(info$source_type),
     records = records
   )
@@ -100,6 +110,8 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
       n_findings = integer(),
       n_errors = integer(),
       started_at = as.POSIXct(character(), tz = "UTC"),
+      active_at = as.POSIXct(character(), tz = "UTC"),
+      parent_trajectory_id = character(),
       user = character(),
       model = character()
     ))
@@ -160,6 +172,17 @@ scans_app_records <- function(info, turns, events, findings, summaries) {
     n_findings = n_findings,
     n_errors = n_errors,
     started_at = info$started_at,
+    # Sources that keep no start still record when they were last active.
+    active_at = as.POSIXct(
+      ifelse(
+        is.na(info$started_at),
+        as.numeric(info$completed_at),
+        as.numeric(info$started_at)
+      ),
+      origin = "1970-01-01",
+      tz = "UTC"
+    ),
+    parent_trajectory_id = info$parent_trajectory_id,
     user = users,
     model = info$model
   )
@@ -296,7 +319,9 @@ scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
       if (length(user_rows) > 0L) {
         rows <- user_rows
       }
-      text <- scans_app_strip_markdown(events$text[[rows[[1L]]]])
+      text <- scans_app_strip_markdown(
+        scans_app_delegation_task(events$text[[rows[[1L]]]])
+      )
       text <- gsub("\\s+", " ", trimws(text))
       question <- regexpr("?", text, fixed = TRUE)[[1L]]
       if (question > 0L) {
@@ -306,6 +331,22 @@ scans_app_trajectory_snippets <- function(event_text_groups, turns, events) {
     },
     character(1)
   )
+}
+
+# A delegated Deputy run opens with a JSON brief rather than a question; its
+# recorded task is the readable title.
+scans_app_delegation_task <- function(text) {
+  if (
+    !grepl("^\\s*\\{\"format\":\"deputy_delegation", text) ||
+      !requireNamespace("jsonlite", quietly = TRUE)
+  ) {
+    return(text)
+  }
+  task <- tryCatch(
+    jsonlite::fromJSON(text, simplifyVector = FALSE)$brief$task,
+    error = function(cnd) NULL
+  )
+  if (scans_app_has_string(task)) task else text
 }
 
 scans_app_first_string <- function(...) {
