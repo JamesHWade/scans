@@ -26,7 +26,8 @@ Adapters and the review app use optional packages that are loaded when
 you need them. This development version requires ellmer 0.5.0 and pins a
 compatible shinychat revision in `DESCRIPTION`;
 [`pak::pak()`](https://pak.r-lib.org/reference/pak.html) resolves these
-dependencies.
+dependencies. The deputy and commons adapters need deputy 0.0.0.9007 and
+commons 0.2.0 or later.
 
 ## Try the offline example
 

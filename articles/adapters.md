@@ -53,7 +53,9 @@ ambiguous match is left unlinked and reported by the
 
 [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
 accepts the conversations returned by
-[`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md),
+[`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md)
+or
+[`read_otel_traces()`](https://jameshwade.github.io/scans/reference/read_otel_traces.md),
 or a flat list of spans that it groups itself. The most recent `chat`
 span of a conversation carries the whole message history; `execute_tool`
 spans add each call’s duration and failure. Non-GenAI span and resource
@@ -95,6 +97,53 @@ trajectory_info(bundle)[, c("trajectory_id", "run_id", "parent_trajectory_id")]
 Unresolved parent identifiers and missing run identifiers are recorded
 as losses.
 
+The result’s `RunEnding` sets the trajectory status and is kept in
+`metadata$ending` with one stable set of fields. A run whose answer the
+provider cut short (`max_tokens`, `context_window`, or `content_filter`)
+still completed, so its status is `"completed"`; check `ending$cut_off`
+when a whole answer matters:
+
+``` r
+
+ending <- trajectory_info(bundle)$metadata[[1]]$ending
+ending[c("class", "finish_reason", "cut_off")]
+```
+
+[`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
+reports such an answer as a `cut_off_answer` finding, and limit wrap-ups
+and stops, provider fallbacks, compaction trouble, denied permissions,
+and pending approvals as `run_intervention` findings with the event that
+recorded them. A delegated subagent’s reported missing evidence or
+unresolved work is a `run_intervention` finding on its own trajectory.
+
+[`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
+reports Deputy’s run-level usage and duration, which still count turns
+that compaction removed from the result.
+
+A `LeadAgent`’s delegations arrive as disclosed views rather than
+results. Read a saved `$export_subagents()` snapshot back through
+[`deputy::delegation_history()`](https://jameshwade.github.io/deputy/reference/delegation_history.html),
+which checks your `DelegationDisclosure` again, and pass the views
+beside the lead result. Each delegation becomes a trajectory linked to
+its parent run, including nested delegations:
+
+``` r
+
+history <- deputy::delegation_history(export, requester, disclosure, scope)
+bundle <- as_trajectory_deputy(lead_result, delegations = history)
+delegation <- trajectory_info(bundle)$metadata[[2]]$delegation
+delegation$claims
+delegation$manifest[c("provider", "model", "tools")]
+```
+
+The views alone also convert, with the lead’s run recorded as an
+unresolved parent. Each child keeps its manifest configuration, its
+claimed `missing_evidence` and `unresolved_work`, and its artifact
+references with their availability; scans never reads a reference. A
+transcript that disclosure withheld is a `capture$transcript` loss, and
+a tool result that Deputy offloaded keeps only its preview, recorded as
+an externalized `contents$value` loss.
+
 ## dsprrr
 
 A dsprrr module converts through its public trace exporter; an already
@@ -116,25 +165,47 @@ establishes integrity, not authenticity.
 ## commons
 
 commons reconstructs conversations and their provenance from
-OpenTelemetry traces. Current conversations contain `turns` and
-`last_active` fields; earlier turn-list results remain supported.
-Provenance stays attached to the turns. Current Commons does not return
-an outer source descriptor, so scans reports that missing fact without
-inferring where the conversation came from. Read through commons, then
-convert the settled value:
+OpenTelemetry traces. Current conversations contain `turns`,
+`last_active`, and `user` fields; earlier turn-list results remain
+supported. Provenance stays attached to the turns. Read through commons,
+then convert the settled value, passing `source_uri` if you want to
+record where the traces came from:
 
 ``` r
 
 conversations <- commons::trajectory_read("path/to/otel-traces")
-bundle <- as_trajectory_commons(conversations)
+bundle <- as_trajectory_commons(conversations, source_uri = "file:///traces")
 filter_trajectory_events(bundle, event_type = "commons:provenance")
 ```
 
 Model-visible turns reuse the ellmer adapter. Activity time remains
-trajectory timing, and any recorded local or Connect source descriptor
-stays in metadata. Trust tags and citation decisions remain inspectable
-as `commons:provenance` events. Missing or conflicting provenance
-becomes a loss; scans never infers a stronger trust claim.
+trajectory timing. Rounds follow commons’ exchanges, so each
+`commons:provenance` event’s `exchange_index` matches the `round_index`
+of its turns. Internal reminder turns that commons injects stay in the
+transcript, marked with `commons_internal = TRUE` in turn metadata, and
+belong to the round they follow. The Connect user is kept in
+`metadata$otel$user`, the same slot the OpenTelemetry adapter uses.
+
+Trust tags and citation decisions remain inspectable as
+`commons:provenance` events. Missing or conflicting provenance becomes a
+loss; scans never infers a stronger trust claim. When a trace omitted
+input history or tool results, commons fills the gap with placeholder
+turns. scans keeps them and records a `capture$input` or
+`capture$tool_result` loss on each, so scans that need a complete
+transcript report insufficient evidence.
+
+To find questions worth promoting to a governed measure, register
+`scans_tools(bundle)` with a chat. `scans_route_counts` counts exchanges
+as Trusted, Cited, Untrusted, or Unclassified (tags A, B, C, or an
+absent or conflicting tag) with their denominators. Sources without
+provenance, such as plain ellmer chats, count as not applicable.
+`scans_route_candidates` ranks tool routes that recur across untrusted
+and cited exchanges, such as `describe_table > run_sql > run_r`, and
+returns the recorded SQL and R inputs and outputs behind each one.
+Captured code is shown, never run. A returned trajectory and its event
+ids can be passed to
+[`review_case()`](https://jameshwade.github.io/scans/reference/review_case.md)
+to record the promotion decision.
 
 ## Tempest
 

@@ -13,7 +13,6 @@
 <url><loc>https://jameshwade.github.io/scans/articles/reviewed-examples.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/articles/scans.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/authors.html</loc></url>
-<url><loc>https://jameshwade.github.io/scans/design-qa.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/index.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/news/index.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/TrajectoryBundle.html</loc></url>
@@ -32,6 +31,7 @@
 <url><loc>https://jameshwade.github.io/scans/reference/investigation_snapshot.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/measure_trajectories.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/read_connect_traces.html</loc></url>
+<url><loc>https://jameshwade.github.io/scans/reference/read_otel_traces.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/review_case.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/review_dataset.html</loc></url>
 <url><loc>https://jameshwade.github.io/scans/reference/review_example_files.html</loc></url>

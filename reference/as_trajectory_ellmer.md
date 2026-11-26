@@ -95,7 +95,7 @@ inserting or reordering turns or content may change them.
 ## Examples
 
 ``` r
-if (rlang::is_installed("ellmer", version = "0.4.2")) {
+if (rlang::is_installed("ellmer", version = "0.5.0")) {
   turns <- list(
     ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
     ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))

@@ -90,7 +90,7 @@ missing end timestamp.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://jameshwade.github.io/scans/">scans</a></span><span class="op">)</span></span>
 <span><span class="va">path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"support-investigation.json"</span>, package <span class="op">=</span> <span class="st">"scans"</span><span class="op">)</span></span>
-<span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_otel.html">as_trajectory_otel</a></span><span class="op">(</span><span class="fu">jsonlite</span><span class="fu">::</span><span class="fu"><a href="https://jeroen.r-universe.dev/jsonlite/reference/read_json.html" class="external-link">read_json</a></span><span class="op">(</span><span class="va">path</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_otel.html">as_trajectory_otel</a></span><span class="op">(</span><span class="fu">jsonlite</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/jsonlite/man/read_json.html" class="external-link">read_json</a></span><span class="op">(</span><span class="va">path</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/trajectory_accessors.html">trajectory_info</a></span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"trajectory_id"</span>, <span class="st">"model"</span><span class="op">)</span><span class="op">]</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 4 × 2</span></span></span>
 <span><span class="co">#&gt;   trajectory_id        model                </span></span>
@@ -317,27 +317,20 @@ with no findings.</p>
 <span><span class="va">reopened</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_files.html">read_investigation</a></span><span class="op">(</span><span class="va">path</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">saved</span>, <span class="va">reopened</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">reopened</span><span class="op">$</span><span class="va">analysis</span><span class="op">$</span><span class="va">assessments</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"trajectory_id"</span>, <span class="st">"scan"</span>, <span class="st">"status"</span><span class="op">)</span><span class="op">]</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 18 × 3</span></span></span>
-<span><span class="co">#&gt;    trajectory_id        scan                       status                </span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> otel/retry           ambiguous_tool_correlation assessed_no_findings  </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> otel/retry           unresolved_tool_call       assessed_no_findings  </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> otel/retry           unmatched_tool_result      assessed_no_findings  </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> otel/retry           repeated_tool_call         assessed_with_findings</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> otel/retry           suspicious_tool_loop       assessed_with_findings</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> otel/retry           event_error                assessed_with_findings</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> otel/retry           error_chain                insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> otel/retry           turn_error                 assessed_no_findings  </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> otel/retry           trajectory_error           assessed_no_findings  </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> otel/limited-capture ambiguous_tool_correlation insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> otel/limited-capture unresolved_tool_call       insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> otel/limited-capture unmatched_tool_result      insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">13</span> otel/limited-capture repeated_tool_call         insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">14</span> otel/limited-capture suspicious_tool_loop       insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">15</span> otel/limited-capture event_error                insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">16</span> otel/limited-capture error_chain                insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">17</span> otel/limited-capture turn_error                 insufficient_evidence </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">18</span> otel/limited-capture trajectory_error           assessed_no_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 22 × 3</span></span></span>
+<span><span class="co">#&gt;    trajectory_id scan                       status                </span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> otel/retry    ambiguous_tool_correlation assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> otel/retry    unresolved_tool_call       assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> otel/retry    unmatched_tool_result      assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> otel/retry    repeated_tool_call         assessed_with_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> otel/retry    suspicious_tool_loop       assessed_with_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> otel/retry    event_error                assessed_with_findings</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> otel/retry    error_chain                insufficient_evidence </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> otel/retry    turn_error                 assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> otel/retry    trajectory_error           assessed_no_findings  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> otel/retry    cut_off_answer             not_applicable        </span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 12 more rows</span></span></span>
 <span><span class="va">reopened</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">content_policy</span></span>
 <span><span class="co">#&gt; $id</span></span>
 <span><span class="co">#&gt; [1] "retained-v1"</span></span>
@@ -406,7 +399,7 @@ reconnecting to the original source.</p>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td>ellmer chat or turns (&gt;= 0.4.2)</td>
+<td>ellmer chat or turns (&gt;= 0.5.0)</td>
 <td><code><a href="../reference/as_trajectory_ellmer.html">as_trajectory_ellmer()</a></code></td>
 <td>Canonical turn usage and duration where supplied. A turn duration is
 not asserted to be one model call.</td>

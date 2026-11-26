@@ -174,13 +174,60 @@ quiet week from a truncated or incomplete read.</p>
 </h3>
 <p>scans reconstructs messages from the most recent <code>chat</code>
 span of a conversation. The transcript is limited to the history
-captured in that span; disabled or partial message capture leaves
-content unavailable. <code>execute_tool</code> spans contribute recorded
-tool duration and failure. Non-GenAI span and resource attributes such
-as <code>enduser.id</code> or a session identifier are kept in
-trajectory metadata and surface in the app as badges and search
-terms.</p>
+captured in that span; disabled message capture leaves content
+unavailable. <code>execute_tool</code> spans contribute recorded tool
+duration and failure. Non-GenAI span and resource attributes such as
+<code>enduser.id</code> or a session identifier are kept in trajectory
+metadata and surface in the app as badges and search terms.</p>
+<p>shinychat titles each conversation with a separate model call under
+the same conversation identifier, and that call often finishes last. It
+is never used as the transcript. Its tokens stay in the conversation’s
+usage totals and are reported separately in
+<code>metadata$otel$title_calls</code>.</p>
+<p>ellmer leaves out a call’s message history when the turn holds
+content it cannot serialize. scans then rebuilds the history from the
+latest earlier call that recorded one, adds each later call’s reply, and
+records a <code>capture$input</code> or <code>capture$tool_result</code>
+loss for the messages no span kept.
+<code><a href="../reference/assess_trajectory_scans.html">assess_trajectory_scans()</a></code> reports scans that depend on
+those messages as having insufficient evidence.</p>
 </div>
+</div>
+<div class="section level2">
+<h2 id="read-local-trace-files">Read local trace files<a class="anchor" aria-label="anchor" href="#read-local-trace-files"></a>
+</h2>
+<p>Outside Connect, the same spans can be written to local OTLP NDJSON
+files by otelsdk’s file exporter. <code><a href="../reference/read_otel_traces.html">read_otel_traces()</a></code> reads
+them and returns conversations in the same form as
+<code><a href="../reference/read_connect_traces.html">read_connect_traces()</a></code>, with the same <code>n</code>,
+<code>from</code>, <code>to</code>, and <code>max_spans</code>
+arguments. It reads every file unless you give a window.</p>
+<p>A commons agent logs locally when tracing goes to a file:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Sys.setenv.html" class="external-link">Sys.setenv</a></span><span class="op">(</span></span>
+<span>  OTEL_TRACES_EXPORTER <span class="op">=</span> <span class="st">"otlp/file"</span>,</span>
+<span>  OTEL_EXPORTER_OTLP_TRACES_FILE <span class="op">=</span> <span class="st">"traces/trace-%N.jsonl"</span>,</span>
+<span>  OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT <span class="op">=</span> <span class="st">"true"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Set these before ellmer and commons load, then:</span></span>
+<span><span class="va">agent</span> <span class="op">&lt;-</span> <span class="fu">commons</span><span class="fu">::</span><span class="fu"><a href="https://posit-dev.github.io/commons/r/reference/agent.html" class="external-link">agent</a></span><span class="op">(</span><span class="va">client</span>, <span class="va">commons</span>, log <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p>A deputy agent, or any ellmer application, is configured the same
+way: set the exporter variables before ellmer loads, and deputy’s
+<code>deputy.run</code> spans land in the same files as ellmer’s model
+calls.</p>
+<p>Pass the directory, one or more files, or nothing when
+<code>OTEL_EXPORTER_OTLP_TRACES_FILE</code> is set in the session doing
+the reading:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">conversations</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/read_otel_traces.html">read_otel_traces</a></span><span class="op">(</span><span class="st">"traces"</span><span class="op">)</span></span>
+<span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_otel.html">as_trajectory_otel</a></span><span class="op">(</span><span class="va">conversations</span><span class="op">)</span></span></code></pre></div>
+<p>The exporter rotates through <code>trace-0.jsonl</code>,
+<code>trace-1.jsonl</code>, and so on, and keeps
+<code>trace-latest.jsonl</code> pointing at the newest file. Each span
+is read once, whether that alias is a link or a copy. The
+<code>read_info</code> attribute also records how many files were read
+and how many lines could not be parsed; a file being written while you
+read can end in a partial line.</p>
 </div>
 <div class="section level2">
 <h2 id="deploy-the-review-app">Deploy the review app<a class="anchor" aria-label="anchor" href="#deploy-the-review-app"></a>
@@ -190,7 +237,7 @@ application switcher reads from Connect. The repository’s
 <code>deploy/connect/</code> directory contains a ready
 <code>app.R</code> configured through Connect Vars, or call the function
 from your own:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://jameshwade.github.io/scans/">scans</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/scans_app_connect.html">scans_app_connect</a></span><span class="op">(</span></span>
@@ -211,18 +258,52 @@ deployment until it is thirty minutes old or a reviewer presses
 Attach them in <code>app.R</code> (as <code>deploy/connect/app.R</code>
 does) so Posit Publisher or rsconnect bundles them.</p>
 <div class="section level3">
+<h3 id="review-the-conversations">Review the conversations<a class="anchor" aria-label="anchor" href="#review-the-conversations"></a>
+</h3>
+<p>The app opens on an overview of the conversations in view: counts
+with their denominators, activity by day, patterns, tools, models, and
+users. Selecting a bar, pattern, tool, user, or model narrows the
+overview and the list together, and each active filter is a removable
+chip.</p>
+<p>With an annotation store (next section) the list becomes a review
+queue. It orders conversations by “Needs review”: unreviewed first, then
+those with error findings, warnings, nothing a scan could assess, and no
+findings, newest first. Open a conversation and mark it with one of the
+store’s labels by button or key (<code>1</code>-<code>9</code>), or
+press <code>E</code> to mark it reviewed without a label; the next
+unreviewed conversation opens. <code>U</code> jumps to the next
+unreviewed conversation and <code>?</code> lists the shortcuts.</p>
+<p>The Export menu on the overview gives the conversations and findings
+in view as CSV, a Markdown report for the application’s developers, and
+an R snippet that repeats the read with the same content GUID, window,
+and scan settings. The report carries counts and links only. It has no
+transcript text, and user identifiers only when you ask for them. Links
+reopen the same filters. No export contains the Connect server address
+or API key.</p>
+<p>Deputy runs show their recorded ending and run interventions, and
+commons agents show answer provenance and recurring exploratory routes;
+see the sections on each below.</p>
+</div>
+<div class="section level3">
 <h3 id="annotations-on-connect">Annotations on Connect<a class="anchor" aria-label="anchor" href="#annotations-on-connect"></a>
 </h3>
 <p>Pass a <code><a href="../reference/scans_annotations.html">scans_annotations()</a></code> store to record reviewer
 labels and notes. Point it at a file on storage that survives
 redeployment and that every process of the app can write to, and run the
 app as a single process so all reviewers append to one log:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">store</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/scans_annotations.html">scans_annotations</a></span><span class="op">(</span><span class="st">"/data/scans-reviews/annotations.jsonl"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/scans_app_connect.html">scans_app_connect</a></span><span class="op">(</span><span class="va">sources</span>, annotations <span class="op">=</span> <span class="va">store</span><span class="op">)</span></span></code></pre></div>
 <p>The bundled <code>app.R</code> reads
-<code>SCANS_ANNOTATIONS_DIR</code> for this. Without a store the app
-makes no writes and shows no annotation controls.</p>
+<code>SCANS_ANNOTATIONS_DIR</code> for this, and
+<code>SCANS_ANNOTATION_LABELS</code> for the labels reviewers can apply.
+Its other Vars set the window (<code>SCANS_CONNECT_DAYS</code>), the
+reader (<code>SCANS_CONNECT_READER</code>), whether per-job stores are
+read (<code>SCANS_CONNECT_JOBS</code>), and the optional
+<code>SCANS_REVIEWS</code> and <code>SCANS_INVESTIGATIONS</code>
+controls; a value it does not understand stops the app with a message
+naming the Var. Without a store the app makes no writes and shows no
+annotation controls.</p>
 </div>
 </div>
 <div class="section level2">
@@ -259,16 +340,49 @@ nothing else.</li>
 <div class="section level2">
 <h2 id="agents-built-with-commons">Agents built with commons<a class="anchor" aria-label="anchor" href="#agents-built-with-commons"></a>
 </h2>
-<p>commons agents log their conversations with provenance tags and
-citation decisions that the GenAI spans do not carry. To keep those,
-read through commons and convert with
-<code><a href="../reference/as_trajectory_commons.html">as_trajectory_commons()</a></code>, or pass
+<p>commons agents add their own spans to each conversation: a turn
+wrapper that records the Connect user, and a provenance record of each
+answer’s tag and citation decisions. <code><a href="../reference/as_trajectory_otel.html">as_trajectory_otel()</a></code>
+keeps both. Each exchange becomes a <code>commons:provenance</code>
+event, in the same form <code><a href="../reference/as_trajectory_commons.html">as_trajectory_commons()</a></code> gives, with
+the full citation decisions and the time the record was made, and the
+user is kept with the trajectory’s metadata. The same read also keeps
+every model and tool call’s timing and usage, which the commons reader
+does not return, so <code><a href="../reference/measure_trajectories.html">measure_trajectories()</a></code> and answer-time
+trends work on commons conversations. A record that conflicts with
+another for the same exchange, as after an edited or restored session,
+leaves the exchange unclassified with a loss rather than guessing.</p>
+<p>Read through commons instead when you want the transcript exactly as
+commons rebuilds it, including its placeholder turns, or its own
+resolution of vanity URLs and deployment records. Convert that result
+with <code><a href="../reference/as_trajectory_commons.html">as_trajectory_commons()</a></code>, or pass
 <code>reader = "commons"</code> to <code><a href="../reference/scans_app_connect.html">scans_app_connect()</a></code>:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">conversations</span> <span class="op">&lt;-</span> <span class="fu">commons</span><span class="fu">::</span><span class="fu"><a href="https://posit-dev.github.io/commons/r/reference/trajectory_read.html" class="external-link">trajectory_read</a></span><span class="op">(</span><span class="st">"path-or-guid"</span><span class="op">)</span></span>
 <span><span class="va">bundle</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_trajectory_commons.html">as_trajectory_commons</a></span><span class="op">(</span><span class="va">conversations</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/scans_app_connect.html">scans_app_connect</a></span><span class="op">(</span><span class="va">sources</span>, reader <span class="op">=</span> <span class="st">"commons"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="agents-built-with-deputy">Agents built with Deputy<a class="anchor" aria-label="anchor" href="#agents-built-with-deputy"></a>
+</h2>
+<p>Deputy adds a <code>deputy.run</code> span around each agent run,
+with the run’s identity, how it ended, and its governance decisions as
+span events. <code><a href="../reference/as_trajectory_otel.html">as_trajectory_otel()</a></code> keeps these too. Each
+trajectory carries the run ID, session, agent, and delegation in
+metadata, with the same ten-field <code>ending</code> that
+<code><a href="../reference/as_trajectory_deputy.html">as_trajectory_deputy()</a></code> records, as far as the span says it:
+whether the answer was cut off, the finish reason, and the stop reason.
+Permission decisions, fallbacks, compactions, hooks, checkpoints,
+warnings, and structured attempts become <code>deputy:*</code> events
+with their times. Deputy files a subagent’s run under its lead’s
+conversation, and scans gives that run its own trajectory, linked to the
+lead through <code>parent_trajectory_id</code>, so the two transcripts
+never replace each other.</p>
+<p>The span leaves out what Deputy keeps private: prompts, tool inputs
+and results, error messages, approvals waiting for a decision, and
+failed compactions. Convert the <code>AgentResult</code> with
+<code><a href="../reference/as_trajectory_deputy.html">as_trajectory_deputy()</a></code> when you have it and need those.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

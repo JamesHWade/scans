@@ -21,7 +21,8 @@ scans_app_connect(
   jobs = TRUE,
   investigations = FALSE,
   reviews = FALSE,
-  chat_factory = NULL
+  chat_factory = NULL,
+  days = 7
 )
 ```
 
@@ -41,7 +42,7 @@ scans_app_connect(
 - from, to:
 
   Optional lower-inclusive and upper-exclusive activity bounds passed to
-  the reader. When both are omitted, each load reads the seven days
+  the reader. When both are omitted, each load reads the `days` days
   ending at load time. Supply either bound as `NULL` explicitly to leave
   that side of the window open.
 
@@ -85,12 +86,25 @@ scans_app_connect(
   Ask. Tools configured on this client are replaced with the bounded
   scans tools; its system prompt is retained with evidence instructions.
 
+- days:
+
+  Length in days of the rolling window read when `from` and `to` are
+  both omitted. The default is 7.
+
 ## Value
 
 A [`shiny::shinyApp()`](https://rdrr.io/pkg/shiny/man/shinyApp.html)
 object.
 
 ## Details
+
+The app is described in
+[`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md):
+an overview with facets, a review queue with one-key dispositions when
+an annotation store is supplied, exports, and Deputy and provenance
+sections when the traces record them. Exports and the R snippet never
+contain the Connect server address or API key; the snippet names the
+content GUID and window so the read can be repeated.
 
 Two readers are available. The default, `"otel"`, uses this package's
 own

@@ -171,18 +171,20 @@ and times. Unsupported objects are rejected with a field path.</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">saved</span> <span class="op">&lt;-</span> <span class="fu">investigation_snapshot</span><span class="op">(</span><span class="va">bundle</span>, application <span class="op">=</span> <span class="st">"Support assistant"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">saved</span><span class="op">$</span><span class="va">analysis</span><span class="op">$</span><span class="va">assessments</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"scan"</span>, <span class="st">"status"</span><span class="op">)</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 2</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   scan                       status               </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> ambiguous_tool_correlation insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> unresolved_tool_call       insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> unmatched_tool_result      insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> repeated_tool_call         insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> suspicious_tool_loop       insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> event_error                insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span> error_chain                insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span> turn_error                 insufficient_evidence</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span> trajectory_error           assessed_no_findings </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 11 × 2</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    scan                       status               </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> ambiguous_tool_correlation insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span> unresolved_tool_call       insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span> unmatched_tool_result      insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span> repeated_tool_call         insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> suspicious_tool_loop       insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> event_error                insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> error_chain                insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> turn_error                 insufficient_evidence</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> trajectory_error           assessed_no_findings </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> cut_off_answer             not_applicable       </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span> run_intervention           not_applicable       </span>
 <span class="r-in"><span><span class="va">saved</span><span class="op">$</span><span class="va">manifest</span><span class="op">$</span><span class="va">content_policy</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $id</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "retained-v1"</span>

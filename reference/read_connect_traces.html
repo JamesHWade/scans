@@ -107,7 +107,9 @@ carrying <code>gen_ai.*</code> attributes count towards it: Shiny applications e
 thousands of reactive spans per session, and those are read past rather
 than allowed to exhaust the budget before the conversations are reached.
 Framework spans are kept only as long as grouping needs them to link a
-model call to its conversation, and are dropped afterwards.</p></dd>
+model call to its conversation, and are dropped afterwards. commons turn
+and provenance spans and Deputy run spans are kept with their
+conversation and never count.</p></dd>
 
 
 <dt id="arg-jobs">jobs<a class="anchor" aria-label="anchor" href="#arg-jobs"></a></dt>

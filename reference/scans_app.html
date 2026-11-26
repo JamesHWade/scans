@@ -120,18 +120,62 @@ launches the app; the returned object can also be served from an <code>app.R</co
 inspection does not call a model, replay tools, or modify a bundle.
 Caller-supplied loaders are invoked only when their application is first
 selected in a session or explicitly reloaded.</p>
-<p>The app opens with an application overview of the filtered trajectories:
-recurring findings, elapsed-time quantiles, recorded token usage, and
-evidence coverage. Selecting a pattern filters the browser; selecting a
-trajectory opens its evidence. Elapsed time includes any pauses between
-user messages and is not model response latency. Unknown measurements
-remain unknown. Token counts use preserved conversation totals when
-available, otherwise sum known turn values, and may be partial.</p>
-<p>The app also provides filters and a trajectory browser, a source-neutral
-transcript and event stream, and the findings, evaluations, and adapter
-losses associated with the selected trajectory. Built-in findings are
-computed with <code><a href="scan_trajectories.html">scan_trajectories()</a></code> when each application snapshot is first
-loaded.</p>
+<p>The app opens with an overview of the trajectories in view. Stat tiles
+state counted facts with their denominators: how many are in view, how many
+have findings out of those a scan could assess, how many tool calls failed,
+and median elapsed time and tokens with the number of records that carry
+each. An activity chart shows them by start day or hour, patterns list each
+finding type with its reach and trend, and tables break the cohort down by
+tool, model, and user. Every count is a control: selecting a bar, pattern,
+tool, user, or model narrows the overview, the browser, and Ask together,
+and the active filters appear as removable chips. Elapsed time includes any
+pauses between user messages and is not model response latency. Unknown
+measurements remain unknown, and no findings is not evidence of success.</p>
+<p>Selecting a trajectory opens a source-neutral transcript and event stream
+with the findings, evaluations, and adapter losses recorded for it.
+Built-in findings are computed with <code><a href="scan_trajectories.html">scan_trajectories()</a></code> when each
+application snapshot is first loaded.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="review-queue-and-dispositions">Review queue and dispositions<a class="anchor" aria-label="anchor" href="#review-queue-and-dispositions"></a></h2>
+
+
+<p>With an <code>annotations</code> store the browser is a review queue. Entries show why
+they are flagged and whether they are reviewed, and "Needs review" orders
+them by a fixed rule (unreviewed first, then error findings, warnings,
+unassessed, and clean, newest first) rather than a score. A bar above the
+transcript marks the open trajectory with one of the store's labels, or as
+reviewed without a label, by button or by key (<code>1</code>-<code>9</code>, <code>E</code>); <code>U</code> opens the
+next unreviewed trajectory and <code>?</code> lists the shortcuts. Each mark appends
+one record to the store; nothing is edited or deleted. Without a store the
+app is read-only and claims no review state.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="exports">Exports<a class="anchor" aria-label="anchor" href="#exports"></a></h2>
+
+
+<p>The overview's Export menu offers the trajectories and findings in view as
+CSV, a Markdown report, and an R snippet that rebuilds the snapshot and
+scan settings. The report carries counts, tables, and links; it contains
+no transcript text, and user identifiers only when requested. A single
+trajectory can be copied as Markdown, which does contain its content.
+Links are the app's own address with the trajectory and active filters, so
+they reopen the same scope. No export contains credentials.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="deputy-runs-and-provenance">Deputy runs and provenance<a class="anchor" aria-label="anchor" href="#deputy-runs-and-provenance"></a></h2>
+
+
+<p>For Deputy runs the header states the recorded run ending, including an
+answer the provider cut short on a run whose status is still completed,
+and links a delegated run to its lead through the recorded lineage. The
+overview lists run interventions by kind. A Deputy result's usage includes
+its delegated runs at every level, while a trace records each run's own
+model calls; token totals count each delegated run once either way. For sources
+that record commons provenance, the overview counts exchanges as trusted,
+cited, untrusted, or unclassified, and ranks recurring exploratory tool
+routes as candidates for governed measures, with the recorded tool input
+and output shown as text and never executed.</p>
     </div>
     <div class="section level2">
     <h2 id="ask-about-the-evidence">Ask about the evidence<a class="anchor" aria-label="anchor" href="#ask-about-the-evidence"></a></h2>

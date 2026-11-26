@@ -87,7 +87,7 @@ evidence identities remain available when the source changes.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">path</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"extdata"</span>, <span class="st">"support-investigation.json"</span>, package <span class="op">=</span> <span class="st">"scans"</span><span class="op">)</span></span>
 <span><span class="va">saved</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/investigation_snapshot.html">investigation_snapshot</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="../reference/as_trajectory_otel.html">as_trajectory_otel</a></span><span class="op">(</span><span class="fu">jsonlite</span><span class="fu">::</span><span class="fu"><a href="https://jeroen.r-universe.dev/jsonlite/reference/read_json.html" class="external-link">read_json</a></span><span class="op">(</span><span class="va">path</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/as_trajectory_otel.html">as_trajectory_otel</a></span><span class="op">(</span><span class="fu">jsonlite</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/jsonlite/man/read_json.html" class="external-link">read_json</a></span><span class="op">(</span><span class="va">path</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  application <span class="op">=</span> <span class="st">"Order support"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">findings</span> <span class="op">&lt;-</span> <span class="va">saved</span><span class="op">$</span><span class="va">analysis</span><span class="op">$</span><span class="va">findings</span></span>
@@ -103,7 +103,7 @@ evidence identities remain available when the source changes.</p>
 <span><span class="co">#&gt; [1] "confirmed"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $decision_ids</span></span>
-<span><span class="co">#&gt; [1] "sha256:cbd0376f4a858b0564494c53554c6c379527ae190bc3624b47190930965aad38"</span></span></code></pre></div>
+<span><span class="co">#&gt; [1] "sha256:fcfbde7cc060f0a2256a5746e836921cf68780548b81e41ec0a798e32f5a835a"</span></span></code></pre></div>
 <p>The case contains only the selected trajectory and relevant losses,
 alongside the original snapshot and revision IDs. Its copied analysis
 retains the scanner version and settings. Capture-wide metadata and

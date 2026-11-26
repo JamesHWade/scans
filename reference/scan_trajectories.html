@@ -103,13 +103,16 @@ computed, so a finding is the same whether or not its neighbours ran.</p></dd>
 caller-supplied diagnostic-run identifier.</p></li>
 <li><p><code>scan</code>: one of <code>ambiguous_tool_correlation</code>, <code>unresolved_tool_call</code>,
 <code>unmatched_tool_result</code>, <code>repeated_tool_call</code>, <code>suspicious_tool_loop</code>,
-<code>event_error</code>, <code>error_chain</code>, <code>turn_error</code>, or <code>trajectory_error</code>;
-<code>scan_version</code>: detector version.</p></li>
+<code>event_error</code>, <code>error_chain</code>, <code>turn_error</code>, <code>trajectory_error</code>,
+<code>cut_off_answer</code>, or <code>run_intervention</code>; <code>scan_version</code>: detector version.</p></li>
 <li><p><code>trajectory_id</code>, <code>turn_id</code>, and <code>event_id</code>: primary evidence identities;
 <code>event_ids</code>: character vector of every supporting event identifier. A
-<code>trajectory_error</code> finding has no turn or event, and a <code>turn_error</code>
-finding no event, because the failure is recorded on the record itself.</p></li>
-<li><p><code>severity</code>: <code>warning</code> for tool-pattern findings or <code>error</code> for failures;
+<code>trajectory_error</code> or <code>cut_off_answer</code> finding has no turn or event, and a
+<code>turn_error</code> finding no event, because the evidence is recorded on the
+record itself. Limit and delegation-claim interventions known only from
+the trajectory record also have no event.</p></li>
+<li><p><code>severity</code>: <code>warning</code> for tool-pattern findings and run interventions, or
+<code>error</code> for failures and cut-off answers;
 <code>label</code> and <code>explanation</code>: concise human-readable descriptions.</p></li>
 <li><p><code>value</code>: scan-specific structured details; <code>metadata</code>: a named extension
 list, currently empty for built-in scans.</p></li>
@@ -117,7 +120,24 @@ list, currently empty for built-in scans.</p></li>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>Finding identifiers are deterministic for an unchanged bundle, argument set,
+    <p>Two scans read Deputy run evidence: the run ending in
+<code>metadata$ending</code>, a delegation in <code>metadata$delegation</code>, and <code>deputy:*</code>
+lifecycle events, from any adapter that records them. <code>cut_off_answer</code> reports a final answer the provider cut
+short (<code>cut_off</code>, or a <code>max_tokens</code>, <code>context_window</code>, or <code>content_filter</code>
+finish reason), which a <code>"completed"</code> status does not reveal.
+<code>run_intervention</code> reports, with a <code>kind</code> in <code>value</code>: <code>limit_wrap_up</code> (a
+usage limit made the model answer without tools), <code>limit_stop</code> (a usage
+limit stopped the run with no answer), <code>provider_fallback</code>,
+<code>compaction_failure</code>, <code>repeated_compaction</code> (at least two <code>deputy:compaction</code>
+events in one run), <code>permission_denied</code>, <code>approval_pending</code> (an approval
+with no later decision or tool execution in the run), and
+<code>delegation_missing_evidence</code> or <code>delegation_unresolved_work</code> (a delegated
+subagent's reported claims, on the child trajectory, with the claim text,
+<code>delegation_id</code>, and <code>parent_trajectory_id</code>). A failed compaction
+or denied permission is also a failed event, so <code>event_error</code> reports the
+same event: one finding records the failure, the other what it means for
+the run.</p>
+<p>Finding identifiers are deterministic for an unchanged bundle, argument set,
 and <code>scan_id</code>. The default <code>scan_id</code> is snapshot-local and is not intended as
 a globally unique persistent identifier.</p>
     </div>

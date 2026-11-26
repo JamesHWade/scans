@@ -278,27 +278,20 @@ write_investigation(saved, path)
 reopened <- read_investigation(path)
 stopifnot(identical(saved, reopened))
 reopened$analysis$assessments[c("trajectory_id", "scan", "status")]
-#> # A tibble: 18 × 3
-#>    trajectory_id        scan                       status                
-#>    <chr>                <chr>                      <chr>                 
-#>  1 otel/retry           ambiguous_tool_correlation assessed_no_findings  
-#>  2 otel/retry           unresolved_tool_call       assessed_no_findings  
-#>  3 otel/retry           unmatched_tool_result      assessed_no_findings  
-#>  4 otel/retry           repeated_tool_call         assessed_with_findings
-#>  5 otel/retry           suspicious_tool_loop       assessed_with_findings
-#>  6 otel/retry           event_error                assessed_with_findings
-#>  7 otel/retry           error_chain                insufficient_evidence 
-#>  8 otel/retry           turn_error                 assessed_no_findings  
-#>  9 otel/retry           trajectory_error           assessed_no_findings  
-#> 10 otel/limited-capture ambiguous_tool_correlation insufficient_evidence 
-#> 11 otel/limited-capture unresolved_tool_call       insufficient_evidence 
-#> 12 otel/limited-capture unmatched_tool_result      insufficient_evidence 
-#> 13 otel/limited-capture repeated_tool_call         insufficient_evidence 
-#> 14 otel/limited-capture suspicious_tool_loop       insufficient_evidence 
-#> 15 otel/limited-capture event_error                insufficient_evidence 
-#> 16 otel/limited-capture error_chain                insufficient_evidence 
-#> 17 otel/limited-capture turn_error                 insufficient_evidence 
-#> 18 otel/limited-capture trajectory_error           assessed_no_findings
+#> # A tibble: 22 × 3
+#>    trajectory_id scan                       status                
+#>    <chr>         <chr>                      <chr>                 
+#>  1 otel/retry    ambiguous_tool_correlation assessed_no_findings  
+#>  2 otel/retry    unresolved_tool_call       assessed_no_findings  
+#>  3 otel/retry    unmatched_tool_result      assessed_no_findings  
+#>  4 otel/retry    repeated_tool_call         assessed_with_findings
+#>  5 otel/retry    suspicious_tool_loop       assessed_with_findings
+#>  6 otel/retry    event_error                assessed_with_findings
+#>  7 otel/retry    error_chain                insufficient_evidence 
+#>  8 otel/retry    turn_error                 assessed_no_findings  
+#>  9 otel/retry    trajectory_error           assessed_no_findings  
+#> 10 otel/retry    cut_off_answer             not_applicable        
+#> # ℹ 12 more rows
 reopened$manifest$content_policy
 #> $id
 #> [1] "retained-v1"
@@ -365,7 +358,7 @@ reconnecting to the original source.
 
 | Source | Public entry point | Resource and capture boundary |
 |----|----|----|
-| ellmer chat or turns (\>= 0.4.2) | [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md) | Canonical turn usage and duration where supplied. A turn duration is not asserted to be one model call. |
+| ellmer chat or turns (\>= 0.5.0) | [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md) | Canonical turn usage and duration where supplied. A turn duration is not asserted to be one model call. |
 | OTel GenAI / Connect | [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md) / [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md) | Call-level usage and intervals when recorded. Message capture and conversation IDs determine whether a meaningful transcript can be reconstructed. Keep read limits with the snapshot. |
 | vitals evaluation (\>= 0.3.0) | [`as_trajectory_vitals()`](https://jameshwade.github.io/scans/reference/as_trajectory_vitals.md) | Outcome evaluations joined to solver trajectories; resource coverage follows the supplied turns. Reading development vitals logs requires its supported development API. |
 | Deputy and dsprrr public results | [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md) / [`as_trajectory_dsprrr()`](https://jameshwade.github.io/scans/reference/as_trajectory_dsprrr.md) | Source execution and trace measurements remain distinct from model-call timing. dsprrr millisecond latency is normalized to canonical seconds. |

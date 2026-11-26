@@ -96,11 +96,69 @@ truncated or incomplete read.
 
 scans reconstructs messages from the most recent `chat` span of a
 conversation. The transcript is limited to the history captured in that
-span; disabled or partial message capture leaves content unavailable.
+span; disabled message capture leaves content unavailable.
 `execute_tool` spans contribute recorded tool duration and failure.
 Non-GenAI span and resource attributes such as `enduser.id` or a session
 identifier are kept in trajectory metadata and surface in the app as
 badges and search terms.
+
+shinychat titles each conversation with a separate model call under the
+same conversation identifier, and that call often finishes last. It is
+never used as the transcript. Its tokens stay in the conversation’s
+usage totals and are reported separately in `metadata$otel$title_calls`.
+
+ellmer leaves out a call’s message history when the turn holds content
+it cannot serialize. scans then rebuilds the history from the latest
+earlier call that recorded one, adds each later call’s reply, and
+records a `capture$input` or `capture$tool_result` loss for the messages
+no span kept.
+[`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+reports scans that depend on those messages as having insufficient
+evidence.
+
+## Read local trace files
+
+Outside Connect, the same spans can be written to local OTLP NDJSON
+files by otelsdk’s file exporter.
+[`read_otel_traces()`](https://jameshwade.github.io/scans/reference/read_otel_traces.md)
+reads them and returns conversations in the same form as
+[`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md),
+with the same `n`, `from`, `to`, and `max_spans` arguments. It reads
+every file unless you give a window.
+
+A commons agent logs locally when tracing goes to a file:
+
+``` r
+
+Sys.setenv(
+  OTEL_TRACES_EXPORTER = "otlp/file",
+  OTEL_EXPORTER_OTLP_TRACES_FILE = "traces/trace-%N.jsonl",
+  OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT = "true"
+)
+# Set these before ellmer and commons load, then:
+agent <- commons::agent(client, commons, log = TRUE)
+```
+
+A deputy agent, or any ellmer application, is configured the same way:
+set the exporter variables before ellmer loads, and deputy’s
+`deputy.run` spans land in the same files as ellmer’s model calls.
+
+Pass the directory, one or more files, or nothing when
+`OTEL_EXPORTER_OTLP_TRACES_FILE` is set in the session doing the
+reading:
+
+``` r
+
+conversations <- read_otel_traces("traces")
+bundle <- as_trajectory_otel(conversations)
+```
+
+The exporter rotates through `trace-0.jsonl`, `trace-1.jsonl`, and so
+on, and keeps `trace-latest.jsonl` pointing at the newest file. Each
+span is read once, whether that alias is a link or a copy. The
+`read_info` attribute also records how many files were read and how many
+lines could not be parsed; a file being written while you read can end
+in a partial line.
 
 ## Deploy the review app
 
@@ -133,6 +191,33 @@ The app depends on shiny, bslib, htmltools, httr2, and jsonlite. Attach
 them in `app.R` (as `deploy/connect/app.R` does) so Posit Publisher or
 rsconnect bundles them.
 
+### Review the conversations
+
+The app opens on an overview of the conversations in view: counts with
+their denominators, activity by day, patterns, tools, models, and users.
+Selecting a bar, pattern, tool, user, or model narrows the overview and
+the list together, and each active filter is a removable chip.
+
+With an annotation store (next section) the list becomes a review queue.
+It orders conversations by “Needs review”: unreviewed first, then those
+with error findings, warnings, nothing a scan could assess, and no
+findings, newest first. Open a conversation and mark it with one of the
+store’s labels by button or key (`1`-`9`), or press `E` to mark it
+reviewed without a label; the next unreviewed conversation opens. `U`
+jumps to the next unreviewed conversation and `?` lists the shortcuts.
+
+The Export menu on the overview gives the conversations and findings in
+view as CSV, a Markdown report for the application’s developers, and an
+R snippet that repeats the read with the same content GUID, window, and
+scan settings. The report carries counts and links only. It has no
+transcript text, and user identifiers only when you ask for them. Links
+reopen the same filters. No export contains the Connect server address
+or API key.
+
+Deputy runs show their recorded ending and run interventions, and
+commons agents show answer provenance and recurring exploratory routes;
+see the sections on each below.
+
 ### Annotations on Connect
 
 Pass a
@@ -148,8 +233,14 @@ store <- scans_annotations("/data/scans-reviews/annotations.jsonl")
 scans_app_connect(sources, annotations = store)
 ```
 
-The bundled `app.R` reads `SCANS_ANNOTATIONS_DIR` for this. Without a
-store the app makes no writes and shows no annotation controls.
+The bundled `app.R` reads `SCANS_ANNOTATIONS_DIR` for this, and
+`SCANS_ANNOTATION_LABELS` for the labels reviewers can apply. Its other
+Vars set the window (`SCANS_CONNECT_DAYS`), the reader
+(`SCANS_CONNECT_READER`), whether per-job stores are read
+(`SCANS_CONNECT_JOBS`), and the optional `SCANS_REVIEWS` and
+`SCANS_INVESTIGATIONS` controls; a value it does not understand stops
+the app with a message naming the Var. Without a store the app makes no
+writes and shows no annotation controls.
 
 ## Security model
 
@@ -173,9 +264,27 @@ store the app makes no writes and shows no annotation controls.
 
 ## Agents built with commons
 
-commons agents log their conversations with provenance tags and citation
-decisions that the GenAI spans do not carry. To keep those, read through
-commons and convert with
+commons agents add their own spans to each conversation: a turn wrapper
+that records the Connect user, and a provenance record of each answer’s
+tag and citation decisions.
+[`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+keeps both. Each exchange becomes a `commons:provenance` event, in the
+same form
+[`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md)
+gives, with the full citation decisions and the time the record was
+made, and the user is kept with the trajectory’s metadata. The same read
+also keeps every model and tool call’s timing and usage, which the
+commons reader does not return, so
+[`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
+and answer-time trends work on commons conversations. A record that
+conflicts with another for the same exchange, as after an edited or
+restored session, leaves the exchange unclassified with a loss rather
+than guessing.
+
+Read through commons instead when you want the transcript exactly as
+commons rebuilds it, including its placeholder turns, or its own
+resolution of vanity URLs and deployment records. Convert that result
+with
 [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md),
 or pass `reader = "commons"` to
 [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md):
@@ -187,3 +296,25 @@ bundle <- as_trajectory_commons(conversations)
 
 scans_app_connect(sources, reader = "commons")
 ```
+
+## Agents built with Deputy
+
+Deputy adds a `deputy.run` span around each agent run, with the run’s
+identity, how it ended, and its governance decisions as span events.
+[`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+keeps these too. Each trajectory carries the run ID, session, agent, and
+delegation in metadata, with the same ten-field `ending` that
+[`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
+records, as far as the span says it: whether the answer was cut off, the
+finish reason, and the stop reason. Permission decisions, fallbacks,
+compactions, hooks, checkpoints, warnings, and structured attempts
+become `deputy:*` events with their times. Deputy files a subagent’s run
+under its lead’s conversation, and scans gives that run its own
+trajectory, linked to the lead through `parent_trajectory_id`, so the
+two transcripts never replace each other.
+
+The span leaves out what Deputy keeps private: prompts, tool inputs and
+results, error messages, approvals waiting for a decision, and failed
+compactions. Convert the `AgentResult` with
+[`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
+when you have it and need those.

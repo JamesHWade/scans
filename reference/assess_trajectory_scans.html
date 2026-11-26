@@ -116,7 +116,19 @@ require explicit status or failure evidence. Recognized status labels are
 <code>completed</code>, <code>failed</code>, <code>cancelled</code>, <code>interrupted</code>, <code>running</code>, and <code>pending</code>;
 other labels do not establish status coverage. Multiple failed events without
 recorded parent links cannot establish the absence of an error chain.</p>
-<p>Built-ins execute in tool, event, and record groups. A group failure affects
+<p>The Deputy scans apply to trajectories that record Deputy run evidence: a
+run ending in <code>metadata$ending</code>, a delegation in <code>metadata$delegation</code>, any
+<code>deputy:*</code> event, or a <code>"deputy"</code> source type. Other trajectories are <code>not_applicable</code>. <code>cut_off_answer</code>
+needs the ending's <code>cut_off</code> or <code>finish_reason</code>; <code>run_intervention</code> needs
+recorded <code>deputy:*</code> events, with a recorded status on each permission and
+approval event. A capture with events but none of an
+intervention's types is assessed with no findings; a capture without any
+lifecycle events has insufficient evidence unless the run ending itself
+shows a limit. A delegation child has no lifecycle events by design: it is
+assessed from its reported claims, and has insufficient evidence when the
+subagent reported neither. <code>settings</code> records the fixed repeated-compaction
+threshold.</p>
+<p>Built-ins execute in tool, event, record, and Deputy groups. A group failure affects
 its selected scanners on that trajectory; other groups continue. Failure
 reasons omit arbitrary condition messages. Finding identifiers are local to
 the run and can change if a previously failed group later succeeds.</p>
@@ -131,18 +143,20 @@ the run and can change if a previously failed group later succeeds.</p>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu">assess_trajectory_scans</span><span class="op">(</span><span class="va">bundle</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">result</span><span class="op">$</span><span class="va">assessments</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"scan"</span>, <span class="st">"status"</span>, <span class="st">"reason"</span><span class="op">)</span><span class="op">]</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 9 × 3</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   scan                       status                reason                       </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                        </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> ambiguous_tool_correlation insufficient_evidence No tool exchange or fully in…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> unresolved_tool_call       insufficient_evidence No tool exchange or fully in…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> unmatched_tool_result      insufficient_evidence No tool exchange or fully in…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> repeated_tool_call         insufficient_evidence No tool exchange or fully in…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> suspicious_tool_loop       insufficient_evidence No tool exchange or fully in…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> event_error                insufficient_evidence Events with diagnostic statu…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">7</span> error_chain                insufficient_evidence Events with diagnostic statu…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">8</span> turn_error                 insufficient_evidence Semantic turns are not recor…</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">9</span> trajectory_error           assessed_no_findings  Required evidence is recorde…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 11 × 3</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    scan                       status                reason                      </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                      <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                 <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>                       </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 1</span> ambiguous_tool_correlation insufficient_evidence No tool exchange or fully i…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 2</span> unresolved_tool_call       insufficient_evidence No tool exchange or fully i…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 3</span> unmatched_tool_result      insufficient_evidence No tool exchange or fully i…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 4</span> repeated_tool_call         insufficient_evidence No tool exchange or fully i…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 5</span> suspicious_tool_loop       insufficient_evidence No tool exchange or fully i…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 6</span> event_error                insufficient_evidence Events with diagnostic stat…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 7</span> error_chain                insufficient_evidence Events with diagnostic stat…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 8</span> turn_error                 insufficient_evidence Semantic turns are not reco…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;"> 9</span> trajectory_error           assessed_no_findings  Required evidence is record…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">10</span> cut_off_answer             not_applicable        No Deputy run ending or dep…</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">11</span> run_intervention           not_applicable        No Deputy run ending or dep…</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

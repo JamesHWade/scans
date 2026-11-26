@@ -136,18 +136,20 @@ bundle <- TrajectoryBundle(
 )
 saved <- investigation_snapshot(bundle, application = "Support assistant")
 saved$analysis$assessments[c("scan", "status")]
-#> # A tibble: 9 × 2
-#>   scan                       status               
-#>   <chr>                      <chr>                
-#> 1 ambiguous_tool_correlation insufficient_evidence
-#> 2 unresolved_tool_call       insufficient_evidence
-#> 3 unmatched_tool_result      insufficient_evidence
-#> 4 repeated_tool_call         insufficient_evidence
-#> 5 suspicious_tool_loop       insufficient_evidence
-#> 6 event_error                insufficient_evidence
-#> 7 error_chain                insufficient_evidence
-#> 8 turn_error                 insufficient_evidence
-#> 9 trajectory_error           assessed_no_findings 
+#> # A tibble: 11 × 2
+#>    scan                       status               
+#>    <chr>                      <chr>                
+#>  1 ambiguous_tool_correlation insufficient_evidence
+#>  2 unresolved_tool_call       insufficient_evidence
+#>  3 unmatched_tool_result      insufficient_evidence
+#>  4 repeated_tool_call         insufficient_evidence
+#>  5 suspicious_tool_loop       insufficient_evidence
+#>  6 event_error                insufficient_evidence
+#>  7 error_chain                insufficient_evidence
+#>  8 turn_error                 insufficient_evidence
+#>  9 trajectory_error           assessed_no_findings 
+#> 10 cut_off_answer             not_applicable       
+#> 11 run_intervention           not_applicable       
 saved$manifest$content_policy
 #> $id
 #> [1] "retained-v1"

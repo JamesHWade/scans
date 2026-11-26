@@ -33,8 +33,9 @@ A tibble with one row per trajectory and measure:
   eligible records in the loaded snapshot, respectively. Unknown counts
   are `NA`.
 
-- `coverage`: `complete`, `partial`, `unavailable`, or `unknown` (an
-  older conversation total without a denominator). Complete recording
+- `coverage`: `complete`, `partial`, `unavailable`, or `unknown` (a
+  total that does not record how many of its records contributed: an
+  older conversation total, or a Deputy run total). Complete recording
   does not establish complete capture of an application's work.
 
 - `source`, `source_unit`, `adapter`, `contract_version`: interpretation
@@ -62,6 +63,18 @@ zero. Other canonical sources retain their input counts with unknown
 cache inclusion. Do not add cached usage again when
 `includes_cached_input` is `TRUE`. `turn_duration` sums known canonical
 turn durations without asserting one turn equals one model call.
+
+Deputy results report run-level usage and duration, which take
+precedence over their turns: compaction removes earlier turns, and
+retained turns can belong to earlier runs of the conversation. Token
+measures then have source `deputy_run_usage`, `n_total` is the run's
+model request count, and `n_recorded` and coverage are unknown because
+Deputy counts a request without reported usage as zero. The totals
+include compaction summaries and delegated runs. `elapsed` is the run's
+`duration`. Turn-level usage remains in
+[`trajectory_turns()`](https://jameshwade.github.io/scans/reference/trajectory_accessors.md)
+and
+[`summarize_trajectories()`](https://jameshwade.github.io/scans/reference/summarize_trajectories.md).
 
 `model_duration` sums captured OTel chat durations. `tool_duration` sums
 OTel execute-tool durations, otherwise canonical tool-call durations.

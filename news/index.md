@@ -2,6 +2,186 @@
 
 ## scans 0.0.0.9000
 
+- [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
+  opens on a diagnostic overview: stat tiles with denominators, an
+  activity chart by start day or hour, pattern reach and trend, a
+  per-tool failure table, and breakdowns by model and user. Selecting a
+  bar, pattern, tool, user, or model narrows the overview, the
+  trajectory browser, and Ask together, and active filters appear as
+  removable chips. Copy says “conversations” for OTel and commons
+  cohorts and “trajectories” otherwise.
+
+- With an annotation store the browser is a review queue. Entries show
+  why they are flagged and whether they are reviewed, “Needs review”
+  orders them by a fixed rule, and a bar above the transcript marks a
+  trajectory with one click or key (`1`-`9`, `E`) and opens the next
+  unreviewed one. The overview offers the trajectories and findings in
+  view as CSV, a Markdown report with counts and links (no transcript
+  text; user identifiers only on request), and an R snippet that
+  rebuilds the snapshot. Links can carry the active filters. The app
+  says what it is reading while a source loads.
+
+- The app shows Deputy run evidence and commons provenance when a source
+  records them: the run ending in the trajectory header (including a
+  cut-off answer on a completed run), recorded delegation lineage, run
+  interventions by kind, answer provenance counts with unclassified kept
+  apart from untrusted, and recurring exploratory tool routes as
+  promotion candidates with recorded tool input and output shown as
+  text. A trajectory with timed events gets a timeline above its
+  transcript: model and tool calls as bars, lifecycle and provenance
+  events as ticks, and long idle gaps shortened to a marked break. Token
+  totals count a delegated run once, through its lead.
+
+- [`scans_app_connect()`](https://jameshwade.github.io/scans/reference/scans_app_connect.md)
+  gains `days` for the length of its rolling window, passes `source_uri`
+  to the commons reader, and requires commons 0.2.0 for
+  `reader = "commons"`. The bundled Connect app accepts
+  `SCANS_CONNECT_DAYS`, `SCANS_CONNECT_READER`, `SCANS_CONNECT_JOBS`,
+  `SCANS_REVIEWS`, `SCANS_INVESTIGATIONS`, and
+  `SCANS_ANNOTATION_LABELS`, and stops with a message naming any Var it
+  cannot parse.
+
+- [`scans_tools()`](https://jameshwade.github.io/scans/reference/scans_tools.md)
+  gains `scans_route_counts` and `scans_route_candidates`. They count
+  exchanges by recorded commons provenance (trusted, cited, untrusted,
+  unclassified, or not applicable for sources without provenance) with
+  explicit denominators, and rank recurring exploratory tool routes as
+  measure-promotion candidates with evidence references, bounded
+  recorded tool inputs and outputs, and resource coverage. Captured SQL
+  and R are never executed
+  ([\#70](https://github.com/JamesHWade/scans/issues/70)).
+
+- [`scan_trajectories()`](https://jameshwade.github.io/scans/reference/scan_trajectories.md)
+  and
+  [`assess_trajectory_scans()`](https://jameshwade.github.io/scans/reference/assess_trajectory_scans.md)
+  gain two built-in scans for Deputy run evidence (`metadata$ending` and
+  `deputy:*` events) from any adapter that records it. `cut_off_answer`
+  flags a final answer the provider cut short even though the run’s
+  status is `"completed"`. `run_intervention` flags limit wrap-ups and
+  limit stops, provider fallbacks, failed or repeated compaction, denied
+  permissions, unresolved approvals, and a delegated subagent’s reported
+  missing evidence or unresolved work, with the recording event as
+  evidence ([\#72](https://github.com/JamesHWade/scans/issues/72)).
+
+- [`scans_tools()`](https://jameshwade.github.io/scans/reference/scans_tools.md)
+  trajectory listings show the run ending (`run_ending`,
+  `ending_reason`, `finish_reason`, `cut_off`, `wrapped_up`) when one is
+  recorded, and `scans_get_findings` can be narrowed to named scans
+  ([\#72](https://github.com/JamesHWade/scans/issues/72)).
+
+- [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
+  converts disclosed Deputy delegation views from
+  [`deputy::delegation_history()`](https://jameshwade.github.io/deputy/reference/delegation_history.html)
+  or `$inspect_subagents(transcript = TRUE)`, on their own or through
+  the new `delegations` argument beside the lead `AgentResult`. Each
+  child, including a nested one, links to its parent through Deputy’s
+  run and delegation lineage and keeps its manifest configuration,
+  claims, and reference availability under `metadata$delegation`. A
+  withheld transcript is recorded as a `capture$transcript` loss, and a
+  tool result Deputy offloaded as a reference is recorded as an
+  externalized `contents$value` loss. A lead run’s usage already
+  includes its delegated runs, so do not sum usage across a lead and its
+  children ([\#66](https://github.com/JamesHWade/scans/issues/66)).
+
+- [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+  recognizes Deputy `deputy.run` spans: run identity, Deputy’s ten-field
+  `metadata$ending` as far as the span records it, status mapped as in
+  [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md),
+  and timestamped `deputy:*` events for permissions, fallbacks,
+  compactions, hooks, checkpoints, warnings, structured attempts,
+  delegations, and stops. A delegated subagent run filed under its
+  lead’s conversation gets its own trajectory, linked through
+  `parent_trajectory_id`. Deputy run spans never count against
+  `max_spans` ([\#67](https://github.com/JamesHWade/scans/issues/67)).
+
+- [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+  keeps commons agents’ turn and provenance spans. Each exchange becomes
+  a timestamped `commons:provenance` event with full citation decisions,
+  in the same form as
+  [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md);
+  turns get commons round indices; conflicting records leave an exchange
+  unclassified with a loss; and the commons Connect user is kept in
+  `metadata$otel$user`. These spans never count against `max_spans` or
+  change resource measures
+  ([\#69](https://github.com/JamesHWade/scans/issues/69)).
+
+- Invalid `from`/`to` bounds now raise `scans_error_otel_window`;
+  Connect readers also keep `scans_error_connect_window`
+  ([\#69](https://github.com/JamesHWade/scans/issues/69)).
+
+- [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
+  now requires deputy 0.0.0.9007. It keeps each run’s ending in
+  `metadata$ending` (class, reason, by, limit details, wrap-up, phase,
+  finish reason, cut-off) and sets status from it; a cut-off answer
+  stays `"completed"` with `ending$cut_off = TRUE`. Current lifecycle
+  events (request, compaction, fallback, approval, trusted result,
+  structured attempt, run error) are projected with failed statuses and
+  error messages, and Deputy usage, limits, endings, and conditions are
+  kept as plain data instead of recorded as losses. Support for earlier
+  R6 results is removed
+  ([\#65](https://github.com/JamesHWade/scans/issues/65)).
+
+- Deputy’s `file_checkpoint_error`, `delegation_error`, `batch_error`,
+  `setup_error`, and `setup_failed` stop reasons now map to `"failed"`,
+  and `"abandoned"` maps to `"interrupted"`
+  ([\#65](https://github.com/JamesHWade/scans/issues/65)).
+
+- [`measure_trajectories()`](https://jameshwade.github.io/scans/reference/measure_trajectories.md)
+  reports Deputy token usage and elapsed time from the run’s own usage
+  and duration, so compacted runs are no longer undercounted. Coverage
+  is `unknown` because Deputy counts unreported usage as zero
+  ([\#65](https://github.com/JamesHWade/scans/issues/65)).
+
+- [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md)
+  now matches commons 0.2.0.9000. `round_index` follows commons’
+  exchanges, so it lines up with provenance `exchange_index`; internal
+  reminder turns stay in the transcript, marked `commons_internal`. The
+  conversation `user` is kept in `metadata$otel$user`, as with
+  [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md).
+  Placeholder turns that commons substitutes for uncaptured input or
+  tool results are recorded as `capture$input` and `capture$tool_result`
+  losses. A missing outer source descriptor is no longer reported as a
+  loss, and a new `source_uri` argument (third, before `metadata`)
+  records where the traces were read from
+  ([\#68](https://github.com/JamesHWade/scans/issues/68)).
+
+- New
+  [`read_otel_traces()`](https://jameshwade.github.io/scans/reference/read_otel_traces.md)
+  reads local OTLP NDJSON trace files from otelsdk’s file exporter, as
+  written by `commons::agent(log = TRUE)` or by deputy and ellmer apps.
+  It returns conversations for
+  [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+  with the same `n`, `from`, `to`, and `max_spans` handling as
+  [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md),
+  and reads each span once even when `trace-latest.jsonl` duplicates a
+  rotated file ([\#71](https://github.com/JamesHWade/scans/issues/71)).
+
+- [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+  no longer rebuilds a conversation from a shinychat title call that
+  started last. Title-call usage stays in the totals and is reported in
+  `metadata$otel$title_calls`
+  ([\#71](https://github.com/JamesHWade/scans/issues/71)).
+
+- [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md)
+  recovers earlier turns when the latest model call omitted
+  `gen_ai.input.messages`, and records `capture$input` or
+  `capture$tool_result` losses for what it could not recover
+  ([\#71](https://github.com/JamesHWade/scans/issues/71)).
+
+- Internal: `scans_app_server()` and the Posit Connect trace reader are
+  split into single-purpose files, and `<<-` super-assignments are
+  replaced with explicit state environments. No user-visible changes. CI
+  now lints with Jarl 0.7.1
+  ([\#74](https://github.com/JamesHWade/scans/issues/74),
+  [\#64](https://github.com/JamesHWade/scans/issues/64)).
+
+- The minimum ellmer version is now consistently 0.5.0 across adapter
+  checks and examples, and the deputy and commons adapters require
+  deputy 0.0.0.9007 and commons 0.2.0. One-off UX review screenshots and
+  notes were removed from the repository, and the ellmerverse
+  integration audit was refreshed for those versions
+  ([\#73](https://github.com/JamesHWade/scans/issues/73)).
+
 - [`as_trajectory_tempest()`](https://jameshwade.github.io/scans/reference/as_trajectory_tempest.md)
   now requires Tempest trajectory schema 3, keeping input artifact
   identities distinct from output publication and historical acceptance

@@ -74,8 +74,9 @@ pooled with parents or subtracted from inclusive parent measurements.</p></li>
 Durations are seconds (<code>s</code>); usage is <code>tokens</code>.</p></li>
 <li><p><code>n_recorded</code>, <code>n_total</code>: eligible records with a valid value and eligible
 records in the loaded snapshot, respectively. Unknown counts are <code>NA</code>.</p></li>
-<li><p><code>coverage</code>: <code>complete</code>, <code>partial</code>, <code>unavailable</code>, or <code>unknown</code> (an older
-conversation total without a denominator). Complete recording does not
+<li><p><code>coverage</code>: <code>complete</code>, <code>partial</code>, <code>unavailable</code>, or <code>unknown</code> (a total
+that does not record how many of its records contributed: an older
+conversation total, or a Deputy run total). Complete recording does not
 establish complete capture of an application's work.</p></li>
 <li><p><code>source</code>, <code>source_unit</code>, <code>adapter</code>, <code>contract_version</code>: interpretation
 provenance. Contract version 1 describes this measurement interface.</p></li>
@@ -101,6 +102,14 @@ their input counts with unknown cache inclusion. Do not add cached usage
 again when <code>includes_cached_input</code> is <code>TRUE</code>.
 <code>turn_duration</code> sums known canonical turn durations without asserting one
 turn equals one model call.</p>
+<p>Deputy results report run-level usage and duration, which take precedence
+over their turns: compaction removes earlier turns, and retained turns can
+belong to earlier runs of the conversation. Token measures then have source
+<code>deputy_run_usage</code>, <code>n_total</code> is the run's model request count, and
+<code>n_recorded</code> and coverage are unknown because Deputy counts a request
+without reported usage as zero. The totals include compaction summaries and
+delegated runs. <code>elapsed</code> is the run's <code>duration</code>. Turn-level usage remains
+in <code><a href="trajectory_accessors.html">trajectory_turns()</a></code> and <code><a href="summarize_trajectories.html">summarize_trajectories()</a></code>.</p>
 <p><code>model_duration</code> sums captured OTel chat durations. <code>tool_duration</code> sums
 OTel execute-tool durations, otherwise canonical tool-call durations.
 Both include nested activity. <code>recorded_work</code> unions captured chat and tool

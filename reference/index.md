@@ -9,7 +9,7 @@
 - [`as_trajectory_commons()`](https://jameshwade.github.io/scans/reference/as_trajectory_commons.md)
   : Convert completed commons conversations
 - [`as_trajectory_deputy()`](https://jameshwade.github.io/scans/reference/as_trajectory_deputy.md)
-  : Convert completed Deputy agent results
+  : Convert completed Deputy agent results and delegations
 - [`as_trajectory_dsprrr()`](https://jameshwade.github.io/scans/reference/as_trajectory_dsprrr.md)
   : Convert completed dsprrr traces
 - [`as_trajectory_ellmer()`](https://jameshwade.github.io/scans/reference/as_trajectory_ellmer.md)
@@ -45,6 +45,8 @@
   : Available trajectory scans
 - [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md)
   : Read OpenTelemetry traces from Posit Connect
+- [`read_otel_traces()`](https://jameshwade.github.io/scans/reference/read_otel_traces.md)
+  : Read local OpenTelemetry trace files
 - [`scans_annotations()`](https://jameshwade.github.io/scans/reference/scans_annotations.md)
   : Store trajectory annotations
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
