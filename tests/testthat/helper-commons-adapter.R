@@ -3,6 +3,17 @@ commons_trajectory_fixture <- function() {
   commons::trajectory_read(testthat::test_path("fixtures", "commons"))
 }
 
+# Conversations read from an OTLP trace with an internal reminder turn, a
+# Connect user, two exchanges, and a recovered transcript with placeholders.
+commons_current_trajectory_fixture <- function() {
+  testthat::skip_if_not_installed("commons", "0.2.0.9000")
+  commons::trajectory_read(testthat::test_path(
+    "fixtures",
+    "commons",
+    "current"
+  ))
+}
+
 commons_legacy_trajectory_fixture <- function() {
   source <- commons_trajectory_fixture()
   for (index in seq_along(source)) {

@@ -66,6 +66,17 @@ fixture; they do not compare serialized bytes across rebuilds. Do not replace
 the creation times or rewrite their digests to make the file byte-identical.
 
 `commons/trace-0.jsonl` is a static OTLP envelope. Commons tests obtain their
-source by passing its directory to `commons::trajectory_read()`. The dsprrr
+source by passing its directory to `commons::trajectory_read()`.
+
+`commons/current/trace-0.jsonl` is a static OTLP envelope written by hand on
+2026-11-25 against commons 0.2.0.9000 (source commit `820659f`), following the
+span layout in commons' `pkg-r/R/trajectory-read.R`. Commons tests read it
+through `commons::trajectory_read()`. It holds two conversations:
+`conversation-current` has two `commons_conversation_turn` spans with
+provenance tags, a `commons.connect.user` attribute, a tool exchange, and a
+hidden `<system-instruction>` follow-up turn; `conversation-recovered` has chat
+spans without `gen_ai.input.messages`, so commons rebuilds it with its
+missing-input and missing-tool-result placeholder turns. It lives in its own
+directory so reads of `commons/` stay unchanged. The dsprrr
 module fixture similarly uses `dsprrr::module_fn()` and `dsprrr::run()` instead
 of mutating module state.

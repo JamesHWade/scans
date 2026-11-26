@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* `as_trajectory_commons()` now matches commons 0.2.0.9000. `round_index` follows commons' exchanges, so it lines up with provenance `exchange_index`; internal reminder turns stay in the transcript, marked `commons_internal`. The conversation `user` is kept in `metadata$otel$user`, as with `as_trajectory_otel()`. Placeholder turns that commons substitutes for uncaptured input or tool results are recorded as `capture$input` and `capture$tool_result` losses. A missing outer source descriptor is no longer reported as a loss, and a new `source_uri` argument (third, before `metadata`) records where the traces were read from (#68).
+
 * New `read_otel_traces()` reads local OTLP NDJSON trace files from otelsdk's file exporter, as written by `commons::agent(log = TRUE)` or by deputy and ellmer apps. It returns conversations for `as_trajectory_otel()` with the same `n`, `from`, `to`, and `max_spans` handling as `read_connect_traces()`, and reads each span once even when `trace-latest.jsonl` duplicates a rotated file (#71).
 * `as_trajectory_otel()` no longer rebuilds a conversation from a shinychat title call that started last. Title-call usage stays in the totals and is reported in `metadata$otel$title_calls` (#71).
 * `as_trajectory_otel()` recovers earlier turns when the latest model call omitted `gen_ai.input.messages`, and records `capture$input` or `capture$tool_result` losses for what it could not recover (#71).

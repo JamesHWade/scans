@@ -2,19 +2,37 @@
 #'
 #' `as_trajectory_commons()` converts the already-read result of
 #' `commons::trajectory_read()` into one canonical [TrajectoryBundle]. Each
-#' named conversation becomes one trajectory. Both current records with `turns`
-#' and `last_active` fields and older attributed turn lists are accepted.
-#' Model-visible turns are delegated to [as_trajectory_ellmer()]. The adapter
-#' does not read files, connect to Posit Connect, or parse trace records itself.
+#' named conversation becomes one trajectory. Both current records with `turns`,
+#' `last_active`, and `user` fields and older attributed turn lists are
+#' accepted. Model-visible turns are delegated to [as_trajectory_ellmer()]. The
+#' adapter does not read files, connect to Posit Connect, or parse trace records
+#' itself.
 #'
-#' Provenance stays attached to the turn list. An outer source descriptor, when
-#' supplied by the reader or caller, is retained as sanitized metadata. Each
-#' source provenance record also becomes a
-#' `"commons:provenance"` event. Because the public commons result does not
-#' expose an exchange-to-turn key, provenance events retain their source index
-#' without inferring a `turn_id`. Missing or malformed source facts are reported
-#' as adapter losses. Extra record fields and turn attributes are retained as
-#' sanitized metadata. A missing outer source descriptor remains a loss.
+#' Provenance stays attached to the turn list. Each source provenance record
+#' becomes a `"commons:provenance"` event whose `exchange_index` matches the
+#' `round_index` of its turns. Rounds follow commons' exchange rule: a user
+#' turn that is neither a tool result nor an internal reminder opens a round.
+#' Internal reminder turns, which commons injects as hidden follow-ups, belong
+#' to the round they follow, keep their turn rows, and are marked with
+#' `commons_internal = TRUE` in turn metadata. Because the public commons
+#' result does not expose an exchange-to-turn key, provenance events do not
+#' infer a `turn_id`.
+#'
+#' The conversation `user`, the Posit Connect user recorded by commons, is
+#' retained as `metadata$otel$user`, the slot [as_trajectory_otel()] uses for
+#' the same span-derived identity. A missing user (`NA`) is not a loss.
+#'
+#' Commons substitutes placeholder turns when a trace omitted input history or
+#' tool results. Those turns are kept as recorded, and each one is reported as
+#' a `capture$input` or `capture$tool_result` loss on that turn, so
+#' [assess_trajectory_scans()] does not treat the transcript as complete.
+#'
+#' Current commons results carry no outer source descriptor, and its absence
+#' is not a loss. An outer `source` attribute supplied by an older reader or by
+#' the caller is retained as sanitized metadata, and a malformed or conflicting
+#' one is reported as a loss. Missing or malformed provenance and activity
+#' times are adapter losses. Extra record fields and turn attributes are
+#' retained as sanitized metadata.
 #'
 #' Because `commons::trajectory_read()` returns an ordinary list without a
 #' discriminating class, use this explicit adapter instead of
@@ -25,6 +43,9 @@
 #' @param trajectory_id A bundle-unique trajectory ID. When `NULL`, a stable ID
 #'   is derived from the conversation name. It must be `NULL` when `x` contains
 #'   multiple conversations.
+#' @param source_uri An optional locator for where the conversations were read
+#'   from, applied to every conversation. Credentials, query parameters, and
+#'   fragments are removed.
 #' @param metadata A uniquely named list of safe application metadata, applied
 #'   to every conversation. Sensitive fields are redacted and recorded as
 #'   losses. Names used by commons source metadata are reserved.
@@ -44,20 +65,24 @@
 #'   ))
 #'   conversation <- list(
 #'     turns = turns,
-#'     last_active = as.POSIXct("2026-08-23 12:00:00", tz = "UTC")
+#'     last_active = as.POSIXct("2026-08-23 12:00:00", tz = "UTC"),
+#'     user = "analyst"
 #'   )
 #'
-#'   source <- list(`conversation-001` = conversation)
-#'   attr(source, "source") <- list(kind = "local", path = "/traces")
-#'   as_trajectory_commons(source)
+#'   as_trajectory_commons(
+#'     list(`conversation-001` = conversation),
+#'     source_uri = "file:///traces"
+#'   )
 #' }
 as_trajectory_commons <- function(
   x,
   trajectory_id = NULL,
+  source_uri = NULL,
   metadata = list()
 ) {
   call <- rlang::caller_env()
-  commons_check_trajectory_id(trajectory_id, call)
+  commons_check_string(trajectory_id, "trajectory_id", call)
+  commons_check_string(source_uri, "source_uri", call)
   if (!trajectory_is_named_list(metadata)) {
     scans_abort(
       "{.arg metadata} must be a uniquely named list.",
@@ -70,6 +95,7 @@ as_trajectory_commons <- function(
     c(
       "source",
       "provenance",
+      "otel",
       "source_attributes",
       "conversation_attributes",
       "conversation_fields",
@@ -105,6 +131,7 @@ as_trajectory_commons <- function(
       x[[index]],
       names(x)[[index]],
       id,
+      source_uri,
       source,
       source_attributes,
       metadata,
@@ -120,12 +147,13 @@ as_trajectory_commons <- function(
   )
 }
 
-commons_check_trajectory_id <- function(x, call) {
+commons_check_string <- function(x, arg, call) {
   tryCatch(
     rlang::check_string(
       x,
       allow_null = TRUE,
       allow_empty = FALSE,
+      arg = arg,
       call = call
     ),
     error = function(error) {
@@ -142,7 +170,7 @@ commons_check_trajectory_id <- function(x, call) {
       nchar(x, type = "bytes") > trajectory_payload_max_bytes
   ) {
     scans_abort(
-      "{.arg trajectory_id} must not exceed 65,536 bytes.",
+      "{.arg {arg}} must not exceed 65,536 bytes.",
       class = "scans_error_commons_argument",
       call = call
     )
@@ -193,6 +221,7 @@ commons_conversation_bundle <- function(
   conversation,
   conversation_id,
   trajectory_id,
+  source_uri,
   source,
   source_attributes,
   metadata,
@@ -209,6 +238,7 @@ commons_conversation_bundle <- function(
     !ellmer_is_turn(conversation[["turns"]])
   conversation_fields <- list()
   turn_attributes <- list()
+  user <- NULL
   if (record) {
     if (
       !trajectory_is_named_list(conversation) ||
@@ -222,9 +252,10 @@ commons_conversation_bundle <- function(
       )
     }
     last_active <- conversation[["last_active"]]
+    user <- conversation[["user"]]
     conversation_fields <- conversation[setdiff(
       names(conversation),
-      c("turns", "last_active")
+      c("turns", "last_active", "user")
     )]
     conversation_attributes <- commons_extra_attributes(conversation, "names")
     conversation <- conversation$turns
@@ -253,10 +284,14 @@ commons_conversation_bundle <- function(
     )
   }
   ids <- trajectory_ids(trajectory_id)
+  safe_user <- commons_user(user, ids)
   source_metadata <- c(
     metadata,
     list(source = source, provenance = provenance)
   )
+  if (!is.null(safe_user$value)) {
+    source_metadata$otel <- list(user = safe_user$value)
+  }
   if (length(source_attributes) > 0L) {
     source_metadata$source_attributes <- source_attributes
   }
@@ -276,6 +311,7 @@ commons_conversation_bundle <- function(
     trajectory_id = trajectory_id,
     run_id = conversation_id,
     source_id = conversation_id,
+    source_uri = source_uri,
     metadata = list()
   )
   safe_metadata <- trajectory_sanitize_metadata(
@@ -285,11 +321,15 @@ commons_conversation_bundle <- function(
   )
   safe_source <- commons_sanitize_source(safe_metadata$value$source, ids)
   safe_metadata$value$source <- safe_source$value
-  rounds <- commons_round_indices(conversation)
   source_losses <- commons_source_losses(source, ids)
   active <- commons_last_active(last_active, ids)
   turns <- trajectory_turns(base)
-  turns$round_index <- rounds
+  turns$round_index <- commons_round_indices(conversation)
+  internal <- vapply(conversation, commons_is_internal_turn, logical(1))
+  turns$metadata[internal] <- lapply(
+    turns$metadata[internal],
+    function(metadata) c(metadata, list(commons_internal = TRUE))
+  )
   provenance_tables <- commons_provenance_events(
     provenance,
     trajectory_id,
@@ -307,7 +347,9 @@ commons_conversation_bundle <- function(
       safe_metadata$losses,
       safe_source$losses,
       source_losses,
+      safe_user$losses,
       active$losses,
+      commons_placeholder_losses(conversation, turns$turn_id, trajectory_id),
       provenance_tables$losses
     ))
   ))
@@ -328,12 +370,20 @@ commons_extra_attributes <- function(x, excluded) {
   attributes[setdiff(names(attributes), excluded)]
 }
 
+# Mirrors commons' split_exchanges(): a user turn opens an exchange unless it
+# carries a tool result or is an internal reminder. Other turns, including
+# internal reminders, join the open exchange; turns before the first exchange
+# have no round.
 commons_round_indices <- function(turns) {
   rounds <- rep(NA_integer_, length(turns))
   round <- 0L
   for (index in seq_along(turns)) {
-    role <- S7::prop(turns[[index]], "role")
-    if (identical(role, "user") && !commons_has_tool_result(turns[[index]])) {
+    turn <- turns[[index]]
+    if (
+      identical(S7::prop(turn, "role"), "user") &&
+        !commons_has_tool_result(turn) &&
+        !commons_is_internal_turn(turn)
+    ) {
       round <- round + 1L
     }
     if (round > 0L) {
@@ -341,6 +391,25 @@ commons_round_indices <- function(turns) {
     }
   }
   rounds
+}
+
+# The rule from commons' is_internal_turn() in pkg-r/R/trajectory-read.R:
+# a user turn whose every content is text wrapped in one <system-instruction>
+# or legacy <reminder> element. Recorded traces keep only the text.
+commons_is_internal_turn <- function(turn) {
+  identical(S7::prop(turn, "role"), "user") &&
+    all(vapply(
+      S7::prop(turn, "contents"),
+      function(content) {
+        S7::S7_inherits(content, ellmer::ContentText) &&
+          grepl(
+            "(?s)^<(system-instruction|reminder)>.*</\\1>$",
+            S7::prop(content, "text"),
+            perl = TRUE
+          )
+      },
+      logical(1)
+    ))
 }
 
 commons_has_tool_result <- function(turn) {
@@ -353,6 +422,76 @@ commons_has_tool_result <- function(turn) {
     },
     logical(1)
   ))
+}
+
+# Placeholders written by commons' missing_input_turn() and
+# missing_tool_results() in pkg-r/R/trajectory-read.R.
+commons_missing_input <- "(Input content was not captured.)"
+commons_missing_tool_result <- "(Tool result was not captured.)"
+
+commons_placeholder_losses <- function(turns, turn_ids, trajectory_id) {
+  losses <- list()
+  for (index in seq_along(turns)) {
+    turn <- turns[[index]]
+    if (!identical(S7::prop(turn, "role"), "user")) {
+      next
+    }
+    ids <- trajectory_ids(trajectory_id, turn_ids[[index]])
+    contents <- S7::prop(turn, "contents")
+    missing_input <- length(contents) == 1L &&
+      S7::S7_inherits(contents[[1L]], ellmer::ContentText) &&
+      identical(S7::prop(contents[[1L]], "text"), commons_missing_input)
+    if (missing_input) {
+      losses <- c(
+        losses,
+        list(trajectory_new_loss(
+          ids,
+          "capture$input",
+          "unsupported",
+          "The trace omitted this input; commons substituted a placeholder turn"
+        ))
+      )
+    }
+    missing_results <- vapply(
+      contents,
+      function(content) {
+        S7::S7_inherits(content, ellmer::ContentToolResult) &&
+          identical(S7::prop(content, "value"), commons_missing_tool_result)
+      },
+      logical(1)
+    )
+    if (any(missing_results)) {
+      losses <- c(
+        losses,
+        list(trajectory_new_loss(
+          ids,
+          "capture$tool_result",
+          "unsupported",
+          "The trace omitted tool results; commons substituted placeholders",
+          metadata = list(content_index = which(missing_results))
+        ))
+      )
+    }
+  }
+  losses
+}
+
+commons_user <- function(user, ids) {
+  if (is.null(user) || identical(user, NA_character_)) {
+    return(list(value = NULL, losses = list()))
+  }
+  if (is.character(user) && !is.na(otel_string(user))) {
+    return(list(value = user, losses = list()))
+  }
+  list(
+    value = NULL,
+    losses = list(trajectory_new_loss(
+      ids,
+      "user",
+      "unsupported",
+      "The commons conversation user is malformed"
+    ))
+  )
 }
 
 commons_provenance_events <- function(
@@ -493,6 +632,9 @@ commons_provenance_record_losses <- function(record, index, ids) {
 }
 
 commons_source_losses <- function(source, ids) {
+  if (is.null(source)) {
+    return(list())
+  }
   valid <- trajectory_is_named_list(source)
   if (valid) {
     kind <- source$kind
@@ -517,7 +659,7 @@ commons_source_losses <- function(source, ids) {
     ids,
     "source",
     "unsupported",
-    "The commons source descriptor is missing, malformed, or conflicting"
+    "The commons source descriptor is malformed or conflicting"
   ))
 }
 
