@@ -63,14 +63,14 @@ finding.}
 
 \item{status}{\code{"insufficient_evidence"} or \code{"not_applicable"}.}
 
-\item{reason}{One sentence saying what is missing or why the scan does not
-apply. It is shown with the assessment.}
+\item{reason}{One sentence, at most 500 characters, saying what is missing
+or why the scan does not apply. It is shown with the assessment.}
 }
 \value{
 \code{scanner()} returns a \code{scans_scanner} value.
 
-\code{scanner_findings()} returns a tibble of findings; call it with no
-arguments for a clean negative. \code{scanner_unassessed()} returns a value
+\code{scanner_findings()} returns a tibble of findings of class
+\code{scans_scanner_findings}; call it with no arguments for a clean negative. \code{scanner_unassessed()} returns a value
 that marks the trajectory as not assessed.
 }
 \description{
@@ -89,16 +89,19 @@ accessors: \code{trajectory_id}, \code{info} (one row of \code{\link[=trajectory
 \code{losses} (the \code{\link[=trajectory_losses]{trajectory_losses()}} rows assigned to this trajectory or to
 no trajectory). It must return one of:
 \itemize{
-\item \code{scanner_findings()}: the scanner assessed the trajectory. Zero findings
-is a clean negative, \code{assessed_no_findings}.
+\item \code{scanner_findings()}: the scanner assessed the trajectory. Return
+\code{scanner_findings()} with no arguments to say "assessed, no findings"
+(\code{assessed_no_findings}).
 \item \code{scanner_unassessed()}: the scanner could not assess the trajectory,
 because the evidence it needs is not recorded (\code{"insufficient_evidence"})
 or the scan does not apply to this capture (\code{"not_applicable"}).
 }
 
-Anything else, including \code{NULL}, is an execution failure rather than a
-clean negative, so a scanner that forgets to return cannot report "no
-findings". The scanner decides whether recorded losses prevent an
+Anything else, including \code{NULL} and a data frame not made by
+\code{scanner_findings()} (even an empty one), is an execution failure rather
+than a clean negative, so a scanner that forgets to return cannot report
+"no findings". Rows can be dropped from a \code{scanner_findings()} result with
+\code{[}. The scanner decides whether recorded losses prevent an
 assessment; the framework lists them in the assessment's limitations.
 
 The framework checks every finding. A turn or event reference that is not

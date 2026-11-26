@@ -160,11 +160,12 @@ test_that("a finding that cites evidence outside the trajectory is an execution 
   elsewhere <- scanner_toy_fixture(
     "toy_elsewhere",
     function(trajectory, settings) {
-      data.frame(
-        trajectory_id = "chat-clean",
+      found <- scanner_findings(
         label = "Other",
         explanation = "Belongs to another trajectory."
       )
+      found$trajectory_id <- "chat-clean"
+      found
     }
   )
   result <- assess_trajectory_scans(
@@ -189,6 +190,9 @@ test_that("a scanner that returns nothing usable is never a clean negative", {
     "none",
     list(),
     data.frame(label = "No explanation"),
+    data.frame(),
+    tibble::tibble(event_id = character(), label = character()),
+    tibble::tibble(event_id = "hit-e2", label = "Bare", explanation = "Bare."),
     forged(status = "assessed_no_findings", reason = "Looks clean."),
     forged(status = "execution_failure", reason = "password=hunter2"),
     forged(status = "whatever", reason = "Unknown status."),

@@ -32,6 +32,12 @@ in by the framework so that an author cannot get it wrong.
 carries `"insufficient_evidence"` or `"not_applicable"` and a reason. Any
 other value, including `NULL`, is an execution failure. A function that falls
 off the end of an `if` therefore cannot report a clean negative by accident.
+`scanner_findings()` marks its result with a class, and only a value with
+that class is a findings result: a data frame built by hand, even an empty
+one, is an execution failure, because an empty table from a failed query
+looks exactly like a clean negative. Both result classes can be set by hand,
+so the framework checks the fields again when a result comes back rather
+than trusting the class.
 The author decides which recorded losses matter, because only the author knows
 which fields the detector reads; the framework lists the trajectory's losses
 in the assessment's limitations either way.

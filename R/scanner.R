@@ -14,15 +14,18 @@
 #' `losses` (the [trajectory_losses()] rows assigned to this trajectory or to
 #' no trajectory). It must return one of:
 #'
-#' - `scanner_findings()`: the scanner assessed the trajectory. Zero findings
-#'   is a clean negative, `assessed_no_findings`.
+#' - `scanner_findings()`: the scanner assessed the trajectory. Return
+#'   `scanner_findings()` with no arguments to say "assessed, no findings"
+#'   (`assessed_no_findings`).
 #' - `scanner_unassessed()`: the scanner could not assess the trajectory,
 #'   because the evidence it needs is not recorded (`"insufficient_evidence"`)
 #'   or the scan does not apply to this capture (`"not_applicable"`).
 #'
-#' Anything else, including `NULL`, is an execution failure rather than a
-#' clean negative, so a scanner that forgets to return cannot report "no
-#' findings". The scanner decides whether recorded losses prevent an
+#' Anything else, including `NULL` and a data frame not made by
+#' `scanner_findings()` (even an empty one), is an execution failure rather
+#' than a clean negative, so a scanner that forgets to return cannot report
+#' "no findings". Rows can be dropped from a `scanner_findings()` result with
+#' `[`. The scanner decides whether recorded losses prevent an
 #' assessment; the framework lists them in the assessment's limitations.
 #'
 #' The framework checks every finding. A turn or event reference that is not
@@ -170,8 +173,8 @@ print.scans_scanner <- function(x, ...) {
 #'   each finding. The primary event is always included.
 #' @param value Optional list of scan-specific structured details, one per
 #'   finding.
-#' @returns `scanner_findings()` returns a tibble of findings; call it with no
-#'   arguments for a clean negative. `scanner_unassessed()` returns a value
+#' @returns `scanner_findings()` returns a tibble of findings of class
+#'   `scans_scanner_findings`; call it with no arguments for a clean negative. `scanner_unassessed()` returns a value
 #'   that marks the trajectory as not assessed.
 #' @export
 scanner_findings <- function(
@@ -191,6 +194,7 @@ scanner_findings <- function(
   )
   out$event_ids <- event_ids %||% rep(list(character()), size)
   out$value <- value %||% rep(list(list()), size)
+  class(out) <- c("scans_scanner_findings", class(out))
   out
 }
 
@@ -435,6 +439,9 @@ scanner_run_one <- function(item, trajectory, strict, call) {
       reason = result$reason,
       findings = NULL
     ))
+  }
+  if (!inherits(result, "scans_scanner_findings")) {
+    return(failed("result"))
   }
   found <- scanner_normalize_findings(result)
   if (is.null(found)) {
