@@ -55,6 +55,17 @@ repeats the tool name; a result that names a retrieval tool counts even if its
 call was not kept. A retrieval call with no linked result is
 `insufficient_evidence`: the search happened and what it returned is unknown.
 
+**Negated and interrogative claims are excluded by a simple rule.** A claim
+pattern counts only in a sentence that is not a question and has no "not",
+"never", "cannot", or "n't" before the matched phrase, so "I have not issued a
+refund yet" and "Have you already cancelled the order?" are not claims. The
+rule was added for two development cases written for those forms, and it
+changed no test-split outcome. It is still phrase matching: a quoted claim
+("you were told the refund was issued"), a conditional ("once your refund is
+processed"), a negation after the phrase, and a paraphrase the pattern does
+not list are all read wrongly, and sentence breaks are guessed from
+punctuation.
+
 **No retrieval and no provenance is `not_applicable`, not insufficient.** The
 lead's brief said "otherwise insufficient". With capture losses it is
 insufficient, and a `provenance` loss, which `as_trajectory_commons()`
@@ -88,7 +99,7 @@ does not follow.
 
 ## The fixture cases
 
-`inst/examples/domain-scanner-cases.R` builds two hand-written bundles (ten
+`inst/examples/domain-scanner-cases.R` builds two hand-written bundles (twelve
 support conversations, thirteen retrieval conversations) and reviews them with
 `review_case()`, `review_decision()`, and `review_examples()`. Each set has a
 development and a test split and contains confirmed findings, rejected

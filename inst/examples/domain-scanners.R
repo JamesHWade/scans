@@ -97,6 +97,39 @@ domain_exchange_index <- function(metadata) {
   }
 }
 
+# Whether each text states a claim: some sentence matches `pattern`
+# (case-insensitively), is not a question, and has no "not", "never",
+# "cannot", or "n't" before the match. This drops the obvious negated and
+# interrogative forms ("I have not issued a refund yet", "Have you cancelled
+# the order?"). It is still phrase matching: a quoted claim, a conditional
+# ("once your refund is processed"), or a negation after the phrase is read
+# as a claim, and sentence breaks are guessed from ".", "!", and "?".
+domain_states_claim <- function(text, pattern) {
+  vapply(
+    text,
+    function(one) {
+      sentences <- regmatches(one, gregexpr("[^.!?]+[.!?]*", one))[[1L]]
+      any(vapply(
+        sentences,
+        function(sentence) {
+          at <- regexpr(pattern, sentence, ignore.case = TRUE)
+          at > 0L &&
+            !grepl("[?]\\s*$", sentence) &&
+            !grepl(
+              "\\b(not|never|cannot)\\b|n't\\b",
+              substr(sentence, 1L, at - 1L),
+              ignore.case = TRUE,
+              perl = TRUE
+            )
+        },
+        logical(1)
+      ))
+    },
+    logical(1),
+    USE.NAMES = FALSE
+  )
+}
+
 domain_result_failed <- function(results) {
   results$status %in% c("failed", "cancelled") | !is.na(results$error)
 }
@@ -152,7 +185,7 @@ unsupported_action_claim_scanner <- function(
       for (action in names(settings$actions)) {
         rule <- settings$actions[[action]]
         claims <- answers[
-          grepl(rule$claim, answers$text, ignore.case = TRUE),
+          domain_states_claim(answers$text, rule$claim),
           ,
           drop = FALSE
         ]

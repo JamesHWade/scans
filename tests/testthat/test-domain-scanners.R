@@ -53,11 +53,13 @@ test_that("the unsupported action claim scanner matches its reviewed cases", {
       "ticket-created" = "true_negative",
       "refund-untraced" = "scanner_unassessed",
       "refund-promised" = "false_negative",
-      "refund-policy" = "false_positive"
+      "refund-policy" = "false_positive",
+      "refund-not-yet" = "true_negative",
+      "cancel-question" = "true_negative"
     )
   )
   summary <- validation$summary
-  expect_identical(summary$scored, c(4L, 4L))
+  expect_identical(summary$scored, c(6L, 4L))
   expect_identical(summary$precision, c(0.5, 0.5))
   expect_identical(summary$recall, c(0.5, 0.5))
   expect_identical(summary$insufficient_evidence, c(0L, 1L))
@@ -367,4 +369,42 @@ test_that("a malformed provenance exchange is unclassified, not a crash", {
       "insufficient_evidence"
     )
   }
+})
+
+test_that("negated and interrogative action phrases are not claims", {
+  recipe <- domain_scanner_recipe()
+  claims <- recipe$unsupported_action_claim_scanner()
+  findings <- function(text) {
+    bundle <- recipe$domain_bundle(list(
+      "chat" = list(
+        recipe$domain_user("Please refund order A-1."),
+        recipe$domain_assistant(text)
+      )
+    ))
+    nrow(
+      assess_trajectory_scans(
+        bundle,
+        scans = claims$name,
+        scanners = claims
+      )$findings
+    )
+  }
+  expect_identical(
+    findings("I have not issued a refund yet; billing must approve it first."),
+    0L
+  )
+  expect_identical(findings("I haven't processed the refund yet."), 0L)
+  expect_identical(
+    findings("Have you already cancelled the order yourself?"),
+    0L
+  )
+  expect_identical(
+    findings("Your order has been cancelled. Is there anything else?"),
+    1L
+  )
+  # Phrase matching stays approximate: a conditional still reads as a claim.
+  expect_identical(
+    findings("Once your refund is processed you will get an email."),
+    1L
+  )
 })
