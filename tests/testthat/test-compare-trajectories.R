@@ -621,3 +621,31 @@ test_that("compare_trajectories() validates its inputs", {
     class = "scans_error_pairing"
   )
 })
+
+test_that("a scorer with no comparable outcome keeps a counts-only summary row", {
+  missing <- comparison_manual(
+    c(1, 0),
+    c(NA, NA),
+    comparison_scorer("judge", "1", "numeric")
+  )
+  summary <- missing$summaries$outcomes
+  expect_identical(summary$scorer_id, "judge")
+  expect_identical(summary$scorer_version, "1")
+  expect_identical(summary$n, 0L)
+  expect_identical(summary$n_not_comparable, 2L)
+  expect_identical(summary$n_improved, 0L)
+  expect_true(is.na(summary$median_delta))
+
+  undeclared <- compare_trajectories(pair_trajectories(
+    comparison_manual_investigation(c(1, 0)),
+    comparison_manual_investigation(c(0, 1)),
+    by = "sample_id",
+    dataset_version = "v1"
+  ))
+  summary <- undeclared$summaries$outcomes
+  expect_identical(summary$scorer_id, "judge")
+  expect_true(is.na(summary$scorer_version))
+  expect_true(is.na(summary$scale))
+  expect_identical(summary$n, 0L)
+  expect_identical(summary$n_not_comparable, 2L)
+})

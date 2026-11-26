@@ -18,6 +18,8 @@
       -- Paired changes in 7 matched cases 
       * Outcome exact_scorer (version 1): 2 improved, 1 regressed, 3 unchanged;
         counts only
+      * Outcome lenient_scorer (version unknown): no comparable outcome; 1 not
+        comparable
       * Pattern event_error: appeared in 1, resolved in 0, persisted in 0; counts
         only
       * Pattern turn_error: appeared in 1, resolved in 0, persisted in 0; counts only

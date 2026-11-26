@@ -55,6 +55,8 @@ finding and event identities on each side.
 
 The estimand is a change among paired cases from the same dataset version.
 \code{summaries} counts cases by direction for each scorer, scan, and measure.
+A scorer with no comparable outcome keeps a row with \code{n} zero and its
+\code{n_not_comparable} count.
 When each case has one pair and at least six cases changed, it adds the
 share of changed cases that moved in the named direction, an exact
 (Clopper-Pearson) interval for that share, and an exact two-sided sign test

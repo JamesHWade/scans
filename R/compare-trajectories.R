@@ -31,6 +31,8 @@
 #' @section Summaries:
 #' The estimand is a change among paired cases from the same dataset version.
 #' `summaries` counts cases by direction for each scorer, scan, and measure.
+#' A scorer with no comparable outcome keeps a row with `n` zero and its
+#' `n_not_comparable` count.
 #' When each case has one pair and at least six cases changed, it adds the
 #' share of changed cases that moved in the named direction, an exact
 #' (Clopper-Pearson) interval for that share, and an exact two-sided sign test
@@ -581,33 +583,47 @@ comparison_paired_summaries <- function(tables, pairing, conf_level) {
   unit <- if (replicated) "epoch pair" else "case"
 
   outcomes <- tables$outcomes
+  # Groups come from every compatible row, comparable or not, so a scorer
+  # with no comparable outcome keeps a counts-only row. A scorer never
+  # compatible on any pair has an unknown version and gets one row by id.
+  compatible <- outcomes$compatibility == "compatible"
   outcome_key <- paste(outcomes$scorer_id, outcomes$scorer_version, sep = "\r")
-  outcome_key[!outcomes$comparable] <- NA
+  outcome_key[!compatible] <- NA
   groups <- unique(outcome_key[!is.na(outcome_key)])
-  outcome_rows <- lapply(groups, function(group) {
-    x <- outcomes[outcome_key %in% group, ]
+  unversioned <- setdiff(
+    outcomes$scorer_id[!is.na(outcomes$scorer_id)],
+    outcomes$scorer_id[compatible]
+  )
+  outcome_rows <- lapply(c(groups, unversioned), function(group) {
+    in_group <- if (group %in% groups) {
+      outcome_key %in% group
+    } else {
+      outcomes$scorer_id %in% group
+    }
+    described <- outcomes[in_group, ][1L, ]
+    x <- outcomes[in_group & outcomes$comparable, ]
     tally <- table(factor(x$change, c("improved", "regressed", "unchanged")))
-    binary <- x$scale[[1L]] == "binary"
+    binary <- described$scale %in% "binary"
     tibble::tibble(
       design = "paired",
       unit = unit,
-      scorer_id = x$scorer_id[[1L]],
-      scorer_version = x$scorer_version[[1L]],
-      scale = x$scale[[1L]],
-      direction = x$direction[[1L]],
+      scorer_id = described$scorer_id,
+      scorer_version = described$scorer_version,
+      scale = described$scale,
+      direction = described$direction,
       n = nrow(x),
       n_improved = tally[["improved"]],
       n_regressed = tally[["regressed"]],
       n_unchanged = tally[["unchanged"]],
       n_not_comparable = sum(
-        !outcomes$comparable & outcomes$scorer_id %in% x$scorer_id[[1L]]
+        !outcomes$comparable & outcomes$scorer_id %in% described$scorer_id
       ),
-      paired_difference = if (binary && !replicated) {
+      paired_difference = if (binary && !replicated && nrow(x)) {
         (tally[["improved"]] - tally[["regressed"]]) / nrow(x)
       } else {
         NA_real_
       },
-      median_delta = if (x$scale[[1L]] == "numeric") {
+      median_delta = if (described$scale %in% "numeric" && nrow(x)) {
         stats::median(x$delta)
       } else {
         NA_real_
@@ -918,10 +934,23 @@ comparison_summary_lines <- function(summaries) {
     seq_len(nrow(outcomes)),
     function(i) {
       row <- outcomes[i, ]
+      version <- if (is.na(row$scorer_version)) {
+        "unknown"
+      } else {
+        comparison_short(row$scorer_version)
+      }
+      if (row$n == 0L) {
+        return(sprintf(
+          "Outcome %s (version %s): no comparable outcome; %d not comparable",
+          comparison_short(row$scorer_id),
+          version,
+          row$n_not_comparable
+        ))
+      }
       sprintf(
         "Outcome %s (version %s): %d improved, %d regressed, %d unchanged; %s",
         comparison_short(row$scorer_id),
-        comparison_short(row$scorer_version),
+        version,
         row$n_improved,
         row$n_regressed,
         row$n_unchanged,

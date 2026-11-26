@@ -203,7 +203,10 @@ changes, and resource changes without recomputing anything.
 Estimand: among paired cases from the same dataset version, how many changed
 in each direction.
 
-For each scorer, scan, and measure the summary counts cases by direction. It
+For each scorer, scan, and measure the summary counts cases by direction. A
+scorer, scan, or measure with nothing comparable keeps its row, with zero
+compared and its not-comparable count, so it is not mistaken for one never
+evaluated; a scorer never compatible on any pair has an unknown version. It
 adds uncertainty only when both conditions hold:
 
 1. Every case has one pair, so pairs are independent cases.
