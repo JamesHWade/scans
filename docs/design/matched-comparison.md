@@ -106,7 +106,7 @@ an error too, so a typo cannot silently leave a scorer undeclared.
 | --- | --- |
 | `compatible` | Same identity, version, scale, direction, and levels |
 | `incompatible` | A known attribute differs, or the two sides were scored by different scorers. The reason names the attribute |
-| `unknown` | An attribute is neither recorded nor declared, the scorer label is absent, or one trajectory has several evaluations from one scorer |
+| `unknown` | An attribute is neither recorded nor declared, the scorer label is absent, or either trajectory of the pair has several evaluations from one scorer (both sides are then `unknown` for it) |
 | `missing` | One side, or both, has no evaluation from this scorer |
 
 Only `compatible` rows can carry an outcome change. Nothing is coerced: a

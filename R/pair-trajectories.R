@@ -662,6 +662,11 @@ pairing_match_evaluations <- function(
     x <- if (side == "baseline") baseline else candidate
     repeats <- if (side == "baseline") b_repeated else c_repeated
     other <- setdiff(pairing_sides, side)
+    other_repeated <- if (side == "baseline") {
+      candidate$scorer_id[c_repeated]
+    } else {
+      baseline$scorer_id[b_repeated]
+    }
     lapply(index, function(i) {
       verdict <- if (is.na(x$scorer_id[[i]])) {
         list("unknown", "The scorer was not recorded.")
@@ -669,6 +674,11 @@ pairing_match_evaluations <- function(
         list(
           "unknown",
           paste0("Several ", side, " evaluations share this scorer.")
+        )
+      } else if (x$scorer_id[[i]] %in% other_repeated) {
+        list(
+          "unknown",
+          paste0("The ", other, " has several evaluations by this scorer.")
         )
       } else {
         list(

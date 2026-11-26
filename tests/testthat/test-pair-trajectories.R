@@ -336,3 +336,40 @@ test_that("a missing score does not hide the recorded scale from a declaration",
     class = "scans_error_pairing"
   )
 })
+
+test_that("a single evaluation against repeated ones is unknown, not missing", {
+  saved <- function(values) {
+    info <- tibble::tibble(
+      trajectory_id = "run/a",
+      sample_id = "a",
+      source_type = "manual",
+      status = "completed"
+    )
+    evaluations <- tibble::tibble(
+      trajectory_id = "run/a",
+      evaluation_id = paste0("run/a/", seq_along(values)),
+      scorer = "judge",
+      value = as.list(values)
+    )
+    bundle <- TrajectoryBundle(
+      info,
+      data.frame(),
+      data.frame(),
+      evaluations = evaluations
+    )
+    investigation_snapshot(bundle, application = "Manual")
+  }
+  pairing <- pair_trajectories(
+    saved(1),
+    saved(c(1, 2)),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(comparison_scorer("judge", "1", "numeric"))
+  )
+  outcomes <- pairing$outcome_pairs
+  expect_identical(outcomes$compatibility, rep("unknown", 3L))
+  expect_identical(
+    outcomes$reason[!is.na(outcomes$baseline_evaluation_id)],
+    "The candidate has several evaluations by this scorer."
+  )
+})
