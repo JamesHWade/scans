@@ -249,3 +249,11 @@ scans_app_scope_restore <- function(
   }
   view
 }
+
+scans_app_annotated_label <- function(saved, has_store) {
+  if (!is.null(saved) && !has_store) {
+    "Annotated when saved"
+  } else {
+    "Annotated only"
+  }
+}

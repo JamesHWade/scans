@@ -184,14 +184,42 @@ test_that("finding counts stay integer when no trajectory is assessed", {
   )
 })
 
+# The app's report, built by the assembly behind investigation_report().
+export_report_text <- function(fixture, include_users = FALSE) {
+  report <- report_build(
+    fixture$data,
+    seq_along(fixture$ids),
+    list(
+      application = "Cohort",
+      view = list(),
+      queue = fixture$queue,
+      include_users = include_users
+    )
+  )
+  paste(format(report), collapse = "\n")
+}
+
 test_that("the report's pattern table counts affected over assessed", {
   fixture <- export_fixture()
-  text <- paste(
-    export_report(fixture$performance, "Cohort"),
-    collapse = "\n"
-  )
+  text <- export_report_text(fixture)
   expect_match(text, "| warning | 2 of 3 assessed |", fixed = TRUE)
-  expect_no_match(text, "| 2 of 5 |", fixed = TRUE)
+  expect_match(text, "| error | 2 of 3 assessed |", fixed = TRUE)
+  expect_no_match(text, "\\| (error|warning) \\| 2 of 5 \\|")
+})
+
+test_that("the report's model and user tables count findings over assessed", {
+  fixture <- export_fixture()
+  text <- export_report_text(fixture)
+  expect_match(
+    text,
+    "| large | 2 | 2 of 2 assessed | 100 | 40.0 s |",
+    fixed = TRUE
+  )
+  expect_match(text, "| Unknown | 1 | not assessed |", fixed = TRUE)
+  expect_no_match(text, "ada", fixed = TRUE)
+
+  named <- export_report_text(fixture, include_users = TRUE)
+  expect_match(named, "| ada | 2 | 1 of 2 assessed |", fixed = TRUE)
 })
 
 test_that("CSV exports name users only when asked", {
@@ -314,199 +342,6 @@ test_that("the findings export has one row per finding in view", {
   expect_match(table$explanation[[5L]], "requested repeatedly")
   expect_match(table$link[[5L]], "#Cohort/d?scope=", fixed = TRUE)
   expect_identical(nrow(export_findings(fixture$data, "b")), 0L)
-})
-
-test_that("the report states counts with denominators and omits content", {
-  fixture <- export_fixture()
-  report <- export_report(
-    fixture$performance,
-    "Cohort",
-    c(day = "Oct 03"),
-    fixture$link,
-    generated = as.POSIXct("2026-10-06", tz = "UTC")
-  )
-  text <- paste(report, collapse = "\n")
-
-  expect_identical(report[[1L]], "# Cohort: review of recorded conversations")
-  expect_match(
-    text,
-    "- Scope: 5 of 5 conversations \u00b7 Oct 03 ([open in scans](https://connect.test/app/#Cohort/?scope=pattern=event_error&day=2026-10-03))",
-    fixed = TRUE
-  )
-  expect_match(text, "- Generated 2026-10-06 00:00 UTC by scans", fixed = TRUE)
-  expect_match(
-    text,
-    "- 3 of 4 assessed conversations have findings (2 with error-severity findings).",
-    fixed = TRUE
-  )
-  expect_match(text, "- 1 conversation could not be assessed", fixed = TRUE)
-  expect_match(
-    text,
-    "- 3 of 6 tool calls failed, in 2 conversations.",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "- Elapsed: median 20.0 s, p95 38.0 s (timed for 3 of 5).",
-    fixed = TRUE
-  )
-  expect_match(text, "- Tokens: median 30 (recorded for 3 of 5).", fixed = TRUE)
-  expect_match(
-    text,
-    "- Review: 1 of 3 flagged conversations reviewed.",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "| Event errors | error | 2 of 3 assessed | 2 | Oct 03 | 3 events report errors |",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "| `lookup` | 4 | 1 (25%) | `timeout` (1) | 2.5 s | 3.8 s |",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "| large | 2 | 2 of 2 assessed | 100 | 40.0 s |",
-    fixed = TRUE
-  )
-  expect_match(text, "| Unknown | 1 | not assessed |", fixed = TRUE)
-  expect_match(
-    text,
-    "1. [`a`](https://connect.test/app/#Cohort/a?scope=pattern=event_error&day=2026-10-03): 1 tool error, Repeated tool call",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "Findings describe recorded behavior, not an outcome score.",
-    fixed = TRUE
-  )
-
-  # No transcript text, titles, or user identifiers unless asked.
-  expect_no_match(text, "Unopened items", fixed = TRUE)
-  expect_no_match(text, "ada|\\bbo\\b|## Users")
-  expect_match(
-    text,
-    "User identifiers and transcript text are omitted",
-    fixed = TRUE
-  )
-
-  named <- paste(
-    export_report(fixture$performance, "Cohort", include_users = TRUE),
-    collapse = "\n"
-  )
-  expect_match(named, "| ada | 2 | 1 of 2 assessed |", fixed = TRUE)
-  expect_match(named, "(bo)", fixed = TRUE)
-  expect_no_match(named, "Unopened items", fixed = TRUE)
-
-  clean <- scans_app_performance_data(fixture$data, 2L)
-  expect_match(
-    paste(export_report(clean, "Cohort"), collapse = "\n"),
-    "No findings in 1 assessed conversation.",
-    fixed = TRUE
-  )
-})
-
-test_that("a narrowed report does not call its own start times the capture window", {
-  fixture <- export_fixture()
-  narrowed <- export_report(
-    scans_app_performance_data(fixture$data, 3L, queue = fixture$queue),
-    "Cohort",
-    read_info = list(from = as.POSIXct("2026-10-01", tz = "UTC"), to = NULL)
-  )
-  expect_no_match(narrowed, "Capture window", fixed = TRUE)
-  expect_match(
-    narrowed[[4L]],
-    "^- Start times in scope: Oct 03 UTC; source read "
-  )
-  undated <- export_report(
-    scans_app_performance_data(fixture$data, 5L, queue = fixture$queue),
-    "Cohort"
-  )
-  expect_identical(undated[[4L]], "- Start times in scope: none recorded")
-})
-
-test_that("a report without user identifiers omits a user filter's value", {
-  fixture <- export_fixture()
-  link <- scans_app_link(
-    "https://connect.test/app/",
-    "Cohort",
-    list(pattern = "event_error", user = "ada@example.com")
-  )
-  labels <- c(pattern = "Finding: event error", user = "User: ada@example.com")
-  text <- paste(
-    export_report(fixture$performance, "Cohort", labels, link),
-    collapse = "\n"
-  )
-  expect_no_match(text, "ada", fixed = TRUE)
-  expect_match(
-    text,
-    "Finding: event error \u00b7 One user (identifier omitted) \u00b7 started",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "([open in scans](https://connect.test/app/#Cohort/?scope=pattern=event_error))",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "1. [`a`](https://connect.test/app/#Cohort/a?scope=pattern=event_error):",
-    fixed = TRUE
-  )
-  expect_match(
-    text,
-    "Links open the cohort without the user filter.",
-    fixed = TRUE
-  )
-
-  named <- paste(
-    export_report(
-      fixture$performance,
-      "Cohort",
-      labels,
-      link,
-      include_users = TRUE
-    ),
-    collapse = "\n"
-  )
-  expect_match(named, "\u00b7 User: ada@example.com \u00b7", fixed = TRUE)
-  expect_match(
-    named,
-    "#Cohort/a?scope=pattern=event_error&user=ada%40example.com",
-    fixed = TRUE
-  )
-  expect_no_match(named, "without the user filter", fixed = TRUE)
-})
-
-test_that("the report dialog's user option governs a user filter", {
-  skip_if_not_installed("bslib", "0.11.0")
-  skip_if_not_installed("shiny", "1.11.1")
-  app <- scans_app(list(Cohort = cohort_fixture()))
-
-  shiny::testServer(app$serverFuncSource(), {
-    session$setInputs(scans_app_scans = scan_registry()$scan)
-    session$setInputs(
-      scans_app_hash = scans_app_scope_hash(
-        "Cohort",
-        scope = list(user = "ada")
-      )
-    )
-    expect_identical(facets(), list(user = "ada"))
-    session$setInputs(scans_app_export_report = 1L)
-    text <- paste(export_text(), collapse = "\n")
-    expect_no_match(text, "ada", fixed = TRUE)
-    expect_match(text, "One user (identifier omitted)", fixed = TRUE)
-
-    session$setInputs(scans_app_report_users = TRUE)
-    text <- paste(export_text(), collapse = "\n")
-    expect_match(text, "User: ada", fixed = TRUE)
-    expect_match(text, "?scope=user=ada", fixed = TRUE)
-
-    session$setInputs(scans_app_export_trajectory = 1L)
-    expect_no_match(paste(export_text(), collapse = "\n"), "ada", fixed = TRUE)
-  })
 })
 
 test_that("the R snippet reproduces the read and scan settings without secrets", {
@@ -687,8 +522,8 @@ test_that("a scoped link reopens the same cohort and exports follow it", {
     )
 
     text <- export_text()
-    expect_match(text[[3L]], "1 of 5 conversations", fixed = TRUE)
-    expect_match(text[[3L]], "Model: large", fixed = TRUE)
+    expect_true("- Scope: 1 of 5 conversations." %in% text)
+    expect_true("- Filters: Finding: event error; Model: large." %in% text)
     session$setInputs(scans_app_export_code = 1L)
     expect_true("ids <- c(\n  \"c\"\n)" %in% export_text())
     expect_true("bundle <- NULL" %in% export_text())

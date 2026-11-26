@@ -22,7 +22,7 @@ scans_app_export_menu_ui <- function(noun = scans_app_noun(), users = FALSE) {
       )),
       htmltools::tags$li(shiny::actionLink(
         "scans_app_export_report",
-        "Report (Markdown)\u2026",
+        "Report\u2026",
         class = "dropdown-item"
       )),
       htmltools::tags$li(shiny::actionLink(
@@ -160,6 +160,47 @@ scans_app_export_server <- function(input, output, session, state) {
       private = c("user", if (query_names_user()) "query")
     )
   })
+  # The report for the trajectories in view, built by the function a script
+  # calls on a saved investigation. For an opened investigation the two are
+  # the same report.
+  state$report <- shiny::reactive({
+    current <- state$data()
+    shiny::req(current)
+    entry <- state$active()
+    saved <- entry$investigation
+    context <- if (is.null(saved)) {
+      list(
+        read_info = entry$read_info,
+        loaded_at = entry$loaded_at,
+        analysis_version = as.character(utils::packageVersion("scans"))
+      )
+    } else {
+      report_saved_context(saved)
+    }
+    if (!is.null(saved) && state$rescan_investigation()) {
+      context$snapshot["revision_id"] <- list(NULL)
+      context$analysis_version <- as.character(utils::packageVersion("scans"))
+    }
+    report_build(
+      current,
+      state$visible(),
+      c(
+        context,
+        list(
+          application = state$application(),
+          view = state$view(),
+          facets = state$facets(),
+          review = state$review_filter(),
+          annotated_label = scans_app_annotated_label(saved, state$has_store),
+          app_url = link_base(),
+          settings = state$scan_config(),
+          bundle = entry$bundle,
+          queue = state$queue(),
+          include_users = isTRUE(input$scans_app_report_users)
+        )
+      )
+    )
+  })
   context <- shiny::reactive({
     current <- state$data()
     shiny::req(current)
@@ -172,7 +213,7 @@ scans_app_export_server <- function(input, output, session, state) {
       queue = state$queue(),
       candidates = state$candidates()
     )
-    labels <- state$scope_labels()
+    labels <- state$filter_labels()
     list(
       data = current,
       ids = current$info$trajectory_id[state$visible()],
@@ -242,14 +283,7 @@ scans_app_export_server <- function(input, output, session, state) {
     export <- context()
     switch(
       kind() %||% "report",
-      report = export_report(
-        export$performance,
-        state$application(),
-        state$scope_labels(),
-        state$link(),
-        read_info = state$active()$read_info,
-        include_users = isTRUE(input$scans_app_report_users)
-      ),
+      report = format(state$report()),
       code = export_r_code(
         state$active()$recipe,
         state$scan_config(),
@@ -274,24 +308,47 @@ scans_app_export_server <- function(input, output, session, state) {
     filename = function() {
       scans_app_export_filename(state$application(), "report", "md")
     },
-    content = function(file) writeLines(state$export_text(), file),
+    content = function(file) {
+      write_investigation_report(
+        state$report(),
+        file,
+        "markdown",
+        overwrite = TRUE
+      )
+    },
     contentType = "text/markdown"
+  )
+  output$scans_app_export_report_html <- shiny::downloadHandler(
+    filename = function() {
+      scans_app_export_filename(state$application(), "report", "html")
+    },
+    content = function(file) {
+      write_investigation_report(state$report(), file, "html", overwrite = TRUE)
+    },
+    contentType = "text/html"
   )
   shiny::observeEvent(input$scans_app_export_report, {
     kind("report")
     shiny::showModal(
       scans_app_export_modal(
         "Report",
-        "Counts and links for the trajectories in view. It contains no transcript text.",
+        "Counts, capture limits, and the evidence identities behind each pattern for the trajectories in view. It contains no transcript text. The HTML file and this Markdown hold the same report.",
         options = shiny::checkboxInput(
           "scans_app_report_users",
           "Include user identifiers",
           value = FALSE
         ),
-        download = shiny::downloadButton(
-          "scans_app_export_download",
-          "Download",
-          class = "btn-default"
+        download = htmltools::tagList(
+          shiny::downloadButton(
+            "scans_app_export_report_html",
+            "Download HTML",
+            class = "btn-default"
+          ),
+          shiny::downloadButton(
+            "scans_app_export_download",
+            "Download Markdown",
+            class = "btn-default"
+          )
         )
       ),
       session = session

@@ -78,6 +78,19 @@ review-state filters are session state in the app and are not part of a saved
 view; a selection saved while they were active already reflects them, and the
 report states how many trajectories the selection left out of its source.
 
+## The app's report
+
+The overview's Export menu builds its report through the same assembly
+(`report_build()`), passing the session's data, visible rows, filters, and
+address, and offers it as HTML and as Markdown. For an opened investigation
+the downloaded files equal the ones `write_investigation_report()` writes for
+that investigation and address, apart from the generation time; a test holds
+this. A live view has no snapshot identifiers and can carry facets and review
+filters, which the report names. After "Apply current scanners" the report
+keeps the snapshot identifier and says the analysis is not a saved revision.
+The earlier in-app Markdown builder is removed. The app does not pass its
+session-local review cases to the report yet.
+
 ## Scope, unknowns, and limits
 
 The scope names every active filter in words, including source, status, text,

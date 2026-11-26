@@ -89,12 +89,17 @@ app is read-only and claims no review state.
 \section{Exports}{
 
 The overview's Export menu offers the trajectories and findings in view as
-CSV, a Markdown report, and an R snippet that rebuilds the snapshot and
-scan settings. The report carries counts, tables, and links; it contains
-no transcript text, and user identifiers only when requested. A single
-trajectory can be copied as Markdown, which does contain its content.
-Links are the app's own address with the trajectory and active filters, so
-they reopen the same scope. No export contains credentials.
+CSV, a report, and an R snippet that rebuilds the snapshot and scan
+settings. The report is the one \code{\link[=investigation_report]{investigation_report()}} produces, as a
+standalone HTML file or as Markdown to paste into an issue: for an opened
+investigation the app and a script give the same report. It names every
+active filter, carries counts with their denominators and the evidence
+identities behind each pattern, and contains no transcript text, and user
+identifiers only when requested. A single trajectory can be copied as
+Markdown, which does contain its content. Links are the app's own address
+with the trajectory and every active filter. They select whatever matches
+those filters where they are opened, and the report states what a link
+cannot restore. No export contains credentials.
 }
 
 \section{Deputy runs and provenance}{

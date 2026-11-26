@@ -245,7 +245,7 @@ scans_app_filter_server <- function(
   )
 
   # The toolbar filters and pattern in the form a saved view records them.
-  # The browser list, exports, and links all read this one value.
+  # The browser list, exports, links, and the report all read this one value.
   state$view <- shiny::reactive({
     current <- state$data()
     shiny::req(current)
@@ -257,6 +257,16 @@ scans_app_filter_server <- function(
       findings_only = input$scans_app_findings_only,
       annotated_only = state$annotated_only(),
       pattern = state$pattern_filter()
+    )
+  })
+  # A saved view's annotation membership was fixed when it was saved.
+  state$filter_labels <- shiny::reactive({
+    saved <- state$active()$investigation
+    scans_app_filter_labels(
+      state$view(),
+      state$facets(),
+      state$review_filter(),
+      scans_app_annotated_label(saved, state$has_store)
     )
   })
 

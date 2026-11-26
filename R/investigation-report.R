@@ -134,7 +134,7 @@ investigation_report <- function(
       list(
         application = x$manifest$application,
         view = x$view,
-        annotated_label = "Annotated when saved",
+        annotated_label = scans_app_annotated_label(x, FALSE),
         app_url = app_url,
         settings = x$settings,
         bundle = x$bundle,
