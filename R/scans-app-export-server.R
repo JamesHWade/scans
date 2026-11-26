@@ -29,7 +29,18 @@ scans_app_export_menu_ui <- function(noun = scans_app_noun()) {
         "scans_app_export_code",
         "R code\u2026",
         class = "dropdown-item"
-      ))
+      )),
+      htmltools::tags$li(htmltools::tags$hr(class = "dropdown-divider")),
+      htmltools::tags$li(
+        class = "dropdown-item-text scans-app-export-option",
+        # Ticking the option should not close the menu it sits in.
+        onclick = "event.stopPropagation()",
+        shiny::checkboxInput(
+          "scans_app_export_users",
+          "Include user identifiers in CSVs",
+          value = FALSE
+        )
+      )
     )
   )
 }
@@ -155,17 +166,22 @@ scans_app_export_server <- function(input, output, session, state) {
       queue = state$queue(),
       candidates = state$candidates()
     )
+    labels <- state$scope_labels()
     list(
       data = current,
       ids = current$info$trajectory_id[state$visible()],
       performance = performance,
-      scope = export_scope(
-        performance$cohort$headline,
-        state$scope_labels(),
-        current$noun
-      )
+      scope = function(include_users) {
+        export_scope(
+          performance$cohort$headline,
+          labels,
+          current$noun,
+          include_users
+        )
+      }
     )
   })
+  csv_users <- function() isTRUE(input$scans_app_export_users)
 
   output$scans_app_export_conversations <- shiny::downloadHandler(
     filename = function() {
@@ -180,7 +196,8 @@ scans_app_export_server <- function(input, output, session, state) {
           state$queue(),
           state$link(),
           state$application(),
-          export$scope
+          export$scope(csv_users()),
+          include_users = csv_users()
         ),
         file
       )
@@ -199,7 +216,8 @@ scans_app_export_server <- function(input, output, session, state) {
           export$ids,
           state$link(),
           state$application(),
-          export$scope
+          export$scope(csv_users()),
+          include_users = csv_users()
         ),
         file
       )
