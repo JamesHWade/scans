@@ -26,9 +26,9 @@ Imports:
 Suggests:
     bslib (>= 0.11.0),
     commonmark,
-    commons (>= 0.0.0.9002),
+    commons (>= 0.2.0),
     coro,
-    deputy (>= 0.0.0.9000),
+    deputy (>= 0.0.0.9007),
     digest,
     dsprrr (>= 0.0.0.9000),
     ellmer (>= 0.5.0),
@@ -57,7 +57,7 @@ Remotes:
     JamesHWade/tempest@de2d3ddde4022648f70e6cd985d114690b1ff67a
 VignetteBuilder: knitr
 Config/Needs/website: rmarkdown
-Config/roxygen2/version: 8.1.0
+Config/roxygen2/version: 8.1.1
 Config/testthat/edition: 3
 Config/testthat/parallel: true
 Encoding: UTF-8

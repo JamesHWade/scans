@@ -20,7 +20,7 @@ S7::method(as_trajectory, S7::class_any) <- function(x, ...) {
   }
 
   if (
-    rlang::is_installed("ellmer", version = "0.4.2") &&
+    rlang::is_installed("ellmer", version = ellmer_min_version) &&
       (ellmer_is_turn_list(x) || ellmer_is_chat(x) || ellmer_is_turn(x))
   ) {
     return(as_trajectory_ellmer(x, ...))

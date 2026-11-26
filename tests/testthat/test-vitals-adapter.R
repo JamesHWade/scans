@@ -1,5 +1,5 @@
 test_that("vitals Tasks pass the shared adapter contract", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not_installed("vitals", "0.3.0")
 
   expect_adapter_conforms(
@@ -9,7 +9,7 @@ test_that("vitals Tasks pass the shared adapter contract", {
 })
 
 test_that("vitals sample data becomes evaluated solver trajectories", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- as_trajectory_vitals(
     vitals_samples_fixture(),
@@ -64,7 +64,7 @@ test_that("vitals sample data becomes evaluated solver trajectories", {
 })
 
 test_that("vitals identities do not depend on sample row order", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   samples <- vitals_samples_fixture()
 
   original <- as_trajectory_vitals(samples)
@@ -79,7 +79,7 @@ test_that("vitals identities do not depend on sample row order", {
 })
 
 test_that("vitals Task objects snapshot through their public samples", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not_installed("vitals", "0.3.0")
   task <- vitals_task_fixture()
 
@@ -93,7 +93,7 @@ test_that("vitals Task objects snapshot through their public samples", {
 })
 
 test_that("vitals Task subclasses may override public methods", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not_installed("vitals", "0.3.0")
 
   subclass <- R6::R6Class(
@@ -122,7 +122,7 @@ test_that("malformed Task objects fail at the adapter boundary", {
 })
 
 test_that("development vitals logs round-trip into trajectories", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not_installed("vitals", "0.3.0.9001")
   log_dir <- withr::local_tempdir()
   task <- vitals_task_fixture()
@@ -141,7 +141,7 @@ test_that("development vitals logs round-trip into trajectories", {
 })
 
 test_that("unscored vitals samples retain trajectories without evaluations", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- as_trajectory_vitals(vitals_samples_fixture(scored = FALSE))
 
@@ -150,7 +150,7 @@ test_that("unscored vitals samples retain trajectories without evaluations", {
 })
 
 test_that("vitals scorer chats produce an explicit adapter loss", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   samples <- vitals_samples_fixture()
   samples$scorer_chat <- samples$solver_chat
 
@@ -162,7 +162,7 @@ test_that("vitals scorer chats produce an explicit adapter loss", {
 })
 
 test_that("vitals source errors identify unsupported sample shapes", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_snapshot(error = TRUE, as_trajectory_vitals(list()))
   expect_snapshot(

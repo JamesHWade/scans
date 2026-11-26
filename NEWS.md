@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* The minimum ellmer version is now consistently 0.5.0 across adapter checks and examples, and the deputy and commons adapters require deputy 0.0.0.9007 and commons 0.2.0. One-off UX review screenshots and notes were removed from the repository, and the ellmerverse integration audit was refreshed for those versions (#73).
+
 * `as_trajectory_tempest()` now requires Tempest trajectory schema 3, keeping input artifact identities distinct from output publication and historical acceptance decisions without native graph snapshots. Reviews using any other schema, including schemas 1 and 2, must be regenerated.
 
 * `scans_app()` now leads with patterns and a suggested trajectory, uses the shinychat theme, places findings before detailed coverage, and reveals cited events with stable links and keyboard focus. Unambiguous recorded call/result pairs share a disclosure.

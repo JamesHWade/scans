@@ -229,7 +229,7 @@ test_that("public Tempest review retains unsupported resource measures", {
 })
 
 test_that("public ellmer turns expose partial usage without inventing call timing", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   bundle <- as_trajectory_ellmer(ellmer_tool_turns_fixture())
   rows <- resource_row(
     bundle,
@@ -244,7 +244,7 @@ test_that("public ellmer turns expose partial usage without inventing call timin
 })
 
 test_that("equivalent ellmer and OTel cache usage agrees without changing summaries", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not_installed("jsonlite")
   ellmer <- as_trajectory_ellmer(list(ellmer::AssistantTurn(
     list(ellmer::ContentText("Hello")),
@@ -273,7 +273,7 @@ test_that("equivalent ellmer and OTel cache usage agrees without changing summar
 })
 
 test_that("missing ellmer cache components cannot become complete input totals", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   components <- list(c(10, 3, 0), c(20, 3, NA), c(NA, 3, 5))
   bundles <- lapply(components, function(tokens) {
     as_trajectory_ellmer(ellmer::AssistantTurn(
@@ -318,7 +318,7 @@ test_that("manual input keeps unknown cache inclusion", {
 })
 
 test_that("dsprrr ellmer turns retain their separate cache component semantics", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not_installed("dsprrr", "0.0.0.9000")
   bundle <- as_trajectory_dsprrr(dsprrr_trace_fixture())
   input <- resource_row(bundle, "input_tokens")

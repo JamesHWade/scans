@@ -179,7 +179,7 @@ test_that("overview escapes source labels and transcript titles", {
 })
 
 test_that("the overview consumes public ellmer turns without inferring wall time", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   bundle <- as_trajectory(ellmer_tool_turns_fixture())
   overview <- scans_app_performance_data(scans_app_data(bundle), 1L)
 

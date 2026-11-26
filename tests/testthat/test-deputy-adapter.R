@@ -1,6 +1,6 @@
 test_that("Deputy results pass the shared adapter contract", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_adapter_conforms(
     source = deputy_result_fixture(),
@@ -10,7 +10,7 @@ test_that("Deputy results pass the shared adapter contract", {
 
 test_that("completed Deputy results become canonical trajectories", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   result <- deputy_result_fixture()
   bundle <- as_trajectory_deputy(result)
@@ -47,7 +47,7 @@ test_that("completed Deputy results become canonical trajectories", {
 
 test_that("as_trajectory dispatches Deputy results", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- as_trajectory(deputy_result_fixture())
 
@@ -57,7 +57,7 @@ test_that("as_trajectory dispatches Deputy results", {
 
 test_that("Deputy AgentResult subclasses retain adapter dispatch", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   subclass <- if (inherits(deputy::AgentResult, "S7_class")) {
     S7::new_class("ScansAgentResult", parent = deputy::AgentResult)
@@ -89,7 +89,7 @@ test_that("malformed AgentResult objects fail at the adapter boundary", {
 
 test_that("Deputy adapter arguments use source-specific conditions", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   condition <- rlang::catch_cnd(
     as_trajectory_deputy(deputy_result_fixture(), metadata = list("unnamed"))
@@ -100,7 +100,7 @@ test_that("Deputy adapter arguments use source-specific conditions", {
 
 test_that("Deputy tool events preserve lifecycle correlation and failures", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   started_at <- as.POSIXct("2026-08-22 17:00:00", tz = "UTC")
   events <- list(
@@ -160,7 +160,7 @@ test_that("Deputy tool events preserve lifecycle correlation and failures", {
 
 test_that("Deputy lifecycle event kinds retain their source order", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   events <- list(
     deputy::AgentEvent("start", task = "Research"),
@@ -215,7 +215,7 @@ test_that("Deputy lifecycle event kinds retain their source order", {
 
 test_that("unknown Deputy events retain safe properties and explicit losses", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   event <- deputy::AgentEvent(
     "provider_ping",
@@ -238,7 +238,7 @@ test_that("unknown Deputy events retain safe properties and explicit losses", {
 
 test_that("unresolved Deputy parent runs remain explicit adapter losses", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   result <- deputy_result_fixture(
     overrides = list(
@@ -263,7 +263,7 @@ test_that("unresolved Deputy parent runs remain explicit adapter losses", {
 
 test_that("Deputy result collections resolve included delegation parents", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   parent <- deputy_result_fixture()
   child <- deputy_result_fixture(
@@ -293,7 +293,7 @@ test_that("Deputy result collections resolve included delegation parents", {
 
 test_that("missing Deputy run identity is explicit and deterministic", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   result <- deputy_result_fixture(overrides = list(run_id = NULL))
 
@@ -309,7 +309,7 @@ test_that("missing Deputy run identity is explicit and deterministic", {
 
 test_that("multiple missing Deputy run IDs get distinct fallback identities", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   first <- deputy_result_fixture(overrides = list(run_id = NULL))
   second <- deputy_result_fixture(overrides = list(run_id = NULL))
@@ -328,7 +328,7 @@ test_that("multiple missing Deputy run IDs get distinct fallback identities", {
 
 test_that("Deputy source errors identify malformed public snapshots", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   invalid_turns <- deputy_result_fixture(
     overrides = list(turns = list("not a turn"))
@@ -348,7 +348,7 @@ test_that("Deputy source errors identify malformed public snapshots", {
 
 test_that("unsupported Deputy event text is represented as an adapter loss", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   event <- deputy::AgentEvent("text", text = list(value = "not scalar"))
   bundle <- as_trajectory_deputy(deputy_result_fixture(list(event)))
@@ -366,7 +366,7 @@ test_that("unsupported Deputy event text is represented as an adapter loss", {
 
 test_that("oversized Deputy tool errors are truncated safely", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   event <- deputy::AgentEvent(
     "tool_end",
@@ -386,7 +386,7 @@ test_that("oversized Deputy tool errors are truncated safely", {
 
 test_that("Deputy conversion is deterministic and contains no live source", {
   skip_if_not_installed("deputy", "0.0.0.9000")
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   result <- deputy_result_fixture()
   first <- as_trajectory_deputy(result)

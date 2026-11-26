@@ -40,7 +40,7 @@ scans_tools <- function(
   max_rows = 100L,
   max_chars = 4000L
 ) {
-  ellmer_check_installed(version = "0.5.0")
+  ellmer_check_installed()
   rlang::check_installed(c("jsonlite", "digest"))
   scans_tools_integer(max_rows, "max_rows", 1L, 1000L)
   scans_tools_integer(max_chars, "max_chars", 100L, 16000L)

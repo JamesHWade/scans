@@ -33,7 +33,7 @@
 #'
 #' @examples
 #' if (
-#'   rlang::is_installed("ellmer", version = "0.4.2") &&
+#'   rlang::is_installed("ellmer", version = "0.5.0") &&
 #'     rlang::is_installed("vitals", version = "0.3.0")
 #' ) {
 #'   task <- vitals::Task$new(

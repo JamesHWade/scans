@@ -1,5 +1,5 @@
 test_that("commons public reader output passes the shared adapter contract", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_adapter_conforms(
     source = commons_trajectory_fixture(),
@@ -8,7 +8,7 @@ test_that("commons public reader output passes the shared adapter contract", {
 })
 
 test_that("already-read commons conversations become canonical trajectories", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_trajectory_fixture()
   source_id <- names(source)[[1L]]
@@ -80,7 +80,7 @@ test_that("current and legacy commons layouts retain the same evidence", {
 })
 
 test_that("malformed current commons turns keep the public error class", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   for (turns in list(
     NULL,
     "invalid",
@@ -101,7 +101,7 @@ test_that("malformed current commons turns keep the public error class", {
 })
 
 test_that("commons exchange rounds keep tool results with their request", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   request <- ellmer::ContentToolRequest(
     id = "call-001",
@@ -135,7 +135,7 @@ test_that("commons exchange rounds keep tool results with their request", {
 })
 
 test_that("multiple commons conversations retain stable identities", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_trajectory_fixture()
   source_id <- names(source)[[1L]]
@@ -162,7 +162,7 @@ test_that("multiple commons conversations retain stable identities", {
 })
 
 test_that("commons provenance gaps and conflicts are explicit losses", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   conversation <- source[[1L]]
@@ -212,7 +212,7 @@ test_that("commons provenance gaps and conflicts are explicit losses", {
 })
 
 test_that("missing commons provenance is not inferred", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   attr(source[[1L]]$turns, "provenance") <- NULL
@@ -230,7 +230,7 @@ test_that("missing commons provenance is not inferred", {
 })
 
 test_that("commons preserves malformed provenance without trusting it", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   attr(source, "source") <- list(kind = "local", path = "/traces")
@@ -249,7 +249,7 @@ test_that("commons preserves malformed provenance without trusting it", {
 })
 
 test_that("commons does not infer missing exchange records", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   attr(source, "source") <- list(kind = "local", path = "/traces")
@@ -262,7 +262,7 @@ test_that("commons does not infer missing exchange records", {
 })
 
 test_that("commons source kinds and extra attributes remain inspectable", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   attr(source, "source") <- list(
@@ -302,7 +302,7 @@ test_that("commons source kinds and extra attributes remain inspectable", {
 })
 
 test_that("commons citation decisions are sanitized and diagnosed", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   provenance <- attr(source[[1L]]$turns, "provenance")
@@ -336,7 +336,7 @@ test_that("commons citation decisions are sanitized and diagnosed", {
 })
 
 test_that("commons inputs use an explicit classless boundary", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_trajectory_fixture()
   condition <- rlang::catch_cnd(as_trajectory(source))
@@ -351,7 +351,7 @@ test_that("commons inputs use an explicit classless boundary", {
 })
 
 test_that("commons argument and source failures have stable conditions", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_record_trajectory_fixture()
   multiple <- c(source, source)
@@ -384,7 +384,7 @@ test_that("commons argument and source failures have stable conditions", {
 })
 
 test_that("commons conversion is deterministic and contains no live source", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   source <- commons_trajectory_fixture()
   first <- as_trajectory_commons(source, trajectory_id = "custom")
@@ -406,7 +406,7 @@ test_that("empty commons reads convert without optional dependencies", {
 })
 
 test_that("current commons records and legacy turn lists preserve the same evidence", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   turns <- ellmer_tool_turns_fixture()
   attr(turns, "provenance") <- list()
   active <- as.POSIXct("2026-09-05 12:00:00", tz = "UTC")
@@ -420,7 +420,7 @@ test_that("current commons records and legacy turn lists preserve the same evide
 })
 
 test_that("commons record fields and turn attributes retain safe provenance", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   source <- commons_record_trajectory_fixture()
   source[[1L]]$revision <- 2L
   attr(source[[1L]], "revision") <- "record-attribute"
@@ -450,7 +450,7 @@ test_that("commons record fields and turn attributes retain safe provenance", {
 })
 
 test_that("malformed commons records and invalid positions retain source errors", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   expect_error(
     as_trajectory_commons(list(example = list(turns = "invalid"))),
     class = "scans_error_commons_source"

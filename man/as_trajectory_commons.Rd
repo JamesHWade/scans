@@ -44,7 +44,7 @@ discriminating class, use this explicit adapter instead of
 \code{\link[=as_trajectory]{as_trajectory()}}.
 }
 \examples{
-if (rlang::is_installed("ellmer", version = "0.4.2")) {
+if (rlang::is_installed("ellmer", version = "0.5.0")) {
   turns <- list(
     ellmer::UserTurn(list(ellmer::ContentText("Hello"))),
     ellmer::AssistantTurn(list(ellmer::ContentText("Hi")))

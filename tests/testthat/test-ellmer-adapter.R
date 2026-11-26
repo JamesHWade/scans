@@ -1,5 +1,5 @@
 test_that("ellmer turn lists pass the shared conformance contract", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   expect_adapter_conforms(
     source = ellmer_tool_turns_fixture(),
@@ -9,7 +9,7 @@ test_that("ellmer turn lists pass the shared conformance contract", {
 })
 
 test_that("as_trajectory() dispatches for ellmer lists and turns", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   turns <- ellmer_tool_turns_fixture()
 
   list_bundle <- as_trajectory(turns)
@@ -21,7 +21,7 @@ test_that("as_trajectory() dispatches for ellmer lists and turns", {
 })
 
 test_that("as_trajectory() rejects an ambiguous empty list", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   condition <- rlang::catch_cnd(as_trajectory(list()))
 
@@ -30,7 +30,7 @@ test_that("as_trajectory() rejects an ambiguous empty list", {
 })
 
 test_that("ellmer Chat snapshots use public history and model methods", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   chat <- ellmer_chat_fixture()
 
   bundle <- as_trajectory(chat)
@@ -51,7 +51,7 @@ test_that("ellmer Chat snapshots use public history and model methods", {
 })
 
 test_that("serialized ellmer Chat objects remain convertible", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   chat <- unserialize(serialize(ellmer_chat_fixture(), NULL))
 
   bundle <- as_trajectory(chat)
@@ -62,7 +62,7 @@ test_that("serialized ellmer Chat objects remain convertible", {
 })
 
 test_that("ellmer adapter preserves caller correlation identities", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- as_trajectory_ellmer(
     ellmer_tool_turns_fixture(),
@@ -92,7 +92,7 @@ test_that("ellmer adapter preserves caller correlation identities", {
 })
 
 test_that("ellmer tool errors remain agent-visible", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   request <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 42L))
   turns <- list(
     ellmer::AssistantTurn(list(request)),
@@ -115,7 +115,7 @@ test_that("ellmer tool errors remain agent-visible", {
 })
 
 test_that("ellmer metadata and tool payload secrets are redacted", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   request <- ellmer::ContentToolRequest(
     "call-1",
     "lookup",
@@ -150,7 +150,7 @@ test_that("ellmer metadata and tool payload secrets are redacted", {
 })
 
 test_that("ellmer named vectors and attributes cannot retain secrets", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   headers <- c(
     authorization = "Bearer header-secret",
     accept = "application/json"
@@ -172,7 +172,7 @@ test_that("ellmer named vectors and attributes cannot retain secrets", {
 })
 
 test_that("ellmer sanitization covers duplicate names and deep values", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   headers <- stats::setNames(
     c("Bearer first-secret", "Bearer second-secret"),
     c("authorization", "authorization")
@@ -200,7 +200,7 @@ test_that("ellmer sanitization covers duplicate names and deep values", {
 })
 
 test_that("ellmer binary and unknown content produces explicit losses", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   FixtureContent <- S7::new_class(
     "FixtureContent",
     parent = ellmer::Content,
@@ -241,7 +241,7 @@ test_that("ellmer binary and unknown content produces explicit losses", {
 })
 
 test_that("ellmer duplicate call identifiers do not invent a parent", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   first <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 1L))
   second <- ellmer::ContentToolRequest("call-1", "lookup", list(id = 2L))
   result <- ellmer::ContentToolResult("done", request = first)
@@ -262,7 +262,7 @@ test_that("ellmer duplicate call identifiers do not invent a parent", {
 })
 
 test_that("ellmer partial turns mark the trajectory interrupted", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   turn <- ellmer::AssistantPartialTurn(
     list(ellmer::ContentText("Partial")),
     reason = "cancelled"
@@ -279,7 +279,7 @@ test_that("ellmer partial turns mark the trajectory interrupted", {
 })
 
 test_that("ellmer empty histories remain valid snapshots", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   bundle <- as_trajectory_ellmer(list())
 
@@ -290,7 +290,7 @@ test_that("ellmer empty histories remain valid snapshots", {
 })
 
 test_that("ellmer thinking and oversized text are retained safely", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   turn <- ellmer::AssistantTurn(list(
     ellmer::ContentThinking(
       "Reasoning",
@@ -310,7 +310,7 @@ test_that("ellmer thinking and oversized text are retained safely", {
 })
 
 test_that("ellmer unmatched tool results remain diagnostic data", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   turn <- ellmer::UserTurn(list(ellmer::ContentToolResult("orphaned")))
 
   bundle <- as_trajectory_ellmer(turn)
@@ -323,7 +323,7 @@ test_that("ellmer unmatched tool results remain diagnostic data", {
 })
 
 test_that("ellmer adapter rejects malformed sources and arguments", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
 
   condition <- rlang::catch_cnd(as_trajectory(list(ellmer::UserTurn(), 1)))
   expect_s3_class(condition, "scans_error_ellmer_source")
@@ -383,7 +383,7 @@ test_that("sensitive names are matched regardless of case and prefix", {
 })
 
 test_that("upper-case credential fields in tool arguments are redacted", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   request <- ellmer::ContentToolRequest(
     "call-1",
     "fetch",
@@ -401,7 +401,7 @@ test_that("upper-case credential fields in tool arguments are redacted", {
 })
 
 test_that("unknown content locations are scrubbed like remote images", {
-  skip_if_not_installed("ellmer", "0.4.2")
+  skip_if_not_installed("ellmer", "0.5.0")
   skip_if_not(exists("ContentUploaded", asNamespace("ellmer")))
   uploaded <- get("ContentUploaded", asNamespace("ellmer"))(
     uri = "https://user:pw@files.example.com/f/1?sig=SECRET",
