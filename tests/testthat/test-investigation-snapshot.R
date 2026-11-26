@@ -423,6 +423,13 @@ test_that("the bundled example keeps its snapshot and revision identifiers", {
   saved$manifest$package_version <- "0.0.0.9000"
   expect_identical(
     investigation_revision_id(saved),
+    "sha256:c05a265afd116ac9b04ee5fcacad337b43ac3fc814b0155c254406ef1b2aa2ca"
+  )
+  # The saved scan origins are the only change since these identifiers were
+  # first recorded: without them the revision is the earlier one.
+  saved$manifest$scanner_versions$origin <- NULL
+  expect_identical(
+    investigation_revision_id(saved),
     "sha256:fee200ae5473d643c5ede96a6528465fdacf6b32ab3e2ac888f6893706b76415"
   )
 })
