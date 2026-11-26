@@ -679,6 +679,26 @@ test_that("a live app's report counts failed scans as the overview does", {
   })
 })
 
+test_that("scanners the app could never run are refused", {
+  saved <- investigation_snapshot(
+    scanner_bundle_fixture(),
+    scanners = scanner_keyword_fixture()
+  )
+  expect_error(
+    scans_app(
+      saved,
+      investigations = FALSE,
+      scanners = scanner_keyword_fixture()
+    ),
+    class = "scans_error_app_scanners"
+  )
+  expect_no_error(scans_app(saved, investigations = FALSE))
+  expect_no_error(scans_app(
+    list(Saved = saved, Live = scanner_bundle_fixture()),
+    scanners = scanner_keyword_fixture()
+  ))
+})
+
 test_that("the copied R snippet says custom scanners must be supplied", {
   code <- export_r_code(
     NULL,
@@ -1273,6 +1293,18 @@ test_that("a custom scan's pattern changes are classified like a built-in's", {
     expect_identical(unique(rows$change), "not_comparable")
     expect_identical(unique(rows$reason), case[[2L]])
   }
+})
+
+test_that("a comparison opened with custom scanners is refused", {
+  comparison <- scanner_comparison_fixture(
+    scanner_applicable_fixture(),
+    scanner_applicable_fixture()
+  )
+  expect_error(
+    scans_app(comparison, scanners = scanner_applicable_fixture()),
+    class = "scans_error_app_scanners"
+  )
+  expect_no_error(scans_app(comparison))
 })
 
 test_that("the bounded browser list keeps custom and failure reasons", {

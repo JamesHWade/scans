@@ -108,6 +108,12 @@ results without it. Recomputing needs the scanner again:
 with an error that says so, and the app names the saved scanners it cannot
 rerun, both before and after "Apply current scanners".
 
+`scans_app()` refuses `scanners` where they could never run: with a
+comparison, whose sides are the saved analyses it compares and are never
+rerun, and with a saved investigation opened with `investigations = FALSE`,
+which has no "Apply current scanners". Listing them in Options and ignoring
+them would suggest results the app is not showing.
+
 A trajectory is assessed when any selected scan assessed it, so a scanner
 that fails everywhere leaves trajectories "clean" if the built-ins assessed
 them. The class stays as it is; instead the review queue lists "Execution

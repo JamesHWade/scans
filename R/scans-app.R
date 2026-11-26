@@ -140,8 +140,11 @@
 #'   the loaded bundle, and their findings and assessment status are shown the
 #'   same way. A saved investigation shows its saved custom results without
 #'   them; applying current scanners reruns only the scanners supplied here.
-#'   Custom scanners are deterministic functions, so browsing never calls a
-#'   model.
+#'   Scanners that could never run are refused rather than ignored: with a
+#'   single saved investigation opened with `investigations = FALSE`, and
+#'   with a comparison, whose sides are the saved analyses it compares (rerun
+#'   each side with [investigation_snapshot()] and compare again). Custom
+#'   scanners are deterministic functions, so browsing never calls a model.
 #' @param chat_factory Optional zero-argument function returning an ellmer chat,
 #'   for example `function() ellmer::chat_openai()`. Defaults to `NULL`, which
 #'   omits Ask. Tools configured on this client are replaced with the bounded
@@ -179,6 +182,7 @@ scans_app <- function(
 ) {
   sources <- scans_app_sources(x)
   scanners <- scanner_check_list(scanners, rlang::current_env())
+  scans_app_check_scanners(x, scanners, investigations)
   scans_app_check_packages()
   scans_app_check_annotations(annotations)
   rlang::check_bool(investigations)
@@ -204,6 +208,42 @@ scans_app <- function(
     ),
     onStart = if (investigations || reviews) scans_app_investigation_start
   )
+}
+
+# Custom scanners run only on a bundle or when a saved investigation is
+# reanalysed. Where neither can happen they would be listed in Options and
+# never run, so they are refused.
+scans_app_check_scanners <- function(
+  x,
+  scanners,
+  investigations,
+  call = rlang::caller_env()
+) {
+  if (!length(scanners)) {
+    return(invisible())
+  }
+  if (inherits(x, "scans_comparison")) {
+    scans_abort(
+      c(
+        "{.arg scanners} cannot be used with a comparison.",
+        i = "Its sides are the saved analyses it compares, so they are never rerun.",
+        i = "Rerun each side with {.code investigation_snapshot(scanners = )}, then pair and compare again."
+      ),
+      class = "scans_error_app_scanners",
+      call = call
+    )
+  }
+  if (inherits(x, "scans_investigation") && !investigations) {
+    scans_abort(
+      c(
+        "{.arg scanners} would never run on a saved investigation with {.code investigations = FALSE}.",
+        i = "Its saved results are shown without them. Use {.code investigations = TRUE} to apply them."
+      ),
+      class = "scans_error_app_scanners",
+      call = call
+    )
+  }
+  invisible()
 }
 
 scans_app_check_annotations <- function(
