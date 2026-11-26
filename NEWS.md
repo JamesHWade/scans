@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* New `scanner()`, `scanner_findings()`, and `scanner_unassessed()` define custom deterministic scanners, passed per call through the new `scanners` argument of `scan_trajectories()`, `assess_trajectory_scans()`, `investigation_snapshot()`, `scans_tools()`, and `scans_app()`. A scanner that throws, returns anything else, or cites evidence outside a trajectory is an `execution_failure` for that scanner and trajectory only; built-in results are unchanged. Saved investigations record whether each scan is built-in or custom (#43).
+* A trajectory with a failed scan says so in the review queue and the overview.
 * New article `vignette("matched-comparison")` and offline recipe `inst/examples/matched-comparison.R` compare a baseline and a candidate on reviewed held-out cases (#42).
 * `scans_app()` opens a comparison: what could not be compared first, then matched cases filterable to regressions, improvements, pattern changes, and resource changes, each linked to both trajectories (#42).
 * New `compare_trajectories()` reports per-case changes in outcomes, diagnostic patterns, and resource measures as three separate tables, with paired counts and an exact sign test where justified, and an unpaired description when no case matches. A pattern whose scan stops or starts applying is counted apart from resolved and appeared (#42).
