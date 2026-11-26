@@ -90,7 +90,7 @@ scans_app_comparison_ui <- function(sources) {
     htmltools::tags$summary(
       htmltools::tags$strong("Comparison"),
       sprintf(
-        " %s → %s",
+        " %s \u2192 %s",
         pairing$snapshots$application[[1L]],
         pairing$snapshots$application[[2L]]
       )
@@ -292,7 +292,7 @@ scans_app_comparison_case <- function(pair_id, comparison, labels) {
         scans_app_comparison_or(row$change, "unknown")
       ),
       sprintf(
-        "%s: %s → %s, %s",
+        "%s: %s \u2192 %s, %s",
         scans_app_comparison_or(row$scorer_id, "unrecorded scorer"),
         scans_app_comparison_or(row$baseline_value, "no value"),
         scans_app_comparison_or(row$candidate_value, "no value"),
@@ -327,7 +327,7 @@ scans_app_comparison_case <- function(pair_id, comparison, labels) {
     value <- function(x) if (is.na(x)) "unknown" else format(x)
     htmltools::tags$li(
       sprintf(
-        "%s: %s → %s %s; %s",
+        "%s: %s \u2192 %s %s; %s",
         row$measure,
         value(row$baseline_value),
         value(row$candidate_value),
@@ -360,7 +360,7 @@ scans_app_comparison_case <- function(pair_id, comparison, labels) {
   htmltools::tags$article(
     class = "scans-app-comparison-case",
     htmltools::tags$h4(
-      paste(names(key), key, collapse = " · "),
+      paste(names(key), key, collapse = " \u00b7 "),
       " ",
       link("baseline", "Open baseline"),
       " ",
