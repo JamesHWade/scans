@@ -3,7 +3,7 @@
     Code
       print(pairing)
     Message
-      <scans_pairing> on sample_id, dataset version "support-v1"
+      <scans_pairing> on sample_id; dataset version support-v1
       Baseline snapshot: sha256:baseline
       Candidate snapshot: sha256:candidate
       ! 3 trajectories duplicated under the key

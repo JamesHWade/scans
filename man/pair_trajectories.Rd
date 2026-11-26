@@ -106,3 +106,6 @@ if (rlang::is_installed(c("digest", "jsonlite"))) {
   pairing$only_baseline
 }
 }
+\seealso{
+\code{\link[=compare_trajectories]{compare_trajectories()}} for per-case changes.
+}
