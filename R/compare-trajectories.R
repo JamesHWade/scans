@@ -41,7 +41,9 @@
 #' A recorded difference between two runs does not establish that the change
 #' caused it. See `vignette("matched-comparison")` for what a result supports.
 #'
-#' @param pairing A `scans_pairing` value from [pair_trajectories()].
+#' @param pairing A `scans_pairing` value from [pair_trajectories()]. The
+#'   investigations it holds must be valid and carry the snapshot and
+#'   revision identifiers the pairing recorded.
 #' @param conf_level Confidence level for intervals, between 0 and 1.
 #'
 #' @returns A `scans_comparison` value: a list with the `pairing`, the
@@ -96,6 +98,7 @@ compare_trajectories <- function(pairing, conf_level = 0.95) {
   ) {
     pairing_abort("{.arg conf_level} must be one number between 0 and 1.")
   }
+  comparison_check_sides(pairing)
   outcomes <- comparison_outcomes(pairing)
   patterns <- comparison_patterns(pairing)
   resources <- comparison_resources(pairing)
@@ -148,6 +151,29 @@ print.scans_comparison <- function(x, ...) {
   lines <- comparison_summary_lines(x$summaries)
   cli::cli_bullets(stats::setNames(lines, rep("*", length(lines))))
   invisible(x)
+}
+
+# The pairing's tables were built from the investigations it holds, so each
+# must still be a valid saved investigation with the identity it was paired
+# under.
+comparison_check_sides <- function(pairing, call = rlang::caller_env()) {
+  for (side in pairing_sides) {
+    x <- pairing[[side]]
+    investigation_validate(x)
+    paired <- pairing$snapshots[pairing$snapshots$side == side, ]
+    if (
+      !identical(x$manifest$snapshot_id, paired$snapshot_id) ||
+        !identical(x$manifest$revision_id, paired$revision_id)
+    ) {
+      pairing_abort(
+        c(
+          "The {side} investigation is not the one this pairing was built from.",
+          "i" = "Call {.fn pair_trajectories} again with the investigations to compare."
+        ),
+        call
+      )
+    }
+  }
 }
 
 comparison_identity <- c(

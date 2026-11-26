@@ -7,7 +7,9 @@
 compare_trajectories(pairing, conf_level = 0.95)
 }
 \arguments{
-\item{pairing}{A \code{scans_pairing} value from \code{\link[=pair_trajectories]{pair_trajectories()}}.}
+\item{pairing}{A \code{scans_pairing} value from \code{\link[=pair_trajectories]{pair_trajectories()}}. The
+investigations it holds must be valid and carry the snapshot and
+revision identifiers the pairing recorded.}
 
 \item{conf_level}{Confidence level for intervals, between 0 and 1.}
 }

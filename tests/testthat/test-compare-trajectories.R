@@ -424,6 +424,31 @@ test_that("printing reports the exact test of each family that carries one", {
   expect_snapshot(print(comparison))
 })
 
+test_that("a comparison checks the investigations against the pairing", {
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(c(0, 1)),
+    comparison_manual_investigation(c(1, 1)),
+    by = "sample_id",
+    dataset_version = "v1",
+    scorers = list(comparison_scorer("judge", "1", "numeric"))
+  )
+  tampered <- pairing
+  assessments <- tampered$candidate$analysis$assessments
+  assessments$status[] <- "assessed_with_findings"
+  tampered$candidate$analysis$assessments <- assessments
+  expect_error(
+    compare_trajectories(tampered),
+    class = "scans_error_investigation"
+  )
+
+  swapped <- pairing
+  swapped$candidate <- comparison_manual_investigation(c(9, 9))
+  expect_error(
+    compare_trajectories(swapped),
+    class = "scans_error_pairing"
+  )
+})
+
 test_that("compare_trajectories() validates its inputs", {
   saved <- comparison_manual_investigation(c(1, 0))
   pairing <- pair_trajectories(
