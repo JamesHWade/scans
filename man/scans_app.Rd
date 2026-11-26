@@ -13,8 +13,9 @@ scans_app(
 )
 }
 \arguments{
-\item{x}{A \link{TrajectoryBundle}, a saved \code{\link[=investigation_snapshot]{investigation_snapshot()}}, or a named
-list of application sources. Each source can be either value or a
+\item{x}{A \link{TrajectoryBundle}, a saved \code{\link[=investigation_snapshot]{investigation_snapshot()}}, a
+comparison from \code{\link[=compare_trajectories]{compare_trajectories()}}, or a named list of application
+sources. Each source can be a bundle, a saved investigation, or a
 zero-argument function that returns one. Source names are shown in the
 application switcher.}
 
@@ -147,6 +148,17 @@ Opening does not contact the original source. The default upload limit is
 50 MiB. An explicit \code{shiny.maxRequestSize} option sets both the app upload
 ceiling and its investigation reader limit; \code{Inf} disables the size limit.
 See \code{\link[=investigation_files]{investigation_files()}}.
+}
+
+\section{Comparisons}{
+
+Pass a \code{\link[=compare_trajectories]{compare_trajectories()}} result to open a comparison. The baseline
+and candidate investigations become the two applications in the switcher,
+and the overview leads with the comparison: what could not be compared
+first, then the matched cases, which can be narrowed to regressions,
+improvements, pattern changes, resource changes, or cases with something
+not comparable. Each case links to both trajectories and to the events its
+findings cite. Every number shown is read from the comparison value.
 }
 
 \section{Posit Connect}{

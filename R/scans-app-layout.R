@@ -191,6 +191,7 @@ scans_app_ui <- function(
         selected = "application",
         bslib::nav_panel_hidden(
           "application",
+          if (!is.null(sources$comparison)) scans_app_comparison_ui(sources),
           shiny::uiOutput("scans_app_performance")
         ),
         bslib::nav_panel_hidden(

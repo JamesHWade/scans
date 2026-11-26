@@ -159,7 +159,8 @@ print.scans_comparison <- function(x, ...) {
     return(invisible(x))
   }
   cli::cli_h3("Paired changes in {nrow(pairing$pairs)} matched case{?s}")
-  lines <- comparison_summary_lines(x$summaries)
+  # Recorded scorer labels can be source text with braces; print them as data.
+  lines <- gsub("([{}])", "\\1\\1", comparison_summary_lines(x$summaries))
   cli::cli_bullets(stats::setNames(lines, rep("*", length(lines))))
   invisible(x)
 }
@@ -1018,8 +1019,7 @@ comparison_summary_lines <- function(summaries) {
   if (!length(lines)) {
     lines <- "No recorded change in any compared outcome, pattern, or resource."
   }
-  # Recorded scorer labels can be source text with braces; print them as data.
-  gsub("([{}])", "\\1\\1", lines)
+  lines
 }
 
 comparison_short <- function(x, width = 40L) {

@@ -249,6 +249,34 @@ and small evaluation sets are the norm); an asymptotic McNemar test; a
 single improvement score across the three families; resource totals summed
 across cases (partial coverage would be mixed into the sum).
 
+## Review app
+
+`scans_app()` accepts a comparison. Its baseline and candidate investigations
+become the two applications in the switcher, labelled `Baseline: ...` and
+`Candidate: ...`, and the overview leads with the comparison: what was not
+compared, then the summary, then matched cases with a filter for regressions,
+improvements, pattern changes, resource changes, and cases with something not
+comparable. Each case links to both trajectories and to the events its
+findings cite, through the app's existing `#application/trajectory?event=`
+addresses, so opening a link switches side and reveals the event.
+
+The view reads `compare_trajectories()` output only. The filter selects pairs
+by the counts in `cases`; the Shiny code computes no change, count, or test.
+The view is capped at 100 cases and 100 excluded trajectories and says so
+when it truncates.
+
+Rejected: a `comparison =` argument beside two separately supplied sources
+(the comparison already holds both investigations, and a second copy could
+disagree with it); a third value of the app's view switch (saved view state
+allows only `application` and `trajectory`, and several observers treat any
+other value as an open trajectory).
+
+No comparison tool was added to `scans_tools()`. Its tools are built around
+one bundle, one snapshot identity, and one permitted trajectory set; a
+comparison has two of each, so it does not fit that context without changing
+the evidence-reference contract. A model can still read either side through
+the existing tools.
+
 ## What a result can establish
 
 - A re-scored copy of the same outputs has a different scorer version, so
