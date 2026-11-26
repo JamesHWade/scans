@@ -39,7 +39,9 @@ measure <- function(group, step, expr, n = NA_integer_) {
   run <- function() {
     gc(reset = TRUE, full = TRUE)
     used <- megabytes(gc(), "used")
-    elapsed <- system.time(value <- eval(expr, frame))[["elapsed"]]
+    started <- proc.time()[["elapsed"]]
+    value <- eval(expr, frame)
+    elapsed <- proc.time()[["elapsed"]] - started
     list(
       value = value,
       elapsed = elapsed,
