@@ -46,6 +46,12 @@ identifier, so `finding_ids` and `review_finding_id` name the same finding the
 same way. A finding the saved analysis does not hold keeps a rerun identifier
 that starts with `rerun/`, which cannot be mistaken for a saved one.
 
+The saved identifiers are for review links only. Cases of one snapshot can come
+from different analysis revisions, which name the same rerun finding
+differently, so `unreviewed_findings` counts findings by their rerun identity
+(scan, turn, cited events, repeats numbered in order), kept in `finding_keys`
+and `other_finding_keys`.
+
 **Unreviewed findings are neither true nor false positives.** A finding that
 agrees with no scored case in the split has no positive or negative judgment
 behind it. It is counted in `unreviewed_findings` and listed per case in

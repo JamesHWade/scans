@@ -186,6 +186,45 @@ test_that("a rate with no denominator is NA with its reason", {
   expect_identical(summary$unreviewed_findings, c(1L, 0L))
 })
 
+test_that("cases from two revisions of one snapshot count a finding once", {
+  bundle <- scanner_chat_bundle(list("dev-a" = "It is guaranteed today."))
+  first <- investigation_snapshot(
+    bundle,
+    scans = "toy_keyword",
+    scanners = scanner_keyword_fixture(),
+    application = "Parcel support"
+  )
+  second <- investigation_snapshot(
+    bundle,
+    scans = "toy_keyword",
+    scanners = scanner_keyword_fixture("zzz"),
+    application = "Parcel support",
+    previous = first
+  )
+  expect_identical(first$manifest$snapshot_id, second$manifest$snapshot_id)
+  expect_identical(nrow(second$analysis$findings), 0L)
+  examples <- review_examples(
+    list(
+      review_case(
+        first,
+        "dev-a",
+        first$analysis$findings$finding_id[[1L]]
+      ),
+      review_case(second, "dev-a", scan = "toy_keyword")
+    ),
+    "scanner",
+    groups = c("a", "b"),
+    splits = rep("development", 2L),
+    predicates = rep(list(list(operator = "gte", value = 1L)), 2L)
+  )
+  result <- validate_scanner(scanner_keyword_fixture(), examples)
+  expect_false(identical(
+    result$cases$finding_ids[[1L]],
+    result$cases$finding_ids[[2L]]
+  ))
+  expect_identical(result$summary$unreviewed_findings, c(1L, 0L))
+})
+
 test_that("the trajectory unit ignores which evidence a case cites", {
   examples <- scanner_validation_fixture()
   elsewhere <- scanner_keyword_fixture("parcel")

@@ -78,7 +78,9 @@
 #' `review_turn_ids`, `decision_ids`, `snapshot_id`, `revision_id`), and what
 #' the scanner cited (`finding_ids` for the agreeing findings,
 #' `other_finding_ids` for its other findings in the trajectory, and
-#' `scanner_event_ids` for every event it cited there). A rerun finding that
+#' `scanner_event_ids` for every event it cited there, and `finding_keys` and
+#' `other_finding_keys`, the revision-independent identities the summary
+#' counts by). A rerun finding that
 #' cites the same turn and events as a saved finding of the scan carries
 #' that saved identifier, the one `review_finding_id` uses; a finding the
 #' saved analysis does not hold, such as one a new version adds, keeps an
@@ -139,6 +141,7 @@ validate_scanner_case <- function(scanner, examples, i, unit) {
   assessed <- assessment %in%
     c("assessed_with_findings", "assessed_no_findings")
   findings <- result$findings
+  findings$rerun_key <- validate_scanner_key(findings)
   findings$finding_id <- validate_scanner_saved_ids(
     findings,
     saved$analysis$findings
@@ -220,7 +223,9 @@ validate_scanner_case <- function(scanner, examples, i, unit) {
       )) %||%
         character()
     ),
-    other_finding_ids = list(findings$finding_id[!agreeing])
+    other_finding_ids = list(findings$finding_id[!agreeing]),
+    finding_keys = list(findings$rerun_key[agreeing]),
+    other_finding_keys = list(findings$rerun_key[!agreeing])
   )
 }
 
@@ -272,19 +277,21 @@ validate_scanner_summary <- function(scanner, cases, split) {
     not_adjudicated = n("not_adjudicated"),
     unreviewed_findings = length(setdiff(
       c(
-        validate_scanner_keys(cases, "other_finding_ids"),
-        validate_scanner_keys(cases, "finding_ids")
+        validate_scanner_keys(cases, "other_finding_keys"),
+        validate_scanner_keys(cases, "finding_keys")
       ),
       validate_scanner_keys(
         cases[cases$outcome %in% scored_outcomes, ],
-        "finding_ids"
+        "finding_keys"
       )
     ))
   )
 }
 
-# Saved identifiers are unique within a snapshot and rerun identifiers within
-# a trajectory, so a finding is identified with both.
+# Cases of one snapshot can come from different analysis revisions, which
+# name the same rerun finding differently (a saved identifier in one, a
+# "rerun/" identifier in another). The summary therefore counts findings by
+# their rerun identity, which does not depend on the revision.
 validate_scanner_keys <- function(cases, column) {
   unique(unlist(
     lapply(seq_len(nrow(cases)), function(i) {
@@ -297,26 +304,29 @@ validate_scanner_keys <- function(cases, column) {
   ))
 }
 
+# A rerun finding's identity: its scan, turn, and cited events, with repeats
+# numbered in order.
+validate_scanner_key <- function(x) {
+  evidence <- vapply(
+    x$event_ids,
+    function(ids) paste(sort(ids, method = "radix"), collapse = "\r"),
+    character(1)
+  )
+  base <- paste(x$scan, x$turn_id, x$event_id, evidence, sep = "\n")
+  paste(base, stats::ave(seq_along(base), base, FUN = seq_along))
+}
+
 # The rerun numbers its findings within this case's evidence, while the
 # review cites the saved snapshot's identifiers. A rerun finding takes the
 # identifier of the saved finding of the same scan that cites the same turn
 # and events; repeats are paired in order. A finding the saved analysis does
 # not hold keeps its rerun identifier, which starts with "rerun/".
 validate_scanner_saved_ids <- function(findings, saved) {
-  key <- function(x) {
-    evidence <- vapply(
-      x$event_ids,
-      function(ids) paste(sort(ids, method = "radix"), collapse = "\r"),
-      character(1)
-    )
-    base <- paste(x$scan, x$turn_id, x$event_id, evidence, sep = "\n")
-    paste(base, stats::ave(seq_along(base), base, FUN = seq_along))
-  }
   ids <- findings$finding_id
   if (!length(ids)) {
     return(ids)
   }
-  match <- match(key(findings), key(saved))
+  match <- match(validate_scanner_key(findings), validate_scanner_key(saved))
   ids[!is.na(match)] <- saved$finding_id[match[!is.na(match)]]
   ids
 }
