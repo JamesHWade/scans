@@ -10,7 +10,7 @@ otel_commons_provenance_keys <- c(
 )
 
 # Provenance events, round indices, and internal-turn flags for a commons
-# conversation, or NULL when no commons span was captured. Each exchange of
+# conversation, or NULL when no commons turn or provenance span was captured. Each exchange of
 # the reconstructed transcript gets one event, in the shape
 # `as_trajectory_commons()` gives the same record. A record attaches to an
 # exchange as in commons' `build_trajectories()`: the latest model call of
@@ -30,7 +30,14 @@ otel_commons_tables <- function(
   offset,
   ancestry = NULL
 ) {
-  if (!any(vapply(spans, otel_is_companion_span, logical(1)))) {
+  commons <- c("commons_conversation_turn", "commons_provenance")
+  if (
+    !any(vapply(
+      spans,
+      function(span) isTRUE(span$name %in% commons),
+      logical(1)
+    ))
+  ) {
     return(NULL)
   }
   index <- otel_span_index(c(ancestry, spans))
@@ -192,25 +199,21 @@ otel_span_is_later <- function(span, previous) {
 # message opens an exchange unless it returns tool results or is an internal
 # reminder. Messages before the first exchange have none.
 otel_exchange_rounds <- function(messages) {
-  rounds <- rep(NA_integer_, length(messages))
-  round <- 0L
-  for (index in seq_along(messages)) {
-    message <- messages[[index]]
-    opens <- identical(otel_message_role(message), "user") &&
-      !any(vapply(
-        message$parts %||% list(),
-        function(part) identical(otel_string(part$type), "tool_call_response"),
-        logical(1)
-      )) &&
-      !otel_is_internal_message(message)
-    if (opens) {
-      round <- round + 1L
-    }
-    if (round > 0L) {
-      rounds[[index]] <- round
-    }
-  }
-  rounds
+  commons_exchange_rounds(vapply(
+    messages,
+    function(message) {
+      identical(otel_message_role(message), "user") &&
+        !any(vapply(
+          message$parts %||% list(),
+          function(part) {
+            identical(otel_string(part$type), "tool_call_response")
+          },
+          logical(1)
+        )) &&
+        !otel_is_internal_message(message)
+    },
+    logical(1)
+  ))
 }
 
 # commons' `is_internal_turn()`: a user turn whose every part is text wrapped
@@ -221,11 +224,7 @@ otel_is_internal_message <- function(message) {
       message$parts %||% list(),
       function(part) {
         identical(otel_string(part$type), "text") &&
-          grepl(
-            "(?s)^<(system-instruction|reminder)>.*</\\1>$",
-            otel_string(part$content) %|na|% "",
-            perl = TRUE
-          )
+          commons_is_internal_text(otel_string(part$content) %|na|% "")
       },
       logical(1)
     ))

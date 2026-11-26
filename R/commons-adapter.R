@@ -375,22 +375,29 @@ commons_extra_attributes <- function(x, excluded) {
 # internal reminders, join the open exchange; turns before the first exchange
 # have no round.
 commons_round_indices <- function(turns) {
-  rounds <- rep(NA_integer_, length(turns))
-  round <- 0L
-  for (index in seq_along(turns)) {
-    turn <- turns[[index]]
-    if (
+  commons_exchange_rounds(vapply(
+    turns,
+    function(turn) {
       identical(S7::prop(turn, "role"), "user") &&
         !commons_has_tool_result(turn) &&
         !commons_is_internal_turn(turn)
-    ) {
-      round <- round + 1L
-    }
-    if (round > 0L) {
-      rounds[[index]] <- round
-    }
-  }
-  rounds
+    },
+    logical(1)
+  ))
+}
+
+# The round of each element given which ones open an exchange; elements
+# before the first opening have none.
+commons_exchange_rounds <- function(opens) {
+  rounds <- cumsum(opens)
+  rounds[rounds == 0L] <- NA_integer_
+  as.integer(rounds)
+}
+
+commons_internal_text_pattern <- "(?s)^<(system-instruction|reminder)>.*</\\1>$"
+
+commons_is_internal_text <- function(text) {
+  grepl(commons_internal_text_pattern, text, perl = TRUE)
 }
 
 # The rule from commons' is_internal_turn() in pkg-r/R/trajectory-read.R:
@@ -402,11 +409,7 @@ commons_is_internal_turn <- function(turn) {
       S7::prop(turn, "contents"),
       function(content) {
         S7::S7_inherits(content, ellmer::ContentText) &&
-          grepl(
-            "(?s)^<(system-instruction|reminder)>.*</\\1>$",
-            S7::prop(content, "text"),
-            perl = TRUE
-          )
+          commons_is_internal_text(S7::prop(content, "text"))
       },
       logical(1)
     ))

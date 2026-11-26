@@ -243,3 +243,22 @@ bundle <- as_trajectory_commons(conversations)
 
 scans_app_connect(sources, reader = "commons")
 ```
+
+## Agents built with Deputy
+
+Deputy adds a `deputy.run` span around each agent run, with the run's
+identity, how it ended, and its governance decisions as span events.
+`as_trajectory_otel()` keeps these too. Each trajectory carries the run ID,
+session, agent, and delegation in metadata, with the same ten-field `ending`
+that `as_trajectory_deputy()` records, as far as the span says it: whether
+the answer was cut off, the finish reason, and the stop reason. Permission
+decisions, fallbacks, compactions, hooks, checkpoints, warnings, and
+structured attempts become `deputy:*` events with their times. Deputy files a
+subagent's run under its lead's conversation, and scans gives that run its own
+trajectory, linked to the lead through `parent_trajectory_id`, so the two
+transcripts never replace each other.
+
+The span leaves out what Deputy keeps private: prompts, tool inputs and
+results, error messages, approvals waiting for a decision, and failed
+compactions. Convert the `AgentResult` with `as_trajectory_deputy()` when you
+have it and need those.

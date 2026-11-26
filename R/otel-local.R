@@ -30,7 +30,7 @@
 #' @param max_spans Ceiling on how many GenAI spans are kept, counting back
 #'   from the most recent. Only spans carrying `gen_ai.*` attributes count
 #'   towards it, as for [read_connect_traces()]; commons turn and provenance
-#'   spans never count.
+#'   spans and Deputy run spans never count.
 #'
 #' @returns A named list of conversations, each a list of spans, oldest-first,
 #'   in the same form as [read_connect_traces()]. The `"source_uri"` attribute

@@ -79,6 +79,57 @@ leave it unclassified with a loss. The Connect user commons records
 (\code{commons.connect.user}) is kept as \code{metadata$otel$user}. commons setup
 spans such as \code{commons_agent_create} belong to no conversation and are
 ignored.
+}
+
+\section{Deputy agents}{
+
+Deputy wraps each agent run in a \code{deputy.run} span. Like commons' spans it
+is kept with its conversation, never counted against a span budget, and
+never used as a transcript or a measure. A conversation's root runs, the
+turns of one chat, stay one trajectory. Each subagent run (one with
+\code{deputy.parent.run.id}) becomes its own trajectory, holding the model and
+tool calls under its run span, with the ID \verb{otel/<conversation>/<run ID>}
+and \code{parent_trajectory_id} set when its parent run is in the same input.
+Otherwise the parent run ID stays in metadata with a \code{parent_run_id} loss.
+A model or tool call that no run's ancestry reaches stays with the lead and
+is reported with a \code{deputy.run} loss.
+
+The latest run speaks for its trajectory. \code{run_id} is its \code{deputy.run.id},
+and metadata carries \code{session_id}, \code{agent_id}, \code{parent_run_id},
+\code{delegation_id}, \code{stop_reason}, and the ten-field \code{ending} described in
+\code{\link[=as_trajectory_deputy]{as_trajectory_deputy()}}. The span records only the stop reason, the final
+finish reason, and whether the answer was cut off, so \code{by}, \code{field},
+\code{actual}, \code{limit}, \code{wrapped_up}, and \code{phase} are \code{NA}. \code{class} is
+\code{"RunEndingAnswered"} or \code{"RunEndingCutOff"} for stop reason \code{"complete"},
+\code{"RunEndingStopped"} for any other reason Deputy exports by name except a
+limit or failure reason, and \code{NA} for those and for \code{"custom"}, because a
+caller or hook can stop a run with a limit's or failure's own word. The
+trajectory \code{status} then follows the Deputy adapter's mapping from \code{class},
+or from the stop reason when \code{class} is \code{NA}.
+
+Deputy exports nine event types as span events, each with only
+identifiers and decisions. They become events named as the Deputy adapter
+names the same events, timestamped from the span event:\tabular{lll}{
+   Span event \tab Bundle event \tab Notes \cr
+   \code{deputy.permission} \tab \code{deputy:permission} \tab \code{call_id} from \code{tool_call_id}; \code{"failed"} when \code{decision} is \code{"deny"} \cr
+   \code{deputy.structured_attempt} \tab \code{deputy:structured_attempt} \tab \code{"failed"} when \code{valid} is false; no attempted value \cr
+   \code{deputy.fallback} \tab \code{deputy:fallback} \tab \code{fallback_index} \cr
+   \code{deputy.compaction} \tab \code{deputy:compaction} \tab successful compactions only \cr
+   \code{deputy.hook} \tab \code{deputy:hook} \tab \code{hook}, \code{decision} \cr
+   \code{deputy.file_checkpoint} \tab \code{deputy:file_checkpoint} \tab \code{checkpoint_id} \cr
+   \code{deputy.delegation} \tab \code{deputy:delegation} \tab \code{delegation_id} \cr
+   \code{deputy.warning} \tab \code{deputy:warning} \tab \code{code}; no message \cr
+   \code{deputy.stop} \tab \code{deputy:stop} \tab  \cr
+}
+
+
+Other attributes stay in event \code{metadata}. Deputy does not export its other
+event types, so OTel bundles have no \code{deputy:approval},
+\code{deputy:limit_wrap_up}, \code{deputy:compaction_error}, tool, request, or
+content events, and no tool names, inputs, results, or error messages. A
+run span's first 1,000 span events are read; a span with more is reported
+with a \code{capture$events} loss counting the events left out.
+Conversations without a \code{deputy.run} span are unaffected.
 
 Spans are grouped into conversations by the \code{gen_ai.conversation.id}
 attribute, walking up the span's ancestry to find it. A conversation
