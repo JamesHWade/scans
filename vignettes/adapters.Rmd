@@ -179,6 +179,17 @@ commons fills the gap with placeholder turns. scans keeps them and records a
 `capture$input` or `capture$tool_result` loss on each, so scans that need a
 complete transcript report insufficient evidence.
 
+To find questions worth promoting to a governed measure, register
+`scans_tools(bundle)` with a chat. `scans_route_counts` counts exchanges as
+Trusted, Cited, Untrusted, or Unclassified (tags A, B, C, or an absent or
+conflicting tag) with their denominators. Sources without provenance, such
+as plain ellmer chats, count as not applicable. `scans_route_candidates`
+ranks tool routes that recur across untrusted and cited exchanges, such as
+`describe_table > run_sql > run_r`, and returns the recorded SQL and R
+inputs and outputs behind each one. Captured code is shown, never run. A
+returned trajectory and its event ids can be passed to `review_case()` to
+record the promotion decision.
+
 ## Tempest
 
 Tempest exposes a bounded, deterministic review of a completed STORM or

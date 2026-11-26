@@ -1,5 +1,7 @@
 # scans 0.0.0.9000
 
+* `scans_tools()` gains `scans_route_counts` and `scans_route_candidates`. They count exchanges by recorded commons provenance (trusted, cited, untrusted, unclassified, or not applicable for sources without provenance) with explicit denominators, and rank recurring exploratory tool routes as measure-promotion candidates with evidence references, bounded recorded tool inputs and outputs, and resource coverage. Captured SQL and R are never executed (#70).
+
 * `scan_trajectories()` and `assess_trajectory_scans()` gain two built-in scans for Deputy run evidence (`metadata$ending` and `deputy:*` events) from any adapter that records it. `cut_off_answer` flags a final answer the provider cut short even though the run's status is `"completed"`. `run_intervention` flags limit wrap-ups and limit stops, provider fallbacks, failed or repeated compaction, denied permissions, unresolved approvals, and a delegated subagent's reported missing evidence or unresolved work, with the recording event as evidence (#72).
 * `scans_tools()` trajectory listings show the run ending (`run_ending`, `ending_reason`, `finish_reason`, `cut_off`, `wrapped_up`) when one is recorded, and `scans_get_findings` can be narrowed to named scans (#72).
 
