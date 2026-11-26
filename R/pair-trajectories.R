@@ -531,7 +531,7 @@ pairing_recorded_scale <- function(values) {
 }
 
 pairing_score_kind <- function(x) {
-  scalar <- length(x) == 1L && !is.na(x)
+  scalar <- is.atomic(x) && length(x) == 1L && !is.na(x)
   if (is.ordered(x)) {
     c("ordered", levels(x))
   } else if (scalar && is.logical(x)) {

@@ -520,3 +520,15 @@ test_that("mixed scores without an ordered factor take a declared scale", {
   )
   expect_identical(pairing$scorers$scale[[1L]], "numeric")
 })
+
+test_that("a structured evaluation value is not a recognised scale", {
+  structured <- list(data.frame(score = c(0, 1)), data.frame(score = c(1, 0)))
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(structured),
+    comparison_manual_investigation(structured),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  expect_true(all(pairing$scorers$scorer_id == "judge"))
+  expect_true(all(is.na(pairing$scorers$scale)))
+})
