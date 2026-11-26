@@ -36,6 +36,7 @@ reference:
   contents:
   - investigation_snapshot
   - investigation_files
+  - investigation_report
 
 - title: Reviewed examples
   contents:
