@@ -318,7 +318,7 @@ report_blocks <- function(x, max_evidence = 100L) {
     report_resource_blocks(x),
     report_capture_blocks(x),
     report_evidence_blocks(x, max_evidence),
-    report_review_blocks(x),
+    report_review_blocks(x, report_listed_anchors(x, max_evidence)),
     list(
       report_heading("What this report can and cannot establish"),
       report_items(
@@ -702,6 +702,17 @@ report_capture_blocks <- function(x) {
   )
 }
 
+# The anchors of the findings the rendered evidence lists: those of the
+# first `max_evidence` trajectories of each pattern.
+report_listed_anchors <- function(x, max_evidence) {
+  evidence <- x$evidence
+  unlist(lapply(unique(evidence$scan), function(scan) {
+    rows <- evidence[evidence$scan == scan, , drop = FALSE]
+    shown <- utils::head(unique(rows$trajectory_id), max_evidence)
+    rows$anchor[rows$trajectory_id %in% shown]
+  }))
+}
+
 # For each pattern, the trajectories behind its count and the exact turn and
 # event identities of each finding. At most `max_evidence` trajectories are
 # listed per pattern, and the heading line says when that is fewer than the
@@ -711,6 +722,7 @@ report_evidence_blocks <- function(x, max_evidence) {
   evidence <- x$evidence
   noun <- x$scope$noun
   trajectories <- x$trajectories
+  listed <- report_listed_anchors(x, max_evidence)
   unassessed <- trajectories[trajectories$class == "unassessed", , drop = FALSE]
   blocks <- list(
     report_heading("Evidence"),
@@ -727,8 +739,8 @@ report_evidence_blocks <- function(x, max_evidence) {
     row <- patterns[i, ]
     rows <- evidence[evidence$scan == row$scan, , drop = FALSE]
     affected <- unique(rows$trajectory_id)
-    shown <- utils::head(affected, max_evidence)
-    rows <- rows[rows$trajectory_id %in% shown, , drop = FALSE]
+    rows <- rows[rows$anchor %in% listed, , drop = FALSE]
+    shown <- unique(rows$trajectory_id)
     blocks <- c(
       blocks,
       list(
@@ -755,9 +767,11 @@ report_evidence_blocks <- function(x, max_evidence) {
             scans_app_plural(row$findings, "finding"),
             if (length(shown) < length(affected)) {
               sprintf(
-                " Listing the first %s of %s; the report's evidence table holds the rest.",
+                " Listing the first %s of %s; the other %s %s counted above but not listed in this report.",
                 report_count(length(shown)),
-                scans_app_n(length(affected), noun)
+                scans_app_n(length(affected), noun),
+                report_count(length(affected) - length(shown)),
+                if (length(affected) - length(shown) == 1L) "is" else "are"
               )
             } else {
               ""
@@ -814,7 +828,10 @@ report_evidence_blocks <- function(x, max_evidence) {
           "%s no selected scan could assess. They are not counted as clean.%s",
           scans_app_n(nrow(unassessed), noun),
           if (nrow(shown) < nrow(unassessed)) {
-            sprintf(" Listing the first %s.", report_count(nrow(shown)))
+            sprintf(
+              " Listing the first %s; the rest are not listed in this report.",
+              report_count(nrow(shown))
+            )
           } else {
             ""
           }
@@ -831,7 +848,9 @@ report_evidence_blocks <- function(x, max_evidence) {
   blocks
 }
 
-report_review_blocks <- function(x) {
+# `listed` are the evidence anchors the report renders; a case links only to
+# one of those.
+report_review_blocks <- function(x, listed) {
   reviews <- x$reviews
   if (is.null(reviews)) {
     return(NULL)
@@ -861,10 +880,14 @@ report_review_blocks <- function(x) {
             if (is.na(row$scan)) "" else list(report_code(row$scan)),
             if (is.na(row$finding_id)) {
               "none (unflagged)"
-            } else if (is.na(row$anchor)) {
-              "not in this analysis"
-            } else {
+            } else if (row$anchor %in% listed) {
               list(report_link("evidence", paste0("#", row$anchor)))
+            } else if (!is.na(row$anchor)) {
+              "in scope, beyond the evidence listed"
+            } else if (row$in_analysis) {
+              "outside this report's filters"
+            } else {
+              "not in this analysis"
             },
             gsub("_", " ", row$status),
             sprintf(

@@ -540,6 +540,7 @@ report_build <- function(data, indices, context) {
   reviews <- context$reviews
   if (!is.null(reviews)) {
     reviews$in_scope <- reviews$trajectory_id %in% ids
+    reviews$in_analysis <- reviews$finding_id %in% data$findings$finding_id
     reviews$anchor <- evidence$anchor[match(
       reviews$finding_id,
       evidence$finding_id

@@ -583,6 +583,49 @@ test_that("review decisions use the review case's own adjudication", {
   expect_false("## Review decisions" %in% format(investigation_report(saved)))
 })
 
+test_that("a review row says where its finding is and links only to listed evidence", {
+  skip_if_not_installed("htmltools")
+  saved <- report_fixture(list(query = "large"))
+  findings <- saved$analysis$findings
+  outside <- review_case(
+    saved,
+    "a",
+    finding_id = findings$finding_id[findings$trajectory_id == "a"][[1L]]
+  )
+  report <- investigation_report(saved, reviews = list(outside))
+  expect_false(report$reviews$in_scope)
+  row <- grep("^\\| `[0-9a-f]+` \\| `a`", format(report), value = TRUE)
+  expect_match(row, "| outside this report's filters |", fixed = TRUE)
+
+  # A finding the rendered evidence does not list is not linked to.
+  saved <- report_fixture()
+  report <- investigation_report(saved)
+  pattern <- report$patterns[which.max(report$patterns$trajectories), ]
+  rows <- report$evidence[report$evidence$scan == pattern$scan, ]
+  later <- rows[rows$trajectory_id != rows$trajectory_id[[1L]], ][1L, ]
+  case <- review_case(saved, later$trajectory_id, finding_id = later$finding_id)
+  report <- investigation_report(saved, reviews = list(case))
+  for (max_evidence in c(1L, 0L)) {
+    doc <- report_html_doc(report, max_evidence = max_evidence)
+    targets <- xml2::xml_attr(xml2::xml_find_all(doc, "//a[@href]"), "href")
+    targets <- sub("^#", "", targets[startsWith(targets, "#")])
+    ids <- xml2::xml_attr(xml2::xml_find_all(doc, "//*[@id]"), "id")
+    expect_true(all(targets %in% ids))
+    expect_match(
+      xml2::xml_text(doc),
+      "in scope, beyond the evidence listed",
+      fixed = TRUE
+    )
+  }
+  expect_true(
+    later$anchor %in%
+      xml2::xml_attr(
+        xml2::xml_find_all(report_html_doc(report), "//*[@id]"),
+        "id"
+      )
+  )
+})
+
 test_that("a long pattern lists a bounded sample and says so", {
   report <- investigation_report(report_fixture())
   pattern <- report$patterns[which.max(report$patterns$trajectories), ]
@@ -591,8 +634,10 @@ test_that("a long pattern lists a bounded sample and says so", {
   expect_match(
     text,
     sprintf(
-      "Listing the first 1 of %d conversations; the report's evidence table holds the rest.",
-      pattern$trajectories
+      "Listing the first 1 of %d conversations; the other %d %s counted above but not listed in this report.",
+      pattern$trajectories,
+      pattern$trajectories - 1L,
+      if (pattern$trajectories == 2L) "is" else "are"
     ),
     fixed = TRUE,
     all = FALSE
