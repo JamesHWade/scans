@@ -6,44 +6,7 @@ build_matched_comparison <- function() {
     if (!requireNamespace(package, quietly = TRUE)) stop("Install ", package)
   }
 
-  # Reviewed regression cases: four reviewed trajectories of the bundled
-  # investigation, one kept for development and three held out.
-  saved <- scans::investigation_snapshot(
-    scans::as_trajectory_otel(jsonlite::read_json(system.file(
-      "extdata",
-      "support-investigation.json",
-      package = "scans"
-    ))),
-    application = "Order support"
-  )
-  questions <- c(
-    "otel/retry" = "Track order A after the order service times out",
-    "otel/follow-up" = "Track order B after the order service times out",
-    "otel/parallel" = "Track order C after the order service times out",
-    "otel/limited-capture" = "Track order D after the order service times out"
-  )
-  cases <- lapply(names(questions), function(id) {
-    scans::review_case(saved, id) |>
-      scans::review_decision(
-        "confirmed",
-        "Demo reviewer",
-        "The reply did not tell the customer that tracking was unavailable.",
-        expected_behavior = "State that the order service is unavailable."
-      )
-  })
-  examples <- scans::review_examples(
-    cases,
-    "application",
-    groups = paste0("order-", c("A", "B", "C", "D")),
-    splits = c("development", "test", "test", "test"),
-    inputs = lapply(unname(questions), function(q) list(question = q)),
-    targets = rep(list(list(answer = "Service unavailable")), 4L)
-  )
-  development <- scans::review_dataset(examples, "vitals", "development")
-  held_out <- scans::review_dataset(examples, "vitals", "test")
-  dataset <- rbind(development, held_out)
-
-  # Two versions of the application, as fixed transcripts. `lookup` says
+  # Versions of the application, as fixed transcripts. `lookup` says
   # whether the version calls its order-status tool and how that call ends.
   transcript <- function(question, answer, lookup = "none") {
     chat <- ellmer::chat_openai(
@@ -85,6 +48,11 @@ build_matched_comparison <- function() {
     chat$set_turns(turns)
     chat
   }
+  # The version the reviewer looked at: its order lookup timed out and it
+  # asked the customer to try again.
+  reviewed_app <- function(question) {
+    transcript(question, "Try again", lookup = "failed")
+  }
   baseline_app <- function(question) {
     correct <- grepl("order [CD]", question)
     transcript(question, if (correct) "Service unavailable" else "Try again")
@@ -100,7 +68,7 @@ build_matched_comparison <- function() {
     )
   }
 
-  # vitals runs and scores. Both runs use this one scorer.
+  # vitals runs and scores. Every run uses this one scorer.
   expected_answer <- function(samples) {
     correct <- mapply(
       function(result, target) identical(result, target$answer),
@@ -137,6 +105,50 @@ build_matched_comparison <- function() {
       application = application
     )
   }
+
+  # Reviewed regression cases: four trajectories of the reviewed version,
+  # one kept for development and three held out. Each review cites the
+  # failed order lookup and the reply that followed it.
+  questions <- paste(
+    "Track order",
+    c("A", "B", "C", "D"),
+    "after the order service times out"
+  )
+  saved <- run(
+    reviewed_app,
+    tibble::tibble(
+      id = paste0("order-", c("A", "B", "C", "D")),
+      input = lapply(questions, function(q) list(question = q)),
+      target = rep(list(list(answer = "Service unavailable")), 4L)
+    ),
+    "Order support"
+  )
+  events <- scans::trajectory_events(saved$bundle)
+  cases <- lapply(
+    scans::trajectory_info(saved$bundle)$trajectory_id,
+    function(id) {
+      cited <- events$trajectory_id == id &
+        (events$status %in% "failed" | events$event_type == "content")
+      scans::review_case(saved, id, event_ids = events$event_id[cited]) |>
+        scans::review_decision(
+          "confirmed",
+          "Demo reviewer",
+          "The order lookup timed out and the reply asked the customer to try again instead of saying tracking was unavailable.",
+          expected_behavior = "State that the order service is unavailable."
+        )
+    }
+  )
+  examples <- scans::review_examples(
+    cases,
+    "application",
+    groups = paste0("order-", c("A", "B", "C", "D")),
+    splits = c("development", "test", "test", "test"),
+    inputs = lapply(questions, function(q) list(question = q)),
+    targets = rep(list(list(answer = "Service unavailable")), 4L)
+  )
+  development <- scans::review_dataset(examples, "vitals", "development")
+  held_out <- scans::review_dataset(examples, "vitals", "test")
+  dataset <- rbind(development, held_out)
 
   # The candidate run stopped before order D and also ran a smoke-test
   # sample that is not part of the dataset.

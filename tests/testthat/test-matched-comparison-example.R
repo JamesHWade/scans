@@ -65,11 +65,28 @@ test_that("the matched-comparison recipe compares held-out reviewed cases", {
   held_out <- provenance[match(compared, provenance$case_id), ]
   expect_identical(
     vapply(reviewed, `[[`, "", "trajectory_id"),
-    c("otel/follow-up", "otel/parallel")
+    c("vitals/order-B/epoch-000001", "vitals/order-C/epoch-000001")
   )
   expect_identical(
     vapply(reviewed, \(x) x$decisions[[length(x$decisions)]]$decision_id, ""),
     held_out$decision_id
   )
   expect_identical(lapply(reviewed, `[[`, "origin"), held_out$origin)
+
+  # Each review cites a failed order lookup and the reply that missed the
+  # target, so the decision and target fit the reviewed evidence.
+  for (i in seq_along(runs$examples$cases)) {
+    case <- runs$examples$cases[[i]]
+    evidence <- review_evidence(case$evidence)
+    cited <- trajectory_events(evidence$bundle)
+    cited <- cited[cited$event_id %in% case$event_ids, ]
+    expect_true(any(cited$status == "failed" & cited$error == "timeout"))
+    turns <- trajectory_turns(evidence$bundle)
+    role <- turns$role[match(cited$turn_id, turns$turn_id)]
+    replies <- cited$text[cited$event_type == "content" & role == "assistant"]
+    questions <- cited$text[cited$event_type == "content" & role == "user"]
+    expect_identical(questions, runs$examples$inputs[[i]]$question)
+    expect_false(any(replies == runs$examples$targets[[i]]$answer))
+    expect_true(length(replies) > 0L)
+  }
 })

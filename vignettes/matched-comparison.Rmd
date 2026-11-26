@@ -23,11 +23,15 @@ a model.
 
 ## Two runs of the same reviewed cases
 
-The installed recipe builds everything offline. It reviews four trajectories
-of the bundled investigation, turns them into versioned application examples
-with `review_examples()` (one development case, three held-out cases), and
-runs a baseline and a candidate version of the application through vitals
-with one scorer. Every model reply is a fixed transcript, so the numbers
+The installed recipe builds everything offline. It runs an earlier version
+of an order-support application on four order-tracking questions. In each
+trajectory the order lookup times out and the reply asks the customer to try
+again. A reviewer confirms each one, citing the failed lookup and the reply,
+and expects the application to say that the order service is unavailable.
+`review_examples()` turns the four reviews into versioned application
+examples (one development case, three held-out cases), and the recipe runs a
+baseline and a candidate version of the application through vitals with one
+scorer. Every model reply is a fixed transcript, so the numbers
 below show the workflow, not a real improvement.
 
 ```{r build}
@@ -221,7 +225,8 @@ reviewed$origin[[1L]]$snapshot_id
 ```
 
 `runs$examples$cases` holds the reviewed evidence itself: the original
-trajectory, its findings, and the full decision history.
+trajectory, its findings, the events the reviewer cited, and the full
+decision history.
 
 ## The paired summary
 
