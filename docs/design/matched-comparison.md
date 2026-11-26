@@ -260,6 +260,19 @@ comparable. Each case links to both trajectories and to the events its
 findings cite, through the app's existing `#application/trajectory?event=`
 addresses, so opening a link switches side and reveals the event.
 
+The side labels are for display. Each side keeps the application its
+investigation records: annotations are read and written under it, and a
+snapshot saved from a side records it, so annotations made in the plain app
+appear in a comparison and the reverse. The annotation store keys on
+application and trajectory identifier only, so when both sides record the
+same application and a case has the same trajectory identifier on both, an
+annotation made on one side shows on the other too, as it does across any
+two snapshots of one application.
+
+"Pattern changes" selects cases with a pattern that appeared, resolved, no
+longer applies, or newly applies; each is shown under its own name. A
+resource row whose sides differ in unit shows each value with its own unit.
+
 The view reads `compare_trajectories()` output only. The filter selects pairs
 by the counts in `cases`; the Shiny code computes no change, count, or test.
 The view is capped at 100 cases and 100 excluded trajectories and says so

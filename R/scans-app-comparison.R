@@ -46,7 +46,11 @@ scans_app_comparison_pairs <- function(comparison, filter = "all") {
     filter,
     regressed = cases$outcomes_regressed > 0L,
     improved = cases$outcomes_improved > 0L,
-    patterns = cases$patterns_appeared + cases$patterns_resolved > 0L,
+    patterns = cases$patterns_appeared +
+      cases$patterns_resolved +
+      cases$patterns_no_longer_applicable +
+      cases$patterns_newly_applicable >
+      0L,
     resources = cases$resources_increased + cases$resources_decreased > 0L,
     not_comparable = cases$outcomes_not_comparable +
       cases$patterns_not_comparable +
@@ -333,13 +337,21 @@ scans_app_comparison_case <- function(pair_id, comparison, labels) {
   resource_items <- lapply(seq_len(nrow(resources)), function(i) {
     row <- resources[i, ]
     value <- function(x) if (is.na(x)) "unknown" else format(x)
+    # Two units name each value's own; one names both.
+    units <- if (is.na(row$unit)) {
+      c(
+        scans_app_comparison_or(row$baseline_unit, ""),
+        scans_app_comparison_or(row$candidate_unit, "")
+      )
+    } else {
+      c("", row$unit)
+    }
     htmltools::tags$li(
       sprintf(
-        "%s: %s \u2192 %s %s; %s",
+        "%s: %s \u2192 %s; %s",
         row$measure,
-        value(row$baseline_value),
-        value(row$candidate_value),
-        scans_app_comparison_or(row$unit, ""),
+        trimws(paste(value(row$baseline_value), units[[1L]])),
+        trimws(paste(value(row$candidate_value), units[[2L]])),
         if (row$comparable) {
           paste("change", format(row$delta))
         } else {

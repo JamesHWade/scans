@@ -216,3 +216,43 @@ test_that("a comparison side keeps its investigation's application identity", {
     expect_identical(pending_investigation()$manifest$application, baseline)
   })
 })
+
+test_that("the view shows a pattern that stopped applying and both units", {
+  comparison <- compare_trajectories(pair_trajectories(
+    comparison_changed_investigation("baseline"),
+    comparison_changed_investigation("candidate"),
+    by = "sample_id",
+    dataset_version = "v1"
+  ))
+  # Stand-ins for rows a different capture or measurement contract gives;
+  # the view reads them as recorded.
+  pattern <- comparison$patterns$sample_id == "case-1" &
+    comparison$patterns$scan == "event_error"
+  comparison$patterns$change[pattern] <- "no_longer_applicable"
+  comparison$patterns$reason[pattern] <-
+    "The scan does not apply to the candidate capture."
+  comparison$cases$patterns_appeared[[1L]] <- 0L
+  comparison$cases$patterns_no_longer_applicable[[1L]] <- 1L
+  resource <- comparison$resources$sample_id == "case-1" &
+    comparison$resources$measure == "output_tokens"
+  comparison$resources$unit[resource] <- NA
+  comparison$resources$candidate_unit[resource] <- "k tokens"
+
+  expect_true(
+    comparison$cases$pair_id[[1L]] %in%
+      scans_app_comparison_pairs(comparison, "patterns")
+  )
+  html <- as.character(scans_app_comparison_case(
+    comparison$cases$pair_id[[1L]],
+    comparison,
+    scans_app_sources(comparison)$labels
+  ))
+  expect_match(html, "event_error: no longer applicable", fixed = TRUE)
+  expect_match(
+    html,
+    ". The scan does not apply to the candidate capture.",
+    fixed = TRUE
+  )
+  expect_no_match(html, "event_error: resolved", fixed = TRUE)
+  expect_match(html, "output_tokens: 4 tokens → 9 k tokens", fixed = TRUE)
+})
