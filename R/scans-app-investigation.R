@@ -332,7 +332,7 @@ scans_app_investigation_server <- function(
         investigation_build(
           entry$bundle,
           ids,
-          state$application(),
+          state$application_id(),
           source,
           state$scan_config(),
           view,

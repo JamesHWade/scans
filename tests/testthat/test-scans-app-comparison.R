@@ -183,3 +183,36 @@ test_that("an unpaired comparison is labelled and offers no case filter", {
   expect_no_match(html, "scans_app_comparison_filter", fixed = TRUE)
   expect_no_match(html, "Paired changes", fixed = TRUE)
 })
+
+test_that("a comparison side keeps its investigation's application identity", {
+  skip_if_not_installed("vitals")
+  skip_if_not_installed("jsonlite")
+  comparison <- comparison_app_fixture()
+  baseline <- comparison$pairing$baseline$manifest$application
+  store <- scans_annotations(path = withr::local_tempfile(fileext = ".jsonl"))
+  store$append(baseline, "vitals/same/epoch-000001", "follow up", "Earlier")
+  app <- scans_app(comparison, annotations = store, investigations = TRUE)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    expect_identical(application(), paste("Baseline:", baseline))
+    expect_identical(annotation_records()$note, "Earlier")
+
+    selected_id <- data()$info$trajectory_id[[selected()]]
+    session$setInputs(
+      scans_app_annotation_label = "looks right",
+      scans_app_annotation_note = "From the comparison",
+      scans_app_annotation_save = 1L
+    )
+    session$flushReact()
+    expect_identical(
+      store$read(baseline, selected_id)$note,
+      "From the comparison"
+    )
+    expect_identical(nrow(store$read(application())), 0L)
+
+    session$setInputs(scans_app_save_investigation = 1L)
+    expect_identical(pending_investigation()$manifest$application, baseline)
+  })
+})

@@ -26,6 +26,12 @@ scans_app_loading_server <- function(
     label
   })
 
+  # The application identity annotations and saved snapshots key on. It is
+  # the label unless a source records its own, as a comparison side does.
+  state$application_id <- shiny::reactive({
+    state$active_source()$application %||% state$application()
+  })
+
   state$active_source <- shiny::reactive({
     opened <- state$opened_investigation()
     if (!is.null(opened)) {

@@ -49,7 +49,7 @@ scans_app_annotation_server <- function(
     state$annotation_revision()
     annotation_file()
     tryCatch(
-      annotations$read(application = state$application()),
+      annotations$read(application = state$application_id()),
       error = function(cnd) NULL
     )
   })
@@ -97,7 +97,7 @@ scans_app_annotation_server <- function(
       return(NULL)
     }
     list(
-      application = state$application(),
+      application = state$application_id(),
       trajectory_id = current$info$trajectory_id[[index]]
     )
   })

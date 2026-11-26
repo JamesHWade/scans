@@ -14,9 +14,17 @@ scans_app_comparison_sources <- function(x, call = rlang::caller_env()) {
     c("Baseline: ", "Candidate: "),
     pairing$snapshots$application
   )
-  catalog <- scans_app_source_catalog(list(
-    scans_app_source(labels[[1L]], pairing$baseline),
-    scans_app_source(labels[[2L]], pairing$candidate)
+  # The labels name the sides for display. Annotations and saved snapshots
+  # keep the application each investigation records.
+  catalog <- scans_app_source_catalog(Map(
+    function(label, x) {
+      source <- scans_app_source(label, x)
+      source$application <- x$manifest$application
+      source
+    },
+    labels,
+    list(pairing$baseline, pairing$candidate),
+    USE.NAMES = FALSE
   ))
   catalog$comparison <- x
   catalog

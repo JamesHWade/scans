@@ -51,7 +51,7 @@ scans_app_server <- function(
         session,
         state$data,
         state$active,
-        state$application,
+        state$application_id,
         state$scan_config,
         selected_trajectory_id,
         rescan_investigation,
