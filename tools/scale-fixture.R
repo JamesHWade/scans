@@ -16,6 +16,24 @@
 # capture-wide losses. All text is synthetic.
 
 scale_fixture <- function(n = 10000L, seed = 4410L) {
+  # Leave the caller's generator and stream as they were.
+  caller_kind <- RNGkind()
+  caller_seed <- get0(".Random.seed", envir = globalenv(), inherits = FALSE)
+  on.exit(
+    {
+      suppressWarnings(RNGkind(
+        caller_kind[[1L]],
+        caller_kind[[2L]],
+        caller_kind[[3L]]
+      ))
+      if (is.null(caller_seed)) {
+        rm(".Random.seed", envir = globalenv())
+      } else {
+        assign(".Random.seed", caller_seed, envir = globalenv())
+      }
+    },
+    add = TRUE
+  )
   set.seed(
     seed,
     kind = "Mersenne-Twister",
