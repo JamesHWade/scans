@@ -304,3 +304,18 @@ test_that("the report's review progress is the overview's", {
     )
   })
 })
+
+test_that("a time facet is named in the app's report", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(
+      scans_app_facet = list(facet = "day", value = "2026-10-03")
+    )
+    session$setInputs(scans_app_export_report = 1L)
+    expect_identical(report()$scope$filters[["day"]], "Oct 03")
+    expect_true("- Filters: Oct 03." %in% export_text())
+  })
+})
