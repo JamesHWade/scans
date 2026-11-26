@@ -99,3 +99,89 @@ scanner_keyword_fixture <- function(keyword = "guaranteed", version = "1") {
 scanner_toy_fixture <- function(name, fn) {
   scanner(name, fn, description = "A toy.", required_evidence = "Nothing.")
 }
+
+# Five matched cases whose replies move the keyword scanner's result in every
+# way: it appears, resolves, persists, and stops or starts applying ("N/A"
+# makes the scan not applicable).
+scanner_comparison_fixture <- function(baseline, candidate) {
+  side <- function(replies, scanners, application) {
+    ids <- names(replies)
+    bundle <- TrajectoryBundle(
+      trajectories = tibble::tibble(
+        trajectory_id = ids,
+        sample_id = ids,
+        source_type = "manual",
+        status = "completed"
+      ),
+      turns = tibble::tibble(
+        trajectory_id = ids,
+        turn_id = paste0(ids, "-t1"),
+        turn_index = 1L,
+        role = "assistant"
+      ),
+      events = tibble::tibble(
+        trajectory_id = ids,
+        event_id = paste0(ids, "-e1"),
+        event_index = 1L,
+        turn_id = paste0(ids, "-t1"),
+        event_type = "content",
+        text = unlist(replies, use.names = FALSE)
+      )
+    )
+    investigation_snapshot(
+      bundle,
+      scanners = scanners,
+      application = application
+    )
+  }
+  pairing <- pair_trajectories(
+    side(
+      list(
+        appear = "fine",
+        resolve = "guaranteed",
+        persist = "guaranteed",
+        stop = "guaranteed",
+        start = "N/A"
+      ),
+      baseline,
+      "Baseline"
+    ),
+    side(
+      list(
+        appear = "guaranteed",
+        resolve = "fine",
+        persist = "guaranteed",
+        stop = "N/A",
+        start = "guaranteed"
+      ),
+      candidate,
+      "Candidate"
+    ),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  compare_trajectories(pairing)
+}
+
+# The keyword scanner, not applicable to a reply of "N/A".
+scanner_applicable_fixture <- function(version = "1", keyword = "guaranteed") {
+  scanner(
+    "toy_keyword",
+    function(trajectory, settings) {
+      text <- trajectory$events$text
+      if (any(text %in% "N/A")) {
+        return(scanner_unassessed("not_applicable", "Nothing was promised."))
+      }
+      hits <- trajectory$events[grepl(settings$keyword, text), ]
+      scanner_findings(
+        event_id = hits$event_id,
+        label = rep("Keyword", nrow(hits)),
+        explanation = rep("The reply used the keyword.", nrow(hits))
+      )
+    },
+    description = "A reply used a configured keyword.",
+    required_evidence = "Recorded replies.",
+    version = version,
+    settings = list(keyword = keyword)
+  )
+}

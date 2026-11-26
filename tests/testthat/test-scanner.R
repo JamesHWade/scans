@@ -1207,3 +1207,194 @@ test_that("a saved investigation records whether each scan is built-in or custom
     "custom"
   )
 })
+
+test_that("a custom scan's pattern changes are classified like a built-in's", {
+  comparison <- scanner_comparison_fixture(
+    scanner_applicable_fixture(),
+    scanner_applicable_fixture()
+  )
+  rows <- comparison$patterns[comparison$patterns$scan == "toy_keyword", ]
+  expect_identical(
+    rows$change[match(
+      c("appear", "resolve", "persist", "stop", "start"),
+      rows$sample_id
+    )],
+    c(
+      "appeared",
+      "resolved",
+      "persisted",
+      "no_longer_applicable",
+      "newly_applicable"
+    )
+  )
+  hit <- rows[rows$sample_id == "appear", ]
+  expect_identical(hit$candidate_event_ids[[1L]], "appear-e1")
+  printed <- paste(
+    cli::ansi_strip(capture.output(print(comparison), type = "message")),
+    collapse = " "
+  )
+  expect_match(
+    gsub("\\s+", " ", printed),
+    "Pattern toy_keyword: appeared in 1, resolved in 1, persisted in 1, no longer applicable in 1, newly applicable in 1",
+    fixed = TRUE
+  )
+  html <- as.character(scans_app_comparison_cases_ui(
+    comparison,
+    scans_app_comparison_sources(comparison)$labels,
+    "patterns"
+  ))
+  for (text in c(
+    "toy_keyword: appeared",
+    "toy_keyword: no longer applicable",
+    "toy_keyword: newly applicable"
+  )) {
+    expect_match(html, text, fixed = TRUE)
+  }
+
+  # A changed version or setting, or a scan run on one side only, is not
+  # comparable for every case, with the reason.
+  changed <- list(
+    list(
+      scanner_applicable_fixture(version = "2"),
+      "Scanner version or settings differ."
+    ),
+    list(
+      scanner_applicable_fixture(keyword = "fine"),
+      "Scanner version or settings differ."
+    ),
+    list(NULL, "The scan was not selected for the candidate.")
+  )
+  for (case in changed) {
+    other <- scanner_comparison_fixture(
+      scanner_applicable_fixture(),
+      case[[1L]]
+    )
+    rows <- other$patterns[other$patterns$scan == "toy_keyword", ]
+    expect_identical(unique(rows$change), "not_comparable")
+    expect_identical(unique(rows$reason), case[[2L]])
+  }
+})
+
+test_that("the bounded browser list keeps custom and failure reasons", {
+  boom <- scanner_toy_fixture("toy_boom", function(trajectory, settings) {
+    if (trajectory$trajectory_id == "chat-hit") {
+      stop("boom")
+    }
+    scanner_findings()
+  })
+  data <- scans_app_data(
+    scanner_bundle_fixture(),
+    scanners = list(scanner_keyword_fixture(), boom)
+  )
+  queue <- cohort_review_queue(data, data$info$trajectory_id)
+  hit <- queue$index[queue$trajectory_id == "chat-hit"]
+  expect_identical(
+    queue$reasons[[match(hit, queue$index)]],
+    c("Toy keyword", "Execution failure")
+  )
+  others <- setdiff(queue$index, hit)
+  reasons <- function(html) {
+    regmatches(html, gregexpr("Toy keyword|Execution failure", html))[[1L]]
+  }
+
+  # The open entry past the head is shown after the note with its reasons,
+  # and an entry in the head shows them in place.
+  past <- as.character(scans_app_entries_ui(
+    data,
+    c(others, hit),
+    queue,
+    chosen = hit,
+    limit = 1L
+  ))
+  expect_match(past, "Listing the first 1 of 4", fixed = TRUE)
+  expect_match(past, "The open trajectory is number 4 of 4", fixed = TRUE)
+  expect_identical(reasons(past), c("Toy keyword", "Execution failure"))
+  head <- as.character(scans_app_entries_ui(
+    data,
+    c(hit, others),
+    queue,
+    chosen = hit,
+    limit = 1L
+  ))
+  expect_no_match(head, "The open trajectory is number", fixed = TRUE)
+  expect_identical(reasons(head), c("Toy keyword", "Execution failure"))
+})
+
+test_that("a link filtering by a custom pattern needs that scanner", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  bundle <- scanner_bundle_fixture()
+  hash <- scans_app_scope_hash(
+    "Trajectories",
+    scope = list(pattern = "toy_keyword")
+  )
+  sent <- new.env(parent = emptyenv())
+  local_mocked_bindings(
+    showNotification = function(ui, ...) {
+      sent$notice <- c(sent$notice, ui)
+    },
+    .package = "shiny"
+  )
+  open <- function(scanners) {
+    sent$notice <- NULL
+    shiny::testServer(
+      scans_app(bundle, scanners = scanners)$serverFuncSource(),
+      {
+        session$setInputs(scans_app_scans = scan_registry(scanners)$scan)
+        session$setInputs(scans_app_hash = hash)
+        sent$pattern <- pattern_filter()
+        sent$visible <- data()$info$trajectory_id[visible()]
+      }
+    )
+  }
+  open(scanner_keyword_fixture())
+  expect_identical(sent$pattern, "toy_keyword")
+  expect_identical(sent$visible, "chat-hit")
+  expect_null(sent$notice)
+
+  open(NULL)
+  expect_null(sent$pattern)
+  expect_length(sent$visible, 4L)
+  expect_match(
+    sent$notice,
+    "This link filters by Finding: toy keyword, which this app cannot apply",
+    fixed = TRUE
+  )
+})
+
+test_that("tools report a custom scan that assessed nothing as unknown", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  unsure <- scanner_toy_fixture("toy_unsure", function(trajectory, settings) {
+    scanner_unassessed("insufficient_evidence", "Nothing to read.")
+  })
+  saved <- investigation_snapshot(
+    scanner_bundle_fixture(),
+    scans = "toy_unsure",
+    scanners = unsure
+  )
+  tools <- scans_tools(saved)
+  summary <- scans_tool_result(tools$scans_summarize)
+  expect_equal(summary$data[[1L]]$n_assessed, 0L)
+  expect_equal(summary$data[[1L]]$n_findings, 0L)
+  counts <- function(summary, scan) {
+    rows <- Filter(function(row) row$scan == scan, summary$assessment_coverage)
+    stats::setNames(
+      vapply(rows, function(row) as.integer(row$trajectories), integer(1)),
+      vapply(rows, `[[`, "", "status")
+    )
+  }
+  coverage <- counts(summary, "toy_unsure")
+  expect_identical(coverage[["insufficient_evidence"]], 4L)
+  expect_identical(sum(coverage), 4L)
+  runs <- scans_tool_result(tools$scans_list_trajectories)$data
+  expect_false(any(vapply(runs, `[[`, logical(1), "assessed")))
+
+  # Beside the built-ins the trajectories they assessed count, and the
+  # custom scan's own coverage still says it assessed none.
+  live <- scans_tools(scanner_bundle_fixture(), scanners = unsure)
+  summary <- scans_tool_result(live$scans_summarize)
+  expect_equal(summary$data[[1L]]$n_assessed, 4L)
+  coverage <- counts(summary, "toy_unsure")
+  expect_identical(coverage[["insufficient_evidence"]], 4L)
+  expect_identical(sum(coverage), 4L)
+})
