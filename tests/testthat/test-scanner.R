@@ -725,3 +725,24 @@ test_that("data a saved investigation cannot hold is refused at the scanner boun
   path <- tempfile(fileext = ".json")
   expect_no_error(write_investigation(saved, path))
 })
+
+test_that("a scanner modified after construction is checked again at the call", {
+  edits <- list(
+    list(name = "Toy/Key.*"),
+    list(name = "Toy_Keyword"),
+    list(version = 2),
+    list(severity = "info"),
+    list(required_evidence = NULL),
+    list(description = NA_character_),
+    list(fn = "not a function"),
+    list(settings = list(f = function(x) x))
+  )
+  for (edit in edits) {
+    edited <- scanner_keyword_fixture()
+    edited[names(edit)] <- edit
+    expect_error(
+      assess_trajectory_scans(scanner_bundle_fixture(), scanners = edited),
+      class = "scans_error_scanner"
+    )
+  }
+})

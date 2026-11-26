@@ -112,8 +112,28 @@ scanner <- function(
   severity = "warning",
   settings = list()
 ) {
-  call <- rlang::current_env()
-  scanner_check_string(name, "name", call)
+  out <- structure(
+    list(
+      name = name,
+      fn = fn,
+      description = description,
+      required_evidence = required_evidence,
+      version = version,
+      severity = severity,
+      settings = settings
+    ),
+    class = "scans_scanner"
+  )
+  scanner_check_fields(out, rlang::current_env())
+  out
+}
+
+# Run by scanner() and again for every scanner passed to a call: a scanner's
+# fields can be changed after it is created, and a later release can add a
+# built-in with its name.
+scanner_check_fields <- function(x, call) {
+  scanner_check_string(x$name, "name", call)
+  name <- x$name
   if (!grepl("^[a-z][a-z0-9_]*$", name)) {
     scanner_abort(
       "{.arg name} must use lower-case letters, digits, and underscores, starting with a letter.",
@@ -129,19 +149,21 @@ scanner <- function(
       call
     )
   }
-  if (!is.function(fn)) {
+  if (!is.function(x$fn)) {
     scanner_abort("{.arg fn} must be a function.", call)
   }
-  scanner_check_string(description, "description", call)
-  scanner_check_string(required_evidence, "required_evidence", call)
-  scanner_check_string(version, "version", call)
-  if (!rlang::is_string(severity) || !severity %in% c("warning", "error")) {
+  scanner_check_string(x$description, "description", call)
+  scanner_check_string(x$required_evidence, "required_evidence", call)
+  scanner_check_string(x$version, "version", call)
+  if (!rlang::is_string(x$severity) || !x$severity %in% c("warning", "error")) {
     scanner_abort(
       "{.arg severity} must be {.val warning} or {.val error}.",
       call
     )
   }
-  if (!trajectory_is_named_list(settings) || !investigation_is_data(settings)) {
+  if (
+    !trajectory_is_named_list(x$settings) || !investigation_is_data(x$settings)
+  ) {
     scanner_abort(
       c(
         "{.arg settings} must be a named list of data.",
@@ -150,18 +172,6 @@ scanner <- function(
       call
     )
   }
-  structure(
-    list(
-      name = name,
-      fn = fn,
-      description = description,
-      required_evidence = required_evidence,
-      version = version,
-      severity = severity,
-      settings = settings
-    ),
-    class = "scans_scanner"
-  )
 }
 
 #' @export
@@ -281,19 +291,14 @@ scanner_check_list <- function(scanners, call) {
       call
     )
   }
+  for (item in scanners) {
+    scanner_check_fields(item, call)
+  }
   scan_names <- vapply(scanners, `[[`, character(1), "name")
   repeated <- unique(scan_names[duplicated(scan_names)])
   if (length(repeated)) {
     scanner_abort(
       "{.arg scanners} contains more than one scanner named {.val {repeated}}.",
-      call
-    )
-  }
-  # A built-in added after the scanner was created must not share its results.
-  builtin <- intersect(scan_names, scan_registry()$scan)
-  if (length(builtin)) {
-    scanner_abort(
-      "Custom scanner name{?s} {.val {builtin}} collide{?s/} with built-in scans.",
       call
     )
   }
