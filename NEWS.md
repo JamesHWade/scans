@@ -1,5 +1,6 @@
 # scans 0.0.0.9000
 
+* The ecosystem audit records a 2026-11-26 refresh for shinychat 0.5.0: there is still no public settled snapshot of displayed messages or branches, so shinychat apps continue to convert through the ellmer client or OTel spans. The capture table and adapters article say so (#9).
 * The review app no longer presents a trajectory that no selected scan could assess as having zero findings. The conversations CSV leaves `n_findings` and `n_error_findings` empty for it and adds an `assessed` column; the Models and Users tables, pattern rows, the trajectory summary, and the timing table state findings over the assessed count or say "Not assessed". `scans_summarize` returns `n_assessed` and `scans_list_trajectories` returns `assessed`.
 * CSV exports from the review app no longer carry user identifiers by default. The conversations CSV omits its `user` column, and neither CSV names a user filter in `scope` or `link`, unless "Include user identifiers in CSVs" is ticked in the Export menu.
 * Fixed `print()` for saved investigations and annotation stores falling back to the default list print under S7 1.0.0.

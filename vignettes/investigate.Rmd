@@ -243,6 +243,7 @@ types without deserializing R code or reconnecting to the original source.
 | Source | Public entry point | Resource and capture boundary |
 | --- | --- | --- |
 | ellmer chat or turns (>= 0.5.0) | `as_trajectory_ellmer()` | Canonical turn usage and duration where supplied. A turn duration is not asserted to be one model call. |
+| shinychat app (>= 0.5.0) | `as_trajectory_ellmer()` on the `client` that `chat_server()` returns, or the OTel path below | The active path of the current conversation only. Turns a user edited away, other saved conversations, and display-only state are not captured: shinychat has no public snapshot of them. |
 | OTel GenAI / Connect | `as_trajectory_otel()` / `read_connect_traces()` | Call-level usage and intervals when recorded. Message capture and conversation IDs determine whether a meaningful transcript can be reconstructed. Keep read limits with the snapshot. |
 | vitals evaluation (>= 0.3.0) | `as_trajectory_vitals()` | Outcome evaluations joined to solver trajectories; resource coverage follows the supplied turns. Reading development vitals logs requires its supported development API. |
 | Deputy and dsprrr public results | `as_trajectory_deputy()` / `as_trajectory_dsprrr()` | Source execution and trace measurements remain distinct from model-call timing. dsprrr millisecond latency is normalized to canonical seconds. |
