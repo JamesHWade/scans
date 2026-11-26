@@ -248,3 +248,35 @@ test_that("only a retrieval that succeeds before the answer supports it", {
     "assessed_with_findings"
   )
 })
+
+test_that("retrieval calls are found by name and results by call identity", {
+  recipe <- domain_scanner_recipe()
+  question <- recipe$domain_user("How much leave can I carry over?")
+  answer <- recipe$domain_assistant(domain_long_answer)
+  search <- recipe$domain_tool_call("search_docs", "call-1")
+  unnamed <- list(
+    role = "user",
+    event_type = "tool_result",
+    call_id = "call-1",
+    value = list(),
+    status = "completed",
+    error = NA
+  )
+  expect_identical(
+    domain_retrieval_status(recipe, question, search, unnamed, answer),
+    "assessed_with_findings"
+  )
+  expect_identical(
+    domain_retrieval_status(recipe, question, search, answer),
+    "insufficient_evidence"
+  )
+  expect_identical(
+    domain_retrieval_status(
+      recipe,
+      question,
+      recipe$domain_tool_call("search_docs", NA_character_),
+      answer
+    ),
+    "insufficient_evidence"
+  )
+})

@@ -48,6 +48,13 @@ rule that a fully recorded text conversation can show a tool was not used,
 and a lossy one cannot. A trajectory with no claim is a clean negative
 whatever the capture, since the rule has nothing to check.
 
+**Retrieval is found from calls, linked to results by call identity.** A
+retrieval call is a `tool_call` naming a retrieval tool. Its result is the
+`tool_result` with the same call identity, whether or not the result row
+repeats the tool name; a result that names a retrieval tool counts even if its
+call was not kept. A retrieval call with no linked result is
+`insufficient_evidence`: the search happened and what it returned is unknown.
+
 **No retrieval and no provenance is `not_applicable`, not insufficient.** The
 lead's brief said "otherwise insufficient". With capture losses it is
 insufficient. With a complete capture and no retrieval call, the detector's

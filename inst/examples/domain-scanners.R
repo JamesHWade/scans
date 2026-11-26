@@ -188,10 +188,23 @@ answer_without_support_scanner <- function(
         ,
         drop = FALSE
       ]
+      # Retrieval calls are found by tool name and their results by call
+      # identity, since a result row need not repeat the tool name. A result
+      # that names a retrieval tool counts even when its call was not kept.
+      calls <- events[
+        events$event_type %in%
+          "tool_call" &
+          events$name %in% settings$retrieval_tools,
+        ,
+        drop = FALSE
+      ]
+      call_ids <- calls$call_id[!is.na(calls$call_id)]
       results <- events[
         events$event_type %in%
           "tool_result" &
-          events$name %in% settings$retrieval_tools,
+          (events$name %in%
+            settings$retrieval_tools |
+            (!is.na(events$call_id) & events$call_id %in% call_ids)),
         ,
         drop = FALSE
       ]
@@ -199,6 +212,12 @@ answer_without_support_scanner <- function(
         return(scans::scanner_unassessed(
           "insufficient_evidence",
           "No assistant text is recorded."
+        ))
+      }
+      if (any(is.na(calls$call_id) | !calls$call_id %in% results$call_id)) {
+        return(scans::scanner_unassessed(
+          "insufficient_evidence",
+          "A retrieval call has no recorded result, so what it returned is unknown."
         ))
       }
       if (nrow(results) == 0L && nrow(provenance) == 0L) {
