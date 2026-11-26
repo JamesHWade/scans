@@ -78,6 +78,40 @@ review-state filters are session state in the app and are not part of a saved
 view; a selection saved while they were active already reflects them, and the
 report states how many trajectories the selection left out of its source.
 
+## The app's report
+
+The overview's Export menu builds its report through the same assembly
+(`report_build()`), passing the session's data, visible rows, filters, and
+address, and offers it as HTML and as Markdown. For an opened investigation
+the downloaded files equal the ones `write_investigation_report()` writes for
+that investigation and address, apart from the generation time; a test holds
+this. A live view has no snapshot identifiers and can carry facets and review
+filters, which the report names. After "Apply current scanners" the report
+keeps the snapshot identifier and says the analysis is not a saved revision.
+When the filters on screen differ from the saved view (a changed source,
+status, text, pattern, or annotation switch, or any facet or review filter),
+the report likewise keeps the snapshot identifier, which still identifies the
+evidence, and omits the revision identifier, saying the view was changed
+since the save: that revision covers a different view.
+
+The annotation filter of an opened investigation has two sources. Without an
+annotation store the app uses the membership saved with the investigation,
+and its report is the script's ("Annotated when saved"). With a store it uses
+the store's annotations as they are when the report is made. The same
+investigation can then report a different cohort, so the app's report names
+the filter as the store's ("Annotated in this app's annotation store at
+export"), omits the revision identifier, and says a link reopens that cohort
+only where the same annotations are recorded. A script never sees a store and
+always reports the saved membership. Making the app ignore its store for a
+saved view was rejected: the switch on screen filters by the store, and the
+report must describe the cohort on screen.
+The earlier in-app Markdown builder is removed. With `reviews = TRUE` the
+app passes its session's review cases to the report through the same
+`report_reviews()` a script uses, for an opened investigation and only the
+cases made from its snapshot. A live view has no snapshot identifier to check
+cases against, and computing one would hash the whole bundle for every
+report, so its report lists no review cases.
+
 ## Scope, unknowns, and limits
 
 The scope names every active filter in words, including source, status, text,

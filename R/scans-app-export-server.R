@@ -22,7 +22,7 @@ scans_app_export_menu_ui <- function(noun = scans_app_noun(), users = FALSE) {
       )),
       htmltools::tags$li(shiny::actionLink(
         "scans_app_export_report",
-        "Report (Markdown)\u2026",
+        "Report\u2026",
         class = "dropdown-item"
       )),
       htmltools::tags$li(shiny::actionLink(
@@ -160,6 +160,86 @@ scans_app_export_server <- function(input, output, session, state) {
       private = c("user", if (query_names_user()) "query")
     )
   })
+  # The report for the trajectories in view, built by the function a script
+  # calls on a saved investigation. For an opened investigation the two are
+  # the same report.
+  state$report <- shiny::reactive({
+    current <- state$data()
+    shiny::req(current)
+    entry <- state$active()
+    saved <- entry$investigation
+    context <- if (is.null(saved)) {
+      list(
+        read_info = entry$read_info,
+        loaded_at = entry$loaded_at,
+        analysis_version = as.character(utils::packageVersion("scans"))
+      )
+    } else {
+      report_saved_context(saved)
+    }
+    view <- state$view()
+    # The annotation filter reads this app's store when it has one, so its
+    # membership is the store's now, not the saved one.
+    store_membership <- state$has_store && isTRUE(view$annotated_only)
+    if (!is.null(saved)) {
+      unsaved <- if (state$rescan_investigation()) {
+        context$analysis_version <- as.character(
+          utils::packageVersion("scans")
+        )
+        "this analysis has not been saved as a revision."
+      } else if (store_membership) {
+        "the annotation filter uses this app's annotation store, not the membership saved with this revision, so no saved revision describes it."
+      } else if (
+        !scans_app_same_view(view, saved$view) ||
+          length(state$facets()) ||
+          length(state$review_filter())
+      ) {
+        "the view was changed in the app since this revision was saved, so no saved revision describes it."
+      }
+      if (!is.null(unsaved)) {
+        context$snapshot["revision_id"] <- list(NULL)
+        context$snapshot$unsaved <- unsaved
+      }
+    }
+    # Session review cases are reported only against the saved investigation
+    # they were made from, or the rescan the review server is writing to;
+    # evidence matching places them. A live view has no snapshot identifier
+    # to check them against.
+    reviews <- if (!is.null(saved) && !is.null(state$review_cases)) {
+      snapshots <- c(saved$manifest$snapshot_id, state$review_snapshot())
+      report_reviews(
+        Filter(
+          function(case) case$origin$snapshot_id %in% snapshots,
+          unname(state$review_cases())
+        ),
+        saved,
+        snapshots = snapshots
+      )
+    }
+    report_build(
+      current,
+      state$visible(),
+      c(
+        context,
+        list(
+          application = state$application(),
+          view = view,
+          facets = state$facets(),
+          review = state$review_filter(),
+          annotated_label = scans_app_annotated_label(saved, state$has_store),
+          store_membership = store_membership,
+          progress = state$review_progress(),
+          app_url = link_base(),
+          settings = state$scan_config(),
+          bundle = entry$bundle,
+          queue = state$queue(),
+          reviews = reviews,
+          include_users = isTRUE(input$scans_app_report_users),
+          include_errors = isTRUE(input$scans_app_report_errors)
+        )
+      )
+    )
+  })
   context <- shiny::reactive({
     current <- state$data()
     shiny::req(current)
@@ -172,7 +252,8 @@ scans_app_export_server <- function(input, output, session, state) {
       queue = state$queue(),
       candidates = state$candidates()
     )
-    labels <- state$scope_labels()
+    labels <- state$filter_labels()
+    hidden <- query_names_user()
     list(
       data = current,
       ids = current$info$trajectory_id[state$visible()],
@@ -182,7 +263,8 @@ scans_app_export_server <- function(input, output, session, state) {
           performance$cohort$headline,
           labels,
           current$noun,
-          include_users
+          include_users,
+          query_names_user = hidden
         )
       }
     )
@@ -242,14 +324,7 @@ scans_app_export_server <- function(input, output, session, state) {
     export <- context()
     switch(
       kind() %||% "report",
-      report = export_report(
-        export$performance,
-        state$application(),
-        state$scope_labels(),
-        state$link(),
-        read_info = state$active()$read_info,
-        include_users = isTRUE(input$scans_app_report_users)
-      ),
+      report = format(state$report()),
       code = export_r_code(
         state$active()$recipe,
         state$scan_config(),
@@ -274,24 +349,54 @@ scans_app_export_server <- function(input, output, session, state) {
     filename = function() {
       scans_app_export_filename(state$application(), "report", "md")
     },
-    content = function(file) writeLines(state$export_text(), file),
+    content = function(file) {
+      write_investigation_report(
+        state$report(),
+        file,
+        "markdown",
+        overwrite = TRUE
+      )
+    },
     contentType = "text/markdown"
+  )
+  output$scans_app_export_report_html <- shiny::downloadHandler(
+    filename = function() {
+      scans_app_export_filename(state$application(), "report", "html")
+    },
+    content = function(file) {
+      write_investigation_report(state$report(), file, "html", overwrite = TRUE)
+    },
+    contentType = "text/html"
   )
   shiny::observeEvent(input$scans_app_export_report, {
     kind("report")
     shiny::showModal(
       scans_app_export_modal(
         "Report",
-        "Counts and links for the trajectories in view. It contains no transcript text.",
-        options = shiny::checkboxInput(
-          "scans_app_report_users",
-          "Include user identifiers",
-          value = FALSE
+        "Counts, capture limits, and the evidence identities behind each pattern for the trajectories in view. It contains no transcript text. The HTML file and this Markdown hold the same report.",
+        options = htmltools::tagList(
+          shiny::checkboxInput(
+            "scans_app_report_users",
+            "Include user identifiers",
+            value = FALSE
+          ),
+          shiny::checkboxInput(
+            "scans_app_report_errors",
+            "Include recorded error text (can contain tool results)",
+            value = FALSE
+          )
         ),
-        download = shiny::downloadButton(
-          "scans_app_export_download",
-          "Download",
-          class = "btn-default"
+        download = htmltools::tagList(
+          shiny::downloadButton(
+            "scans_app_export_report_html",
+            "Download HTML",
+            class = "btn-default"
+          ),
+          shiny::downloadButton(
+            "scans_app_export_download",
+            "Download Markdown",
+            class = "btn-default"
+          )
         )
       ),
       session = session

@@ -249,3 +249,29 @@ scans_app_scope_restore <- function(
   }
   view
 }
+
+scans_app_annotated_label <- function(saved, has_store) {
+  if (has_store && !is.null(saved)) {
+    "Annotated in this app's annotation store at export"
+  } else if (!is.null(saved)) {
+    "Annotated when saved"
+  } else {
+    "Annotated only"
+  }
+}
+
+# Whether a view sets the same filters as a saved view.
+scans_app_same_view <- function(view, saved) {
+  fields <- c(
+    "query",
+    "source_type",
+    "status",
+    "findings_only",
+    "annotated_only",
+    "pattern"
+  )
+  identical(
+    lapply(fields, function(field) view[[field]]),
+    lapply(fields, function(field) saved[[field]])
+  )
+}

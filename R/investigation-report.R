@@ -134,7 +134,7 @@ investigation_report <- function(
       list(
         application = x$manifest$application,
         view = x$view,
-        annotated_label = "Annotated when saved",
+        annotated_label = scans_app_annotated_label(x, FALSE),
         app_url = app_url,
         settings = x$settings,
         bundle = x$bundle,
@@ -353,7 +353,12 @@ report_check_url <- function(url, call = rlang::caller_env()) {
 # The review cases a report shows, checked against the investigation they
 # claim to review. Status comes from `review_status()`, so adjudication has
 # one definition.
-report_reviews <- function(reviews, x, call = rlang::caller_env()) {
+report_reviews <- function(
+  reviews,
+  x,
+  call = rlang::caller_env(),
+  snapshots = x$manifest$snapshot_id
+) {
   if (is.null(reviews)) {
     return(NULL)
   }
@@ -365,7 +370,7 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
   }
   rows <- lapply(reviews, function(case) {
     status <- review_status(case)
-    if (!identical(case$origin$snapshot_id, x$manifest$snapshot_id)) {
+    if (!case$origin$snapshot_id %in% snapshots) {
       report_abort(
         "A review case was made from a different snapshot than this investigation.",
         call
@@ -387,7 +392,12 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
         case$origin$revision_id,
         x$manifest$revision_id
       ),
-      reviewers = list(unique(vapply(active, `[[`, "", "reviewer")))
+      reviewers = list(unique(vapply(active, `[[`, "", "reviewer"))),
+      scan_evidence = list(list(
+        scan = case$scan %||% NA_character_,
+        event_ids = as.character(case$event_ids),
+        turn_ids = as.character(case$turn_ids)
+      ))
     )
   })
   if (!length(rows)) {
@@ -399,6 +409,50 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
   }
   out
 }
+
+# The id of the current finding each review case's recorded evidence
+# identifies, `NA` for an unflagged case or one whose evidence no current
+# finding has.
+report_review_findings <- function(reviews, findings) {
+  vapply(
+    seq_len(nrow(reviews)),
+    function(i) {
+      if (is.na(reviews$finding_id[[i]])) {
+        return(NA_character_)
+      }
+      recorded <- reviews$scan_evidence[[i]]
+      same <- findings$trajectory_id == reviews$trajectory_id[[i]] &
+        findings$scan == recorded$scan &
+        vapply(
+          seq_len(nrow(findings)),
+          function(row) {
+            events <- as.character(c(
+              findings$event_ids[[row]],
+              findings$event_id[[row]]
+            ))
+            events <- events[!is.na(events)]
+            turn <- findings$turn_id[[row]]
+            all(events %in% recorded$event_ids) &&
+              (is.na(turn) || turn %in% recorded$turn_ids)
+          },
+          logical(1)
+        )
+      rows <- which(same)
+      if (!length(rows)) {
+        return(NA_character_)
+      }
+      ids <- findings$finding_id[rows]
+      if (reviews$finding_id[[i]] %in% ids) {
+        reviews$finding_id[[i]]
+      } else {
+        ids[[1L]]
+      }
+    },
+    ""
+  )
+}
+
+report_query_hidden_label <- "Text filter (term omitted: it matches a user identifier)"
 
 # Whether a text filter would name a user: its term contains, or is contained
 # in, a user identifier this snapshot records.
@@ -436,6 +490,7 @@ report_build <- function(data, indices, context) {
     data,
     indices,
     queue = context$queue,
+    progress = context$progress,
     candidates = scans_app_candidates(data, context$bundle, ids)
   )
   cohort <- performance$cohort
@@ -454,9 +509,7 @@ report_build <- function(data, indices, context) {
     context$annotated_label %||% "Annotated only"
   )
   if (query_hidden) {
-    labels[[
-      "query"
-    ]] <- "Text filter (term omitted: it matches a user identifier)"
+    labels[["query"]] <- report_query_hidden_label
   }
   if (user_hidden) {
     labels[["user"]] <- "One user (identifier omitted)"
@@ -587,12 +640,17 @@ report_build <- function(data, indices, context) {
 
   reviews <- context$reviews
   if (!is.null(reviews)) {
+    # Finding ids are positional, so a new analysis can reuse an id for
+    # different evidence. A case belongs to the current finding with the
+    # evidence it recorded (scan, trajectory, turn, events), not to whatever
+    # holds its id now; one with none is shown as made on another revision.
+    current <- report_review_findings(reviews, data$findings)
     reviews$in_scope <- reviews$trajectory_id %in% ids
-    reviews$in_analysis <- reviews$finding_id %in% data$findings$finding_id
-    reviews$anchor <- evidence$anchor[match(
-      reviews$finding_id,
-      evidence$finding_id
-    )]
+    reviews$in_analysis <- !is.na(current)
+    reviews$same_revision <- reviews$same_revision &
+      (is.na(reviews$finding_id) | reviews$in_analysis)
+    reviews$anchor <- evidence$anchor[match(current, evidence$finding_id)]
+    reviews$scan_evidence <- NULL
     if (!include_users) {
       reviews$reviewers <- NULL
     }
@@ -609,6 +667,8 @@ report_build <- function(data, indices, context) {
     tools$top_error <- rep(NA_character_, nrow(tools))
   }
   withheld <- query_hidden || user_hidden
+  store_membership <- isTRUE(context$store_membership) &&
+    isTRUE(view$annotated_only)
   limits <- c(
     if (!is.null(open_link)) {
       carried <- if (withheld) {
@@ -627,6 +687,8 @@ report_build <- function(data, indices, context) {
           carried,
           if (withheld) {
             "this cohort, widened as noted below,"
+          } else if (store_membership) {
+            "this cohort, subject to the annotation note below,"
           } else {
             "exactly this cohort"
           },
@@ -634,7 +696,9 @@ report_build <- function(data, indices, context) {
         )
       }
     },
-    if (!is.null(open_link) && isTRUE(view$annotated_only)) {
+    if (!is.null(open_link) && store_membership) {
+      "The annotation filter used this app's annotation store as it was when this report was made, not the membership saved with the investigation. A link applies the annotations recorded where it is opened, so it reopens this cohort only where those are the same."
+    } else if (!is.null(open_link) && isTRUE(view$annotated_only)) {
       "The annotation filter depends on annotations where the link is opened: the saved file's membership, or that app's own annotation store. An app with neither says so and shows a wider cohort."
     },
     if (!is.null(open_link) && length(review)) {

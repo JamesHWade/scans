@@ -461,7 +461,10 @@ test_that("provenance and candidates render with denominators and inert snippets
   expect_match(text, "never executed", fixed = TRUE)
   expect_no_match(html, "<script", fixed = TRUE)
 
-  report <- paste(export_report(performance, "Commons"), collapse = "\n")
+  report <- paste(
+    format(investigation_report(investigation_snapshot(bundle))),
+    collapse = "\n"
+  )
   expect_match(report, "## Answer provenance", fixed = TRUE)
   expect_match(report, "| Untrusted | 3 of 9 | 3 |", fixed = TRUE)
   expect_match(report, "## Promotion candidates", fixed = TRUE)
@@ -470,7 +473,7 @@ test_that("provenance and candidates render with denominators and inert snippets
 
   deputy <- governance_deputy_data()
   deputy_report <- paste(
-    export_report(scans_app_performance_data(deputy, 1:6), "Deputy"),
+    format(investigation_report(governance_deputy_bundle())),
     collapse = "\n"
   )
   expect_match(

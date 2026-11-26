@@ -237,9 +237,15 @@ report_blocks <- function(x, max_evidence = 100L) {
         list(
           "Snapshot ",
           report_code(scope$snapshot$snapshot_id),
-          ", revision ",
-          report_code(scope$snapshot$revision_id),
-          "."
+          if (is.null(scope$snapshot$revision_id)) {
+            paste0(
+              "; ",
+              scope$snapshot$unsaved %||%
+                "this analysis has not been saved as a revision."
+            )
+          } else {
+            list(", revision ", report_code(scope$snapshot$revision_id), ".")
+          }
         )
       },
       if (!is.null(settings)) {
@@ -308,10 +314,15 @@ report_blocks <- function(x, max_evidence = 100L) {
     },
     if (!is.na(x$review_progress$flagged_reviewed)) {
       sprintf(
-        "Review: %s of %s flagged %s reviewed.",
+        "Review: %s of %s flagged %s reviewed%s.",
         scans_app_count(x$review_progress$flagged_reviewed),
         scans_app_count(x$review_progress$flagged),
-        noun$many
+        noun$many,
+        if (any(c("review", "review_label") %in% names(scope$filters))) {
+          ", counted without the review filter"
+        } else {
+          ""
+        }
       )
     }
   )
