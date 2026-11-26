@@ -150,16 +150,26 @@ scans_app_connect_loaders <- function(
           from
         }
         read_to <- if (default_to) read_now else to
+        # What an R user needs to repeat this read; never the server or key.
+        recipe <- list(
+          reader = reader,
+          guid = source,
+          n = n,
+          from = read_from,
+          to = read_to,
+          jobs = jobs
+        )
         if (identical(reader, "commons")) {
-          return(
+          return(scans_app_loaded_source(
             commons::trajectory_read(
               source,
               n = n,
               from = read_from,
               to = read_to
             ) |>
-              as_trajectory_commons(metadata = list(application = label))
-          )
+              as_trajectory_commons(metadata = list(application = label)),
+            recipe = recipe
+          ))
         }
         conversations <- read_connect_traces(
           source,
@@ -178,14 +188,27 @@ scans_app_connect_loaders <- function(
         # from "the ceiling cut this short".
         scans_app_loaded_source(
           bundle,
-          read_info = attr(conversations, "read_info", exact = TRUE)
+          read_info = attr(conversations, "read_info", exact = TRUE),
+          recipe = recipe
         )
       }
     },
     labels,
     x
   ) |>
-    stats::setNames(labels)
+    stats::setNames(labels) |>
+    lapply(function(loader) {
+      # Shown while the read is in progress; see scans_app_loading_text().
+      attr(loader, "scans_app_window") <- if (default_from && default_to) {
+        "the last 7 days"
+      } else {
+        scans_app_window_string(
+          if (!default_from) from,
+          if (!default_to) to
+        )
+      }
+      loader
+    })
 }
 
 scans_app_connect_guid <- function(x) {

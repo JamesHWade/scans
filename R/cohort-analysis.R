@@ -407,3 +407,150 @@ cohort_headline <- function(
     n_undated = sum(is.na(trajectories$started_at))
   )
 }
+
+# Review state comes only from annotation records: a trajectory is reviewed
+# once it has any record, and its label is the latest non-empty one. Without
+# records (`NULL`, no store configured) nothing claims a state.
+cohort_review_state <- function(annotations, ids) {
+  if (is.null(annotations)) {
+    return(tibble::tibble(
+      trajectory_id = ids,
+      reviewed = NA,
+      label = NA_character_,
+      n_annotations = NA_integer_,
+      reviewed_at = as.POSIXct(NA_real_, tz = "UTC"),
+      reviewed_by = NA_character_
+    ))
+  }
+  records <- annotations[
+    order(annotations$created_at, decreasing = TRUE, na.last = TRUE),
+    ,
+    drop = FALSE
+  ]
+  latest <- match(ids, records$trajectory_id)
+  labelled <- records[
+    !is.na(records$label) & nzchar(records$label),
+    ,
+    drop = FALSE
+  ]
+  tibble::tibble(
+    trajectory_id = ids,
+    reviewed = !is.na(latest),
+    label = labelled$label[match(ids, labelled$trajectory_id)],
+    n_annotations = tabulate(
+      match(records$trajectory_id, ids),
+      nbins = length(ids)
+    ),
+    reviewed_at = records$created_at[latest],
+    reviewed_by = records$author[latest]
+  )
+}
+
+# Short recorded facts explaining why a trajectory is in the queue, most
+# important first.
+cohort_review_reasons <- function(data, ids, class) {
+  rows <- match(ids, data$records$trajectory_id)
+  findings <- data$findings[
+    data$findings$trajectory_id %in% ids,
+    ,
+    drop = FALSE
+  ]
+  scans <- split(findings$scan, findings$trajectory_id)
+  status <- data$info$status[match(ids, data$info$trajectory_id)]
+  cut_off <- ids %in%
+    data$turns$trajectory_id[scan_turn_is_truncated(data$turns$finish_reason)]
+  tool_errors <- data$records$n_tool_errors[rows]
+  empty <- data$records$n_turns[rows] == 0L & data$records$n_events[rows] == 0L
+  lost <- ids %in% data$loss_trajectory_ids
+  lapply(seq_along(ids), function(i) {
+    found <- unique(scans[[ids[[i]]]] %||% character())
+    quiet <- c(
+      "trajectory_error",
+      if (tool_errors[[i]] > 0L) "event_error",
+      if (cut_off[[i]]) "turn_error",
+      if ("suspicious_tool_loop" %in% found) "repeated_tool_call"
+    )
+    listed <- intersect(cohort_scan_wording$scan, found)
+    other <- setdiff(found, cohort_scan_wording$scan)
+    as.character(c(
+      if (
+        "trajectory_error" %in% found || status[[i]] %in% c("failed", "error")
+      ) {
+        "Run failed"
+      },
+      if (tool_errors[[i]] > 0L) {
+        sprintf(
+          "%d tool error%s",
+          tool_errors[[i]],
+          if (tool_errors[[i]] == 1L) "" else "s"
+        )
+      },
+      if (cut_off[[i]]) "Answer cut off",
+      cohort_scan_word(setdiff(c(listed, sort(other)), quiet), "reason"),
+      if (empty[[i]]) "No transcript",
+      if (lost[[i]]) "Capture gap",
+      if (class[[i]] == "unassessed") "Not assessed"
+    ))
+  })
+}
+
+cohort_class_order <- c("error", "warning", "unassessed", "clean")
+
+# The review queue is ordered by a lexicographic rule, not a score:
+# unreviewed before reviewed; then class error, warning, unassessed, clean;
+# then more error-severity findings; then more findings; then newest first;
+# then the trajectory's position in the snapshot.
+cohort_review_queue <- function(
+  data,
+  ids,
+  annotations = NULL,
+  trajectories = cohort_trajectories(data, ids)
+) {
+  state <- cohort_review_state(annotations, ids)
+  index <- match(ids, data$info$trajectory_id)
+  started <- as.numeric(trajectories$started_at)
+  ordering <- order(
+    state$reviewed %in% TRUE,
+    match(trajectories$class, cohort_class_order),
+    -trajectories$n_errors,
+    -trajectories$n_findings,
+    -ifelse(is.na(started), -Inf, started),
+    index,
+    method = "radix"
+  )
+  out <- tibble::tibble(
+    trajectory_id = ids,
+    rank = order(ordering),
+    index = index,
+    class = trajectories$class,
+    reasons = cohort_review_reasons(data, ids, trajectories$class),
+    reviewed = state$reviewed,
+    label = state$label,
+    n_annotations = state$n_annotations,
+    reviewed_at = state$reviewed_at,
+    reviewed_by = state$reviewed_by
+  )
+  out[ordering, , drop = FALSE]
+}
+
+# "Flagged" is a recorded class (error or warning findings), not a judgment.
+# Without a store the reviewed counts are unknown, not zero.
+cohort_review_progress <- function(queue) {
+  is_flagged <- queue$class %in% c("error", "warning")
+  known <- !anyNA(queue$reviewed)
+  is_reviewed <- queue$reviewed %in% TRUE
+  counts <- table(
+    ifelse(is.na(queue$label), "(no label)", queue$label)[is_reviewed]
+  )
+  tibble::tibble(
+    flagged = sum(is_flagged),
+    flagged_reviewed = if (known) {
+      sum(is_flagged & is_reviewed)
+    } else {
+      NA_integer_
+    },
+    total = nrow(queue),
+    reviewed = if (known) sum(is_reviewed) else NA_integer_,
+    labels = list(stats::setNames(as.integer(counts), names(counts)))
+  )
+}

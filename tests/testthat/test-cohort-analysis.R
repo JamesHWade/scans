@@ -235,3 +235,85 @@ test_that("headline facts carry their denominators", {
   expect_identical(empty$median_elapsed, NA_real_)
   expect_true(is.na(empty$first_started))
 })
+
+test_that("the review queue follows its documented ordering rule", {
+  data <- cohort_fixture_data()
+  ids <- data$info$trajectory_id
+  queue <- cohort_review_queue(data, ids)
+
+  # No store: class, then error findings (c has 2, a has 1), then position.
+  expect_identical(queue$trajectory_id, c("c", "a", "d", "e", "b"))
+  expect_identical(queue$rank, 1:5)
+  expect_identical(queue$index, c(3L, 1L, 4L, 5L, 2L))
+  expect_identical(
+    queue$class,
+    c("error", "error", "warning", "unassessed", "clean")
+  )
+  expect_true(all(is.na(queue$reviewed)))
+  expect_true(all(is.na(queue$n_annotations)))
+
+  reviewed <- cohort_review_queue(data, ids, cohort_fixture_annotations())
+  expect_identical(reviewed$trajectory_id, c("a", "d", "e", "c", "b"))
+  expect_identical(reviewed$reviewed, c(FALSE, FALSE, FALSE, TRUE, TRUE))
+  expect_identical(reviewed$label, c(NA, NA, NA, "tool failure", NA))
+  expect_identical(reviewed$n_annotations, c(0L, 0L, 0L, 2L, 1L))
+  expect_identical(reviewed$reviewed_by, c(NA, NA, NA, "bo", "ada"))
+
+  # A subset keeps the same relative order, and ties break newest first.
+  expect_identical(
+    cohort_review_queue(data, c("b", "d", "c"))$trajectory_id,
+    c("c", "d", "b")
+  )
+  tied <- data
+  tied$records$n_errors[tied$records$trajectory_id == "c"] <- 1L
+  tied$records$n_findings[tied$records$trajectory_id %in% c("a", "c")] <- 2L
+  expect_identical(
+    cohort_review_queue(tied, ids)$trajectory_id[1:2],
+    c("c", "a")
+  )
+})
+
+test_that("queue reasons state recorded facts, most important first", {
+  data <- cohort_fixture_data()
+  queue <- cohort_review_queue(data, data$info$trajectory_id)
+  reasons <- stats::setNames(queue$reasons, queue$trajectory_id)
+
+  expect_identical(
+    reasons$c,
+    c("2 tool errors", "Call without result", "Result without call")
+  )
+  expect_identical(reasons$a, c("1 tool error", "Repeated tool call"))
+  expect_identical(reasons$d, "Repeated tool call")
+  expect_identical(reasons$e, "Not assessed")
+  expect_identical(reasons$b, character())
+
+  failed <- data
+  failed$info$status[[2L]] <- "failed"
+  failed$turns$finish_reason[failed$turns$trajectory_id == "b"] <- "length"
+  expect_identical(
+    cohort_review_reasons(failed, "b", "clean")[[1L]],
+    c("Run failed", "Answer cut off")
+  )
+  expect_identical(cohort_scan_word("custom_scan", "reason"), "Custom scan")
+})
+
+test_that("review progress counts flagged and reviewed without inventing zeros", {
+  data <- cohort_fixture_data()
+  ids <- data$info$trajectory_id
+  progress <- cohort_review_progress(
+    cohort_review_queue(data, ids, cohort_fixture_annotations())
+  )
+  expect_identical(progress$flagged, 3L)
+  expect_identical(progress$flagged_reviewed, 1L)
+  expect_identical(progress$total, 5L)
+  expect_identical(progress$reviewed, 2L)
+  expect_identical(
+    progress$labels[[1L]],
+    c("(no label)" = 1L, "tool failure" = 1L)
+  )
+
+  unknown <- cohort_review_progress(cohort_review_queue(data, ids))
+  expect_identical(unknown$flagged, 3L)
+  expect_identical(unknown$flagged_reviewed, NA_integer_)
+  expect_identical(unknown$reviewed, NA_integer_)
+})

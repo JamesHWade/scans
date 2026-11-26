@@ -61,6 +61,16 @@ scans_app_filter_server <- function(
     if (all || identical(facet, "pattern")) {
       state$pattern_filter(NULL)
     }
+    if (all || identical(facet, "review")) {
+      shiny::updateSelectInput(
+        session,
+        "scans_app_review_state",
+        selected = "all"
+      )
+    }
+    if (all || identical(facet, "review_label")) {
+      shiny::updateSelectInput(session, "scans_app_review_label", selected = "")
+    }
     if (
       isTRUE(input$scans_app_findings_only) &&
         (all || identical(facet, "findings"))
@@ -83,11 +93,26 @@ scans_app_filter_server <- function(
       state$facets(valid)
     }
   })
+  # Review-state filters exist only with an annotation store.
+  state$review_filter <- shiny::reactive({
+    if (!state$has_store) {
+      return(list())
+    }
+    review <- list()
+    if (isTRUE(input$scans_app_review_state %in% c("needs", "reviewed"))) {
+      review$state <- input$scans_app_review_state
+    }
+    if (scans_app_has_string(input$scans_app_review_label)) {
+      review$label <- input$scans_app_review_label
+    }
+    review
+  })
   state$scope_labels <- shiny::reactive({
     scans_app_scope_labels(
       state$facets(),
       state$pattern_filter(),
-      input$scans_app_findings_only
+      input$scans_app_findings_only,
+      state$review_filter()
     )
   })
   output$scans_app_pattern_filter <- shiny::renderUI({
@@ -219,9 +244,9 @@ scans_app_filter_server <- function(
     }
   )
 
-  # Everything except the facets, so the overview can also show the cohort
-  # one facet wider than the browser list.
-  filtered <- shiny::reactive({
+  # Everything except the facets. The overview also shows the cohort one
+  # facet wider than the browser list, and later filters build on this.
+  state$unreviewed_scope <- shiny::reactive({
     current <- state$data()
     if (is.null(current)) {
       return(integer())
@@ -259,26 +284,64 @@ scans_app_filter_server <- function(
     }
     indices
   })
+  state$filtered <- shiny::reactive({
+    indices <- state$unreviewed_scope()
+    review <- state$review_filter()
+    queue <- state$queue()
+    if (!length(review) || is.null(queue)) {
+      return(indices)
+    }
+    rows <- queue[match(indices, queue$index), , drop = FALSE]
+    keep <- rep(TRUE, length(indices))
+    if (!is.null(review$state)) {
+      keep <- keep & (rows$reviewed %in% TRUE) == (review$state == "reviewed")
+    }
+    if (!is.null(review$label)) {
+      keep <- keep &
+        rows$reviewed %in% TRUE &
+        ifelse(is.na(rows$label), scans_app_no_label, rows$label) ==
+          review$label
+    }
+    indices[keep]
+  })
   state$visible <- shiny::reactive({
     current <- state$data()
     if (is.null(current)) {
       return(integer())
     }
-    scans_app_order_records(
-      current$records,
-      scans_app_facet_filter(current, filtered(), state$facets()),
-      scans_app_input_or(input$scans_app_sort, "findings")
+    indices <- scans_app_facet_filter(
+      current,
+      state$filtered(),
+      state$facets()
     )
-  })
-  # The activity chart keeps every bucket while one is selected.
-  state$activity_scope <- shiny::reactive({
-    current <- state$data()
-    if (is.null(current)) {
-      return(integer())
+    sort <- scans_app_input_or(input$scans_app_sort, state$default_sort)
+    if (identical(sort, "review")) {
+      queue <- state$queue()
+      return(queue$index[queue$index %in% indices])
     }
+    scans_app_order_records(current$records, indices, sort)
+  })
+  # For each active facet, the cohort without it.
+  state$facet_scopes <- shiny::reactive({
+    current <- state$data()
     facets <- state$facets()
-    facets$day <- NULL
-    scans_app_facet_filter(current, filtered(), facets)
+    if (is.null(current) || !length(facets)) {
+      return(list())
+    }
+    scopes <- list()
+    for (facet in setdiff(names(facets), "tool_failed")) {
+      wider <- facets
+      wider[[facet]] <- NULL
+      if (facet == "tool") {
+        wider$tool_failed <- NULL
+      }
+      scopes[[facet]] <- scans_app_facet_filter(
+        current,
+        state$filtered(),
+        wider
+      )
+    }
+    scopes
   })
 
   shiny::observeEvent(

@@ -29,6 +29,9 @@ scans_app_server <- function(
     selected_trajectory_id <- shiny::reactiveVal(NULL)
     pattern_filter <- shiny::reactiveVal(NULL)
     facets <- shiny::reactiveVal(list())
+    has_store <- !is.null(annotations)
+    review_labels <- annotations$labels
+    default_sort <- if (has_store) "review" else "findings"
 
     scans_app_loading_server(
       input,
@@ -81,5 +84,6 @@ scans_app_server <- function(
       chat_factory
     )
     scans_app_ask_server(input, output, session, state, chat_factory)
+    scans_app_export_server(input, output, session, state)
   }
 }

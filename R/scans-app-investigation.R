@@ -147,7 +147,11 @@ scans_app_investigation_view <- function(
     annotated_only = annotated_only,
     annotation_ids = intersect(annotated, ids),
     pattern = pattern,
-    sort = input$scans_app_sort %||% "newest",
+    sort = if (isTRUE(input$scans_app_sort %in% scans_app_sort_choices)) {
+      input$scans_app_sort
+    } else {
+      "newest"
+    },
     selected_trajectory_id = if (length(selected) == 1L && selected %in% ids) {
       selected
     } else {
@@ -194,7 +198,7 @@ scans_app_restore_investigation <- function(saved, data, session) {
   )
   bslib::update_toolbar_input_select(
     "scans_app_sort",
-    choices = scans_app_sort_choices,
+    choices = scans_app_browser_sort_choices,
     selected = view$sort,
     session = session
   )

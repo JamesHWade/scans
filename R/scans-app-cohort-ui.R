@@ -6,6 +6,21 @@ scans_app_plural <- function(n, singular, plural = paste0(singular, "s")) {
   paste(scans_app_count(n), if (n == 1) singular else plural)
 }
 
+# The noun for one trajectory in user-facing copy. Connect and OTel cohorts
+# are conversations; other sources (evaluation samples, agent runs) are not.
+scans_app_noun <- function(source_types = "otel") {
+  types <- source_types[!is.na(source_types)]
+  if (length(types) > 0L && all(types %in% c("otel", "commons"))) {
+    list(one = "conversation", many = "conversations")
+  } else {
+    list(one = "trajectory", many = "trajectories")
+  }
+}
+
+scans_app_n <- function(n, noun) {
+  scans_app_plural(n, noun$one, noun$many)
+}
+
 scans_app_percent <- function(x) {
   if (is.na(x)) {
     return("\u2013")
@@ -27,7 +42,11 @@ scans_app_day_range <- function(first, last) {
 
 # One sentence both panes agree on: the match count, the active filters, and
 # the window the matching trajectories started in.
-scans_app_scope_sentence_ui <- function(headline, labels = NULL) {
+scans_app_scope_sentence_ui <- function(
+  headline,
+  labels = NULL,
+  noun = scans_app_noun()
+) {
   window <- scans_app_day_range(headline$first_started, headline$last_started)
   htmltools::tags$p(
     class = "scans-app-scope-sentence",
@@ -36,7 +55,7 @@ scans_app_scope_sentence_ui <- function(headline, labels = NULL) {
       scans_app_count(headline$n),
       scans_app_count(headline$total)
     )),
-    if (headline$total == 1L) " conversation" else " conversations",
+    paste0(" ", if (headline$total == 1L) noun$one else noun$many),
     lapply(unname(labels), function(label) {
       htmltools::tagList(
         " \u00b7 ",
@@ -72,7 +91,9 @@ scans_app_tiles_ui <- function(
   n_empty = 0L,
   scans_on = TRUE,
   facets = list(),
-  findings_only = FALSE
+  findings_only = FALSE,
+  noun = scans_app_noun(),
+  progress = NULL
 ) {
   n <- headline$n
   unassessed <- n - headline$n_assessed
@@ -80,7 +101,7 @@ scans_app_tiles_ui <- function(
   htmltools::div(
     class = "scans-app-tiles",
     scans_app_tile(
-      "Conversations",
+      scans_app_title_case(noun$many),
       scans_app_count(n),
       paste0(
         "of ",
@@ -95,7 +116,7 @@ scans_app_tiles_ui <- function(
       scans_app_tile(
         "With findings",
         "\u2013",
-        "Scans off \u00b7 no conversation was assessed"
+        paste("Scans off \u00b7 no", noun$one, "was assessed")
       )
     } else {
       scans_app_tile(
@@ -112,9 +133,11 @@ scans_app_tiles_ui <- function(
         facet = "findings",
         `aria-pressed` = if (findings_only) "true" else "false",
         `aria-label` = sprintf(
-          "%d of %d assessed conversations have findings. Show only conversations with findings.",
+          "%d of %d assessed %s have findings. Show only %s with findings.",
           headline$n_findings,
-          headline$n_assessed
+          headline$n_assessed,
+          noun$many,
+          noun$many
         )
       )
     },
@@ -128,16 +151,34 @@ scans_app_tiles_ui <- function(
           "of ",
           scans_app_plural(headline$tool_calls, "tool call"),
           " \u00b7 in ",
-          scans_app_plural(headline$tool_trajectories_failed, "conversation")
+          scans_app_n(headline$tool_trajectories_failed, noun)
         ),
         facet = "tool_failed",
         `aria-pressed` = if (failing) "true" else "false",
         `aria-label` = sprintf(
-          "%d of %d tool calls failed, in %d conversations. Show only conversations with a failed tool call.",
+          "%d of %d tool calls failed, in %s. Show only %s with a failed tool call.",
           headline$tool_failed,
           headline$tool_calls,
-          headline$tool_trajectories_failed
+          scans_app_n(headline$tool_trajectories_failed, noun),
+          noun$many
         )
+      )
+    },
+    if (!is.null(progress) && !is.na(progress$flagged_reviewed)) {
+      flagged <- progress$flagged > 0L
+      scans_app_tile(
+        "Reviewed",
+        scans_app_count(
+          if (flagged) progress$flagged_reviewed else progress$reviewed
+        ),
+        if (flagged) {
+          paste("of", scans_app_count(progress$flagged), "flagged")
+        } else {
+          sprintf(
+            "of %s \u00b7 none flagged",
+            scans_app_n(progress$total, noun)
+          )
+        }
       )
     },
     scans_app_tile(
@@ -206,7 +247,11 @@ scans_app_activity_ticks <- function(buckets, unit) {
   labels
 }
 
-scans_app_activity_ui <- function(activity, selected = NULL) {
+scans_app_activity_ui <- function(
+  activity,
+  selected = NULL,
+  noun = scans_app_noun()
+) {
   unit <- attr(activity, "unit")
   undated <- attr(activity, "n_undated")
   counts <- as.list(colSums(activity[paste0(
@@ -230,9 +275,9 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
       sprintf(
         "%s no recorded start time and %s not charted.",
         if (undated == 1L) {
-          "1 conversation has"
+          paste("1", noun$one, "has")
         } else {
-          paste(scans_app_count(undated), "conversations have")
+          paste(scans_app_count(undated), noun$many, "have")
         },
         if (undated == 1L) "is" else "are"
       )
@@ -260,9 +305,9 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
         sprintf(
           "%s started %s %s UTC: %s.",
           if (activity$n == 1L) {
-            "The only dated conversation"
+            paste("The only dated", noun$one)
           } else {
-            sprintf("All %s dated conversations", scans_app_count(activity$n))
+            sprintf("All %s dated %s", scans_app_count(activity$n), noun$many)
           },
           if (unit == "hour") "in the hour of" else "on",
           scans_app_bucket_title(activity$bucket, unit),
@@ -293,7 +338,8 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
       type = "button",
       class = paste(
         "scans-app-bar",
-        if (i > n / 2) "scans-app-bar-flip"
+        if (i <= n * 0.2) "scans-app-bar-start",
+        if (i > n * 0.8) "scans-app-bar-end"
       ),
       `data-scans-facet` = "day",
       `data-scans-value` = keys[[i]],
@@ -301,7 +347,7 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
       `aria-label` = sprintf(
         "%s: %s of %s. %s.",
         title,
-        scans_app_plural(row$n, "conversation"),
+        scans_app_n(row$n, noun),
         scans_app_count(sum(activity$n)),
         breakdown(row)
       ),
@@ -341,7 +387,7 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
         class = "scans-app-bar-tip",
         `aria-hidden` = "true",
         htmltools::tags$strong(title),
-        htmltools::tags$span(scans_app_plural(row$n, "conversation")),
+        htmltools::tags$span(scans_app_n(row$n, noun)),
         lapply(which(values > 0), function(j) {
           htmltools::tags$span(
             htmltools::tags$i(
@@ -366,6 +412,14 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
       "scans-app-activity",
       if (!is.null(selected)) "scans-app-activity-selected"
     ),
+    htmltools::tags$p(
+      class = "scans-app-activity-caption",
+      sprintf(
+        "%s by start %s (UTC). Select a bar to filter; arrow keys move between bars.",
+        scans_app_title_case(noun$many),
+        unit
+      )
+    ),
     htmltools::div(
       class = "scans-app-activity-plot",
       htmltools::div(
@@ -382,7 +436,8 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
         class = paste0("scans-app-activity-bars scans-app-activity-", unit),
         role = "group",
         `aria-label` = sprintf(
-          "Conversations started per %s, UTC. Select a %s to filter.",
+          "%s started per %s, UTC. Select a %s to filter.",
+          scans_app_title_case(noun$many),
           unit,
           unit
         ),
@@ -417,13 +472,14 @@ scans_app_activity_ui <- function(activity, selected = NULL) {
         htmltools::tags$table(
           class = "table table-sm",
           htmltools::tags$caption(sprintf(
-            "Conversations by start %s (UTC) and recorded findings.",
+            "%s by start %s (UTC) and recorded findings.",
+            scans_app_title_case(noun$many),
             unit
           )),
           htmltools::tags$thead(htmltools::tags$tr(lapply(
             c(
               if (unit == "hour") "Hour" else "Day",
-              "Conversations",
+              scans_app_title_case(noun$many),
               unname(scans_app_activity_classes)
             ),
             function(label) htmltools::tags$th(scope = "col", label)
@@ -488,7 +544,11 @@ scans_app_duration_cell <- function(value) {
   }
 }
 
-scans_app_tools_ui <- function(tools, facets = list()) {
+scans_app_tools_ui <- function(
+  tools,
+  facets = list(),
+  noun = scans_app_noun()
+) {
   selected <- facets[["tool"]]
   failed_only <- isTRUE(facets$tool_failed)
   htmltools::div(
@@ -521,10 +581,11 @@ scans_app_tools_ui <- function(tools, facets = list()) {
               `data-scans-value` = row$tool,
               `aria-pressed` = if (active && !failed_only) "true" else "false",
               `aria-label` = sprintf(
-                "%s: %s in %s. Show these conversations.",
+                "%s: %s in %s. Show these %s.",
                 row$tool,
                 scans_app_plural(row$calls, "call"),
-                scans_app_plural(row$trajectories, "conversation")
+                scans_app_n(row$trajectories, noun),
+                noun$many
               ),
               row$tool
             )
@@ -546,11 +607,12 @@ scans_app_tools_ui <- function(tools, facets = list()) {
                   "false"
                 },
                 `aria-label` = sprintf(
-                  "%s: %d of %d calls failed, in %s. Show these conversations.",
+                  "%s: %d of %d calls failed, in %s. Show these %s.",
                   row$tool,
                   row$failed,
                   row$calls,
-                  scans_app_plural(row$trajectories_failed, "conversation")
+                  scans_app_n(row$trajectories_failed, noun),
+                  noun$many
                 ),
                 htmltools::tags$strong(scans_app_count(row$failed)),
                 paste0(" \u00b7 ", scans_app_percent(row$failure_rate))
@@ -599,14 +661,19 @@ scans_app_breakdown_rows <- function(
   total,
   selected,
   tokens,
-  top_n
+  top_n,
+  noun,
+  limit
 ) {
   top_tokens <- max(rows$median_tokens, 1, na.rm = TRUE)
   lapply(seq_len(nrow(rows)), function(i) {
     row <- rows[i, ]
     active <- identical(selected, row$value)
     htmltools::tags$tr(
-      class = if (active) "scans-app-row-selected",
+      class = paste(
+        if (active) "scans-app-row-selected",
+        if (i > limit && !active) "scans-app-row-extra"
+      ),
       `data-scans-facet` = facet,
       `data-scans-value` = row$value,
       htmltools::tags$th(
@@ -621,11 +688,13 @@ scans_app_breakdown_rows <- function(
           `data-scans-value` = row$value,
           `aria-pressed` = if (active) "true" else "false",
           `aria-label` = sprintf(
-            "%s: %d of %d conversations, %d with findings. Show these conversations.",
+            "%s: %d of %d %s, %d with findings. Show these %s.",
             row$value,
             row$n,
             total,
-            row$n_findings
+            noun$many,
+            row$n_findings,
+            noun$many
           ),
           row$value
         )
@@ -693,12 +762,13 @@ scans_app_breakdown_table <- function(
   total,
   selected,
   tokens = FALSE,
-  head = TRUE,
-  top_n = max(rows$n, 1L)
+  noun = scans_app_noun(),
+  limit = Inf
 ) {
+  top_n <- max(rows$n, 1L)
   columns <- c(
     label,
-    "Conversations",
+    scans_app_title_case(noun$many),
     "With findings",
     if (tokens) c("Median tokens", "Median elapsed")
   )
@@ -707,20 +777,33 @@ scans_app_breakdown_table <- function(
     htmltools::tags$table(
       class = "table table-sm",
       htmltools::tags$thead(
-        class = if (!head) "visually-hidden",
         htmltools::tags$tr(lapply(
           columns,
           function(column) htmltools::tags$th(scope = "col", column)
         ))
       ),
       htmltools::tags$tbody(
-        scans_app_breakdown_rows(rows, facet, total, selected, tokens, top_n)
+        scans_app_breakdown_rows(
+          rows,
+          facet,
+          total,
+          selected,
+          tokens,
+          top_n,
+          noun,
+          limit
+        )
       )
     )
   )
 }
 
-scans_app_models_ui <- function(models, total, facets = list()) {
+scans_app_models_ui <- function(
+  models,
+  total,
+  facets = list(),
+  noun = scans_app_noun()
+) {
   known <- models[models$value != cohort_unknown, , drop = FALSE]
   if (nrow(known) == 0L) {
     return(NULL)
@@ -732,9 +815,9 @@ scans_app_models_ui <- function(models, total, facets = list()) {
       htmltools::tags$p(
         class = "scans-app-breakdown-fact",
         if (models$n == 1L) {
-          "This conversation used "
+          paste("This", noun$one, "used ")
         } else {
-          sprintf("All %s conversations used ", scans_app_count(models$n))
+          sprintf("All %s %s used ", scans_app_count(models$n), noun$many)
         },
         htmltools::tags$span(
           class = "scans-app-mono",
@@ -759,38 +842,44 @@ scans_app_models_ui <- function(models, total, facets = list()) {
         "Model",
         total,
         facets$model,
-        tokens = TRUE
+        tokens = TRUE,
+        noun = noun
       )
     }
   )
 }
 
-scans_app_users_ui <- function(users, total, facets = list(), limit = 8L) {
+# Rows past `limit` stay in the same table, hidden until the reader asks, so
+# their columns line up with the rows above.
+scans_app_users_ui <- function(
+  users,
+  total,
+  facets = list(),
+  noun = scans_app_noun(),
+  limit = 8L
+) {
   if (sum(users$value != cohort_unknown) < 2L) {
     return(NULL)
   }
-  top <- utils::head(users, limit)
-  rest <- utils::tail(users, -limit)
   htmltools::tags$section(
     class = "scans-app-breakdown",
     htmltools::tags$h2("Most active users"),
-    scans_app_breakdown_table(top, "user", "User", total, facets$user),
-    if (nrow(rest) > 0L) {
-      htmltools::tags$details(
-        class = "scans-app-breakdown-more",
-        htmltools::tags$summary(sprintf(
-          "Show all %s users",
-          scans_app_count(nrow(users))
-        )),
-        scans_app_breakdown_table(
-          rest,
-          "user",
-          "User",
-          total,
-          facets$user,
-          head = FALSE,
-          top_n = max(users$n, 1L)
-        )
+    scans_app_breakdown_table(
+      users,
+      "user",
+      "User",
+      total,
+      facets$user,
+      noun = noun,
+      limit = limit
+    ),
+    if (nrow(users) > limit) {
+      htmltools::tags$button(
+        type = "button",
+        class = "scans-app-show-rows",
+        `data-scans-expand` = "rows",
+        `aria-expanded` = "false",
+        sprintf("Show all %s users", scans_app_count(nrow(users)))
       )
     }
   )

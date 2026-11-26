@@ -71,7 +71,7 @@ scans_app_browser_server <- function(
       "%d of %d %s",
       count,
       total,
-      if (total == 1L) "trajectory" else "trajectories"
+      if (total == 1L) current$noun$one else current$noun$many
     )
   })
 
@@ -93,22 +93,47 @@ scans_app_browser_server <- function(
     if (length(indices) == 0L) {
       return(scans_app_empty_ui(
         if (nrow(current$records) == 0L) {
-          "This bundle has no trajectories."
+          paste0("This source has no ", current$noun$many, ".")
         } else {
-          "No trajectories match these filters."
+          paste0("No ", current$noun$many, " match these filters.")
         }
       ))
     }
     chosen <- shiny::isolate(state$selected())
-    labels <- state$annotation_labels()
-    htmltools::tagList(lapply(indices, function(index) {
+    queue <- state$queue()
+    rows <- match(indices, queue$index)
+    htmltools::tagList(lapply(seq_along(indices), function(i) {
+      index <- indices[[i]]
       scans_app_entry_ui(
         current$records[index, , drop = FALSE],
         selected = identical(chosen, index) &&
           !identical(shiny::isolate(input$scans_app_view), "application"),
-        annotation = labels[current$info$trajectory_id[[index]]]
+        queue = queue[rows[[i]], , drop = FALSE]
       )
     }))
+  })
+
+  # Progress ignores the review-state filters: "needs review" would
+  # otherwise always report nothing reviewed.
+  state$review_progress <- shiny::reactive({
+    current <- state$data()
+    queue <- state$queue()
+    if (is.null(current) || is.null(queue)) {
+      return(NULL)
+    }
+    scope <- scans_app_facet_filter(
+      current,
+      state$unreviewed_scope(),
+      state$facets()
+    )
+    cohort_review_progress(queue[queue$index %in% scope, , drop = FALSE])
+  })
+  output$scans_app_review_progress <- shiny::renderUI({
+    progress <- state$review_progress()
+    if (is.null(progress)) {
+      return(NULL)
+    }
+    scans_app_review_progress_ui(progress, state$data()$noun)
   })
 
   shiny::observeEvent(input$scans_app_inspect, {
@@ -132,10 +157,13 @@ scans_app_browser_server <- function(
     if (is.null(current)) {
       return(NULL)
     }
+    queue <- state$queue()
     scans_app_performance_data(
       current,
       state$visible(),
-      state$activity_scope()
+      state$facet_scopes(),
+      queue = queue,
+      progress = state$review_progress()
     )
   })
   output$scans_app_performance <- shiny::renderUI({
@@ -152,7 +180,8 @@ scans_app_browser_server <- function(
       scope = list(
         facets = state$facets(),
         pattern = state$pattern_filter(),
-        findings_only = isTRUE(input$scans_app_findings_only)
+        findings_only = isTRUE(input$scans_app_findings_only),
+        review = state$review_filter()
       )
     )
   })

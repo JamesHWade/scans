@@ -311,9 +311,9 @@ scans_app_runtime_sources <- function(x) {
 
 # A loader can carry source read details beside the typed bundle without
 # mutating the S7 object with an ad hoc attribute.
-scans_app_loaded_source <- function(bundle, read_info = NULL) {
+scans_app_loaded_source <- function(bundle, read_info = NULL, recipe = NULL) {
   structure(
-    list(bundle = bundle, read_info = read_info),
+    list(bundle = bundle, read_info = read_info, recipe = recipe),
     class = "scans_app_loaded_source"
   )
 }
@@ -334,9 +334,11 @@ scans_app_load_source <- function(source) {
       read_info = loaded$manifest$source$read_info
     ))
   }
+  recipe <- NULL
   if (inherits(loaded, "scans_app_loaded_source")) {
     bundle <- loaded$bundle
     read_info <- loaded$read_info
+    recipe <- loaded$recipe
   } else {
     bundle <- loaded
     read_info <- NULL
@@ -350,7 +352,7 @@ scans_app_load_source <- function(source) {
       .envir = environment()
     )
   }
-  list(bundle = bundle, read_info = read_info)
+  list(bundle = bundle, read_info = read_info, recipe = recipe)
 }
 
 scans_app_check_packages <- function(

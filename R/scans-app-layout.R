@@ -127,12 +127,14 @@ scans_app_ui <- function(
         class = "scans-app-browser-count",
         shiny::textOutput("scans_app_visible_count", inline = TRUE)
       ),
+      if (!is.null(annotations)) shiny::uiOutput("scans_app_review_progress"),
       shiny::uiOutput("scans_app_snapshot_annotation_filter"),
       htmltools::div(
         class = "scans-app-browser-entries",
         shiny::uiOutput("scans_app_entries")
       )
     ),
+    scans_app_loading_banner_ui(sources),
     shiny::uiOutput("scans_app_load_error"),
     shiny::uiOutput("scans_app_retained_notice"),
     bslib::layout_sidebar(
@@ -176,9 +178,11 @@ scans_app_ui <- function(
           htmltools::div(
             class = "scans-app-workspace-header",
             shiny::uiOutput("scans_app_header"),
+            scans_app_review_controls_ui(annotations),
             htmltools::div(
               class = "scans-app-workspace-bar",
               htmltools::tags$strong("Transcript"),
+              shiny::uiOutput("scans_app_trajectory_export", inline = TRUE),
               scans_app_workspace_toolbar()
             )
           ),
@@ -193,7 +197,7 @@ scans_app_ui <- function(
   )
   page <- htmltools::tagQuery(page)$filter("body")$addClass(
     "scans-app"
-  )$allTags()
+  )$addAttrs(`data-scans-loading` = "")$allTags()
   scans_app_attach_dependency(page)
 }
 
@@ -221,14 +225,38 @@ scans_app_filter_toolbar <- function(choices, annotations = NULL) {
       ),
       bslib::input_switch("scans_app_findings_only", "With findings"),
       if (!is.null(annotations)) {
-        bslib::input_switch("scans_app_annotated_only", "Annotated")
+        htmltools::tagList(
+          bslib::input_switch("scans_app_annotated_only", "Annotated"),
+          shiny::selectInput(
+            "scans_app_review_state",
+            "Review state",
+            choices = c(
+              "All" = "all",
+              "Needs review" = "needs",
+              "Reviewed" = "reviewed"
+            ),
+            selectize = FALSE,
+            width = "100%"
+          ),
+          shiny::selectInput(
+            "scans_app_review_label",
+            "Label",
+            choices = c(
+              "Any label" = "",
+              annotations$labels,
+              scans_app_no_label
+            ),
+            selectize = FALSE,
+            width = "100%"
+          )
+        )
       }
     ),
     scans_app_toolbar_select(
       "scans_app_sort",
       "Order",
-      choices = scans_app_sort_choices,
-      selected = "findings"
+      choices = scans_app_browser_sort_choices,
+      selected = if (is.null(annotations)) "findings" else "review"
     )
   )
 }
@@ -380,5 +408,37 @@ scans_app_annotation_ui <- function(annotations) {
       ),
       shiny::uiOutput("scans_app_annotation_log")
     )
+  )
+}
+
+# What is being read, per application, for the banner the page shows while
+# the server is busy loading: the first load, a switch, or a reload. The
+# previous snapshot stays on screen underneath.
+scans_app_loading_text <- function(source) {
+  if (!is.function(source$load)) {
+    return(paste0("Preparing ", source$label, "\u2026"))
+  }
+  window <- attr(source$load, "scans_app_window", exact = TRUE)
+  paste0(
+    "Reading traces for ",
+    source$label,
+    if (scans_app_has_string(window)) paste0(" (", window, ")"),
+    "\u2026"
+  )
+}
+
+scans_app_loading_banner_ui <- function(sources) {
+  texts <- vapply(sources$sources, scans_app_loading_text, "")
+  htmltools::div(
+    class = "scans-app-loading",
+    role = "status",
+    `aria-live` = "polite",
+    htmltools::tags$span(class = "scans-app-loading-text", texts[[1L]]),
+    lapply(seq_along(texts), function(i) {
+      htmltools::tags$template(
+        `data-scans-loading-for` = sources$labels[[i]],
+        texts[[i]]
+      )
+    })
   )
 }

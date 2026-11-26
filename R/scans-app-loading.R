@@ -217,6 +217,7 @@ scans_app_load_entry <- function(
           error = NULL,
           loaded_at = clock(),
           read_info = loaded$read_info,
+          recipe = loaded$recipe,
           investigation = loaded$investigation
         )
       },

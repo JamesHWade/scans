@@ -78,6 +78,40 @@
     }
   }
 
+  // Copy an attribute's text or a text box's value. When the browser refuses
+  // clipboard access the text is shown selected so it can be copied by hand.
+  function copyText(button) {
+    var box = button.dataset.scansCopyFrom && document.getElementById(button.dataset.scansCopyFrom);
+    var text = box ? box.value : button.dataset.scansCopy;
+    var status = (button.closest(".modal-content") || document).querySelector(".scans-app-copy-status");
+    function say(message) {
+      if (status) status.textContent = message;
+      else {
+        var label = button.textContent;
+        button.textContent = message;
+        setTimeout(function () { button.textContent = label; }, 1600);
+      }
+    }
+    function byHand() {
+      if (!box) {
+        box = document.createElement("input");
+        box.className = "form-control form-control-sm scans-app-copy-fallback";
+        box.readOnly = true;
+        box.value = text;
+        box.setAttribute("aria-label", "Link to copy");
+        button.insertAdjacentElement("afterend", box);
+      }
+      box.focus();
+      box.select();
+      say("Press Ctrl or Cmd + C to copy");
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { say("Copied"); }, byHand);
+    } else {
+      byHand();
+    }
+  }
+
   function isTyping(target) {
     if (!target) return false;
     var tag = (target.tagName || "").toLowerCase();
@@ -146,6 +180,29 @@
       });
     });
 
+    // The server is busy while it reads a source, so the page itself says
+    // what is being read; the banner clears when the server is idle again.
+    function showLoading(label) {
+      var banner = document.querySelector(".scans-app-loading");
+      if (!banner) return;
+      var texts = banner.querySelectorAll("template[data-scans-loading-for]");
+      var text = Array.prototype.find.call(texts, function (node) {
+        return node.dataset.scansLoadingFor === label;
+      });
+      if (text) banner.querySelector(".scans-app-loading-text").textContent = text.innerHTML;
+      document.body.setAttribute("data-scans-loading", "");
+    }
+    $(document).on("shiny:inputchanged", function (event) {
+      if (event.name === "scans_app_application") showLoading(event.value);
+      if (event.name === "scans_app_reload") {
+        var select = document.getElementById("scans_app_application");
+        showLoading(select ? select.value : null);
+      }
+    });
+    $(document).on("shiny:idle", function () {
+      document.body.removeAttribute("data-scans-loading");
+    });
+
     function sendHash() {
       var hash = window.location.hash;
       if (!hash || hash.length < 2) return;
@@ -169,6 +226,28 @@
         return;
       }
       if (isTyping(event.target)) return;
+      var bar = event.target.closest && event.target.closest(".scans-app-bar");
+      if (bar && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+        var step = event.key === "ArrowLeft" ? "previousElementSibling" : "nextElementSibling";
+        var next = bar[step];
+        while (next && (next.disabled || !next.classList.contains("scans-app-bar"))) next = next[step];
+        if (next) next.focus();
+        event.preventDefault();
+        return;
+      }
+      // Review shortcuts are declared on the controls they trigger.
+      if (!event.repeat) {
+        var key = event.key.length === 1 ? event.key.toLowerCase() : null;
+        var control = key && Array.prototype.find.call(
+          document.querySelectorAll("[data-scans-key]"),
+          function (node) { return node.dataset.scansKey === key && node.getClientRects().length; }
+        );
+        if (control) {
+          event.preventDefault();
+          control.click();
+          return;
+        }
+      }
       var direction = null;
       if (event.key === "ArrowDown" || event.key === "j") direction = "next";
       if (event.key === "ArrowUp" || event.key === "k") direction = "prev";
@@ -198,6 +277,32 @@
       }
       // The innermost facet wins, so a failed-calls cell inside a tool row
       // applies its own, narrower filter.
+      var copy = event.target.closest("[data-scans-copy], [data-scans-copy-from]");
+      if (copy) {
+        copyText(copy);
+        return;
+      }
+      var disposition = event.target.closest("[data-scans-disposition]");
+      if (disposition) {
+        var bar = disposition.closest("[data-scans-target]");
+        Shiny.setInputValue(
+          "scans_app_disposition",
+          {
+            label: disposition.dataset.scansDisposition,
+            trajectory_id: bar ? bar.dataset.scansTarget : null,
+            nonce: Date.now()
+          },
+          { priority: "event" }
+        );
+        return;
+      }
+      var expand = event.target.closest("[data-scans-expand]");
+      if (expand) {
+        var open = expand.getAttribute("aria-expanded") !== "true";
+        expand.setAttribute("aria-expanded", open ? "true" : "false");
+        expand.parentElement.classList.toggle("scans-app-expanded", open);
+        return;
+      }
       var clear = event.target.closest("[data-scans-facet-clear]");
       if (clear) {
         Shiny.setInputValue(

@@ -16,7 +16,9 @@ local({
       "Support assistant" = cohort,
       "Small example" = function() scans_support_bundle()
     ),
-    annotations = scans_annotations(tempfile(fileext = ".jsonl")),
+    annotations = scans_annotations(
+      file.path(tempdir(), "scans-preview-annotations.jsonl")
+    ),
     investigations = TRUE,
     reviews = TRUE,
     chat_factory = function() scans_test_chat(delay = 0.8)

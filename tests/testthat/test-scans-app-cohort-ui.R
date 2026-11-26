@@ -13,8 +13,8 @@ test_that("tiles state each fact with its denominator", {
   html <- as.character(cohort_overview_html(data, 1:5))
 
   expect_match(html, "of 5 captured", fixed = TRUE)
-  expect_match(html, "of 4 assessed · 1 not assessed", fixed = TRUE)
-  expect_match(html, "of 6 tool calls · in 2 conversations", fixed = TRUE)
+  expect_match(html, "of 4 assessed \u00b7 1 not assessed", fixed = TRUE)
+  expect_match(html, "of 6 tool calls \u00b7 in 2 conversations", fixed = TRUE)
   expect_match(html, "timed for 3 of 5", fixed = TRUE)
   expect_match(html, "recorded for 3 of 5", fixed = TRUE)
   expect_match(html, "5 of 5</strong>\\s+conversations")
@@ -32,7 +32,7 @@ test_that("tiles state each fact with its denominator", {
   )
   expect_match(
     as.character(cohort_overview_html(off, 1:5, scans = character())),
-    "Scans off · no conversation was assessed",
+    "Scans off \u00b7 no conversation was assessed",
     fixed = TRUE
   )
 })
@@ -40,7 +40,7 @@ test_that("tiles state each fact with its denominator", {
 test_that("the activity chart has one labelled, focusable mark per bucket", {
   skip_if_not_installed("htmltools")
   data <- cohort_fixture_data()
-  performance <- scans_app_performance_data(data, 3:4, 1:5)
+  performance <- scans_app_performance_data(data, 3:4, list(day = 1:5))
   chart <- htmltools::tagQuery(
     scans_app_activity_ui(performance$cohort$activity, "2026-10-03")
   )
@@ -98,4 +98,89 @@ test_that("tool and breakdown tables appear only when they inform", {
 
   anonymous <- as.character(cohort_overview_html(data, 5L))
   expect_no_match(anonymous, "By model|Most active users")
+})
+
+test_that("copy names conversations only for conversation sources", {
+  skip_if_not_installed("htmltools")
+  expect_identical(scans_app_noun(c("otel", "commons"))$many, "conversations")
+  expect_identical(scans_app_noun(c("otel", "vitals"))$many, "trajectories")
+  expect_identical(scans_app_noun(NA_character_)$one, "trajectory")
+
+  data <- scans_app_data(performance_fixture())
+  html <- as.character(cohort_overview_html(data, 1:3))
+  expect_match(html, "3 of 3</strong>\\s+trajectories")
+  expect_no_match(gsub("<[^>]+>", "", html), "onversation")
+})
+
+test_that("a faceted table keeps its sibling rows for comparison", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  performance <- scans_app_performance_data(
+    data,
+    c(1L, 4L),
+    list(tool = 1:5, model = 1:5)
+  )
+  expect_identical(performance$cohort$tools$tool, c("refund", "lookup"))
+  expect_identical(performance$cohort$models$n, c(2L, 2L, 1L))
+  expect_identical(performance$cohort$users$n, c(1L, 1L))
+  expect_identical(performance$cohort$headline$tool_calls, 4L)
+})
+
+test_that("empty and loading states say what is specific about them", {
+  skip_if_not_installed("htmltools")
+  data <- cohort_fixture_data()
+  text <- function(...) {
+    gsub("\\s+", " ", gsub("<[^>]+>", "", as.character(...)))
+  }
+
+  clean <- text(cohort_overview_html(data, 2L))
+  expect_match(clean, "No findings in 1 assessed conversation.", fixed = TRUE)
+  expect_no_match(clean, "could not be assessed", fixed = TRUE)
+  expect_no_match(clean, "more than one pattern", fixed = TRUE)
+  expect_match(
+    text(cohort_overview_html(data, c(2L, 5L))),
+    "No findings in 1 assessed conversation. 1 conversation could not be assessed; see Evidence coverage.",
+    fixed = TRUE
+  )
+  expect_match(
+    text(cohort_overview_html(data, integer())),
+    "No conversations match these filters. Remove a filter to widen the cohort.",
+    fixed = TRUE
+  )
+  none <- scans_app_data(TrajectoryBundle(
+    data.frame(),
+    data.frame(),
+    data.frame()
+  ))
+  expect_match(
+    text(cohort_overview_html(none, integer())),
+    "This source returned no trajectories for the window read.",
+    fixed = TRUE
+  )
+
+  loader <- function() cohort_fixture()
+  attr(loader, "scans_app_window") <- "the last 7 days"
+  banner <- as.character(scans_app_loading_banner_ui(scans_app_sources(list(
+    Eager = cohort_fixture(),
+    Lazy = loader
+  ))))
+  expect_match(
+    banner,
+    "scans-app-loading-text\">Preparing Eager\u2026",
+    fixed = TRUE
+  )
+  expect_match(
+    banner,
+    "data-scans-loading-for=\"Lazy\">Reading traces for Lazy (the last 7 days)\u2026",
+    fixed = TRUE
+  )
+  loaders <- scans_app_connect_loaders(
+    c(App = "11111111-1111-4111-8111-111111111111"),
+    n = 10L,
+    from = NULL,
+    to = NULL,
+    default_from = TRUE,
+    default_to = TRUE
+  )
+  expect_identical(attr(loaders$App, "scans_app_window"), "the last 7 days")
 })

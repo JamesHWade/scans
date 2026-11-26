@@ -18,7 +18,7 @@ demo_cohort_spans <- function(
 ) {
   withr::local_seed(seed)
   origin <- as.numeric(end) - days * 86400
-  users <- sprintf("reviewer%02d@example.com", 1:14)
+  users <- sprintf("user%02d@example.com", 1:14)
   orders <- sprintf("DEMO-%03d", 100:180)
   items <- c(
     "blue jacket",

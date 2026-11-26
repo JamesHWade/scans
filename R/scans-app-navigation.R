@@ -54,7 +54,9 @@ scans_app_navigation_server <- function(
       )
     }
   })
-  shiny::observe({
+  # Runs after the resets an application change triggers, so a scope carried
+  # by the link is not cleared again.
+  shiny::observe(priority = -1L, {
     target <- state$pending_hash()
     current <- state$data()
     if (is.null(target) || is.null(current)) {
@@ -63,10 +65,56 @@ scans_app_navigation_server <- function(
     if (!identical(target$application, state$application())) {
       return()
     }
-    index <- match(target$trajectory_id, current$info$trajectory_id)
+    # A link that names a scope replaces the pattern, facets, findings
+    # switch, and review filter; one without leaves the current filters alone.
+    scope <- target$scope
+    if (length(scope)) {
+      state$facets(scans_app_facet_validate(
+        current,
+        scope[intersect(names(scope), scans_app_facet_names)]
+      ))
+      known <- scans_app_has_string(scope$pattern) &&
+        scope$pattern %in%
+          intersect(current$findings$scan, state$scan_config()$scans)
+      state$pattern_filter(if (known) scope$pattern)
+      bslib::update_switch(
+        "scans_app_findings_only",
+        value = isTRUE(scope$findings),
+        session = session
+      )
+      review <- scans_app_scope_review(
+        scope,
+        state$has_store,
+        state$review_labels
+      )
+      if (state$has_store) {
+        shiny::updateSelectInput(
+          session,
+          "scans_app_review_state",
+          selected = review$state %||% "all"
+        )
+        shiny::updateSelectInput(
+          session,
+          "scans_app_review_label",
+          selected = review$label %||% ""
+        )
+      }
+      if (!is.null(review$notice)) {
+        shiny::showNotification(
+          review$notice,
+          duration = NULL,
+          type = "warning",
+          session = session
+        )
+      }
+    }
+    index <- match(target$trajectory_id %||% NA, current$info$trajectory_id)
     if (!is.na(index)) {
       state$selected(index)
       bslib::nav_select("scans_app_view", "trajectory", session = session)
+    } else if (is.null(target$trajectory_id)) {
+      # A link to an application alone opens its overview.
+      bslib::nav_select("scans_app_view", "application", session = session)
     }
     if (
       !is.na(index) &&
@@ -123,6 +171,50 @@ scans_app_navigation_server <- function(
   })
 }
 
+# The review filter a link's scope asks for, as far as this app can apply
+# it. Review state lives in the annotation store of whoever opens the link,
+# so a part that cannot be applied is named in `notice` rather than dropped
+# quietly: the cohort on screen is then wider than the one the link describes.
+scans_app_scope_review <- function(scope, has_store, labels = NULL) {
+  asked <- c(
+    if (!is.null(scope$review)) {
+      c(
+        state = switch(
+          scope$review,
+          needs = "Needs review",
+          reviewed = "Reviewed",
+          paste("Review state:", scope$review)
+        )
+      )
+    },
+    if (!is.null(scope$review_label)) {
+      c(label = paste("Label:", scope$review_label))
+    }
+  )
+  review <- list()
+  if (has_store && isTRUE(scope$review %in% c("needs", "reviewed"))) {
+    review$state <- scope$review
+  }
+  if (
+    has_store && isTRUE(scope$review_label %in% c(labels, scans_app_no_label))
+  ) {
+    review$label <- scope$review_label
+  }
+  dropped <- asked[setdiff(names(asked), names(review))]
+  if (length(dropped)) {
+    review$notice <- sprintf(
+      "This link filters by review (%s), which %s. That filter is not applied, so this is a wider cohort than the link describes.",
+      paste(dropped, collapse = ", "),
+      if (has_store) {
+        "this app's annotation store does not offer"
+      } else {
+        "cannot be applied because this app has no annotation store"
+      }
+    )
+  }
+  review
+}
+
 scans_app_hash <- function(application, trajectory_id) {
   if (is.null(application) || is.null(trajectory_id)) {
     return("")
@@ -140,17 +232,29 @@ scans_app_parse_hash <- function(hash, labels) {
   }
   hash <- sub("^#", "", hash)
   event_parts <- strsplit(hash, "?event=", fixed = TRUE)[[1L]]
-  hash <- event_parts[[1L]]
+  scope_parts <- strsplit(event_parts[[1L]], "?scope=", fixed = TRUE)[[1L]]
+  scope <- if (length(scope_parts) == 2L) {
+    scans_app_parse_scope(scope_parts[[2L]])
+  }
+  hash <- scope_parts[[1L]]
   parts <- strsplit(hash, "/", fixed = TRUE)[[1L]]
-  if (length(parts) < 2L) {
+  # "<application>/" names an application's overview; the slash is required
+  # so that an arbitrary fragment is never read as an application.
+  if (length(parts) < 2L && !endsWith(hash, "/")) {
     return(NULL)
   }
   application <- utils::URLdecode(parts[[1L]])
   trajectory_id <- utils::URLdecode(paste(parts[-1L], collapse = "/"))
-  if (!application %in% labels || !nzchar(trajectory_id)) {
+  if (!application %in% labels) {
     return(NULL)
   }
-  target <- list(application = application, trajectory_id = trajectory_id)
+  target <- list(application = application)
+  if (nzchar(trajectory_id)) {
+    target$trajectory_id <- trajectory_id
+  }
+  if (length(scope)) {
+    target$scope <- scope
+  }
   if (length(event_parts) == 2L) {
     target$event_id <- utils::URLdecode(event_parts[[2L]])
   }

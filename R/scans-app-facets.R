@@ -106,13 +106,20 @@ scans_app_bucket_label <- function(key) {
 scans_app_scope_labels <- function(
   facets,
   pattern = NULL,
-  findings_only = FALSE
+  findings_only = FALSE,
+  review = list()
 ) {
   c(
     if (!is.null(pattern)) {
       c(pattern = paste("Finding:", gsub("_", " ", pattern)))
     },
     if (isTRUE(findings_only)) c(findings = "With findings"),
+    if (!is.null(review$state)) {
+      c(review = if (review$state == "needs") "Needs review" else "Reviewed")
+    },
+    if (!is.null(review$label)) {
+      c(review_label = paste("Label:", review$label))
+    },
     if (isTRUE(facets$tool_failed)) {
       c(
         tool = if (is.null(facets[["tool"]])) {
@@ -162,3 +169,5 @@ scans_app_scope_chips_ui <- function(labels) {
     }
   )
 }
+
+scans_app_no_label <- "(no label)"

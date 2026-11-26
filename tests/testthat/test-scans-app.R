@@ -1289,7 +1289,7 @@ test_that("annotated trajectories are badged and filterable", {
 
     html <- as.character(output$scans_app_entries$html)
     expect_match(html, ">bad<", fixed = TRUE)
-    expect_match(html, ">Note<", fixed = TRUE)
+    expect_match(html, ">Reviewed<", fixed = TRUE)
 
     expect_length(visible(), 4L)
     session$setInputs(scans_app_annotated_only = TRUE)

@@ -20,7 +20,7 @@ cohort_fixture <- function() {
   TrajectoryBundle(
     tibble::tibble(
       trajectory_id = c("a", "b", "c", "d", "e"),
-      source_type = "manual",
+      source_type = "otel",
       started_at = start + c(0, 5 * 3600, 2 * 86400, 2 * 86400 + 3600, NA),
       completed_at = start +
         c(10, 5 * 3600 + 20, 2 * 86400 + 40, NA, NA),
@@ -67,4 +67,16 @@ cohort_fixture <- function() {
 
 cohort_fixture_data <- function() {
   scans_app_data(cohort_fixture())
+}
+
+# c has a labelled record followed by a note; b has a note only.
+cohort_fixture_annotations <- function() {
+  tibble::tibble(
+    application = "Cohort",
+    trajectory_id = c("c", "c", "b"),
+    label = c("tool failure", NA, NA),
+    note = c(NA, "Checked the retry", "Fine"),
+    author = c("ada", "bo", "ada"),
+    created_at = as.POSIXct("2026-10-05", tz = "UTC") + c(0, 60, 120)
+  )
 }

@@ -63,6 +63,7 @@ scans_app_data <- function(
     summaries = summaries,
     measures = analysis$measures,
     tool_calls = tool_calls,
+    noun = scans_app_noun(info$source_type),
     records = records
   )
 }
@@ -187,6 +188,13 @@ scans_app_sort_choices <- c(
   "Oldest first" = "oldest",
   "Most findings" = "findings",
   "Most events" = "longest"
+)
+
+# The browser adds the review queue order, which needs annotation state and
+# so is not offered to the Ask tools or saved with an investigation.
+scans_app_browser_sort_choices <- c(
+  "Needs review" = "review",
+  scans_app_sort_choices
 )
 
 # Ordering is applied to the visible indices, never to the records: the
