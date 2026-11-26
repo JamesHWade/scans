@@ -202,17 +202,18 @@ scans_app_export_server <- function(input, output, session, state) {
       }
     }
     # Session review cases are reported only against the saved investigation
-    # they were made from, as report_reviews() checks for a script. A live
-    # view has no snapshot identifier to check them against.
+    # they were made from, or the rescan the review server is writing to;
+    # evidence matching places them. A live view has no snapshot identifier
+    # to check them against.
     reviews <- if (!is.null(saved) && !is.null(state$review_cases)) {
+      snapshots <- c(saved$manifest$snapshot_id, state$review_snapshot())
       report_reviews(
         Filter(
-          function(case) {
-            identical(case$origin$snapshot_id, saved$manifest$snapshot_id)
-          },
+          function(case) case$origin$snapshot_id %in% snapshots,
           unname(state$review_cases())
         ),
-        saved
+        saved,
+        snapshots = snapshots
       )
     }
     report_build(

@@ -106,6 +106,7 @@ scans_app_review_server <- function(
   opened
 ) {
   cases <- shiny::reactiveVal(list())
+  writing_snapshot <- shiny::reactiveVal(NULL)
   imported <- shiny::reactiveVal(NULL)
   current <- shiny::reactiveVal(NULL)
   pending <- shiny::reactiveVal(NULL)
@@ -222,6 +223,7 @@ scans_app_review_server <- function(
           previous = saved
         )
       }
+      writing_snapshot(saved$manifest$snapshot_id)
       finding <- input$scans_app_review_finding_id %||% ""
       scan <- input$scans_app_review_scan %||% ""
       case <- current()
@@ -442,7 +444,13 @@ scans_app_review_server <- function(
       selected = x$splits[[i]]
     )
   })
-  list(cases = cases, current = current, pending = pending, imported = imported)
+  list(
+    cases = cases,
+    snapshot = writing_snapshot,
+    current = current,
+    pending = pending,
+    imported = imported
+  )
 }
 
 scans_app_review_preview_ui <- function(x) {

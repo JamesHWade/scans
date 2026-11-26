@@ -445,3 +445,42 @@ test_that("a review carried across a rescan follows its evidence, not its findin
     )
   })
 })
+
+test_that("a review recorded after a rescan appears on the evidence it was made on", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  saved <- report_fixture()
+  unresolved <- saved$analysis$findings[
+    saved$analysis$findings$scan == "unresolved_tool_call",
+  ]
+  app <- scans_app(saved, reviews = TRUE)
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_export_report = 1L)
+    session$setInputs(scans_app_repeat_threshold = 6L)
+    session$setInputs(scans_app_rescan_investigation = 1L)
+    current <- data()$findings
+    target <- current[current$scan == "unresolved_tool_call", ][1L, ]
+    session$setInputs(scans_app_inspect = target$trajectory_id)
+    session$setInputs(
+      scans_app_review_finding_id = target$finding_id,
+      scans_app_review_scan = "",
+      scans_app_review_author = "Reviewer One",
+      scans_app_review_judgment = "confirmed",
+      scans_app_review_rationale = "Private rationale text",
+      scans_app_review_expectation = "",
+      scans_app_review_adjudicate = FALSE,
+      scans_app_record_review = 1L
+    )
+    reviews <- report()$reviews
+    expect_identical(nrow(reviews), 1L)
+    expect_true(reviews$in_analysis)
+    expect_identical(
+      reviews$anchor,
+      report()$evidence$anchor[
+        report()$evidence$finding_id == target$finding_id
+      ]
+    )
+  })
+})

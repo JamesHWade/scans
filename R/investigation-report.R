@@ -353,7 +353,12 @@ report_check_url <- function(url, call = rlang::caller_env()) {
 # The review cases a report shows, checked against the investigation they
 # claim to review. Status comes from `review_status()`, so adjudication has
 # one definition.
-report_reviews <- function(reviews, x, call = rlang::caller_env()) {
+report_reviews <- function(
+  reviews,
+  x,
+  call = rlang::caller_env(),
+  snapshots = x$manifest$snapshot_id
+) {
   if (is.null(reviews)) {
     return(NULL)
   }
@@ -365,7 +370,7 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
   }
   rows <- lapply(reviews, function(case) {
     status <- review_status(case)
-    if (!identical(case$origin$snapshot_id, x$manifest$snapshot_id)) {
+    if (!case$origin$snapshot_id %in% snapshots) {
       report_abort(
         "A review case was made from a different snapshot than this investigation.",
         call
