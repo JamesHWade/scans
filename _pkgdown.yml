@@ -38,6 +38,11 @@ reference:
   - investigation_files
   - investigation_report
 
+- title: Matched comparisons
+  contents:
+  - pair_trajectories
+  - comparison_scorer
+
 - title: Reviewed examples
   contents:
   - review_case
