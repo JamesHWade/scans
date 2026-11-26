@@ -58,14 +58,18 @@ test_that("the matched-comparison recipe compares held-out reviewed cases", {
   expect_identical(unique(group(appeared)), "order-C")
   expect_identical(comparison$summaries$outcomes$method, "counts")
 
-  # Each compared case leads back to the reviewed evidence it came from.
-  origin <- provenance$origin[[match(
-    comparison$outcomes$sample_id[[1L]],
-    provenance$case_id
-  )]]
-  reviewed <- runs$examples$cases[[
-    match(comparison$outcomes$sample_id[[1L]], provenance$case_id) + 1L
-  ]]
-  expect_identical(origin$snapshot_id, reviewed$origin$snapshot_id)
-  expect_identical(reviewed$trajectory_id, "otel/follow-up")
+  # Each compared case leads back to the reviewed case it came from.
+  case_ids <- vapply(runs$examples$cases, `[[`, "", "case_id")
+  compared <- comparison$outcomes$sample_id
+  reviewed <- runs$examples$cases[match(compared, case_ids)]
+  held_out <- provenance[match(compared, provenance$case_id), ]
+  expect_identical(
+    vapply(reviewed, `[[`, "", "trajectory_id"),
+    c("otel/follow-up", "otel/parallel")
+  )
+  expect_identical(
+    vapply(reviewed, \(x) x$decisions[[length(x$decisions)]]$decision_id, ""),
+    held_out$decision_id
+  )
+  expect_identical(lapply(reviewed, `[[`, "origin"), held_out$origin)
 })
