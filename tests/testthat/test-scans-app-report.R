@@ -84,10 +84,12 @@ test_that("the app's report for an opened investigation is the script's report",
 test_that("a live view's report names its filters and its links reopen them", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")
+  updates <- local_input_updates()
   app <- scans_app(list(Cohort = cohort_fixture()))
 
   shiny::testServer(app$serverFuncSource(), {
     session$setInputs(scans_app_scans = scan_registry()$scan)
+    input_updates_ack(session, updates)
     current <- data()
     choices <- scans_app_filter_choices(current)
     session$setInputs(
@@ -109,25 +111,9 @@ test_that("a live view's report names its filters and its links reopen them", {
     expect_no_match(text, "saved investigation", fixed = TRUE)
     expect_match(
       text,
-      "Links carry the filters named above and apply them to what the app holds when they are opened.",
+      "Links set the filters named above and clear every other filter. They apply them to what the app holds when they are opened.",
       fixed = TRUE,
       all = FALSE
-    )
-
-    # The link in the report selects the same rows when its scope is applied.
-    target <- scans_app_parse_hash(
-      sub("^[^#]*#", "", report()$scope$link),
-      "Cohort"
-    )
-    restored <- scans_app_scope_restore(target$scope, current)
-    expect_null(restored$notice)
-    expect_identical(
-      scans_app_facet_filter(
-        current,
-        scans_app_view_indices(current, restored),
-        target$scope[intersect(names(target$scope), scans_app_facet_names)]
-      ),
-      sort(visible())
     )
     expect_identical(link()(), report()$scope$link)
 
@@ -138,6 +124,16 @@ test_that("a live view's report names its filters and its links reopen them", {
       "Source: otel · Status: unknown · Text contains \"SMALL\"",
       fixed = TRUE
     )
+
+    # The report's link, followed after the filters change, selects the
+    # same rows again.
+    link <- report()$scope$link
+    session$setInputs(
+      scans_app_source = choices$source_all,
+      scans_app_query = "",
+      scans_app_facet = list(facet = "model", value = "large")
+    )
+    expect_identical(report_follow_link(session, updates, link), "a")
   })
 })
 
