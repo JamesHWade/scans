@@ -290,3 +290,49 @@ test_that("printing a pairing leads with what was excluded", {
   pairing$snapshots$snapshot_id <- c("sha256:baseline", "sha256:candidate")
   expect_snapshot(print(pairing))
 })
+
+test_that("a missing score does not hide the recorded scale from a declaration", {
+  verdict <- factor(c("I", "C"), levels = c("I", "C"), ordered = TRUE)
+  pair <- function(baseline, candidate, scorer = NULL) {
+    pair_trajectories(
+      comparison_manual_investigation(baseline),
+      comparison_manual_investigation(candidate),
+      by = "sample_id",
+      dataset_version = "v1",
+      scorers = scorer
+    )
+  }
+  ordered <- list(list(verdict[1L], NA), list(verdict[2L], NA))
+  logical <- list(list(FALSE, NA), list(TRUE, NA))
+
+  recorded <- do.call(pair, ordered)
+  expect_identical(recorded$scorers$scale, rep("binary", 2L))
+  expect_identical(recorded$scorers$levels, rep(list(c("I", "C")), 2L))
+  expect_identical(do.call(pair, logical)$scorers$scale, rep("binary", 2L))
+
+  reversed <- list(
+    comparison_scorer("judge", "1", "binary", levels = c("C", "I"))
+  )
+  numeric <- list(comparison_scorer("judge", "1", "numeric"))
+  expect_error(
+    do.call(pair, c(ordered, list(reversed))),
+    class = "scans_error_pairing"
+  )
+  expect_error(
+    do.call(pair, c(ordered, list(numeric))),
+    class = "scans_error_pairing"
+  )
+  expect_error(
+    pair(
+      logical[[1L]],
+      logical[[2L]],
+      list(comparison_scorer(
+        "judge",
+        "1",
+        "binary",
+        levels = c("TRUE", "FALSE")
+      ))
+    ),
+    class = "scans_error_pairing"
+  )
+})

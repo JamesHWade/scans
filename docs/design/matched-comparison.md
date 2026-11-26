@@ -89,7 +89,9 @@ separately when the scorer changed.
 What is taken from the record without a declaration: the label as identity;
 for ordered factor scores, the levels, a binary or ordered scale, and
 direction `higher` (the vitals convention that levels run from worst to
-best); for numeric or logical scores, the scale only. Version is never
+best); for numeric or logical scores, the scale only. These are read from the
+non-missing scores; a missing score records nothing, so one `NA` neither
+establishes a scale nor hides one from the check below. Version is never
 recorded. So an undeclared vitals scorer is `unknown`, not compatible: the
 caller has to say that the scorer did not change.
 

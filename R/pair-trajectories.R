@@ -486,9 +486,11 @@ pairing_empty_scorers <- function() {
 
 # What the saved evaluation values establish on their own. An ordered factor
 # records its levels and their order; vitals scorers use that order from worst
-# to best. Numeric and logical scores record a scale but no direction.
+# to best. Numeric and logical scores record a scale but no direction. A
+# missing score records nothing, so it neither establishes nor hides a scale.
 pairing_recorded_scale <- function(values) {
   out <- list(scale = NA_character_, direction = NA_character_, levels = NULL)
+  values <- Filter(Negate(pairing_missing_score), values)
   if (!length(values)) {
     return(out)
   }
@@ -515,6 +517,11 @@ pairing_recorded_scale <- function(values) {
     out$scale <- "numeric"
   }
   out
+}
+
+pairing_missing_score <- function(x) {
+  length(x) == 0L ||
+    (rlang::is_scalar_atomic(x) && !is.factor(x) && is.na(x))
 }
 
 pairing_resolve_scorer <- function(label, recorded, declaration, side, call) {
