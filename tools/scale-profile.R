@@ -259,8 +259,9 @@ for (size in saved_sizes) {
   measure(group, "verify identifiers and references", n = size, {
     internal("investigation_validate")(saved)
   })
-  report <- measure(group, "investigation_report()", n = size, {
-    investigation_report(saved)
+  # Verification is the step above; this times the report's own work.
+  report <- measure(group, "investigation_report(verify = FALSE)", n = size, {
+    investigation_report(saved, verify = FALSE)
   })
   markdown <- measure(group, "format(), Markdown", n = size, format(report))
   html <- measure(group, "format(), HTML", n = size, format(report, "html"))

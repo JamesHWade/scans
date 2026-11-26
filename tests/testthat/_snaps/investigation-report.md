@@ -51,3 +51,11 @@
       Error in `write_investigation_report()`:
       ! `x` must be a report from `investigation_report()`.
 
+# a report verifies identifiers unless told the value is fresh
+
+    Code
+      investigation_report(saved, verify = NA)
+    Condition
+      Error in `investigation_report()`:
+      ! `verify` must be TRUE or FALSE.
+

@@ -11,7 +11,8 @@ investigation_report(
   reviews = NULL,
   app_url = NULL,
   include_users = FALSE,
-  include_errors = FALSE
+  include_errors = FALSE,
+  verify = TRUE
 )
 
 write_investigation_report(
@@ -43,6 +44,11 @@ free-form source details. Defaults to \code{FALSE}.}
 
 \item{include_errors}{Whether to print the most frequent recorded error
 text per tool. Defaults to \code{FALSE}, which prints the count only.}
+
+\item{verify}{Whether to recompute the snapshot and revision identifiers
+and refuse an investigation they no longer describe. Defaults to \code{TRUE}.
+Use \code{FALSE} only for a value just returned by \code{\link[=read_investigation]{read_investigation()}} or
+\code{\link[=investigation_snapshot]{investigation_snapshot()}}.}
 
 \item{path}{File to write. The extension chooses the format unless
 \code{format} is given: \code{.html} or \code{.htm} for HTML, \code{.md} for Markdown.}
@@ -130,12 +136,16 @@ it is listed by name with its value withheld unless \code{include_users = TRUE}.
 
 \section{Integrity}{
 
-The report checks the investigation's structure and evidence references.
-It does not recompute the snapshot and revision identifiers, which are
-verified by \code{\link[=write_investigation]{write_investigation()}}, \code{\link[=read_investigation]{read_investigation()}}, and
-\code{\link[=scans_app]{scans_app()}}. Build a changed revision with \code{\link[=investigation_snapshot]{investigation_snapshot()}}
-rather than editing a saved value, or the identifiers a report prints will
-not describe its content.
+The report checks the investigation's structure and evidence references,
+and recomputes the snapshot and revision identifiers to check that they
+still describe the content, so an investigation edited in R after it was
+read is refused rather than reported under its original identifiers.
+Recomputing them hashes the whole investigation, which on a large one takes
+longer than the report. A caller that has just read or built the value can
+pass \code{verify = FALSE}; the report then labels its identifiers as not
+re-verified, and says so beside any review cases matched by them. Build a
+changed revision with \code{\link[=investigation_snapshot]{investigation_snapshot()}} rather than editing a
+saved value.
 }
 
 \section{Links}{

@@ -196,13 +196,23 @@ link copies it.
 ## Integrity
 
 `investigation_report()` checks the investigation's structure and evidence
-references. It does not recompute the snapshot and revision identifiers:
-those are verified by `write_investigation()`, `read_investigation()`, and
-`scans_app()`, and recomputing them cost more than the rest of the report
-(see the [scale profile](scale-profile.md)). A value edited in R after it was
-read can therefore print identifiers that no longer describe it; the
-supported way to change an investigation is a new revision from
-`investigation_snapshot()`.
+references and, by default, recomputes the snapshot and revision identifiers.
+A value edited in R after it was read is then refused instead of being
+reported under identifiers that no longer describe it, and review cases are
+matched against identifiers known to be right.
+
+Recomputing the identifiers hashes the whole investigation, which costs more
+than the rest of the report (see the [scale profile](scale-profile.md)).
+`verify = FALSE` skips it for a caller that has just read or built the value;
+the rendered report then says its identifiers were not re-verified, and the
+review section says the cases were matched by those identifiers. A bundle
+passed directly is snapshotted on the spot, so its identifiers are fresh and
+are not hashed twice. The app's report goes through `report_build()` with an
+investigation that was verified when it was opened, and does not re-hash.
+
+Skipping verification by default was rejected: the identifiers are what a
+reader uses to tell which evidence a report describes, and a silent skip let
+an edited value carry the original's identifiers.
 
 ## Review decisions
 

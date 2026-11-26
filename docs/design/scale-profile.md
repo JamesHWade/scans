@@ -94,7 +94,7 @@ trajectories the step worked on.
 | report | `report_build()`, the app's report, all trajectories | 10,000 | 5 | 0.597 | 0.574–0.614 | 539 |
 | investigation, 1,000 | `investigation_snapshot()` of 1,000 from the bundle | 1,000 | 1 | 86.554 | | 609 |
 | investigation, 1,000 | verify identifiers and references | 1,000 | 3 | 26.329 | 26.181–27.109 | 441 |
-| investigation, 1,000 | `investigation_report()` | 1,000 | 5 | 1.784 | 1.775–1.797 | 372 |
+| investigation, 1,000 | `investigation_report(verify = FALSE)` | 1,000 | 5 | 1.784 | 1.775–1.797 | 372 |
 | investigation, 1,000 | `format()`, Markdown | 1,000 | 5 | 0.068 | 0.068–0.070 | 88 |
 | investigation, 1,000 | `format()`, HTML | 1,000 | 5 | 0.041 | 0.039–0.048 | 52 |
 | investigation, 1,000 | `write_investigation()` | 1,000 | 3 | 48.015 | 47.682–48.539 | 545 |
@@ -111,7 +111,7 @@ Saved-investigation steps for all 10,000 trajectories were run once
 | --- | --- |
 | `investigation_snapshot()` | 579 |
 | verify identifiers and references | 358 |
-| `investigation_report()` | 27 |
+| `investigation_report()`, not verifying | 27 |
 | `format()`, Markdown / HTML / HTML listing every trajectory | 0.22 / 0.14 / 0.84 |
 | `write_investigation()` | did not finish |
 | `read_investigation()` | not reached |
@@ -144,7 +144,7 @@ stopped before it printed ranges, except where noted.
 | App session start, data prepared | 53.0 | 7.4 | A click observer was created per trajectory. They are now created when an entry is first listed. | An entry opens its trajectory once it is listed |
 | Overview data, all trajectories | 1.66 | 0.59 | The ancestry walk behind the token total ran a fresh `match()` per trajectory and step. Parents are resolved to rows once. | Ancestry over gaps, cycles, and unknown ids |
 | `investigation_build()`, 10,000 | about 750 (one profiled run) | about 530 (the 579 s snapshot less its diagnostics) | Replacing one element of a tibble list column per assessment copied the column each time, and the build re-hashed the payload twice to confirm identifiers it had just computed. | Loss rows for an omitted parent; a snapshot fingerprints once |
-| `investigation_report()`, 10,000 | 27 plus the 358 s verification | 27 | The report re-verified identifiers that are verified on write and open. It now checks structure and references only. | A report does not fingerprint the payload again |
+| `investigation_report()`, 10,000 | 27 plus the 358 s verification | 27 s with `verify = FALSE`; plus verification otherwise | The report re-verifies identifiers by default, so an edited value is refused. `verify = FALSE` skips the re-hash for a value just read or built, and the report then says its identifiers were not re-verified. | A report verifies identifiers unless told the value is fresh |
 
 ## Budgets
 
@@ -161,7 +161,7 @@ promises about other hardware.
 | Each diagnostic from a script (`scan_`, `assess_`, `measure_`) | 30 s | 7.8, 25.2, 21.4 s |
 | Construct and validate a bundle | 20 s | 16.1 s |
 | The app's report for the cohort in view | 1 s to assemble, 1 s to render | 0.60 s, 0.22 s |
-| `investigation_report()` on a saved investigation | 30 s at 10,000; 2.5 s at 1,000 | 27 s; 1.8 s |
+| `investigation_report()` on a saved investigation, `verify = FALSE` | 30 s at 10,000; 2.5 s at 1,000 | 27 s; 1.8 s |
 | Save or reopen a selection of 1,000 trajectories | 60 s each | 48 s write, 46 s read |
 
 Saving or reopening all 10,000 trajectories has no budget because it does
