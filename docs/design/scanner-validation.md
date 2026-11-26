@@ -38,6 +38,14 @@ and one of them is necessarily scored wrongly. `unit = "trajectory"` is
 offered as an option for example sets with one whole-trajectory case each,
 where the reviewer judged the run rather than a span of it.
 
+**Finding identifiers are the saved ones where they exist.** Each case's
+evidence holds one trajectory, so a rerun numbers its findings from one, while
+the case cites the identifier from the whole saved snapshot. A rerun finding
+that cites the same scan, turn, and events as a saved finding takes the saved
+identifier, so `finding_ids` and `review_finding_id` name the same finding the
+same way. A finding the saved analysis does not hold keeps a rerun identifier
+that starts with `rerun/`, which cannot be mistaken for a saved one.
+
 **Unreviewed findings are neither true nor false positives.** A finding that
 agrees with no case in the split was never reviewed. It is counted in
 `unreviewed_findings` and listed per case in `other_finding_ids`, so the

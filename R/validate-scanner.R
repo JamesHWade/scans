@@ -75,7 +75,11 @@
 #' `review_turn_ids`, `decision_ids`, `snapshot_id`, `revision_id`), and what
 #' the scanner cited (`finding_ids` for the agreeing findings,
 #' `other_finding_ids` for its other findings in the trajectory, and
-#' `scanner_event_ids` for every event it cited there). `outcome` is `true_positive`, `false_positive`,
+#' `scanner_event_ids` for every event it cited there). A rerun finding that
+#' cites the same turn and events as a saved finding of the scan carries
+#' that saved identifier, the one `review_finding_id` uses; a finding the
+#' saved analysis does not hold, such as one a new version adds, keeps an
+#' identifier from the rerun that starts with `"rerun/"`. `outcome` is `true_positive`, `false_positive`,
 #' `false_negative`, `true_negative`, or one of the unscored categories.
 #' @export
 validate_scanner <- function(scanner, examples, unit = "evidence") {
@@ -124,6 +128,7 @@ validate_scanner_case <- function(scanner, examples, i, unit) {
   }
   result <- assess_trajectory_scans(
     saved$bundle,
+    scan_id = "rerun",
     scans = scanner$name,
     scanners = scanner
   )
@@ -131,6 +136,10 @@ validate_scanner_case <- function(scanner, examples, i, unit) {
   assessed <- assessment %in%
     c("assessed_with_findings", "assessed_no_findings")
   findings <- result$findings
+  findings$finding_id <- validate_scanner_saved_ids(
+    findings,
+    saved$analysis$findings
+  )
   agreeing <- rep(TRUE, nrow(findings))
   if (unit == "evidence") {
     if (length(item$event_ids)) {
@@ -271,4 +280,28 @@ validate_scanner_keys <- function(cases, column) {
     }),
     use.names = FALSE
   ))
+}
+
+# The rerun numbers its findings within this case's evidence, while the
+# review cites the saved snapshot's identifiers. A rerun finding takes the
+# identifier of the saved finding of the same scan that cites the same turn
+# and events; repeats are paired in order. A finding the saved analysis does
+# not hold keeps its rerun identifier, which starts with "rerun/".
+validate_scanner_saved_ids <- function(findings, saved) {
+  key <- function(x) {
+    evidence <- vapply(
+      x$event_ids,
+      function(ids) paste(sort(ids, method = "radix"), collapse = "\r"),
+      character(1)
+    )
+    base <- paste(x$scan, x$turn_id, x$event_id, evidence, sep = "\n")
+    paste(base, stats::ave(seq_along(base), base, FUN = seq_along))
+  }
+  ids <- findings$finding_id
+  if (!length(ids)) {
+    return(ids)
+  }
+  match <- match(key(findings), key(saved))
+  ids[!is.na(match)] <- saved$finding_id[match[!is.na(match)]]
+  ids
 }

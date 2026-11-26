@@ -38,7 +38,11 @@ reviewer saw, the review evidence (\code{review_finding_id}, \code{review_event_
 \code{review_turn_ids}, \code{decision_ids}, \code{snapshot_id}, \code{revision_id}), and what
 the scanner cited (\code{finding_ids} for the agreeing findings,
 \code{other_finding_ids} for its other findings in the trajectory, and
-\code{scanner_event_ids} for every event it cited there). \code{outcome} is \code{true_positive}, \code{false_positive},
+\code{scanner_event_ids} for every event it cited there). A rerun finding that
+cites the same turn and events as a saved finding of the scan carries
+that saved identifier, the one \code{review_finding_id} uses; a finding the
+saved analysis does not hold, such as one a new version adds, keeps an
+identifier from the rerun that starts with \code{"rerun/"}. \code{outcome} is \code{true_positive}, \code{false_positive},
 \code{false_negative}, \code{true_negative}, or one of the unscored categories.
 }
 \description{

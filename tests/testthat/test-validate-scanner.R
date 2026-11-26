@@ -65,6 +65,14 @@ test_that("the case table links each outcome to review evidence and cited events
     list("scan-000001/toy_keyword/finding-000002")
   )
   expect_identical(wrong$review_finding_id, wrong$finding_ids[[1L]])
+  # Saved identifiers are numbered across the whole snapshot, so a case on a
+  # later trajectory checks that the rerun's findings take the saved ones.
+  hit <- cases[cases$trajectory_id == "test-hit", ]
+  expect_identical(
+    hit$review_finding_id,
+    "scan-000001/toy_keyword/finding-000005"
+  )
+  expect_identical(hit$finding_ids, list(hit$review_finding_id))
   expect_identical(
     examples$cases[[wrong$case]]$case_id,
     wrong$case_id
@@ -114,6 +122,11 @@ test_that("a new scanner version is scored on the same reviewed cases", {
   expect_identical(result$summary$precision, c(1, 1))
   expect_identical(unique(result$cases$scan_version), "2")
   expect_identical(unique(result$cases$reviewed_scan_version), "1")
+  missed <- result$cases[result$cases$trajectory_id == "test-missed", ]
+  expect_identical(
+    missed$finding_ids,
+    list("rerun/toy_keyword/finding-000001")
+  )
 })
 
 test_that("a throwing scanner is counted as unassessed, never as a negative", {
