@@ -68,6 +68,13 @@ domain_bundle <- function(conversations, lost = character()) {
       event_type = vapply(steps, `[[`, "", "event_type"),
       name = vapply(steps, field, "", "name", NA_character_),
       call_id = vapply(steps, field, "", "call_id", NA_character_),
+      parent_event_id = vapply(
+        steps,
+        field,
+        "",
+        "parent_event_id",
+        NA_character_
+      ),
       text = vapply(steps, field, "", "text", NA_character_),
       value = lapply(steps, `[[`, "value"),
       status = vapply(steps, field, "", "status", "completed"),

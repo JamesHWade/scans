@@ -109,6 +109,99 @@ test_that("an action claim is judged only on evidence that can support it", {
   )
 })
 
+test_that("an action result after the claim does not support it", {
+  recipe <- domain_scanner_recipe()
+  claims <- recipe$unsupported_action_claim_scanner(
+    list(export = list(tools = "export_data", claim = "export is ready"))
+  )
+  bundle <- recipe$domain_bundle(list(
+    "chat" = list(
+      recipe$domain_tool_call("export_data", "call-1"),
+      recipe$domain_assistant("Your export is ready."),
+      recipe$domain_tool_result("export_data", "call-1", list(file = "a.csv"))
+    )
+  ))
+  result <- assess_trajectory_scans(
+    bundle,
+    scans = claims$name,
+    scanners = claims
+  )
+  expect_identical(result$assessments$status, "assessed_with_findings")
+})
+
+test_that("a result is linked to its call only unambiguously", {
+  recipe <- domain_scanner_recipe()
+  claims <- recipe$unsupported_action_claim_scanner(
+    list(export = list(tools = "export_data", claim = "export is ready"))
+  )
+  status <- function(...) {
+    bundle <- recipe$domain_bundle(list("chat" = list(...)))
+    assess_trajectory_scans(
+      bundle,
+      scans = claims$name,
+      scanners = claims
+    )$assessments$status
+  }
+  claim <- recipe$domain_assistant("Your export is ready.")
+  # Another tool's call and result reuse the identity.
+  expect_identical(
+    status(
+      recipe$domain_tool_call("export_data", "call-1"),
+      recipe$domain_tool_call("send_mail", "call-1"),
+      recipe$domain_tool_result("send_mail", "call-1", list(sent = TRUE)),
+      claim
+    ),
+    "insufficient_evidence"
+  )
+  # A result that names another tool does not belong to the call.
+  expect_identical(
+    status(
+      recipe$domain_tool_call("export_data", "call-1"),
+      recipe$domain_tool_result("send_mail", "call-1", list(sent = TRUE)),
+      claim
+    ),
+    "insufficient_evidence"
+  )
+  # An explicit parent link resolves a reused identity.
+  linked <- recipe$domain_tool_result("export_data", "call-1", list(a = 1))
+  linked$parent_event_id <- "chat/event-01"
+  expect_identical(
+    status(
+      recipe$domain_tool_call("export_data", "call-1"),
+      recipe$domain_tool_call("send_mail", "call-1"),
+      linked,
+      claim
+    ),
+    "assessed_no_findings"
+  )
+})
+
+test_that("an action result without recorded completion is unknown", {
+  recipe <- domain_scanner_recipe()
+  claims <- recipe$unsupported_action_claim_scanner(
+    list(export = list(tools = "export_data", claim = "export is ready"))
+  )
+  for (state in c("interrupted", "running", "pending", NA_character_)) {
+    result <- recipe$domain_tool_result("export_data", "call-1", list(a = 1))
+    result["status"] <- list(state)
+    bundle <- recipe$domain_bundle(list(
+      "chat" = list(
+        recipe$domain_tool_call("export_data", "call-1"),
+        result,
+        recipe$domain_assistant("Your export is ready.")
+      )
+    ))
+    expect_identical(
+      assess_trajectory_scans(
+        bundle,
+        scans = claims$name,
+        scanners = claims
+      )$assessments$status,
+      "insufficient_evidence"
+    )
+  }
+})
+
 test_that("the answer without support scanner matches its reviewed cases", {
   recipe <- domain_scanner_recipe()
   unsupported <- recipe$answer_without_support_scanner()
@@ -248,6 +341,65 @@ test_that("only a retrieval that succeeds before the answer supports it", {
       recipe$domain_tool_result("search_docs", "call-2", found)
     ),
     "assessed_with_findings"
+  )
+})
+
+test_that("a retrieval without recorded completion leaves the answer unsettled", {
+  recipe <- domain_scanner_recipe()
+  question <- recipe$domain_user("How much leave can I carry over?")
+  search <- function(id) recipe$domain_tool_call("search_docs", id)
+  for (state in c("interrupted", "running", "pending", NA_character_)) {
+    retry <- recipe$domain_tool_result(
+      "search_docs",
+      "call-2",
+      list(documents = list(list(title = "Leave policy")))
+    )
+    retry["status"] <- list(state)
+    expect_identical(
+      domain_retrieval_status(
+        recipe,
+        question,
+        search("call-1"),
+        recipe$domain_tool_result("search_docs", "call-1", list()),
+        search("call-2"),
+        retry,
+        recipe$domain_assistant(domain_long_answer)
+      ),
+      "insufficient_evidence"
+    )
+  }
+})
+
+test_that("an answer after an empty retrieval needs a capture that kept retries", {
+  recipe <- domain_scanner_recipe()
+  question <- recipe$domain_user("How much leave can I carry over?")
+  steps <- list(
+    question,
+    recipe$domain_tool_call("search_docs", "call-1"),
+    recipe$domain_tool_result("search_docs", "call-1", list()),
+    recipe$domain_assistant(domain_long_answer)
+  )
+  expect_identical(
+    do.call(domain_retrieval_status, c(list(recipe), steps)),
+    "assessed_with_findings"
+  )
+  expect_identical(
+    do.call(
+      domain_retrieval_status,
+      c(
+        list(recipe),
+        steps,
+        list(
+          losses = tibble::tibble(
+            trajectory_id = "chat",
+            field = "events",
+            reason = "unsupported",
+            detail = "Some events were not exported"
+          )
+        )
+      )
+    ),
+    "insufficient_evidence"
   )
 })
 

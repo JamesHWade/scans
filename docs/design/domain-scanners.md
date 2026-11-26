@@ -9,7 +9,8 @@ problems were chosen, where the code lives, and what the fixture cases are.
 
 **Unsupported action claim** (support assistant). The assistant tells the user
 an action was done, and the trajectory records no successful call, before the
-claim, to a tool that performs it. Settings map each action to its tools and a
+claim, to a tool that performs it, with its successful result also before the
+claim. Settings map each action to its tools and a
 claim pattern.
 
 **Answer without retrieved support** (retrieval application). The assistant
@@ -42,11 +43,28 @@ records what the detector was configured to look for.
 
 **When "nothing recorded" is evidence.** A claim with no tool call anywhere
 is a finding only if the capture has no loss on turns, messages, events, or
-tool capture and every earlier call to the action's tools has a call
-identity. Otherwise it is `insufficient_evidence`. This follows the built-in
+tool capture and the outcome of every earlier call to the action's tools is
+known. Otherwise it is `insufficient_evidence`. This follows the built-in
 rule that a fully recorded text conversation can show a tool was not used,
 and a lossy one cannot. A trajectory with no claim is a clean negative
 whatever the capture, since the rule has nothing to check.
+
+**An outcome is known only when it is linked and affirmed.** A call is linked
+to its result by an explicit `parent_event_id`, or else by call identity only
+when that identity belongs to one call and one result in the trajectory, the
+result follows the call, and a named result names the same tool. A reused
+identity is left unlinked, as the package's own tool correlation leaves it.
+A result is a success only with status `completed` and no error; `failed`,
+`cancelled`, or an error is a failure; a missing, `interrupted`, `running`, or
+`pending` status is unknown. An unlinked call or an unknown result before the
+claim (or, for retrieval, between the empty result and the answer) is
+`insufficient_evidence`, not a failure and not a success. A success that
+arrives after the claim does not support it.
+
+**An empty retrieval followed by an answer needs a capture that would keep a
+retry.** With capture losses on turns, messages, events, or tool capture, a
+later successful retrieval may be missing, so the scanner returns
+`insufficient_evidence` instead of asserting that none occurred.
 
 **Retrieval is found from calls, linked to results by call identity.** A
 retrieval call is a `tool_call` naming a retrieval tool. Its result is the

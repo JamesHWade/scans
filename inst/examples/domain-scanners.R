@@ -134,6 +134,49 @@ domain_result_failed <- function(results) {
   results$status %in% c("failed", "cancelled") | !is.na(results$error)
 }
 
+# A result affirms completion only by a "completed" status and no error. A
+# missing, "interrupted", "running", or "pending" status with no error leaves
+# the outcome unknown: it is neither a success nor a failure.
+domain_result_completed <- function(results) {
+  results$status %in% "completed" & is.na(results$error)
+}
+
+# The result row of each call, or NA. An explicit parent-event link wins.
+# Otherwise a call and a result pair by call identity only when the pairing is
+# unambiguous: the identity belongs to one call and one result in the
+# trajectory, the result comes after the call, and a named result names the
+# same tool. A reused identity is left unlinked, as scans' own tool
+# correlation leaves it.
+domain_link_results <- function(events, calls) {
+  all_calls <- events[events$event_type %in% "tool_call", , drop = FALSE]
+  results <- events[events$event_type %in% "tool_result", , drop = FALSE]
+  vapply(
+    seq_len(nrow(calls)),
+    function(i) {
+      parented <- which(results$parent_event_id %in% calls$event_id[[i]])
+      if (length(parented)) {
+        return(if (length(parented) == 1L) parented else NA_integer_)
+      }
+      id <- calls$call_id[[i]]
+      if (is.na(id) || sum(all_calls$call_id %in% id) != 1L) {
+        return(NA_integer_)
+      }
+      same <- which(results$call_id %in% id)
+      if (
+        length(same) != 1L ||
+          !results$event_index[[same]] > calls$event_index[[i]] ||
+          !is.na(results$parent_event_id[[same]]) ||
+          !(is.na(results$name[[same]]) ||
+            identical(results$name[[same]], calls$name[[i]]))
+      ) {
+        return(NA_integer_)
+      }
+      same
+    },
+    integer(1)
+  )
+}
+
 #' Unsupported action claim
 #'
 #' The assistant tells the user an action was done when the trajectory
@@ -190,21 +233,34 @@ unsupported_action_claim_scanner <- function(
           drop = FALSE
         ]
         attempts <- calls[calls$name %in% rule$tools, , drop = FALSE]
-        outcome <- results[match(attempts$call_id, results$call_id), ]
-        succeeded <- !is.na(attempts$call_id) &
-          !is.na(outcome$event_id) &
-          !domain_result_failed(outcome)
+        outcome <- results[domain_link_results(events, attempts), ]
+        completed <- !is.na(outcome$event_id) &
+          domain_result_completed(outcome)
+        known <- !is.na(outcome$event_id) &
+          (completed | domain_result_failed(outcome))
         for (i in seq_len(nrow(claims))) {
           before <- attempts$event_index < claims$event_index[[i]]
-          if (any(before & succeeded)) {
+          # Support needs the call and its successful result both before the
+          # claim.
+          supported <- before &
+            completed &
+            outcome$event_index < claims$event_index[[i]]
+          if (any(supported, na.rm = TRUE)) {
             next
           }
           # A claim with no supporting call is a finding only when the capture
-          # can show that the call did not happen.
-          if (lossy || anyNA(attempts$call_id[before])) {
+          # can show that the call did not happen and every earlier call's
+          # outcome is known.
+          if (lossy) {
             return(scans::scanner_unassessed(
               "insufficient_evidence",
               "The assistant claimed an action, but capture losses or missing call identities mean the tool call may be unrecorded."
+            ))
+          }
+          if (any(before & !known)) {
+            return(scans::scanner_unassessed(
+              "insufficient_evidence",
+              "The assistant claimed an action, but a call to its tool has a missing, ambiguous, or not-completed result, so whether it succeeded is unknown."
             ))
           }
           failed <- stats::na.omit(c(
@@ -220,7 +276,7 @@ unsupported_action_claim_scanner <- function(
                 action,
                 " was done, but every recorded call to ",
                 paste(rule$tools, collapse = " or "),
-                " before it failed or has no result."
+                " before it failed or did not succeed until after it."
               )
             } else {
               paste0(
@@ -379,7 +435,9 @@ answer_without_support_scanner <- function(
         },
         logical(1)
       )
-      unusable <- domain_result_failed(results) | empty
+      unusable <- domain_result_failed(results) |
+        (domain_result_completed(results) & empty)
+      succeeded <- domain_result_completed(results) & !empty
       for (i in which(unusable)) {
         at <- results$event_index[[i]]
         after <- which(
@@ -388,21 +446,40 @@ answer_without_support_scanner <- function(
             substantive
         )
         # A later retrieval supports an answer only when it succeeded before
-        # that answer.
+        # that answer. One whose outcome is unknown (no recorded completion)
+        # between the two leaves the answer unsettled.
+        between <- function(answered, flag) {
+          any(flag & results$event_index > at & results$event_index < answered)
+        }
         recovered <- vapply(
           answers$event_index[after],
-          function(answered) {
-            any(
-              !unusable &
-                results$event_index > at &
-                results$event_index < answered
-            )
-          },
-          logical(1)
+          between,
+          logical(1),
+          flag = succeeded
         )
+        unsettled <- vapply(
+          answers$event_index[after],
+          between,
+          logical(1),
+          flag = !unusable & !succeeded
+        )
+        if (any(unsettled & !recovered)) {
+          return(scans::scanner_unassessed(
+            "insufficient_evidence",
+            "A retrieval between the empty result and the answer has no recorded completion, so whether it succeeded is unknown."
+          ))
+        }
         after <- after[!recovered]
         if (!length(after)) {
           next
+        }
+        # "No successful retrieval before the answer" needs a capture that
+        # would have kept one.
+        if (domain_capture_is_lossy(trajectory$losses)) {
+          return(scans::scanner_unassessed(
+            "insufficient_evidence",
+            "An answer follows an empty retrieval, but capture losses mean a later successful retrieval may be missing."
+          ))
         }
         answer <- answers$event_id[[after[[1L]]]]
         if (answer %in% primary) {
