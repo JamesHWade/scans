@@ -52,3 +52,4 @@ reference:
   - review_dataset
   - review_example_files
   - validate_review_examples
+  - validate_scanner

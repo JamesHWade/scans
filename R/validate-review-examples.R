@@ -8,11 +8,16 @@
 #'
 #' @param x A scanner example set from [review_examples()].
 #' @param split One of `"development"` or `"test"`.
+#' @param scanners Optional custom scanners that the cases target: one
+#'   [scanner()] or a list of them. A case whose custom scanner is not
+#'   supplied is reported as an `execution_failure`. See [validate_scanner()]
+#'   for false positives, false negatives, precision, and recall.
 #' @returns A tibble with case identity, judgment, scanner/assessment version,
 #'   observed count, predicate, and `passed`. A pass validates the scanner
 #'   predicate on retained evidence; it does not establish application quality.
 #' @export
-validate_review_examples <- function(x, split) {
+validate_review_examples <- function(x, split, scanners = NULL) {
+  scanners <- scanner_check_list(scanners, rlang::current_env())
   review_examples_validate(x)
   review_choice(split, c("development", "test"), "split")
   if (x$purpose != "scanner") {
@@ -32,7 +37,8 @@ validate_review_examples <- function(x, split) {
         saved$bundle,
         scans = case$scan,
         repeat_threshold = saved$settings$repeat_threshold,
-        loop_threshold = saved$settings$loop_threshold
+        loop_threshold = saved$settings$loop_threshold,
+        scanners = scanners
       ),
       error = function(cnd) NULL
     )

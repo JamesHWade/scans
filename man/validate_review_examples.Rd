@@ -4,12 +4,17 @@
 \alias{validate_review_examples}
 \title{Check reviewed scanner targets against retained evidence}
 \usage{
-validate_review_examples(x, split)
+validate_review_examples(x, split, scanners = NULL)
 }
 \arguments{
 \item{x}{A scanner example set from \code{\link[=review_examples]{review_examples()}}.}
 
 \item{split}{One of \code{"development"} or \code{"test"}.}
+
+\item{scanners}{Optional custom scanners that the cases target: one
+\code{\link[=scanner]{scanner()}} or a list of them. A case whose custom scanner is not
+supplied is reported as an \code{execution_failure}. See \code{\link[=validate_scanner]{validate_scanner()}}
+for false positives, false negatives, precision, and recall.}
 }
 \value{
 A tibble with case identity, judgment, scanner/assessment version,
