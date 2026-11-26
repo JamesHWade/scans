@@ -74,15 +74,22 @@ scans_app_parse_scope <- function(text) {
 }
 
 # `base` is the app's own address; with none (a test session) links are
-# relative fragments. `users = FALSE` leaves a user filter out of the link,
-# for exports that must not name anyone.
-scans_app_link <- function(base, application, scope = list()) {
+# relative fragments. `users = FALSE` leaves the `private` scope keys out of
+# the link, for exports that must not name anyone: the user filter, and the
+# text filter when its term names a user.
+scans_app_link <- function(
+  base,
+  application,
+  scope = list(),
+  private = "user"
+) {
   force(base)
   force(application)
   force(scope)
+  force(private)
   function(trajectory_id = NULL, users = TRUE) {
     if (!users) {
-      scope$user <- NULL
+      scope[private] <- NULL
     }
     paste0(
       base %||% "",

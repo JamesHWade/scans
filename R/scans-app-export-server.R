@@ -139,19 +139,25 @@ scans_app_export_server <- function(input, output, session, state) {
       client$url_pathname %||% "/"
     )
   })
+  # A text filter can name a user, as the search covers user identifiers.
+  # Exports without user identifiers then leave its term out, as the report
+  # does.
+  query_names_user <- shiny::reactive({
+    report_query_names_user(state$view()$query, state$data()$records$user)
+  })
   state$link <- shiny::reactive({
     scans_app_link(
       link_base(),
       state$application(),
       c(
+        scans_app_view_scope(state$view()),
         list(
-          pattern = state$pattern_filter(),
-          findings = if (isTRUE(input$scans_app_findings_only)) TRUE,
           review = state$review_filter()$state,
           review_label = state$review_filter()$label
         ),
         state$facets()
-      )
+      ),
+      private = c("user", if (query_names_user()) "query")
     )
   })
   context <- shiny::reactive({

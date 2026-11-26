@@ -244,6 +244,22 @@ scans_app_filter_server <- function(
     }
   )
 
+  # The toolbar filters and pattern in the form a saved view records them.
+  # The browser list, exports, and links all read this one value.
+  state$view <- shiny::reactive({
+    current <- state$data()
+    shiny::req(current)
+    scans_app_input_view(
+      current,
+      source = input$scans_app_source,
+      status = input$scans_app_status,
+      query = scans_app_input_or(input$scans_app_query, ""),
+      findings_only = input$scans_app_findings_only,
+      annotated_only = state$annotated_only(),
+      pattern = state$pattern_filter()
+    )
+  })
+
   # Everything except the facets. The overview also shows the cohort one
   # facet wider than the browser list, and later filters build on this.
   state$unreviewed_scope <- shiny::reactive({
@@ -251,19 +267,7 @@ scans_app_filter_server <- function(
     if (is.null(current)) {
       return(integer())
     }
-    scans_app_view_indices(
-      current,
-      scans_app_input_view(
-        current,
-        source = input$scans_app_source,
-        status = input$scans_app_status,
-        query = scans_app_input_or(input$scans_app_query, ""),
-        findings_only = input$scans_app_findings_only,
-        annotated_only = state$annotated_only(),
-        pattern = state$pattern_filter()
-      ),
-      annotated = state$annotated()
-    )
+    scans_app_view_indices(current, state$view(), state$annotated())
   })
   state$filtered <- shiny::reactive({
     scans_app_review_indices(
