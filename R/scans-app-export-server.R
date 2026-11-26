@@ -213,6 +213,7 @@ scans_app_export_server <- function(input, output, session, state) {
           review = state$review_filter(),
           annotated_label = scans_app_annotated_label(saved, state$has_store),
           store_membership = store_membership,
+          progress = state$review_progress(),
           app_url = link_base(),
           settings = state$scan_config(),
           bundle = entry$bundle,

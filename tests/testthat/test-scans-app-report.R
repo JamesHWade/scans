@@ -274,3 +274,33 @@ test_that("an annotation filter names the membership the report used", {
     expect_no_match(text, "reopen exactly this cohort", fixed = TRUE)
   })
 })
+
+test_that("the report's review progress is the overview's", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  store <- scans_annotations(
+    withr::local_tempfile(fileext = ".jsonl"),
+    labels = "tool failure"
+  )
+  app <- scans_app(list(Cohort = cohort_fixture()), annotations = store)
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(
+      scans_app_disposition = list(
+        label = "tool failure",
+        trajectory_id = "c",
+        nonce = 1
+      )
+    )
+    session$setInputs(scans_app_export_report = 1L)
+    expect_true(
+      "- Review: 1 of 3 flagged conversations reviewed." %in% export_text()
+    )
+    session$setInputs(scans_app_review_state = "needs")
+    expect_identical(report()$review_progress, review_progress())
+    expect_true(
+      "- Review: 1 of 3 flagged conversations reviewed, counted without the review filter." %in%
+        export_text()
+    )
+  })
+})

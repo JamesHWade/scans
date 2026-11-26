@@ -438,6 +438,7 @@ report_build <- function(data, indices, context) {
     data,
     indices,
     queue = context$queue,
+    progress = context$progress,
     candidates = scans_app_candidates(data, context$bundle, ids)
   )
   cohort <- performance$cohort

@@ -314,10 +314,15 @@ report_blocks <- function(x, max_evidence = 100L) {
     },
     if (!is.na(x$review_progress$flagged_reviewed)) {
       sprintf(
-        "Review: %s of %s flagged %s reviewed.",
+        "Review: %s of %s flagged %s reviewed%s.",
         scans_app_count(x$review_progress$flagged_reviewed),
         scans_app_count(x$review_progress$flagged),
-        noun$many
+        noun$many,
+        if (any(c("review", "review_label") %in% names(scope$filters))) {
+          ", counted without the review filter"
+        } else {
+          ""
+        }
       )
     }
   )
