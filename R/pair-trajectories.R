@@ -493,35 +493,56 @@ pairing_empty_scorers <- function() {
 # records its levels and their order; vitals scorers use that order from worst
 # to best, so its direction defaults to "higher". Numeric and logical scores record a scale but no direction. A
 # missing score records nothing, so it neither establishes nor hides a scale.
+# Scores of several kinds, or ordered factors with different levels, record
+# conflicting scales: the scale stays unknown and `conflict` names them.
 pairing_recorded_scale <- function(values) {
-  out <- list(scale = NA_character_, direction = NA_character_, levels = NULL)
+  out <- list(
+    scale = NA_character_,
+    direction = NA_character_,
+    levels = NULL,
+    conflict = NULL
+  )
   values <- Filter(Negate(pairing_missing_score), values)
-  if (!length(values)) {
+  kinds <- unique(lapply(values, pairing_score_kind))
+  if (length(kinds) > 1L) {
+    out$conflict <- vapply(kinds, pairing_score_kind_label, "")
     return(out)
   }
-  if (all(vapply(values, is.ordered, logical(1)))) {
-    levels <- unique(lapply(values, levels))
-    if (length(levels) == 1L) {
-      out$levels <- levels[[1L]]
-      out$scale <- if (length(out$levels) == 2L) "binary" else "ordered"
-      out$direction <- "higher"
-    }
+  if (!length(kinds)) {
     return(out)
   }
-  scalar <- function(test) {
-    all(vapply(
-      values,
-      \(x) test(x) && length(x) == 1L && !is.na(x),
-      logical(1)
-    ))
-  }
-  if (scalar(is.logical)) {
+  kind <- kinds[[1L]]
+  if (kind[[1L]] == "ordered") {
+    out$levels <- kind[-1L]
+    out$scale <- if (length(out$levels) == 2L) "binary" else "ordered"
+    out$direction <- "higher"
+  } else if (kind[[1L]] == "logical") {
     out$scale <- "binary"
     out$levels <- c("FALSE", "TRUE")
-  } else if (scalar(\(x) is.numeric(x) && !is.factor(x))) {
+  } else if (kind[[1L]] == "numeric") {
     out$scale <- "numeric"
   }
   out
+}
+
+pairing_score_kind <- function(x) {
+  scalar <- length(x) == 1L && !is.na(x)
+  if (is.ordered(x)) {
+    c("ordered", levels(x))
+  } else if (scalar && is.logical(x)) {
+    "logical"
+  } else if (scalar && is.numeric(x) && !is.factor(x)) {
+    "numeric"
+  } else {
+    "other"
+  }
+}
+
+pairing_score_kind_label <- function(kind) {
+  if (kind[[1L]] != "ordered") {
+    return(kind[[1L]])
+  }
+  paste0("ordered factor (", paste(kind[-1L], collapse = " < "), ")")
 }
 
 pairing_missing_score <- function(x) {
@@ -545,6 +566,15 @@ pairing_resolve_scorer <- function(label, recorded, declaration, side, call) {
       c(
         "The declaration for scorer {.val {label}} contradicts the {side} record.",
         "x" = "Recorded {field}: {.val {recorded_value}}; declared: {.val {declared_value}}."
+      ),
+      call
+    )
+  }
+  if (!is.null(recorded$conflict)) {
+    pairing_abort(
+      c(
+        "The {side} records conflicting scores for scorer {.val {label}}, so no declaration can match them.",
+        "x" = "Recorded: {.val {recorded$conflict}}."
       ),
       call
     )

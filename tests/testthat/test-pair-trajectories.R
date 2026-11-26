@@ -468,3 +468,29 @@ test_that("an ordered factor reads higher as better unless declared otherwise", 
     class = "scans_error_pairing"
   )
 })
+
+test_that("conflicting recorded scales on one side reject a declaration", {
+  forward <- factor("C", levels = c("I", "C"), ordered = TRUE)
+  reversed <- factor("C", levels = c("C", "I"), ordered = TRUE)
+  pair <- function(baseline, scorers = NULL) {
+    pair_trajectories(
+      comparison_manual_investigation(baseline),
+      comparison_manual_investigation(list(forward, forward)),
+      by = "sample_id",
+      dataset_version = "v1",
+      scorers = scorers
+    )
+  }
+  declared <- list(
+    comparison_scorer("judge", "1", "binary", levels = c("I", "C"))
+  )
+  for (baseline in list(list(forward, reversed), list(forward, 1))) {
+    undeclared <- pair(baseline)
+    expect_true(is.na(undeclared$scorers$scale[[1L]]))
+    expect_identical(
+      undeclared$outcome_pairs$compatibility,
+      rep("unknown", 2L)
+    )
+    expect_error(pair(baseline, declared), class = "scans_error_pairing")
+  }
+})

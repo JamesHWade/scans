@@ -93,7 +93,10 @@ best, so a default rather than a recorded fact: a declaration may set
 `direction = "lower"` for a scorer whose levels run from best to worst, and
 its `levels` must still list the recorded levels in their recorded order); for numeric or logical scores, the scale only. These are read from the
 non-missing scores; a missing score records nothing, so one `NA` neither
-establishes a scale nor hides one from the check below. Version is never
+establishes a scale nor hides one from the check below. When one side records
+conflicting scores under one label (ordered factors with different levels, or
+scores of different types), its scale stays unknown, and a declaration for that
+label is an error: no single declaration matches every record. Version is never
 recorded. So an undeclared vitals scorer is `unknown`, not compatible: the
 caller has to say that the scorer did not change.
 
