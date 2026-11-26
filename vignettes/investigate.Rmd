@@ -252,13 +252,15 @@ not run scanners, start the app, or contact the source.
 ```{r report}
 report <- investigation_report(reopened)
 report$headline[c("n", "total", "n_assessed", "n_not_assessed", "n_findings")]
-report$patterns[c("label", "severity", "trajectories", "n", "assessed")]
+report$patterns[c("label", "trajectories", "n", "assessed", "share")]
 ```
 
 Both saved conversations were assessed by at least one scan, and one has
-findings. `assessed` counts the conversations each scan could read: the
-incomplete capture lowers it for the tool scans, which is why "1 of 2
-affected" is not the same claim as "the other one is clean".
+findings. `assessed` counts the conversations each scan could read, and a
+pattern's reach, `share`, is over those. Each scan with findings here could
+assess one of the two conversations, so each pattern reads "1 of 1 assessed",
+not "1 of 2": the other conversation was not assessed by those scans, which is
+not the claim that it is clean.
 
 Every pattern leads to its evidence. These are the same event identifiers
 the loop finding showed above:
