@@ -14,8 +14,9 @@
 #'   Durations are seconds (`s`); usage is `tokens`.
 #' - `n_recorded`, `n_total`: eligible records with a valid value and eligible
 #'   records in the loaded snapshot, respectively. Unknown counts are `NA`.
-#' - `coverage`: `complete`, `partial`, `unavailable`, or `unknown` (an older
-#'   conversation total without a denominator). Complete recording does not
+#' - `coverage`: `complete`, `partial`, `unavailable`, or `unknown` (a total
+#'   that does not record how many of its records contributed: an older
+#'   conversation total, or a Deputy run total). Complete recording does not
 #'   establish complete capture of an application's work.
 #' - `source`, `source_unit`, `adapter`, `contract_version`: interpretation
 #'   provenance. Contract version 1 describes this measurement interface.
@@ -38,6 +39,15 @@
 #' again when `includes_cached_input` is `TRUE`.
 #' `turn_duration` sums known canonical turn durations without asserting one
 #' turn equals one model call.
+#'
+#' Deputy results report run-level usage and duration, which take precedence
+#' over their turns: compaction removes earlier turns, and retained turns can
+#' belong to earlier runs of the conversation. Token measures then have source
+#' `deputy_run_usage`, `n_total` is the run's model request count, and
+#' `n_recorded` and coverage are unknown because Deputy counts a request
+#' without reported usage as zero. The totals include compaction summaries and
+#' delegated runs. `elapsed` is the run's `duration`. Turn-level usage remains
+#' in [trajectory_turns()] and [summarize_trajectories()].
 #'
 #' `model_duration` sums captured OTel chat durations. `tool_duration` sums
 #' OTel execute-tool durations, otherwise canonical tool-call durations.
@@ -237,6 +247,9 @@ scans_measure_trajectory <- function(info, turns, events) {
     rows$limitation[rows$measure == "input_tokens"] <-
       "Uncached plus cached input per turn; only turns with both components recorded contribute."
   }
+  if (info$source_type %in% "deputy") {
+    rows <- scans_measure_deputy_run(rows, info$metadata[[1L]])
+  }
   otel <- info$metadata[[1L]]$otel
   if (!is.list(otel)) {
     return(rows)
@@ -303,6 +316,69 @@ scans_measure_trajectory <- function(info, turns, events) {
       rows <- scans_measure_cache_inclusive(rows)
     }
   }
+  rows
+}
+
+# Deputy keeps run usage across compaction, while its retained turns cover
+# the whole remaining conversation, so the run totals take precedence.
+scans_measure_deputy_run <- function(rows, metadata) {
+  number <- function(x) {
+    if (is.numeric(x) && length(x) == 1L && scans_measure_valid(x)) {
+      as.double(x)
+    } else {
+      NA_real_
+    }
+  }
+  duration <- number(metadata$duration)
+  if (!is.na(duration)) {
+    rows <- scans_measure_set(
+      rows,
+      "elapsed",
+      list(value = duration, n_recorded = 1L, n_total = 1L),
+      "deputy_run_duration",
+      "s"
+    )
+    rows$adapter[rows$measure == "elapsed"] <- "as_trajectory_deputy/1"
+    rows$limitation[rows$measure == "elapsed"] <-
+      "Deputy's recorded run time; may include user pauses."
+  }
+
+  usage <- if (is.list(metadata$usage)) metadata$usage else list()
+  requests <- number(usage$requests)
+  if (is.na(requests) || requests < 1) {
+    return(rows)
+  }
+  cached <- number(usage$cached_tokens)
+  values <- c(
+    input_tokens = number(usage$input_tokens) + cached,
+    output_tokens = number(usage$output_tokens),
+    cached_input_tokens = cached
+  )
+  for (name in names(values)) {
+    rows <- scans_measure_set(
+      rows,
+      name,
+      list(
+        value = values[[name]],
+        n_recorded = NA_integer_,
+        n_total = requests
+      ),
+      "deputy_run_usage",
+      "tokens"
+    )
+    rows$adapter[rows$measure == name] <- "as_trajectory_deputy/1"
+  }
+  rows$includes_cached_input[rows$measure == "input_tokens"] <- TRUE
+  scope <- paste(
+    "Run total across its model requests, including compacted turns,",
+    "compaction summaries, and delegated runs; a request without reported",
+    "usage adds zero."
+  )
+  rows$limitation[rows$measure == "input_tokens"] <-
+    paste("Includes cache reads.", scope)
+  rows$limitation[rows$measure == "output_tokens"] <- scope
+  rows$limitation[rows$measure == "cached_input_tokens"] <-
+    paste("Overlaps input totals; do not add again.", scope)
   rows
 }
 

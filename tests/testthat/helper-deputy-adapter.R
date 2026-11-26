@@ -3,7 +3,6 @@ deputy_result_fixture <- function(
   result_class = deputy::AgentResult,
   overrides = list()
 ) {
-  started_at <- as.POSIXct("2026-08-22 17:00:00", tz = "UTC")
   run_context <- list(
     product = "tempest",
     research_run_id = "research-run-001"
@@ -38,10 +37,6 @@ deputy_result_fixture <- function(
         run_context = run_context
       )
     )
-    if (!inherits(deputy::AgentEvent, "S7_class")) {
-      events[[1L]]$timestamp <- started_at
-      events[[2L]]$timestamp <- started_at + 2
-    }
   }
 
   args <- list(
@@ -73,10 +68,24 @@ deputy_result_fixture <- function(
     )
   )
   args[names(overrides)] <- overrides
-  constructor <- if (inherits(result_class, "S7_class")) {
-    result_class
+  do.call(result_class, args)
+}
+
+# Converts one result and asserts the adapter recorded no losses beyond the
+# ones named, so new Deputy values cannot silently degrade to placeholders.
+deputy_expect_clean <- function(result, allowed = character()) {
+  bundle <- as_trajectory_deputy(result)
+  losses <- trajectory_losses(bundle)
+  unexpected <- if (nrow(losses) == 0L) {
+    character()
   } else {
-    result_class$new
+    setdiff(losses$field, allowed)
   }
-  do.call(constructor, args)
+  testthat::expect_identical(unexpected, character())
+  bundle
+}
+
+deputy_lifecycle_events <- function(bundle) {
+  events <- trajectory_events(bundle)
+  events[grepl("^deputy:", events$event_type), , drop = FALSE]
 }

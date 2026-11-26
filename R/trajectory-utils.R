@@ -23,7 +23,8 @@ trajectory_event_id <- function(trajectory_id, index) {
 }
 
 # One status vocabulary for every adapter: completed, failed, interrupted
-# (a budget or stop request ended the run), or cancelled. Anything the source
+# (a budget, stop request, or abandoned stream ended the run), or cancelled.
+# Anything the source
 # reports that is not recognised counts as interrupted rather than inventing
 # a new status value.
 trajectory_canonical_status <- function(x) {
@@ -39,8 +40,12 @@ trajectory_canonical_status <- function(x) {
     error = ,
     failed = ,
     failure = ,
-    abandoned = ,
-    provider_error = "failed",
+    provider_error = ,
+    file_checkpoint_error = ,
+    delegation_error = ,
+    batch_error = ,
+    setup_error = ,
+    setup_failed = "failed",
     cancelled = ,
     canceled = "cancelled",
     "interrupted"
