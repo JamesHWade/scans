@@ -111,7 +111,8 @@ scans_app_review_server <- function(
   pending <- shiny::reactiveVal(NULL)
   message <- shiny::reactiveVal("")
   pending_open <- shiny::reactiveVal(NULL)
-  last_context <- NULL
+  state <- new.env(parent = emptyenv())
+  state$last_context <- NULL
   attempt <- function(code) {
     tryCatch(code, error = function(cnd) {
       message(conditionMessage(cnd))
@@ -163,7 +164,7 @@ scans_app_review_server <- function(
         revision = active()$investigation$manifest$revision_id,
         loaded_at = active()$loaded_at
       )
-      if (!identical(context, last_context)) {
+      if (!identical(context, state$last_context)) {
         current(NULL)
         pending(NULL)
         message("")
@@ -177,7 +178,7 @@ scans_app_review_server <- function(
           "scans_app_review_expectation",
           value = ""
         )
-        last_context <<- context
+        state$last_context <- context
       }
       restore <- pending_open()
       if (

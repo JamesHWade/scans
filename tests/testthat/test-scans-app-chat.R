@@ -1,17 +1,18 @@
 test_that("Ask is optional and creates no shared conversation state", {
   skip_if_not_installed("shinychat", "0.5.0")
   skip_if_not_installed("ellmer", "0.5.0")
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   shared <- scans_test_chat()
   shared$set_turns(list(ellmer::UserTurn(list(ellmer::ContentText(
     "Private history"
   )))))
   factory <- function() {
-    calls <<- calls + 1L
+    recorded$calls <- recorded$calls + 1L
     shared
   }
   app <- scans_app(scans_support_bundle(), chat_factory = factory)
-  expect_equal(calls, 0L)
+  expect_equal(recorded$calls, 0L)
   first <- scans_app_chat_client(factory)
   second <- scans_app_chat_client(factory)
   first$set_system_prompt("First session only")
@@ -24,7 +25,7 @@ test_that("Ask is optional and creates no shared conversation state", {
   expect_length(shared$get_tools(), 0L)
   plain <- scans_app_ui(scans_app_sources(scans_support_bundle()))
   expect_equal(
-    htmltools::tagQuery(plain)$find('#scans_app_ask_scope')$length(),
+    htmltools::tagQuery(plain)$find("#scans_app_ask_scope")$length(),
     0L
   )
   expect_error(
@@ -184,9 +185,10 @@ test_that("Ask rejects outdated ellmer before initializing a provider", {
       numeric_version("0.4.9") >= numeric_version(version)
     })
   })
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   factory <- function() {
-    calls <<- calls + 1L
+    recorded$calls <- recorded$calls + 1L
     NULL
   }
   expect_error(
@@ -194,5 +196,5 @@ test_that("Ask rejects outdated ellmer before initializing a provider", {
     regexp = "ellmer.*0[.]5[.]0",
     class = "scans_error_missing_dependency"
   )
-  expect_equal(calls, 0L)
+  expect_equal(recorded$calls, 0L)
 })

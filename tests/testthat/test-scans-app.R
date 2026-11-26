@@ -1004,10 +1004,11 @@ test_that("scans app shares a loaded snapshot across sessions", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   app <- scans_app(list(
     "Deployment" = function() {
-      calls <<- calls + 1L
+      recorded$calls <- recorded$calls + 1L
       trajectory_fixture("simple_exchange")
     }
   ))
@@ -1015,11 +1016,11 @@ test_that("scans app shares a loaded snapshot across sessions", {
 
   shiny::testServer(server, {
     session$flushReact()
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
   })
   shiny::testServer(server, {
     session$flushReact()
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
     expect_match(
       as.character(output$scans_app_load_info)[[1L]],
       "Loaded",
@@ -1027,7 +1028,7 @@ test_that("scans app shares a loaded snapshot across sessions", {
     )
     session$setInputs(scans_app_reload = 1L)
     session$flushReact()
-    expect_identical(calls, 2L)
+    expect_identical(recorded$calls, 2L)
   })
 })
 
@@ -1036,10 +1037,11 @@ test_that("a stale shared snapshot is refreshed by a new session", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   sources <- scans_app_sources(list(
     "Deployment" = function() {
-      calls <<- calls + 1L
+      recorded$calls <- recorded$calls + 1L
       trajectory_fixture("simple_exchange")
     }
   ))
@@ -1048,11 +1050,11 @@ test_that("a stale shared snapshot is refreshed by a new session", {
   shiny::testServer(server, {
     session$flushReact()
     session$flushReact()
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
   })
   shiny::testServer(server, {
     session$flushReact()
-    expect_identical(calls, 2L)
+    expect_identical(recorded$calls, 2L)
   })
 })
 
@@ -1061,34 +1063,35 @@ test_that("an active session refreshes an expired shared snapshot", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
-  calls <- 0L
-  delays <- numeric()
-  now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
+  recorded$delays <- numeric()
+  recorded$now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
   sources <- scans_app_sources(list(
     "Deployment" = function() {
-      calls <<- calls + 1L
+      recorded$calls <- recorded$calls + 1L
       trajectory_fixture("simple_exchange")
     }
   ))
   server <- scans_app_server(
     sources,
     cache_max_age = 60,
-    clock = function() now,
+    clock = function() recorded$now,
     schedule = function(delay, ...) {
-      delays <<- c(delays, delay)
+      recorded$delays <- c(recorded$delays, delay)
       invisible(NULL)
     }
   )
 
   shiny::testServer(server, {
     session$flushReact()
-    expect_identical(calls, 1L)
-    expect_identical(delays, 60000)
+    expect_identical(recorded$calls, 1L)
+    expect_identical(recorded$delays, 60000)
 
-    now <<- now + 61
+    recorded$now <- recorded$now + 61
     revision(revision() + 1L)
     session$flushReact()
-    expect_identical(calls, 2L)
+    expect_identical(recorded$calls, 2L)
   })
 })
 
@@ -1097,14 +1100,15 @@ test_that("an automatic cache refresh rematches the selected trajectory", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
-  now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$now <- as.POSIXct("2026-08-29 12:00:00", tz = "UTC")
+  recorded$calls <- 0L
   snapshot <- function(ids) {
     TrajectoryBundle(
       data.frame(
         trajectory_id = ids,
         source_type = "manual",
-        started_at = now + rev(seq_along(ids))
+        started_at = recorded$now + rev(seq_along(ids))
       ),
       data.frame(),
       data.frame()
@@ -1115,13 +1119,13 @@ test_that("an automatic cache refresh rematches the selected trajectory", {
     snapshot(c("new", "keep", "old"))
   )
   sources <- scans_app_sources(list("Deployment" = function() {
-    calls <<- calls + 1L
-    snapshots[[min(calls, length(snapshots))]]
+    recorded$calls <- recorded$calls + 1L
+    snapshots[[min(recorded$calls, length(snapshots))]]
   }))
   server <- scans_app_server(
     sources,
     cache_max_age = 60,
-    clock = function() now,
+    clock = function() recorded$now,
     schedule = function(delay, ...) invisible(NULL)
   )
 
@@ -1131,11 +1135,11 @@ test_that("an automatic cache refresh rematches the selected trajectory", {
     selected(chosen)
     session$flushReact()
     expect_identical(selected_trajectory_id(), "keep")
-    now <<- now + 61
+    recorded$now <- recorded$now + 61
     # Simulate the timer invalidating active() after the entry has expired.
     revision(revision() + 1L)
     session$flushReact()
-    expect_identical(calls, 2L)
+    expect_identical(recorded$calls, 2L)
     expect_identical(selected(), 2L)
     expect_identical(data()$info$trajectory_id[[selected()]], "keep")
 
@@ -1152,10 +1156,11 @@ test_that("another session's failed reload is retried, not inherited", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   sources <- scans_app_sources(list(
     "Deployment" = function() {
-      calls <<- calls + 1L
+      recorded$calls <- recorded$calls + 1L
       trajectory_fixture("simple_exchange")
     }
   ))
@@ -1164,7 +1169,7 @@ test_that("another session's failed reload is retried, not inherited", {
 
   shiny::testServer(server, {
     session$flushReact()
-    expect_identical(calls, 1L)
+    expect_identical(recorded$calls, 1L)
     expect_null(active()$error)
 
     # Another session's reload failed and replaced the shared entry.
@@ -1183,7 +1188,7 @@ test_that("another session's failed reload is retried, not inherited", {
     # This session comes back to the application and retries the load.
     revision(revision() + 1L)
     session$flushReact()
-    expect_identical(calls, 2L)
+    expect_identical(recorded$calls, 2L)
     expect_null(active()$error)
   })
 })
@@ -1387,11 +1392,12 @@ test_that("a failed load is not shared with other sessions", {
   skip_if_not_installed("htmltools")
   skip_if_not_installed("shiny", "1.11.1")
 
-  calls <- 0L
+  recorded <- new.env(parent = emptyenv())
+  recorded$calls <- 0L
   app <- scans_app(list(
     "Deployment" = function() {
-      calls <<- calls + 1L
-      if (calls == 1L) {
+      recorded$calls <- recorded$calls + 1L
+      if (recorded$calls == 1L) {
         stop("boom")
       }
       trajectory_fixture("simple_exchange")
@@ -1409,7 +1415,7 @@ test_that("a failed load is not shared with other sessions", {
   }))
   shiny::testServer(server, {
     session$flushReact()
-    expect_identical(calls, 2L)
+    expect_identical(recorded$calls, 2L)
     expect_null(output$scans_app_load_error)
   })
 })

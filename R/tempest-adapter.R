@@ -260,8 +260,9 @@ tempest_review_lane_summaries <- function(review) {
 }
 
 tempest_review_events <- function(review, trajectory_id, call) {
-  rows <- list()
-  losses <- list()
+  state <- new.env(parent = emptyenv())
+  state$rows <- list()
+  state$losses <- list()
   started_at <- as.POSIXct(character(), tz = "UTC")
   completed_at <- as.POSIXct(character(), tz = "UTC")
   reference_keys <- character()
@@ -280,7 +281,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
     parent_event_id = NA_character_,
     field
   ) {
-    index <- length(rows) + 1L
+    index <- length(state$rows) + 1L
     projected <- tempest_review_event(
       trajectory_id,
       index,
@@ -297,8 +298,8 @@ tempest_review_events <- function(review, trajectory_id, call) {
       field,
       call
     )
-    rows[[index]] <<- projected$row
-    losses <<- c(losses, projected$losses)
+    state$rows[[index]] <- projected$row
+    state$losses <- c(state$losses, projected$losses)
     projected$row$event_id[[1L]]
   }
 
@@ -316,7 +317,7 @@ tempest_review_events <- function(review, trajectory_id, call) {
       ids,
       nullable = TRUE
     )
-    losses <- c(losses, start$losses, completion$losses)
+    state$losses <- c(state$losses, start$losses, completion$losses)
     started_at <- c(started_at, start$value)
     completed_at <- c(completed_at, completion$value)
     timestamp <- if (is.na(completion$value)) start$value else completion$value
@@ -437,8 +438,8 @@ tempest_review_events <- function(review, trajectory_id, call) {
   }
 
   list(
-    events = trajectory_bind_rows(rows),
-    losses = losses,
+    events = trajectory_bind_rows(state$rows),
+    losses = state$losses,
     started_at = started_at,
     completed_at = completed_at
   )
