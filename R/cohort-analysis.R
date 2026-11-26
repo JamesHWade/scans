@@ -522,24 +522,29 @@ cohort_has_ancestor <- function(data, ids, among) {
   known <- data$records$trajectory_id
   parents <- data$records$parent_trajectory_id %||%
     rep(NA_character_, length(known))
-  vapply(
-    ids,
-    function(id) {
-      seen <- id
-      repeat {
-        id <- parents[match(id, known)]
-        if (is.na(id) || id %in% seen) {
-          return(FALSE)
-        }
-        if (id %in% among) {
-          return(TRUE)
-        }
-        seen <- c(seen, id)
+  # Each row's parent as a row, looked up once: most trajectories record no
+  # parent, and only those that do are walked.
+  parent_row <- match(parents, known)
+  parent_among <- parents %in% among
+  start <- match(ids, known)
+  out <- logical(length(ids))
+  for (i in which(!is.na(parents[start]))) {
+    row <- start[[i]]
+    seen <- ids[[i]]
+    repeat {
+      parent <- if (is.na(row)) NA_character_ else parents[[row]]
+      if (is.na(parent) || parent %in% seen) {
+        break
       }
-    },
-    logical(1),
-    USE.NAMES = FALSE
-  )
+      if (parent_among[[row]]) {
+        out[[i]] <- TRUE
+        break
+      }
+      seen <- c(seen, parent)
+      row <- parent_row[[row]]
+    }
+  }
+  out
 }
 
 # Review state comes only from annotation records: a trajectory is reviewed

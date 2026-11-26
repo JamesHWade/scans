@@ -287,3 +287,82 @@ test_that("without a store the queue is ranked and nothing claims a state", {
   ui <- as.character(scans_app_ui(scans_app_sources(cohort_fixture())))
   expect_no_match(ui, "scans_app_review_bar|scans_app_review_state")
 })
+
+test_that("a long browser list shows a bounded head and says what it left out", {
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny", "1.11.1")
+  data <- cohort_fixture_data()
+  queue <- cohort_review_queue(data, data$info$trajectory_id)
+  entries <- function(html) {
+    lengths(regmatches(html, gregexpr("scans-app-queue-entry", html)))
+  }
+
+  whole <- as.character(scans_app_entries_ui(data, queue$index, queue))
+  expect_identical(entries(whole), 5L)
+  expect_no_match(whole, "scans-app-entries-more", fixed = TRUE)
+
+  head <- as.character(scans_app_entries_ui(
+    data,
+    queue$index,
+    queue,
+    chosen = queue$index[[4L]],
+    limit = 3L
+  ))
+  expect_identical(entries(head), 3L)
+  expect_match(
+    head,
+    "Listing the first 3 of 5 conversations in this order.",
+    fixed = TRUE
+  )
+  # The listed entries are the first three in the order given.
+  present <- vapply(
+    queue$index,
+    function(index) {
+      grepl(sprintf("id=\"%s\"", scans_app_entry_id(index)), head, fixed = TRUE)
+    },
+    logical(1)
+  )
+  expect_identical(present, c(TRUE, TRUE, TRUE, FALSE, FALSE))
+  expect_identical(
+    as.character(scans_app_entries_ui(data, queue$index, queue, limit = 5L)),
+    whole
+  )
+})
+
+test_that("an entry opens its trajectory once it is listed", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  local_mocked_bindings(scans_app_entry_limit = 2L)
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(
+      scans_app_scans = scan_registry()$scan,
+      scans_app_sort = "oldest"
+    )
+    ids <- data()$info$trajectory_id
+    expect_identical(ids[visible()], c("a", "b", "c", "d", "e"))
+    expect_match(
+      output$scans_app_entries$html,
+      "Listing the first 2 of 5 conversations",
+      fixed = TRUE
+    )
+    click <- function(index) {
+      do.call(
+        session$setInputs,
+        stats::setNames(list(index + 100L), scans_app_entry_id(index))
+      )
+    }
+    click(2L)
+    expect_identical(selected_trajectory_id(), "b")
+    # "d" is past the listed head, so nothing on the page can click it yet.
+    session$setInputs(scans_app_query = "large")
+    expect_identical(ids[visible()], c("c", "d"))
+    click(4L)
+    expect_identical(selected_trajectory_id(), "d")
+    # Every trajectory stays reachable by stepping, listed or not.
+    session$setInputs(scans_app_query = "")
+    session$setInputs(scans_app_nav = list(direction = "next", nonce = 1))
+    expect_identical(selected_trajectory_id(), "e")
+  })
+})

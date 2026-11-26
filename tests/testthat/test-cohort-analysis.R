@@ -391,3 +391,43 @@ test_that("capture losses are grouped by reason and keep unassigned ones", {
   )
   expect_identical(nrow(cohort_losses(cohort_fixture_data(), "a")), 0L)
 })
+
+test_that("ancestry follows recorded parents and stops at gaps and cycles", {
+  data <- list(
+    records = tibble::tibble(
+      trajectory_id = c(
+        "root",
+        "mid",
+        "leaf",
+        "orphan",
+        "loop-a",
+        "loop-b",
+        "solo"
+      ),
+      parent_trajectory_id = c(
+        NA,
+        "root",
+        "mid",
+        "gone",
+        "loop-b",
+        "loop-a",
+        NA
+      )
+    )
+  )
+  ids <- c(data$records$trajectory_id, "unknown")
+  expect_identical(
+    cohort_has_ancestor(data, ids, "root"),
+    c(FALSE, TRUE, TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)
+  )
+  # The run between a trajectory and its ancestor need not be among them.
+  expect_true(cohort_has_ancestor(data, "leaf", "root"))
+  expect_false(cohort_has_ancestor(data, "leaf", "leaf"))
+  # A parent the snapshot does not hold still counts when it is named.
+  expect_true(cohort_has_ancestor(data, "orphan", "gone"))
+  expect_identical(
+    cohort_has_ancestor(data, c("loop-a", "loop-b"), "loop-a"),
+    c(FALSE, TRUE)
+  )
+  expect_identical(cohort_has_ancestor(data, character(), "root"), logical())
+})
