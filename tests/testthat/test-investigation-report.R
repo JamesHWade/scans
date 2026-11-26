@@ -254,6 +254,9 @@ test_that("the scope names every active filter and the capped source read", {
 })
 
 test_that("a printed link reopens exactly the cohort the report describes", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  updates <- local_input_updates()
   views <- list(
     list(),
     list(findings_only = TRUE, pattern = "event_error"),
@@ -261,25 +264,58 @@ test_that("a printed link reopens exactly the cohort the report describes", {
     list(query = "large"),
     list(query = "small", pattern = "repeated_tool_call")
   )
-  for (view in views) {
-    saved <- report_fixture(view)
-    report <- investigation_report(saved, app_url = "https://scans.test/app/")
-    app <- report_app_view(saved)
-    for (link in c(report$scope$link, report$trajectories$link)) {
-      expect_true(startsWith(link, "https://scans.test/app/#Cohort/"))
-      target <- scans_app_parse_hash(
-        sub("^[^#]*#", "", link),
-        "Cohort"
+  app <- scans_app(list(Cohort = cohort_fixture()))
+  shiny::testServer(app$serverFuncSource(), {
+    investigation_ack_inputs(session)
+    session$setInputs(scans_app_hash = "Cohort/")
+    input_updates_ack(session, updates)
+    for (view in views) {
+      report <- investigation_report(
+        report_fixture(view),
+        app_url = "https://scans.test/app/"
       )
-      restored <- scans_app_scope_restore(target$scope %||% list(), app$data)
-      expect_null(restored$notice)
       expect_gt(nrow(report$trajectories), 0L)
-      expect_identical(
-        app$data$info$trajectory_id[scans_app_view_indices(app$data, restored)],
-        report$trajectories$trajectory_id
-      )
+      for (link in c(report$scope$link, report$trajectories$link)) {
+        expect_true(startsWith(link, "https://scans.test/app/#Cohort/"))
+        # Whatever the opening app had set, the link replaces it.
+        session$setInputs(
+          scans_app_query = "missing",
+          scans_app_findings_only = TRUE,
+          scans_app_facet = list(facet = "model", value = "large")
+        )
+        expect_identical(
+          report_follow_link(session, updates, link),
+          report$trajectories$trajectory_id
+        )
+      }
     }
-  }
+
+    # A link that leaves out a text filter naming a user still clears every
+    # other filter, so it opens a predictably wider cohort, and says so.
+    hidden <- investigation_report(
+      report_fixture(list(query = "ada", source_type = "otel")),
+      app_url = "https://scans.test/app/"
+    )
+    expect_no_match(hidden$scope$link, "ada", fixed = TRUE)
+    session$setInputs(scans_app_query = "missing")
+    expect_identical(
+      report_follow_link(session, updates, hidden$scope$link),
+      report_app_view(report_fixture(list(source_type = "otel")))$ids |> sort()
+    )
+    expect_match(
+      hidden$scope$link_limits,
+      "Links leave out the text filter because its term matches a user identifier. They still clear every other filter, so they open the cohort the other filters select: wider than this report describes.",
+      fixed = TRUE,
+      all = FALSE
+    )
+
+    # The address bar's own hash names no scope and leaves filters alone.
+    session$setInputs(scans_app_query = "large")
+    expect_identical(
+      report_follow_link(session, updates, "#Cohort/c"),
+      c("c", "d")
+    )
+  })
 
   # A filter term survives the link's encoding whatever it contains.
   odd <- investigation_report(
@@ -340,6 +376,37 @@ test_that("the report says what a link cannot restore", {
   expect_null(elsewhere$source_type)
   expect_null(elsewhere$status)
   expect_match(elsewhere$notice, "Source: vitals, Status: failed", fixed = TRUE)
+
+  # A pattern or facet the opening app cannot apply is named too.
+  reread <- scans_app_data(
+    investigation_snapshot(
+      cohort_fixture(),
+      trajectory_ids = c("b", "e")
+    )$bundle
+  )
+  dropped <- scans_app_scope_restore(
+    list(pattern = "repeated_tool_call", model = "large", user = "ada"),
+    reread
+  )
+  expect_null(dropped$pattern)
+  expect_identical(dropped$facets, list(user = "ada"))
+  expect_match(
+    dropped$notice,
+    "This link filters by Finding: repeated tool call, Model: large, which",
+    fixed = TRUE
+  )
+  unselected <- scans_app_scope_restore(
+    list(pattern = "event_error", tool = "missing", tool_failed = TRUE),
+    data,
+    scans = "repeated_tool_call"
+  )
+  expect_null(unselected$pattern)
+  expect_identical(unselected$facets, list())
+  expect_match(
+    unselected$notice,
+    "Finding: event error, missing failed,",
+    fixed = TRUE
+  )
 
   # Without an address there are no links to qualify.
   plain <- investigation_report(saved)

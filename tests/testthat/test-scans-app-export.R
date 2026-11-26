@@ -57,9 +57,14 @@ test_that("deep links carry the scope and old hashes still parse", {
     scans_app_parse_hash("#My%20app/", "My app"),
     list(application = "My app")
   )
+  # A scope, even one that sets nothing this app knows, clears the filters.
   expect_identical(
     scans_app_parse_hash("My%20app/?scope=unknown=1", "My app"),
-    list(application = "My app")
+    list(application = "My app", scope = stats::setNames(list(), character()))
+  )
+  expect_identical(
+    scans_app_parse_hash(scans_app_scope_hash("A", scope = list()), "A"),
+    scans_app_parse_hash("A/?scope=unknown=1", "A")
   )
   expect_identical(
     scans_app_parse_hash(scans_app_scope_hash("A (b)"), c("Other", "A (b)")),
@@ -81,7 +86,7 @@ test_that("deep links carry the scope and old hashes still parse", {
   )
   expect_identical(
     scans_app_link(NULL, "A", list(findings = FALSE))("t"),
-    "#A/t"
+    "#A/t?scope=none"
   )
 })
 
@@ -146,7 +151,7 @@ test_that("the conversations export has one row per trajectory in view", {
 
   unknown <- export_conversations(fixture$data, "a")
   expect_identical(unknown$review_state, NA_character_)
-  expect_identical(unknown$link, "#/a")
+  expect_identical(unknown$link, "#/a?scope=none")
 
   file <- withr::local_tempfile(fileext = ".csv")
   export_csv(table, file)

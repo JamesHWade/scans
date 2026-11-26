@@ -112,11 +112,12 @@ printed.
 
 \section{Links}{
 
-With \code{app_url}, each trajectory and event links to that app. A link
-carries the filters the report names. It reopens exactly the reported
-cohort when that app serves this saved investigation; an app reading the
-live source applies the same filters to whatever it holds then. The report
-prints this, and names any filter a link cannot carry, under its scope.
+With \code{app_url}, each trajectory and event links to that app. A link sets
+the filters the report names and clears every other filter in the app that
+opens it. It reopens exactly the reported cohort when that app serves this
+saved investigation; an app reading the live source applies the same
+filters to whatever it holds then. The report prints this, and names any
+filter a link cannot carry, under its scope.
 }
 
 \examples{

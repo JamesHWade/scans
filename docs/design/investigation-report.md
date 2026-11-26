@@ -100,8 +100,20 @@ identities link to that trajectory and event in the app.
 A link carries filter values, not trajectory identities. Link scope gained
 `source`, `status`, `status_unknown`, `query`, and `annotated`, and the app
 now applies them, so a link from the app no longer reopens a wider cohort
-than the report it came from. Three limits remain, and the report prints each
-one that applies:
+than the report it came from.
+
+Every link the report or an export writes names its scope, and a scope with
+no filters is written `?scope=none`. Opening a link with a scope replaces
+every filter in the app, so a link never inherits filters the opening app
+happened to have set. A hash without `?scope=`, which is what the address bar
+shows while browsing and what older links carry, sets no filters, so reload
+and back-and-forward keep the reader's filters. The app's own "Copy link"
+and the CSV link columns use the first form too. A
+link filter the opening app cannot apply (a source, status, pattern, or
+facet value it does not hold, or an annotation or review filter without a
+store) is dropped with a notice naming it.
+
+Three limits remain, and the report prints each one that applies:
 
 - A link reopens exactly the reported cohort only when the app serves the
   same saved investigation. Against a live source the same filters select
@@ -109,7 +121,9 @@ one that applies:
 - The annotation and review filters depend on annotations where the link is
   opened. An app that cannot apply one says so and names the wider cohort.
 - A user filter, and a text filter whose term matches a user identifier, are
-  left out of links unless user identifiers were requested.
+  left out of links unless user identifiers were requested. The link still
+  clears every other filter, so it opens the cohort the remaining filters
+  select, and the report says that is wider than the one it describes.
 
 ## Content
 

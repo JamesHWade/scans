@@ -62,14 +62,20 @@ scans_app_navigation_server <- function(
     if (!identical(target$application, state$application())) {
       return()
     }
-    # A link that names a scope replaces every filter: source, status, text,
-    # annotation, pattern, facets, findings switch, and review. One without
-    # leaves the current filters alone.
+    # A link that names a scope, even "none", replaces every filter: source,
+    # status, text, annotation, pattern, facets, findings switch, and review.
+    # One without (the address bar's own hash) leaves the current filters
+    # alone.
     scope <- target$scope
-    if (length(scope)) {
+    if (!is.null(scope)) {
       annotations <- state$has_store ||
         length(state$active()$investigation$view$annotation_ids) > 0L
-      view <- scans_app_scope_restore(scope, current, annotations)
+      view <- scans_app_scope_restore(
+        scope,
+        current,
+        annotations,
+        state$scan_config()$scans
+      )
       choices <- scans_app_filter_choices(current)
       bslib::update_toolbar_input_select(
         "scans_app_source",
@@ -99,14 +105,8 @@ scans_app_navigation_server <- function(
           session = session
         )
       }
-      state$facets(scans_app_facet_validate(
-        current,
-        scope[intersect(names(scope), scans_app_facet_names)]
-      ))
-      known <- scans_app_has_string(scope$pattern) &&
-        scope$pattern %in%
-          intersect(current$findings$scan, state$scan_config()$scans)
-      state$pattern_filter(if (known) scope$pattern)
+      state$facets(view$facets)
+      state$pattern_filter(view$pattern)
       bslib::update_switch(
         "scans_app_findings_only",
         value = isTRUE(scope$findings),
@@ -292,8 +292,8 @@ scans_app_parse_hash <- function(hash, labels) {
   if (nzchar(trajectory_id)) {
     target$trajectory_id <- trajectory_id
   }
-  if (length(scope)) {
-    target$scope <- scope
+  if (!is.null(scope)) {
+    target["scope"] <- list(scope)
   }
   if (length(event_parts) == 2L) {
     target$event_id <- utils::URLdecode(event_parts[[2L]])

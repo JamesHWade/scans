@@ -179,14 +179,42 @@ scans_app_scope_view <- function(scope) {
   )
 }
 
-# The view a link's scope asks for, as far as the snapshot it is opened on
-# can apply it. A source or status the snapshot does not hold, and an
+# The view and facets a link's scope asks for, as far as the snapshot it is
+# opened on can apply them. A source, status, pattern, or facet value the
+# snapshot does not hold, a pattern no selected scan (`scans`) found, and an
 # annotation filter where no annotation membership exists, are dropped and
 # named in `notice`: the cohort on screen is then wider than the link's.
-scans_app_scope_restore <- function(scope, data, annotations = TRUE) {
+scans_app_scope_restore <- function(
+  scope,
+  data,
+  annotations = TRUE,
+  scans = NULL
+) {
   view <- scans_app_scope_view(scope)
   choices <- scans_app_filter_choices(data)
   dropped <- character()
+  if (!is.null(view$pattern)) {
+    found <- data$findings$scan
+    if (!is.null(scans)) {
+      found <- intersect(found, scans)
+    }
+    if (!scans_app_has_string(view$pattern) || !view$pattern %in% found) {
+      dropped <- c(dropped, paste("Finding:", gsub("_", " ", view$pattern)))
+      view["pattern"] <- list(NULL)
+    }
+  }
+  asked <- scope[intersect(names(scope), scans_app_facet_names)]
+  view$facets <- scans_app_facet_validate(data, asked)
+  lost <- asked[setdiff(names(asked), names(view$facets))]
+  if (length(lost)) {
+    dropped <- c(
+      dropped,
+      tryCatch(
+        unname(scans_app_scope_labels(lost)),
+        error = function(cnd) paste0(names(lost), ": ", unlist(lost))
+      )
+    )
+  }
   if (
     !is.null(view$source_type) &&
       !view$source_type %in% unname(choices$source)

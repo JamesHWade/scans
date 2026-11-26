@@ -5,8 +5,10 @@
 
 # A shareable hash: "<application>/<trajectory_id>", optionally followed by
 # "?scope=key=value&..." naming the pattern, facets, findings switch, and
-# review filter, and the source, status, text, and annotation filters. Older
-# hashes have no scope and parse as before.
+# review filter, and the source, status, text, and annotation filters. A
+# scope with no filters is written "?scope=none", so the link still says
+# which filters it sets: none. A hash without "?scope=" (the address bar's
+# own, and older links) sets no filters.
 scans_app_scope_keys <- c(
   "source",
   "status",
@@ -30,9 +32,10 @@ scans_app_scope_keys <- c(
 scans_app_scope_hash <- function(
   application,
   trajectory_id = NULL,
-  scope = list()
+  scope = NULL
 ) {
   encode <- function(x) utils::URLencode(x, reserved = TRUE, repeated = TRUE)
+  explicit <- !is.null(scope)
   scope <- scope[intersect(scans_app_scope_keys, names(scope))]
   scope <- Filter(function(value) !is.null(value) && !isFALSE(value), scope)
   paste0(
@@ -49,6 +52,8 @@ scans_app_scope_hash <- function(
           collapse = "&"
         )
       )
+    } else if (explicit) {
+      "?scope=none"
     }
   )
 }

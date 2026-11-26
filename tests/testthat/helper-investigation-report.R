@@ -50,3 +50,49 @@ report_md_doc <- function(report, ...) {
     extensions = TRUE
   ))
 }
+
+# testServer has no browser to apply the input updates a server sends. This
+# records them so a test can acknowledge them as a browser would, and so
+# follow a link through the app's own navigation.
+local_input_updates <- function(env = parent.frame()) {
+  updates <- new.env(parent = emptyenv())
+  record <- function(id, value) {
+    if (!is.null(value)) assign(id, value, envir = updates)
+  }
+  testthat::local_mocked_bindings(
+    update_toolbar_input_select = function(id, ..., selected = NULL) {
+      record(id, selected)
+    },
+    update_switch = function(id, label = NULL, value = NULL, ...) {
+      record(id, value)
+    },
+    .package = "bslib",
+    .env = env
+  )
+  testthat::local_mocked_bindings(
+    updateTextInput = function(session, inputId, ..., value = NULL) {
+      record(inputId, value)
+    },
+    updateSelectInput = function(session, inputId, ..., selected = NULL) {
+      record(inputId, selected)
+    },
+    .package = "shiny",
+    .env = env
+  )
+  updates
+}
+
+input_updates_ack <- function(session, updates) {
+  values <- mget(ls(updates), envir = updates)
+  rm(list = names(values), envir = updates)
+  if (length(values)) do.call(session$setInputs, values)
+}
+
+# Open a link's hash in a test session and acknowledge what navigation
+# changes. Returns the trajectory ids then in view, in snapshot order.
+report_follow_link <- function(session, updates, link) {
+  session$setInputs(scans_app_hash = sub("^[^#]*#", "", link))
+  input_updates_ack(session, updates)
+  ids <- session$env$data()$info$trajectory_id
+  ids[sort(session$env$visible())]
+}

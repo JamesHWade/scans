@@ -32,11 +32,12 @@
 #' printed.
 #'
 #' @section Links:
-#' With `app_url`, each trajectory and event links to that app. A link
-#' carries the filters the report names. It reopens exactly the reported
-#' cohort when that app serves this saved investigation; an app reading the
-#' live source applies the same filters to whatever it holds then. The report
-#' prints this, and names any filter a link cannot carry, under its scope.
+#' With `app_url`, each trajectory and event links to that app. A link sets
+#' the filters the report names and clears every other filter in the app that
+#' opens it. It reopens exactly the reported cohort when that app serves this
+#' saved investigation; an app reading the live source applies the same
+#' filters to whatever it holds then. The report prints this, and names any
+#' filter a link cannot carry, under its scope.
 #'
 #' @param x A saved investigation from [investigation_snapshot()] or
 #'   [read_investigation()]. A [TrajectoryBundle] is captured first with
@@ -550,13 +551,28 @@ report_build <- function(data, indices, context) {
 
   read <- context$read_info
   read <- if (is.list(read)) read else list()
+  withheld <- query_hidden || user_hidden
   limits <- c(
     if (!is.null(open_link)) {
+      carried <- if (withheld) {
+        "Links set the filters named above, except as noted below, and clear every other filter."
+      } else {
+        "Links set the filters named above and clear every other filter."
+      }
       if (is.null(context$snapshot)) {
-        "Links carry the filters named above and apply them to what the app holds when they are opened. Records read since this report was made can widen the cohort."
+        paste(
+          carried,
+          "They apply them to what the app holds when they are opened. Records read since this report was made can widen the cohort."
+        )
       } else {
         sprintf(
-          "Links carry the filters named above. They reopen exactly this cohort when the app at that address serves this saved investigation (snapshot %s). An app reading the live source applies the same filters to what it holds then, which can include records this saved selection left out.",
+          "%s They reopen %s when the app at that address serves this saved investigation (snapshot %s). An app reading the live source applies the same filters to what it holds then, which can include records this saved selection left out.",
+          carried,
+          if (withheld) {
+            "this cohort, widened as noted below,"
+          } else {
+            "exactly this cohort"
+          },
           substr(context$snapshot$snapshot_id, 8L, 19L)
         )
       }
@@ -568,10 +584,10 @@ report_build <- function(data, indices, context) {
       "The review filter depends on the annotation store of the app the link is opened in. An app without that store says so and shows a wider cohort."
     },
     if (!is.null(open_link) && query_hidden) {
-      "Links leave out the text filter because its term matches a user identifier, so they open_link a wider cohort than this report describes."
+      "Links leave out the text filter because its term matches a user identifier. They still clear every other filter, so they open the cohort the other filters select: wider than this report describes."
     },
     if (!is.null(open_link) && user_hidden) {
-      "Links leave out the user filter, so they open_link a wider cohort than this report describes."
+      "Links leave out the user filter. They still clear every other filter, so they open the cohort the other filters select for every user: wider than this report describes."
     }
   )
 
