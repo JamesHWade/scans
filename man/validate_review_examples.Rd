@@ -13,12 +13,14 @@ validate_review_examples(x, split, scanners = NULL)
 
 \item{scanners}{Optional custom scanners that the cases target: one
 \code{\link[=scanner]{scanner()}} or a list of them. A case whose custom scanner is not
-supplied is reported as an \code{execution_failure}. See \code{\link[=validate_scanner]{validate_scanner()}}
-for false positives, false negatives, precision, and recall.}
+supplied has assessment \code{"scanner_not_supplied"} and an unknown result.
+See \code{\link[=validate_scanner]{validate_scanner()}} for false positives, false negatives, precision,
+and recall.}
 }
 \value{
-A tibble with case identity, judgment, scanner/assessment version,
-observed count, predicate, and \code{passed}. A pass validates the scanner
+A tibble with case identity, judgment, the \code{scan_version} that ran
+beside the \code{reviewed_scan_version} recorded in the case's saved analysis,
+assessment, observed count, predicate, and \code{passed}. A pass validates the scanner
 predicate on retained evidence; it does not establish application quality.
 }
 \description{

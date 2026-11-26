@@ -244,8 +244,26 @@ test_that("predicate checks run a supplied custom scanner", {
     )
   )
   expect_identical(checked$passed, c(FALSE, TRUE, NA, NA))
+  expect_identical(unique(checked$scan_version), "1")
+  expect_identical(unique(checked$reviewed_scan_version), "1")
+
+  newer <- validate_review_examples(
+    examples,
+    "test",
+    scanners = scanner_keyword_fixture(version = "2")
+  )
+  expect_identical(unique(newer$scan_version), "2")
+  expect_identical(unique(newer$reviewed_scan_version), "1")
+
+  missing <- validate_review_examples(examples, "test")
+  expect_identical(unique(missing$assessment), "scanner_not_supplied")
+  expect_identical(unique(missing$reviewed_scan_version), "1")
+  expect_true(all(is.na(missing$passed)))
+  thrower <- scanner_toy_fixture("toy_keyword", function(trajectory, settings) {
+    stop("boom")
+  })
   expect_identical(
-    unique(validate_review_examples(examples, "test")$assessment),
+    unique(validate_review_examples(examples, "test", thrower)$assessment),
     "execution_failure"
   )
 })
