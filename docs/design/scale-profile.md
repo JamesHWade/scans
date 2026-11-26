@@ -105,7 +105,8 @@ before selecting, which is 48 of its 87 seconds. Its file is 62 MB; its
 report is 0.05 MB of Markdown or 0.07 MB of HTML.
 
 Saved-investigation steps for all 10,000 trajectories were run once
-(`SCANS_SCALE_SAVED=1000,10000`), in an earlier run of the same code:
+(`SCANS_SCALE_SAVED=1000,10000`), in an earlier run of the same code. These
+are single measurements, not medians:
 
 | Step | Seconds |
 | --- | --- |
@@ -133,36 +134,42 @@ medians.
 ## Fixes made, before and after
 
 Only hotspots that were local and had an exact equivalent were changed. The
-"before" figures are medians from a first run of the script, which was
-stopped before it printed ranges, except where noted.
+"before" figures marked (first run) are medians from a first run of the
+script, which was interrupted before it printed ranges and was not repeated
+on the old code; figures marked (derived) were computed from other
+measurements rather than measured as one step. "After" figures are the
+baseline above unless marked.
 
 | Step | Before (s) | After (s) | Cause and fix | Pinned by |
 | --- | --- | --- | --- | --- |
-| `assess_trajectory_scans()` | 168.1 | 25.2 | A one-row tibble was built per trajectory and scan (110,000) and bound at the end, and every finding was searched per pair. Columns are now filled as vectors and findings grouped by trajectory once. Results are identical. | A cohort's assessments equal each trajectory's own, in bundle order |
-| `scans_app_data()`, diagnostics included | 184.2 | 49.5 | The same. | |
-| Browser list, 10,000 visible | 25.2 (6.9 MB) | 0.78 (0.4 MB) | htmltools renders about a millisecond and a kilobyte per entry, and superlinearly for long lists. The list now renders the first 500 entries and says how many it left out. | The list shows a bounded head and names the rest |
-| App session start, data prepared | 53.0 | 7.4 | A click observer was created per trajectory. They are now created when an entry is first listed. | An entry opens its trajectory once it is listed |
-| Overview data, all trajectories | 1.66 | 0.59 | The ancestry walk behind the token total ran a fresh `match()` per trajectory and step. Parents are resolved to rows once. | Ancestry over gaps, cycles, and unknown ids |
-| `investigation_build()`, 10,000 | about 750 (one profiled run) | about 530 (the 579 s snapshot less its diagnostics) | Replacing one element of a tibble list column per assessment copied the column each time, and the build re-hashed the payload twice to confirm identifiers it had just computed. | Loss rows for an omitted parent; a snapshot fingerprints once |
-| `investigation_report()`, 10,000 | 27 plus the 358 s verification | 27 s with `verify = FALSE`; plus verification otherwise | The report re-verifies identifiers by default, so an edited value is refused. `verify = FALSE` skips the re-hash for a value just read or built, and the report then says its identifiers were not re-verified. | A report verifies identifiers unless told the value is fresh |
+| `assess_trajectory_scans()` | 168.1 (first run) | 25.2 | A one-row tibble was built per trajectory and scan (110,000) and bound at the end, and every finding was searched per pair. Columns are now filled as vectors and findings grouped by trajectory once. Results are identical. | A cohort's assessments equal each trajectory's own, in bundle order |
+| `scans_app_data()`, diagnostics included | 184.2 (first run) | 49.5 | The same. | |
+| Browser list, 10,000 visible | 25.2 (6.9 MB) (first run) | 0.78 (0.4 MB) | htmltools renders about a millisecond and a kilobyte per entry, and superlinearly for long lists. The list now renders the first 500 entries and says how many it left out. | The list shows a bounded head and names the rest |
+| App session start, data prepared | 53.0 (first run) | 7.4 | A click observer was created per trajectory. They are now created when an entry is first listed. | An entry opens its trajectory once it is listed |
+| Overview data, all trajectories | 1.66 (first run) | 0.59 | The ancestry walk behind the token total ran a fresh `match()` per trajectory and step. Parents are resolved to rows once. | Ancestry over gaps, cycles, and unknown ids |
+| `investigation_build()`, 10,000 | about 750 (one profiled run) | about 530 (derived: the single 579 s snapshot less its diagnostics) | Replacing one element of a tibble list column per assessment copied the column each time, and the build re-hashed the payload twice to confirm identifiers it had just computed. | Loss rows for an omitted parent; a snapshot fingerprints once |
+| `investigation_report()`, 10,000 | 27 plus the 358 s verification (derived: the sum of two single measurements above, not timed as one step) | 27 s with `verify = FALSE`; plus verification otherwise | The report re-verifies identifiers by default, so an edited value is refused. `verify = FALSE` skips the re-hash for a value just read or built, and the report then says its identifiers were not re-verified. | A report verifies identifiers unless told the value is fresh |
 
 ## Budgets
 
-For this fixture on this machine. They are the numbers to compare a rerun
-against, chosen with headroom of roughly a quarter over the baseline, not
-promises about other hardware.
+For this fixture on this machine. Budgets are choices, not measurements:
+round numbers above the baseline that a rerun is compared against, and not
+promises about other hardware. The headroom they leave differs, from about
+a tenth to several times the baseline, and the last column states it. Two
+are tight: a rerun about a fifth slower for `assess_trajectory_scans()`, or
+about an eighth slower for `investigation_report()`, exceeds its budget.
 
-| Interaction | Budget | Baseline |
-| --- | --- | --- |
-| Narrow or widen the cohort: select rows, assemble and render the overview, render the list | 2.5 s | About 1.9 s for the whole cohort (0.59 + 0.52 + 0.78) and for the widest filter measured (text search, 5,753 rows: 0.06 + 0.53, then the same rendering) |
-| Select rows for any filter | 0.1 s | 0.063 s (text search) |
-| Start a session on prepared data | 10 s | 7.4 s |
-| Prepare a snapshot's data, diagnostics included | 60 s | 49.5 s |
-| Each diagnostic from a script (`scan_`, `assess_`, `measure_`) | 30 s | 7.8, 25.2, 21.4 s |
-| Construct and validate a bundle | 20 s | 16.1 s |
-| The app's report for the cohort in view | 1 s to assemble, 1 s to render | 0.60 s, 0.22 s |
-| `investigation_report()` on a saved investigation, `verify = FALSE` | 30 s at 10,000; 2.5 s at 1,000 | 27 s; 1.8 s |
-| Save or reopen a selection of 1,000 trajectories | 60 s each | 48 s write, 46 s read |
+| Interaction | Budget | Baseline | Headroom |
+| --- | --- | --- | --- |
+| Narrow or widen the cohort: select rows, assemble and render the overview, render the list | 2.5 s | About 1.9 s for the whole cohort (derived: 0.59 + 0.52 + 0.78) and for the widest filter measured (text search, 5,753 rows: 0.06 + 0.53, then the same rendering) | 32% |
+| Select rows for any filter | 0.1 s | 0.063 s (text search) | 59% |
+| Start a session on prepared data | 10 s | 7.4 s | 35% |
+| Prepare a snapshot's data, diagnostics included | 60 s | 49.5 s | 21% |
+| Each diagnostic from a script (`scan_`, `assess_`, `measure_`) | 30 s | 7.8, 25.2, 21.4 s | 19% for `assess_` |
+| Construct and validate a bundle | 20 s | 16.1 s | 24% |
+| The app's report for the cohort in view | 1 s to assemble, 1 s to render | 0.60 s, 0.22 s | 67%, over 300% |
+| `investigation_report()` on a saved investigation, `verify = FALSE` | 30 s at 10,000; 2.5 s at 1,000 | 27 s (single run); 1.8 s | 11%; 39% |
+| Save or reopen a selection of 1,000 trajectories | 60 s each | 48 s write, 46 s read | 25%, 30% |
 
 Saving or reopening all 10,000 trajectories has no budget because it does
 not work on this machine. That is the main result of this profile, and it is
@@ -177,7 +184,8 @@ invalidating on every annotation, rescan, and reload.
 
 No paging control was added. One bound was: the browser list renders the
 first 500 entries in the current order. Rendering every entry took 25 s and
-7 MB of HTML on each filter change, which is unusable, and the cost is in
+7 MB of HTML on each filter change (first run; the old code was not
+measured again), which is unusable, and the cost is in
 htmltools rather than in scans, so it could not be removed by a local fix.
 Five hundred keeps a list redraw under a second (0.78 s). This is a bound,
 not paging: there is no page state, the count and every aggregate still
@@ -190,7 +198,8 @@ that note with its position, marked as open, so the list never hides it.
 
 - **The saved-investigation fingerprint.** `investigation_hash()` encodes
   every scalar as its own JSON node and serializes the tree through
-  jsonlite. One hash costs about 13 s per 1,000 trajectories of this shape,
+  jsonlite. One hash costs about 13 s per 1,000 trajectories of this shape
+  (derived: half of the 26.3 s verification, which computes two),
   the file is 62 MB per 1,000, and at 10,000 writing exhausts 16 GB. Every
   step that verifies identifiers pays two hashes. The format and its
   identifiers were delivered earlier and are not redesigned here. A writer
