@@ -11,7 +11,7 @@
       -- Not compared 
       ! 1 trajectory only in the baseline
       ! 2 trajectories only in the candidate
-      ! 1 outcome with an incompatible scorer
+      ! 2 outcomes missing on a side
       ! 3 pattern checks not comparable (not assessed, not run, or changed scanner)
       ! 5 resource values recorded on a side but not comparable
       

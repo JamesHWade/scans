@@ -27,19 +27,18 @@ test_that("outcome changes follow the scorer's direction and skip incompatible s
       "unchanged",
       "unchanged",
       NA,
+      NA,
       "improved"
     )
   )
-  expect_identical(outcomes$delta, c(1, -1, 0, 0, 0, NA, 1))
+  expect_identical(outcomes$delta, c(1, -1, 0, 0, 0, NA, NA, 1))
   rescored <- comparison_case(outcomes, "rescored")
-  expect_false(rescored$comparable)
-  expect_identical(rescored$compatibility, "incompatible")
+  expect_identical(rescored$comparable, c(FALSE, FALSE))
+  expect_identical(rescored$compatibility, rep("missing", 2L))
+  expect_identical(rescored$baseline_value, c("C", NA))
+  expect_identical(rescored$candidate_value, c(NA, "C"))
   expect_identical(
-    c(rescored$baseline_value, rescored$candidate_value),
-    c("C", "C")
-  )
-  expect_identical(
-    outcomes$baseline_trajectory_id,
+    unique(outcomes$baseline_trajectory_id),
     comparison$pairing$pairs$baseline_trajectory_id
   )
   expect_identical(
@@ -221,7 +220,7 @@ test_that("each case counts its changes per family without combining them", {
   )
   expect_identical(
     comparison_case(cases, "rescored")$outcomes_not_comparable,
-    1L
+    2L
   )
   expect_identical(
     comparison_case(cases, "unassessed")$patterns_not_comparable,
