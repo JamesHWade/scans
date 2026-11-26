@@ -208,3 +208,43 @@ test_that("the Connect app forwards custom scanners to the app", {
     class = "scans_error_scanner"
   )
 })
+
+domain_retrieval_status <- function(recipe, ..., losses = NULL) {
+  unsupported <- recipe$answer_without_support_scanner()
+  bundle <- recipe$domain_bundle(list("chat" = list(...)))
+  if (!is.null(losses)) {
+    data <- S7::props(bundle)
+    data$schema_version <- NULL
+    data$losses <- losses
+    bundle <- do.call(TrajectoryBundle, data)
+  }
+  result <- assess_trajectory_scans(
+    bundle,
+    scans = unsupported$name,
+    scanners = unsupported
+  )
+  result$assessments$status
+}
+
+domain_long_answer <- paste(
+  "Employees may carry over up to five days of unused annual leave into",
+  "the next calendar year, with approval."
+)
+
+test_that("only a retrieval that succeeds before the answer supports it", {
+  recipe <- domain_scanner_recipe()
+  search <- function(id) recipe$domain_tool_call("search_docs", id)
+  found <- list(documents = list(list(title = "Leave policy")))
+  expect_identical(
+    domain_retrieval_status(
+      recipe,
+      recipe$domain_user("How much leave can I carry over?"),
+      search("call-1"),
+      recipe$domain_tool_result("search_docs", "call-1", list()),
+      recipe$domain_assistant(domain_long_answer),
+      search("call-2"),
+      recipe$domain_tool_result("search_docs", "call-2", found)
+    ),
+    "assessed_with_findings"
+  )
+})

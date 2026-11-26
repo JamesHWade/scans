@@ -255,14 +255,27 @@ answer_without_support_scanner <- function(
       for (i in which(unusable)) {
         at <- results$event_index[[i]]
         until <- min(c(users[users > at], Inf))
-        recovered <- any(
-          !unusable & results$event_index > at & results$event_index < until
+        after <- which(
+          answers$event_index > at & answers$event_index < until & substantive
         )
-        after <- answers$event_index > at & answers$event_index < until
-        if (recovered || !any(after & substantive)) {
+        # A later retrieval supports an answer only when it succeeded before
+        # that answer.
+        recovered <- vapply(
+          answers$event_index[after],
+          function(answered) {
+            any(
+              !unusable &
+                results$event_index > at &
+                results$event_index < answered
+            )
+          },
+          logical(1)
+        )
+        after <- after[!recovered]
+        if (!length(after)) {
           next
         }
-        answer <- answers$event_id[which(after & substantive)[[1L]]]
+        answer <- answers$event_id[[after[[1L]]]]
         if (answer %in% primary) {
           supporting[[match(answer, primary)]] <- c(
             supporting[[match(answer, primary)]],
