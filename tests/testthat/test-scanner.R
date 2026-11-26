@@ -396,19 +396,50 @@ test_that("a scanner sees one trajectory's ordered rows and its losses", {
     assign(trajectory$trajectory_id, trajectory, envir = seen)
     scanner_findings()
   })
-  bundle <- trajectory_fixture("tool_error")
+  # Rows are stored out of order and interleaved across trajectories, with a
+  # loss for each trajectory, one owned through a turn, and one unassigned.
+  bundle <- TrajectoryBundle(
+    trajectories = tibble::tibble(
+      trajectory_id = c("run-a", "run-b"),
+      source_type = "manual"
+    ),
+    turns = tibble::tibble(
+      trajectory_id = c("run-b", "run-a", "run-b", "run-a"),
+      turn_id = c("b-2", "a-1", "b-1", "a-2"),
+      turn_index = c(2L, 1L, 1L, 2L),
+      role = c("assistant", "user", "user", "assistant")
+    ),
+    events = tibble::tibble(
+      trajectory_id = c("run-b", "run-a", "run-b", "run-a", "run-b"),
+      event_id = c("b-e3", "a-e2", "b-e1", "a-e1", "b-e2"),
+      event_index = c(3L, 2L, 1L, 1L, 2L),
+      turn_id = c("b-2", "a-2", "b-1", "a-1", "b-2"),
+      event_type = "content",
+      text = "x"
+    ),
+    losses = tibble::tibble(
+      trajectory_id = c("run-a", NA, "run-b", NA),
+      turn_id = c(NA, "b-2", NA, NA),
+      field = "usage",
+      reason = "unsupported",
+      detail = c("a", "b turn", "b", "unassigned")
+    )
+  )
   scan_trajectories(bundle, scanners = spy)
-  id <- trajectory_info(bundle)$trajectory_id[[1L]]
-  got <- get(id, envir = seen)
+  got <- get("run-b", envir = seen)
 
   expect_named(
     got,
     c("trajectory_id", "info", "turns", "events", "evaluations", "losses")
   )
-  expect_identical(got$info, trajectory_info(bundle)[1L, ])
-  expect_identical(unique(got$events$trajectory_id), id)
-  expect_false(is.unsorted(got$events$event_index))
-  expect_identical(got$losses, trajectory_losses(bundle))
+  expect_identical(got$info, trajectory_info(bundle)[2L, ])
+  expect_identical(got$turns$turn_id, c("b-1", "b-2"))
+  expect_identical(got$events$event_id, c("b-e1", "b-e2", "b-e3"))
+  expect_identical(got$losses$detail, c("b turn", "b", "unassigned"))
+  expect_identical(
+    get("run-a", envir = seen)$losses$detail,
+    c("a", "unassigned")
+  )
 })
 
 test_that("saved investigations keep custom results without the scanner function", {
