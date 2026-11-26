@@ -722,12 +722,21 @@ scans_app_breakdown_rows <- function(
           `data-scans-value` = row$value,
           `aria-pressed` = if (active) "true" else "false",
           `aria-label` = sprintf(
-            "%s: %d of %d %s, %d with findings. Show these %s.",
+            "%s: %d of %d %s. %s Show these %s.",
             row$value,
             row$n,
             total,
             noun$many,
-            row$n_findings,
+            if (row$n_assessed == 0L) {
+              sprintf("No %s was assessed.", noun$one)
+            } else {
+              sprintf(
+                "%d of %d assessed %s have findings.",
+                row$n_findings,
+                row$n_assessed,
+                noun$many
+              )
+            },
             noun$many
           ),
           row$value
@@ -739,11 +748,15 @@ scans_app_breakdown_rows <- function(
         scans_app_meter(row$n / top_n)
       ),
       htmltools::tags$td(
-        if (row$n_findings == 0L) {
-          htmltools::tags$span(class = "scans-app-unknown", "0")
+        if (row$n_assessed == 0L) {
+          htmltools::tags$span(class = "scans-app-unknown", "Not assessed")
         } else {
           htmltools::tagList(
             scans_app_count(row$n_findings),
+            htmltools::tags$small(sprintf(
+              "of %s assessed",
+              scans_app_count(row$n_assessed)
+            )),
             if (tokens && row$n_error > 0L) {
               htmltools::tags$small(sprintf(
                 "%s with errors",

@@ -57,6 +57,7 @@ scans_app_performance_data <- function(
   summaries$index <- indices
   summaries$title <- data$records$title[indices]
   summaries$n_findings <- data$records$n_findings[indices]
+  summaries$assessed <- trajectories$assessed
   summaries$n_tool_errors <- data$records$n_tool_errors[indices]
   summaries$elapsed <- trajectories$elapsed
   summaries$tokens <- trajectories$tokens
@@ -67,6 +68,7 @@ scans_app_performance_data <- function(
     total = headline$total,
     n = headline$n,
     n_findings = headline$n_findings,
+    n_assessed = headline$n_assessed,
     n_evaluated = sum(ids %in% data$evaluations$trajectory_id),
     n_losses = sum(ids %in% data$loss_trajectory_ids),
     unassigned_losses = sum(is.na(data$loss_trajectory_ids)),
@@ -650,7 +652,13 @@ scans_app_performance_table <- function(data, priority) {
                 scans_app_count(rows$tokens[[i]])
               }
             ),
-            htmltools::tags$td(rows$n_findings[[i]])
+            htmltools::tags$td(
+              if (rows$assessed[[i]] || rows$n_findings[[i]] > 0L) {
+                rows$n_findings[[i]]
+              } else {
+                "Not assessed"
+              }
+            )
           )
         }
       )))

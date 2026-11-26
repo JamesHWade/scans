@@ -5,6 +5,7 @@ test_that("tools count the population and retain canonical evidence", {
   summary <- scans_tool_result(tools$scans_summarize)
   expect_equal(summary$data[[1L]]$n, 4L)
   expect_equal(summary$data[[1L]]$n_findings, 1L)
+  expect_equal(summary$data[[1L]]$n_assessed, 4L)
   expect_equal(summary$data[[1L]]$median_elapsed, 33)
   expect_equal(
     vapply(summary$patterns, function(x) x$findings, numeric(1)),
@@ -27,6 +28,19 @@ test_that("tools count the population and retain canonical evidence", {
   )
   expect_equal(last$data[[1L]]$event_id, "otel/retry/event-000006")
   expect_null(last$paging$next_offset)
+})
+
+test_that("tools say which trajectories no scan could assess", {
+  skip_if_not_installed("ellmer", "0.5.0")
+  tools <- scans_tools(cohort_fixture())
+  expect_equal(
+    scans_tool_result(tools$scans_summarize)$data[[1L]]$n_assessed,
+    4L
+  )
+  runs <- scans_tool_result(tools$scans_list_trajectories)$data
+  assessed <- vapply(runs, function(run) run$assessed, logical(1))
+  names(assessed) <- vapply(runs, function(run) run$trajectory_id, "")
+  expect_identical(assessed[c("b", "e")], c(b = TRUE, e = FALSE))
 })
 
 test_that("scope cannot broaden through any tool", {
