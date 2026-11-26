@@ -110,15 +110,20 @@ export_time <- function(time) {
 # What the rows of an export cover, repeated on every row so a file read on
 # its own still states its scope and when those rows started. A user filter
 # still narrows the cohort, so without `include_users` the scope says there
-# is one without saying who.
+# is one without saying who, and so does a text filter whose term names a
+# user (`query_names_user`).
 export_scope <- function(
   headline,
   labels = NULL,
   noun = scans_app_noun(),
-  include_users = TRUE
+  include_users = TRUE,
+  query_names_user = FALSE
 ) {
   if (!include_users && "user" %in% names(labels)) {
     labels[["user"]] <- "One user (identifier omitted)"
+  }
+  if (!include_users && query_names_user && "query" %in% names(labels)) {
+    labels[["query"]] <- report_query_hidden_label
   }
   window <- scans_app_day_range(headline$first_started, headline$last_started)
   paste(

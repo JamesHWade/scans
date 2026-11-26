@@ -214,6 +214,7 @@ scans_app_export_server <- function(input, output, session, state) {
       candidates = state$candidates()
     )
     labels <- state$filter_labels()
+    hidden <- query_names_user()
     list(
       data = current,
       ids = current$info$trajectory_id[state$visible()],
@@ -223,7 +224,8 @@ scans_app_export_server <- function(input, output, session, state) {
           performance$cohort$headline,
           labels,
           current$noun,
-          include_users
+          include_users,
+          query_names_user = hidden
         )
       }
     )

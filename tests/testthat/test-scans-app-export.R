@@ -287,6 +287,77 @@ test_that("CSV exports name users only when asked", {
   )
 })
 
+test_that("CSV exports omit a text filter's term when it names a user", {
+  fixture <- export_fixture()
+  link <- scans_app_link(
+    "https://connect.test/app/",
+    "Cohort",
+    list(query = "ada", pattern = "event_error"),
+    private = c("user", "query")
+  )
+  expect_identical(
+    link("a", users = FALSE),
+    "https://connect.test/app/#Cohort/a?scope=pattern=event_error"
+  )
+  expect_match(link("a"), "?scope=query=ada&", fixed = TRUE)
+  labels <- c(query = "Text contains \"ada\"")
+  headline <- fixture$performance$cohort$headline
+  hidden <- export_scope(
+    headline,
+    labels,
+    include_users = FALSE,
+    query_names_user = TRUE
+  )
+  expect_no_match(hidden, "ada", fixed = TRUE)
+  expect_match(hidden, "Text filter (term omitted", fixed = TRUE)
+  expect_match(
+    export_scope(
+      headline,
+      labels,
+      include_users = TRUE,
+      query_names_user = TRUE
+    ),
+    "Text contains \"ada\"",
+    fixed = TRUE
+  )
+  expect_match(
+    export_scope(headline, labels, include_users = FALSE),
+    "Text contains \"ada\"",
+    fixed = TRUE
+  )
+})
+
+test_that("the export menu's user option governs a text filter naming a user", {
+  skip_if_not_installed("bslib", "0.11.0")
+  skip_if_not_installed("shiny", "1.11.1")
+  app <- scans_app(list(Cohort = cohort_fixture()))
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_scans = scan_registry()$scan)
+    session$setInputs(scans_app_query = "ada")
+    expect_gt(length(visible()), 0L)
+    read <- function(path) paste(readLines(path), collapse = "\n")
+    for (output_id in c(
+      "scans_app_export_conversations",
+      "scans_app_export_findings"
+    )) {
+      text <- read(output[[output_id]])
+      expect_no_match(text, "ada", fixed = TRUE)
+      expect_match(text, "Text filter (term omitted", fixed = TRUE)
+    }
+
+    session$setInputs(scans_app_export_users = TRUE)
+    text <- read(output$scans_app_export_conversations)
+    expect_match(text, "Text contains \"\"ada\"\"", fixed = TRUE)
+    expect_match(text, "?scope=query=ada", fixed = TRUE)
+
+    # A term that names no user stays in the scope and the links.
+    session$setInputs(scans_app_export_users = FALSE, scans_app_query = "small")
+    text <- read(output$scans_app_export_conversations)
+    expect_match(text, "?scope=query=small", fixed = TRUE)
+  })
+})
+
 test_that("the export menu's user option governs both CSV downloads", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")

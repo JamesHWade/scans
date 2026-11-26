@@ -400,6 +400,8 @@ report_reviews <- function(reviews, x, call = rlang::caller_env()) {
   out
 }
 
+report_query_hidden_label <- "Text filter (term omitted: it matches a user identifier)"
+
 # Whether a text filter would name a user: its term contains, or is contained
 # in, a user identifier this snapshot records.
 report_query_names_user <- function(query, users) {
@@ -454,9 +456,7 @@ report_build <- function(data, indices, context) {
     context$annotated_label %||% "Annotated only"
   )
   if (query_hidden) {
-    labels[[
-      "query"
-    ]] <- "Text filter (term omitted: it matches a user identifier)"
+    labels[["query"]] <- report_query_hidden_label
   }
   if (user_hidden) {
     labels[["user"]] <- "One user (identifier omitted)"
