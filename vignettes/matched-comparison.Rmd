@@ -143,7 +143,10 @@ data.frame(
 
 One case improved and one regressed. The patterns table says what the
 scanners saw on each side. A side that could not be assessed is
-`not_comparable`; it is never read as clean.
+`not_comparable`; it is never read as clean. A pattern found on one side
+whose scan does not apply to the other side's capture is
+`no_longer_applicable` or `newly_applicable`, not `resolved` or `appeared`:
+the pattern could not occur in that capture, which says nothing about a fix.
 
 ```{r patterns}
 patterns <- comparison$patterns
@@ -245,8 +248,10 @@ dataset versions, the summaries would describe each side separately, labelled
 
 - For each held-out case that both runs completed, the recorded outcome,
   findings, and resource values of the two runs, and how they differ.
-- That the outcomes were compared under one scorer, at the version you
-  declared, on one dataset version.
+- That the outcomes were compared under one scorer at the version you
+  declared, and that you declared the same dataset version for both runs.
+  scans records the versions you declare; it does not check the cases
+  against them.
 - Which cases are outside the comparison, and why.
 
 ## What it does not establish
