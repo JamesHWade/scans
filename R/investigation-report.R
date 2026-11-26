@@ -265,12 +265,28 @@ format.scans_investigation_report <- function(
   ) {
     report_abort("{.arg max_evidence} must be one non-negative whole number.")
   }
-  blocks <- report_blocks(x, max_evidence)
+  blocks <- rapply(
+    report_blocks(x, max_evidence),
+    report_utf8,
+    classes = "character",
+    how = "replace"
+  )
   if (format == "markdown") {
     return(report_markdown(blocks))
   }
   rlang::check_installed("htmltools", reason = "to render an HTML report.")
-  report_html(blocks, x$application)
+  report_html(blocks, report_utf8(x$application))
+}
+
+# Recorded strings can be in another declared encoding or hold bytes that
+# are not UTF-8 at all. Both writers get UTF-8, with each invalid byte
+# replaced by U+FFFD.
+report_utf8 <- function(text) {
+  text <- enc2utf8(text)
+  bad <- !is.na(text) & !validUTF8(text)
+  text[bad] <- iconv(text[bad], "UTF-8", "UTF-8", sub = "\ufffd")
+  Encoding(text[bad]) <- "UTF-8"
+  text
 }
 
 #' @export

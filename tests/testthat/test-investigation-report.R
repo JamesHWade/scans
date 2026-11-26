@@ -637,6 +637,34 @@ test_that("hostile names, labels, and explanations stay text in both formats", {
   )
 })
 
+test_that("both writers produce valid UTF-8 from any recorded string", {
+  skip_if_not_installed("htmltools")
+  bundle <- cohort_fixture()
+  events <- trajectory_events(bundle)
+  latin1 <- iconv("caf\u00e9", "UTF-8", "latin1")
+  events$name[!is.na(events$name)] <- latin1
+  events$error[!is.na(events$error)] <- "bad\xff\xfebytes"
+  bundle <- TrajectoryBundle(
+    trajectory_info(bundle),
+    trajectory_turns(bundle),
+    events
+  )
+  report <- investigation_report(
+    investigation_snapshot(bundle, application = latin1),
+    include_errors = TRUE
+  )
+  directory <- withr::local_tempdir()
+  for (path in file.path(directory, c("report.md", "report.html"))) {
+    expect_no_warning(write_investigation_report(report, path))
+    bytes <- readBin(path, "raw", file.size(path))
+    text <- rawToChar(bytes)
+    Encoding(text) <- "UTF-8"
+    expect_true(validUTF8(text))
+    expect_match(text, "caf\u00e9", fixed = TRUE)
+    expect_match(text, "bad\ufffd\ufffdbytes", fixed = TRUE)
+  }
+})
+
 test_that("review decisions use the review case's own adjudication", {
   skip_if_not_installed("htmltools")
   saved <- report_fixture()
