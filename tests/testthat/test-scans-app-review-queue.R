@@ -112,7 +112,7 @@ test_that("review-state filters narrow the browser and keep progress honest", {
   })
 })
 
-test_that("a review-filtered report counts review progress in its own scope", {
+test_that("a review-filtered report gives the overview's review progress", {
   skip_if_not_installed("bslib", "0.11.0")
   skip_if_not_installed("shiny", "1.11.1")
   skip_if_not_installed("jsonlite")
@@ -140,7 +140,7 @@ test_that("a review-filtered report counts review progress in its own scope", {
     )
     expect_match(
       text,
-      "- Review: 0 of 2 flagged conversations reviewed.",
+      "- Review: 1 of 3 flagged conversations reviewed, counted without the review filter.",
       fixed = TRUE
     )
     expect_match(text, "#Cohort/a?scope=review=needs>)", fixed = TRUE)
@@ -166,7 +166,7 @@ test_that("a review-filtered report counts review progress in its own scope", {
     )
     expect_match(
       text,
-      "- Review: 1 of 1 flagged conversations reviewed.",
+      "- Review: 1 of 1 flagged conversations reviewed, counted without the review filter.",
       fixed = TRUE
     )
     expect_no_match(text, "\\bbo\\b")
