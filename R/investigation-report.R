@@ -39,6 +39,14 @@
 #' `lines_dropped`). Any other field is free-form and may name a person, so
 #' it is listed by name with its value withheld unless `include_users = TRUE`.
 #'
+#' @section Integrity:
+#' The report checks the investigation's structure and evidence references.
+#' It does not recompute the snapshot and revision identifiers, which are
+#' verified by [write_investigation()], [read_investigation()], and
+#' [scans_app()]. Build a changed revision with [investigation_snapshot()]
+#' rather than editing a saved value, or the identifiers a report prints will
+#' not describe its content.
+#'
 #' @section Links:
 #' With `app_url`, each trajectory and event links to that app. A link sets
 #' the filters the report names and clears every other filter in the app that
@@ -111,7 +119,9 @@ investigation_report <- function(
   if (is_trajectory_bundle(x)) {
     x <- investigation_snapshot(x)
   }
-  investigation_validate(x)
+  # Identifiers are verified when an investigation is written or opened.
+  # Hashing the whole payload again here would take longer than the report.
+  investigation_validate(x, identifiers = FALSE)
   if (!rlang::is_bool(include_users)) {
     report_abort("{.arg include_users} must be TRUE or FALSE.")
   }

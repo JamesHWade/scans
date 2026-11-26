@@ -128,6 +128,16 @@ only for the fields a source reader records about its read (\code{read_at},
 it is listed by name with its value withheld unless \code{include_users = TRUE}.
 }
 
+\section{Integrity}{
+
+The report checks the investigation's structure and evidence references.
+It does not recompute the snapshot and revision identifiers, which are
+verified by \code{\link[=write_investigation]{write_investigation()}}, \code{\link[=read_investigation]{read_investigation()}}, and
+\code{\link[=scans_app]{scans_app()}}. Build a changed revision with \code{\link[=investigation_snapshot]{investigation_snapshot()}}
+rather than editing a saved value, or the identifiers a report prints will
+not describe its content.
+}
+
 \section{Links}{
 
 With \code{app_url}, each trajectory and event links to that app. A link sets

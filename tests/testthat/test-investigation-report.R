@@ -901,3 +901,33 @@ test_that("the report value holds no recorded tool input or output", {
     expect_no_match(held, text, fixed = TRUE)
   }
 })
+
+test_that("a report checks structure without fingerprinting the payload again", {
+  saved <- report_fixture()
+  hashed <- new.env(parent = emptyenv())
+  hashed$n <- 0L
+  hash <- investigation_hash
+  local_mocked_bindings(
+    investigation_hash = function(x) {
+      hashed$n <- hashed$n + 1L
+      hash(x)
+    }
+  )
+  report <- investigation_report(saved)
+  expect_identical(hashed$n, 0L)
+  expect_identical(
+    report$scope$snapshot$snapshot_id,
+    saved$manifest$snapshot_id
+  )
+
+  broken <- saved
+  broken$analysis$findings$event_id[[1L]] <- "no-such-event"
+  expect_error(
+    investigation_report(broken),
+    class = "scans_error_investigation"
+  )
+  expect_error(
+    investigation_report(unclass(saved)),
+    class = "scans_error_investigation"
+  )
+})
