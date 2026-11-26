@@ -295,7 +295,9 @@ writeLines(markdown[seq_len(match("## Patterns", markdown) - 1L)])
 The scope names the saved selection, every active filter, and what is known
 about the source read. This example recorded source details but no read
 window, so the report says that whether the read was capped is unknown rather
-than assuming it was complete.
+than assuming it was complete. A free-form detail such as `kind` is named
+with its value withheld, since such fields can name a person; pass
+`include_users = TRUE` to print it.
 
 A saved view's filters narrow the report the way they narrow the app:
 
@@ -313,9 +315,10 @@ narrowed$trajectories$trajectory_id
 ```
 
 Pass the address of a deployed app to turn each trajectory and event identity
-into a link. A link carries the filters, not the trajectories: it reopens
-exactly this cohort when that app serves this saved investigation, and the
-report says so under its scope.
+into a link. A link carries the filters, not the trajectories, and clears any
+other filter in the app that opens it: it reopens exactly this cohort when
+that app serves this saved investigation, and the report says so under its
+scope.
 
 ```{r report-links}
 linked <- investigation_report(flagged, app_url = "https://connect.example/scans/")
@@ -324,8 +327,12 @@ linked$scope$link_limits
 ```
 
 In the app, **Export > Report** produces the same report for the trajectories
-in view. For an opened investigation the downloaded file matches the one
-written here except for the time it was generated.
+in view. For an opened investigation shown with its saved filters, the
+downloaded file matches the one written here for the same app address except
+for the time it was generated. Once a filter is changed in the app, or the
+annotation filter reads the app's own annotation store, the report keeps the
+snapshot identifier but omits the revision identifier, because that revision
+describes a different view.
 
 ### What the report can and cannot establish
 
@@ -339,9 +346,10 @@ with no findings succeeded, or that the source captured every call. A
 conversation no scan could assess is reported as not assessed, and an
 unrecorded measurement as unknown; neither is a zero. User identifiers are
 left out unless you pass `include_users = TRUE`, and the report never prints
-message text, tool arguments, or tool results, though it does print tool
-names, model names, recorded error strings, and identifiers. Review those
-before sending it outside your team.
+message text, tool arguments, or tool results. Recorded error strings are
+often tool-result text, so they are counted but not printed unless you pass
+`include_errors = TRUE`. The report does print tool names, model names, and
+identifiers. Review those before sending it outside your team.
 
 ## Bring your own completed evidence
 
