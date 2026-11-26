@@ -158,6 +158,16 @@ attribute, walking up the span's ancestry to find it. A conversation
 without that attribute anywhere in its ancestry falls back to its trace
 id, which groups a single model call rather than a session.
 
+A trace-id group is then joined to the conversation it continues, when
+there is one: the group in the same Shiny session (`session.id` on the
+spans or their ancestors) holding the earliest later model call whose
+input history begins with the group's latest history and the answer to
+it. This recovers the first turn of an app that only learns its
+conversation id at the first save, and chains the turns of an app that
+records no id at all. The joined trace ids are kept in
+`metadata$otel$stitched`. A turn whose answer was not recorded, or with
+no recorded session, is left on its own.
+
 ## See also
 
 [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md)

@@ -2,6 +2,19 @@
 
 ## scans 0.0.0.9000
 
+- [`as_trajectory_otel()`](https://jameshwade.github.io/scans/reference/as_trajectory_otel.md),
+  [`read_connect_traces()`](https://jameshwade.github.io/scans/reference/read_connect_traces.md),
+  and
+  [`read_otel_traces()`](https://jameshwade.github.io/scans/reference/read_otel_traces.md)
+  join a turn recorded without a conversation id to the conversation it
+  continues in the same Shiny session, recognized by a later model call
+  whose history begins with the turn’s history and answer. Apps that
+  learn the id only at the first save (such as
+  `chat_history_current_id()` users) no longer show each conversation’s
+  first turn as a conversation of its own, and turns from apps that
+  record no id chain into one conversation. Joined trace ids are kept in
+  `metadata$otel$stitched`.
+
 - [`scans_app()`](https://jameshwade.github.io/scans/reference/scans_app.md)
   opens on a diagnostic overview: stat tiles with denominators, an
   activity chart by start day or hour, pattern reach and trend, a
