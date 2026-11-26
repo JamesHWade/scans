@@ -4,16 +4,17 @@
 
 This audit identifies the first integration seams beyond ellmer and vitals.
 It was first pinned to upstream development commits on 2026-08-22. The deputy
-and commons sections and inventory rows were refreshed on 2026-11-25; the
-shinychat, dsprrr, and tempest rows still reflect the 2026-08-22 pins. It
-considers only public, settled, post-run state. Live clients, private R6 fields, network reads,
-and provider calls are outside the adapter seam.
+and commons sections and inventory rows were refreshed on 2026-11-25, and the
+shinychat section and row on 2026-11-26; the dsprrr and tempest rows still
+reflect the 2026-08-22 pins. It considers only public, settled, post-run
+state. Live clients, private R6 fields, network reads, and provider calls are
+outside the adapter seam.
 
 ## Source inventory
 
 | Package | Development snapshot | Public post-run source | Information beyond ellmer | Decision |
 | --- | --- | --- | --- | --- |
-| shinychat 0.4.0.9000 | [`c6121f1`](https://github.com/posit-dev/shinychat/tree/c6121f15192472d058241a9ad987d1b35a84dbbc) | `chat_server()` returns the current client, status, last error, and last turn. `ConversationStore` documents a branched record containing turns and rendered UI. | Rendered messages, attachments, errors, conversation identity, active branch, inactive branches, and application state. | Documentation only. The record is not available through a public settled snapshot accessor, and its semantic turns remain ellmer-owned. |
+| shinychat 0.5.0 (pin), 0.5.0.9000 (`main`) | [`826c799`](https://github.com/posit-dev/shinychat/tree/826c799994c32611629236bbc73516dbc14ff2ab) (2026-09-09, pin); [`2a1d456`](https://github.com/posit-dev/shinychat/tree/2a1d456cb640692d58a51c8f58d87df8aa043d39) (2026-11-10, `main`) | `chat_server()` returns the current client, status, last error, last turn, and a reactive conversation ID. `ConversationStore` documents the top level of a branched record containing turns and rendered UI. | Inactive branches, other saved conversations, conversation identity and title, attachments, and application state. Displayed messages on the active path are derived from the ellmer turns. | Documentation only, re-confirmed 2026-11-26. The record is not available through a public settled snapshot accessor, its node shape is undocumented and due to change, and its semantic turns remain ellmer-owned. |
 | commons 0.2.0.9000 | [`820659f`](https://github.com/posit-dev/commons/tree/820659fca10f0ae6284d0a76016c186a3e63f420) (2026-11-24) | `trajectory_read()` returns named conversations, each a list of `turns` (ellmer turns), `last_active`, and `user`; the turns carry a `provenance` attribute of per-exchange records. | Conversation identity, authenticated Connect user, OpenTelemetry provenance, trust tags, and citation decisions. | Complete explicit adapter. Accept already-read output and perform no Connect or filesystem I/O. |
 | dsprrr 0.0.0.9000 | [`0215110`](https://github.com/JamesHWade/dsprrr/tree/0215110b73a823fa1a3891b5b57d54f873d1ee47) | `export_traces()` snapshots module traces; `inspect_history()` exposes recent calls; run methods accept `.trace_context`; `program_artifact_id()` supplies verified executable identity. | Module identity, prompts and outputs, token/cost/latency measures, program artifact identity, and caller-supplied correlation context. | Complete source adapter. Prefer `export_traces(..., include_outputs = TRUE)` and retain trace context without treating artifact integrity as authenticity. |
 | deputy 0.0.0.9007 | [`bfc7747`](https://github.com/JamesHWade/deputy/tree/bfc77473acc26a76f5f4f4310cdb78d1f2a298b6) (2026-11-25, on `feat/mcp-console-0.4-267`; not yet on `main`) | The S7 `AgentResult` contains settled turns, ordered S7 `AgentEvent`s, usage, session/run/agent identity, delegation identity, immutable run context, and a `RunEnding` with `finish_reason` and `cut_off`. `delegation_history()` replays a saved `$export_subagents()` snapshot. | Run lifecycle and how each run ended, tool timings and failures, budgets, delegation hierarchy, stable run identity, and product context. | Complete source adapter and first implementation target. It has the deepest public source interface and a distinct class. |
@@ -23,8 +24,153 @@ and provider calls are outside the adapter seam.
 
 ### shinychat
 
-This section still reflects the 2026-08-22 pin (shinychat 0.4.0.9000,
-`c6121f1`) and has not been re-audited. Issue #9 tracks the refresh.
+#### Refresh of 2026-11-26
+
+Decision: the gap continues. No supported public shinychat interface returns
+a settled snapshot of the displayed conversation. scans keeps the ellmer path
+and adds no shinychat adapter or supplement.
+
+Versions audited:
+
+| What | Version | Commit | Date |
+| --- | --- | --- | --- |
+| Pin in `DESCRIPTION` `Remotes:` | 0.5.0 | [`826c799`](https://github.com/posit-dev/shinychat/tree/826c799994c32611629236bbc73516dbc14ff2ab) | 2026-09-09 |
+| Latest R release (CRAN 0.5.0, tag `r/v0.5.0`) | 0.5.0 | `6cb1417` | 2026-09-13 |
+| Upstream `main` | 0.5.0.9000 | [`2a1d456`](https://github.com/posit-dev/shinychat/tree/2a1d456cb640692d58a51c8f58d87df8aa043d39) | 2026-11-10 |
+| Installed and tested here | 0.5.0 | not recorded by the install | built 2026-09-18 |
+
+The pin is the release candidate: the release tag differs from it under
+`pkg-r/` only in `pkgdown/_pkgdown.yml`. The pin is 33 commits behind `main`,
+6 of which touch `pkg-r/R`. `pkg-r/NAMESPACE` is byte-identical at the pin, in
+the installed package, and on `main` (33 exports). The installed package has
+no remote metadata, so its commit is inferred from that match and from
+`chat_server()` lacking `history$title()`, which only `main` has. File and
+line references below are to `pkg-r/` at `2a1d456`.
+
+What was searched: every export in `NAMESPACE`; all 32 help topics in
+`pkg-r/man`; `NEWS.md`; both vignettes; the value `chat_server()` returns
+(read from the function in the installed package and from `R/chat_app.R`);
+`R/chat_history.R`, `R/chat_history_store.R`, `R/chat_history_types.R`,
+`R/chat_history_client.R`, and `R/chat_restore.R`; and the upstream design
+note `memory-bank/exchange-tree-history.md`. Exports and help topics were
+also searched for names containing message, history, turn, transcript,
+branch, snapshot, export, record, conversation, store, or restore.
+
+| Public surface | Reference | Displayed messages | Tool activity | Branch state | Identity and order |
+| --- | --- | --- | --- | --- | --- |
+| `chat_server()` return: `client`, `last_turn`, `last_input`, `status`, `last_error` | `R/chat_app.R:84-160`, `:996-1014`; `?chat_app` | None. `client` is the ellmer `Chat`; the rest are live reactives of the latest exchange. | Only what the `Chat` turns hold. | None. The `Chat` holds the active path only. | ellmer turn order. |
+| `chat_server()$history`: `conversation_id()`, `title()` (`main` only), `save()`, `on_save()`, `on_restore()` | `R/chat_app.R:127-158`, `:1022-1076` | None. | None. | None. | `conversation_id()` is the saved record's ID and is set on the client as `conversation_id`, which ellmer records as `gen_ai.conversation.id`. It is reactive, so it must be read inside the session. |
+| `chat_enable_history()`, `history_options()` | `R/chat_history.R:740`, `:792`; `?chat_enable_history` | None. Returns a cancel function. `on_save` and `on_restore` receive only the application `values` list. | None. | None. | None. |
+| `ConversationStore`, `FileConversationStore` | `R/chat_history_store.R:24-108`, `:338`, `:499`; `?ConversationStore` | Inside the record that `get()` returns, as `nodes[[id]]$ui`. | Inside `ui`, as rendered blocks. | Inside the record: `nodes`, `current_leaf`. | Record `id`; node IDs; no per-node timestamps. See below for why this is not a usable accessor. |
+| `chat_restore()` | `R/chat_restore.R:74`; `?chat_restore` | None. Bookmarks the `Chat` state and replays it into the UI. | None. | None. It does not know about multiple conversations. | None. |
+| `chat_append()`, `chat_append_message()`, `chat_clear()`, `update_chat_user_input()`, greeting functions | `R/chat.R`; help topics of the same names | Write-only. `chat_get_greeting()` reads the greeting, not messages. | None. | None. | None. |
+| `contents_shinychat()`, `tool_result_display()` | `R/contents_shinychat.R`; `?contents_shinychat` | Renders ellmer content for display. It reads nothing back from a session. | Controls how a tool result looks. | None. | None. |
+| Documented inputs: `input$<id>_user_input`, `input$<id>_greeting_dismissed`, `input$<id>_page` | `NEWS.md` (0.5.0) | The latest submission only. | None. | None. | None. |
+
+The conversation record is the only place branch state exists, and it is not
+reachable through a supported accessor:
+
+- `ConversationStore$get(partition, id)` and `$list(partition)` need a
+  partition. `conversation_partition()` is not exported, and the source says
+  why: custom stores "only ever receive a partition from the framework" and
+  "never need to construct one" (`R/chat_history_store.R:1-15`). In the
+  installed package, `FileConversationStore$new(dir)$list()` with a plain
+  list aborts with "`partition` must be a shinychat conversation partition."
+- A host can see a record only by being the storage backend: a
+  `ConversationStore` subclass receives each record in `put()`. That is a
+  write-side persistence contract used during the run. It is not a post-run
+  read of a completed session, and it fires on every save, title change, and
+  branch navigation, with nothing marking a record as final.
+- The documented record shape stops at the top level. `?ConversationStore`
+  lists `schema_version`, `id`, `title`, `title_source`, `response_count`,
+  `created_at`, `updated_at`, `client_info`, `nodes`, `current_leaf`,
+  `values`, and `bookmark_state_id`, and describes `nodes` only as "a named
+  list of turn nodes forming the conversation tree". The node fields
+  (`parent`, `children`, `turns`, `ui`, `selected_child`) and the stored UI
+  message format are undocumented.
+- The shape is about to change. Upstream's design note says the Python
+  package already uses record schema version 2 (an exchange tree) and "R has
+  not yet been ported" (`memory-bank/exchange-tree-history.md:5`). The Python
+  changelog for that rewrite says apps with custom stores "must support the
+  new record format". R is still at schema version 1
+  (`R/chat_history_types.R:60-61`).
+- `FileConversationStore` writes `record.json`, `turns.jsonl`, and
+  `ui.jsonl`. That layout is undocumented, and reading it would be filesystem
+  I/O against a private format.
+
+Two facts narrow what a snapshot would add in R today:
+
+- Displayed messages in the record are derived on the server from the ellmer
+  turns, through `contents_shinychat()`
+  (`derive_stored_ui_messages()`, `R/chat_history_types.R:284`), and are
+  re-derived from the turns when missing. For the active path they are a
+  rendering of the same turns the `Chat` holds, not independent evidence of
+  what the browser showed. Tool activity is likewise a rendering of the tool
+  requests and results in those turns. Messages an app adds with
+  `chat_append()` are not recorded.
+- After an edit, a branch switch, or a conversation switch, shinychat resets
+  the client to the turns on the active path
+  (`R/chat_history.R:235`, `:500-541`; `R/chat_history_client.R:5`). A `Chat`
+  read after the session therefore never contains turns the user edited away
+  or other conversations from the history drawer.
+
+So the evidence a public snapshot would add beyond the `Chat` is: inactive
+branches, the other saved conversations, the conversation ID and title,
+record timestamps, attachment metadata, and the application `values`.
+
+What changed since 2026-08-22 (0.4.0.9000, `c6121f1`):
+
+- `chat_server()$history$conversation_id()` is new. It gives a stable
+  conversation ID and hands it to the ellmer client. The earlier audit had no
+  public conversation identity.
+- `history$title()` is new on `main` and not in 0.5.0.
+- `page_chat()`, `chat_ui_history()`, the drawer functions, and `new_chat()`
+  are new. None reads conversation content.
+- Editing a sent message now forks the conversation in the UI (0.5.0 NEWS,
+  #269), so inactive branches are now something users create routinely.
+- Still true: the record is reachable only through a store, and the partition
+  constructor is not exported.
+
+What would unblock a presentation supplement. Any one of the first two, plus
+the rest:
+
+1. An exported accessor for the active or a named conversation that needs no
+   partition, for example a `history$record()` on the `chat_server()` return
+   value, or an exported reader that takes a store, chat ID, and scope.
+2. Or an exported `conversation_partition()` constructor, with `get()`
+   documented as a supported read path.
+3. A documented node schema: node ID, parent, children, which child is
+   active, the recorded ellmer turns, and the displayed messages, with a
+   schema version that upstream commits to. The schema 2 port to R is the
+   natural point.
+4. A way to tell a settled record from one written mid-run, such as a
+   terminal status per exchange.
+5. An identifier that ties each displayed message to the turns it renders,
+   so the join to ellmer turns does not rest on position.
+
+The ellmer path was checked against the audited version. With ellmer 0.5.2
+and shinychat 0.5.0 installed, a `Chat` whose turns went through
+`ellmer::contents_record()` and `ellmer::contents_replay()`, which is what
+shinychat does on save and restore, converts with `as_trajectory()` to the
+same events as the original turns, with no losses. The titling prompt at the
+pin and on `main` (`R/chat_history_title.R:1`) still begins with the text
+`as_trajectory_otel()` uses to set title calls aside. One gap in scans, not
+in shinychat: `as_trajectory_ellmer()` does not retain `Chat$conversation_id`,
+so a trajectory read from the client cannot yet be joined to the OTel
+conversation or a future shinychat record by that ID.
+
+The integration path is unchanged:
+
+1. Continue using `as_trajectory_ellmer()` for the semantic client snapshot,
+   or `as_trajectory_otel()` for recorded spans.
+2. Ask shinychat to expose a public immutable conversation-record snapshot,
+   as listed above.
+3. Once available, add inactive branches and presentation state as a
+   supplement, without changing the active semantic path.
+
+#### Findings of 2026-08-22
+
+Kept as history. These describe shinychat 0.4.0.9000 at `c6121f1`.
 
 The public `ConversationStore` interface documents the useful settled record:
 conversation identity, a node graph, a current leaf, serialized ellmer turns,
@@ -34,13 +180,7 @@ standard callers cannot construct the non-exported partition required by
 plus the semantic ellmer client.
 
 scans must not inspect the internal `HistoryController`, synthesize a
-partition, or substitute rendered messages for model-visible turns. The
-integration path is therefore:
-
-1. Continue using `as_trajectory_ellmer()` for the semantic client snapshot.
-2. Ask shinychat to expose a public immutable conversation-record snapshot.
-3. Once available, add rendered messages and branch identity as a supplement,
-   retaining inactive branches without changing the active semantic path.
+partition, or substitute rendered messages for model-visible turns.
 
 ### commons
 
@@ -230,6 +370,8 @@ with the script as written.
 4. Implement the explicit Tempest review adapter using its closed projection
    in #21.
 5. Revisit shinychat only after a public settled history snapshot exists.
+   The 2026-11-26 refresh found none; the shinychat section lists what would
+   unblock it.
 
 The first four adapters remain optional. Each gets a focused child issue and
 provider-free conformance fixtures before implementation.
