@@ -314,3 +314,57 @@ test_that("a blank retrieval result is not usable content", {
     )
   }
 })
+
+test_that("provenance is read against its exchange, not the nth user turn", {
+  recipe <- domain_scanner_recipe()
+  unsupported <- recipe$answer_without_support_scanner()
+  bundle <- recipe$domain_bundle(list(
+    "chat" = list(
+      recipe$domain_user("How much leave can I carry over?"),
+      recipe$domain_assistant(domain_long_answer),
+      recipe$domain_user("[internal reminder: cite your sources]"),
+      recipe$domain_assistant("Noted."),
+      recipe$domain_user("And how much can I buy?"),
+      recipe$domain_assistant(domain_long_answer),
+      recipe$domain_provenance("A", 1L),
+      recipe$domain_provenance("C", 2L)
+    )
+  ))
+  data <- S7::props(bundle)
+  data$schema_version <- NULL
+  data$turns$metadata[[3L]] <- list(commons_internal = TRUE)
+  derived <- do.call(TrajectoryBundle, data)
+  data$turns$metadata[[3L]] <- list()
+  data$turns$round_index <- c(1L, 1L, 1L, 1L, 2L, 2L)
+  rounds <- do.call(TrajectoryBundle, data)
+
+  for (x in list(derived, rounds)) {
+    result <- assess_trajectory_scans(
+      x,
+      scans = unsupported$name,
+      scanners = unsupported
+    )
+    expect_identical(result$findings$event_id, "chat/event-06")
+    expect_identical(
+      result$findings$event_ids[[1L]],
+      c("chat/event-06", "chat/event-08")
+    )
+  }
+})
+
+test_that("a malformed provenance exchange is unclassified, not a crash", {
+  recipe <- domain_scanner_recipe()
+  for (exchange in list(0L, -1L, 1.5, "1", NA_integer_, c(1L, 2L))) {
+    record <- recipe$domain_provenance("C")
+    record$metadata$exchange_index <- exchange
+    expect_identical(
+      domain_retrieval_status(
+        recipe,
+        recipe$domain_user("How much leave can I carry over?"),
+        recipe$domain_assistant(domain_long_answer),
+        record
+      ),
+      "insufficient_evidence"
+    )
+  }
+})

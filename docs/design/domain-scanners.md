@@ -65,12 +65,26 @@ statement about the conversation, not about missing evidence. Both are
 unassessed and neither is a negative. The cost is a blind spot, stated in the
 article: an assistant that never retrieves is not flagged by this scanner.
 
-**Provenance is read from events, not from `route_exchanges()`.** The route
-analysis is internal. The example reads `value$provenance_tag` and
-`metadata$exchange_index` from `commons:provenance` events and matches the
-nth record to the nth user message. That is simpler than the internal
-exchange rules and can be wrong for applications that insert internal user
-turns; the code says so.
+**Provenance is matched to answers by exchange, with the route analysis's
+rule.** The route analysis is internal and has no public accessor, so the
+example mirrors its rule (`route_turn_exchanges()` and
+`route_provenance_records()` in `R/route-analysis.R`) rather than calling it.
+A turn's exchange is its `round_index` when the trajectory records rounds, as
+`as_trajectory_commons()` does; otherwise each user turn that holds no tool
+result and is not marked `commons_internal` opens the next exchange, so a
+commons reminder turn does not. A provenance record's exchange is its
+`metadata$exchange_index` when that is one whole number of at least 1, and
+otherwise the exchange of its turn. The answer a record describes is the last
+substantive assistant text in that exchange. A record with no valid exchange
+is unclassified and not used; when no record can be placed and no retrieval
+result is retained, the trajectory is `insufficient_evidence`.
+
+The rule has limits. Without `round_index` it trusts that every other user
+turn is a new question, which an application that injects its own user turns
+without marking them breaks. It reads one answer per exchange, the last, so an
+untrusted exchange with two long answers yields one finding. And a copy of a
+rule drifts: if the route analysis changes its exchange rule, this example
+does not follow.
 
 ## The fixture cases
 

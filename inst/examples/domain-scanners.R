@@ -43,6 +43,60 @@ domain_is_blank <- function(x) {
   all(x %in% c("", "[]", "{}", "null"))
 }
 
+# The exchange of each turn, by the rule scans' route analysis uses
+# (route_turn_exchanges() in R/route-analysis.R, which has no public
+# accessor): the turn's round_index when the trajectory records rounds;
+# otherwise each user turn that holds no tool result and is not marked
+# commons_internal, such as a commons reminder, opens the next exchange.
+domain_turn_exchanges <- function(trajectory) {
+  turns <- trajectory$turns
+  turns <- turns[order(turns$turn_index), , drop = FALSE]
+  if (!all(is.na(turns$round_index))) {
+    index <- turns$round_index
+  } else {
+    events <- trajectory$events
+    internal <- vapply(
+      turns$metadata,
+      function(metadata) {
+        is.list(metadata) && isTRUE(metadata$commons_internal)
+      },
+      logical(1)
+    )
+    opens <- turns$role %in%
+      "user" &
+      !turns$turn_id %in%
+        events$turn_id[events$event_type %in% "tool_result"] &
+      !internal
+    index <- cumsum(opens)
+    index[index == 0L] <- NA
+  }
+  stats::setNames(as.integer(index), turns$turn_id)
+}
+
+# Each event's exchange: its turn's, or for an event outside any turn, that of
+# the nearest earlier event in one.
+domain_event_exchanges <- function(events, turn_exchange) {
+  index <- unname(turn_exchange[match(events$turn_id, names(turn_exchange))])
+  c(NA_integer_, index[!is.na(index)])[cumsum(!is.na(index)) + 1L]
+}
+
+# A provenance record's exchange_index when it is one whole number of at
+# least 1, as the route analysis requires; otherwise NA.
+domain_exchange_index <- function(metadata) {
+  value <- if (is.list(metadata)) metadata$exchange_index else NULL
+  if (
+    is.numeric(value) &&
+      length(value) == 1L &&
+      is.finite(value) &&
+      value >= 1 &&
+      value == floor(value)
+  ) {
+    as.integer(value)
+  } else {
+    NA_integer_
+  }
+}
+
 domain_result_failed <- function(results) {
   results$status %in% c("failed", "cancelled") | !is.na(results$error)
 }
@@ -252,22 +306,31 @@ answer_without_support_scanner <- function(
         },
         character(1)
       )
-      if (nrow(results) == 0L && !any(tags %in% c("A", "B", "C"))) {
+      turn_exchange <- domain_turn_exchanges(trajectory)
+      event_exchange <- domain_event_exchanges(events, turn_exchange)
+      exchange <- vapply(provenance$metadata, domain_exchange_index, integer(1))
+      from_turn <- turn_exchange[match(
+        provenance$turn_id,
+        names(turn_exchange)
+      )]
+      exchange[is.na(exchange)] <- from_turn[is.na(exchange)]
+      placed <- tags %in% c("A", "B", "C") & !is.na(exchange)
+      if (nrow(results) == 0L && !any(placed)) {
         return(scans::scanner_unassessed(
           "insufficient_evidence",
-          "Provenance is recorded without a recognised tag, and no retrieval result is retained."
+          "Provenance is recorded without a recognised tag and a valid exchange, and no retrieval result is retained."
         ))
       }
       substantive <- nchar(answers$text) >= settings$min_chars &
         !grepl(settings$declined, answers$text, ignore.case = TRUE)
-      users <- events$event_index[
-        events$event_type %in%
-          "content" &
-          trajectory$turns$role[
-            match(events$turn_id, trajectory$turns$turn_id)
-          ] %in%
-            "user"
-      ]
+      answer_exchange <- event_exchange[match(
+        answers$event_id,
+        events$event_id
+      )]
+      result_exchange <- event_exchange[match(
+        results$event_id,
+        events$event_id
+      )]
       primary <- character()
       supporting <- list()
       labels <- character()
@@ -275,7 +338,7 @@ answer_without_support_scanner <- function(
       values <- list()
 
       # A retrieval result with no usable content, then a substantive answer
-      # before the user speaks again and before a later retrieval succeeds.
+      # in the same exchange with no successful retrieval between them.
       empty <- vapply(
         seq_len(nrow(results)),
         function(i) {
@@ -286,9 +349,10 @@ answer_without_support_scanner <- function(
       unusable <- domain_result_failed(results) | empty
       for (i in which(unusable)) {
         at <- results$event_index[[i]]
-        until <- min(c(users[users > at], Inf))
         after <- which(
-          answers$event_index > at & answers$event_index < until & substantive
+          answers$event_index > at &
+            answer_exchange %in% result_exchange[[i]] &
+            substantive
         )
         # A later retrieval supports an answer only when it succeeded before
         # that answer.
@@ -325,20 +389,12 @@ answer_without_support_scanner <- function(
         values <- c(values, list(list(basis = "retrieval_result")))
       }
 
-      # commons records one provenance entry per exchange, in order. Here the
-      # nth entry is read against the nth user message, and the answer it
-      # describes is the last assistant text before the next one. Adjust this
-      # if your application adds user turns that are not questions.
-      for (i in which(tags %in% "C")) {
-        exchange <- provenance$metadata[[i]]$exchange_index
-        if (is.null(exchange) || exchange > length(users)) {
-          next
-        }
-        from <- users[[exchange]]
-        until <- min(c(users[users > from], Inf))
-        within <- answers$event_index > from &
-          answers$event_index < until &
-          substantive
+      # Each provenance record names its exchange (metadata$exchange_index,
+      # or the exchange of its turn), and the answer it describes is the last
+      # substantive assistant text in that exchange. A record whose exchange
+      # is missing or malformed is unclassified and is not used.
+      for (i in which(tags %in% "C" & !is.na(exchange))) {
+        within <- answer_exchange %in% exchange[[i]] & substantive
         if (!any(within)) {
           next
         }
