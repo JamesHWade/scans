@@ -313,6 +313,10 @@ scans_app_ask_server <- function(
   }
   chat_target <- shiny::reactiveVal(NULL)
   state$viewing_chat_snapshot <- shiny::reactiveVal(FALSE)
+  state$close_opened_investigation <- function() {
+    state$opened_investigation(NULL)
+    state$viewing_chat_snapshot(FALSE)
+  }
   state$chat_state <- if (!is.null(chat_factory)) {
     scans_app_chat_server(
       input,
@@ -334,6 +338,7 @@ scans_app_ask_server <- function(
             state$opened_investigation(snapshot)
             state$viewing_chat_snapshot(TRUE)
           } else {
+            state$close_opened_investigation()
             shiny::updateSelectInput(
               session,
               "scans_app_application",
@@ -383,7 +388,6 @@ scans_app_ask_server <- function(
     )
   })
   shiny::observeEvent(input$scans_app_return_source, {
-    state$opened_investigation(NULL)
-    state$viewing_chat_snapshot(FALSE)
+    state$close_opened_investigation()
   })
 }

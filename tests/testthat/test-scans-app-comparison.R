@@ -357,3 +357,40 @@ test_that("Ask evidence from the other side switches sides in a comparison", {
     expect_identical(selected_trajectory_id(), "vitals/same/epoch-000001")
   })
 })
+
+test_that("an Ask citation leaves an opened review example for the cited side", {
+  skip_if_not_installed("vitals")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
+  comparison <- comparison_app_fixture()
+  candidate <- "Candidate: Support assistant candidate"
+  app <- scans_app(
+    comparison,
+    reviews = TRUE,
+    chat_factory = scans_test_chat
+  )
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_application = candidate)
+    session$flushReact()
+    session$setInputs(
+      scans_app_view = "trajectory",
+      scans_app_ask_scope = "trajectory",
+      scans_app_inspect = "vitals/regress/epoch-000001"
+    )
+    session$setInputs(scans_app_ask_user_input = list("What failed?"))
+    scans_test_drain(session, function() {
+      !is.null(chat_state$module$last_turn())
+    })
+    key <- ls(chat_state$references)[[1L]]
+    opened_investigation(comparison$pairing$baseline)
+    viewing_chat_snapshot(TRUE)
+    session$flushReact()
+    session$setInputs(scans_app_chat_evidence = key)
+    session$setInputs(scans_app_application = candidate)
+    session$flushReact()
+    expect_null(opened_investigation())
+    expect_false(viewing_chat_snapshot())
+    expect_identical(selected_trajectory_id(), "vitals/regress/epoch-000001")
+  })
+})
