@@ -494,3 +494,18 @@ test_that("conflicting recorded scales on one side reject a declaration", {
     expect_error(pair(baseline, declared), class = "scans_error_pairing")
   }
 })
+
+test_that("recorded levels that differ are incompatible even without a version", {
+  pairing <- pair_trajectories(
+    comparison_manual_investigation(list(
+      factor("C", levels = c("I", "C"), ordered = TRUE)
+    )),
+    comparison_manual_investigation(list(
+      factor("C", levels = c("C", "I"), ordered = TRUE)
+    )),
+    by = "sample_id",
+    dataset_version = "v1"
+  )
+  expect_identical(pairing$outcome_pairs$compatibility, "incompatible")
+  expect_identical(pairing$outcome_pairs$reason, "Scorer levels differs.")
+})

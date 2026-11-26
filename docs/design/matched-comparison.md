@@ -114,6 +114,10 @@ an error too, so a typo cannot silently leave a scorer undeclared.
 | `unknown` | An attribute is neither recorded nor declared, the scorer label is absent, or either trajectory of the pair has several evaluations from one scorer (both sides are then `unknown` for it) |
 | `missing` | One side, or both, has no evaluation from this scorer |
 
+A known difference outranks an unknown attribute: levels recorded on both
+sides that differ make the row `incompatible` even when the version is
+undeclared.
+
 Evaluations of a pair match by scorer identity. When exactly one evaluation
 is left on each side, under two different identities, the row is
 `incompatible` ("Scorer identity differs") only if neither identity is

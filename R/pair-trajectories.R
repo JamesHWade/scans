@@ -779,11 +779,13 @@ pairing_scorer_verdict <- function(baseline, candidate) {
   differs <- differs[
     vapply(differs, \(f) !identical(baseline[[f]], candidate[[f]]), NA)
   ]
+  # Levels recorded on both sides are known even when another attribute is not.
+  levels <- list(baseline$levels[[1L]], candidate$levels[[1L]])
   if (
-    !length(c(unknown, differs)) &&
-      !identical(baseline$levels[[1L]], candidate$levels[[1L]])
+    !identical(levels[[1L]], levels[[2L]]) &&
+      (!length(c(unknown, differs)) || !any(vapply(levels, is.null, NA)))
   ) {
-    differs <- "levels"
+    differs <- c(differs, "levels")
   }
   if (length(differs)) {
     return(list(
