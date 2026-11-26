@@ -97,7 +97,9 @@ scans_app_ui <- function(
           icon = shiny::icon("ellipsis")
         ),
         title = "Snapshot options",
-        if (investigations) scans_app_investigation_ui(),
+        if (investigations) {
+          scans_app_investigation_ui(open = is.null(sources$comparison))
+        },
         scans_app_scanner_ui()
       )
     ),

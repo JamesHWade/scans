@@ -104,6 +104,13 @@
 #' not comparable. Each case links to both trajectories and to the events its
 #' findings cite. Every number shown is read from the comparison value.
 #'
+#' A comparison is a fixed pair of saved analyses. With `investigations =
+#' TRUE` a side's visible trajectories can be saved, but the app offers no
+#' opening of another investigation and no "Apply current scanners", so each
+#' side keeps the analysis the comparison reports. Ask evidence from the other
+#' side switches to that side, and a comparison link leaves any investigation
+#' opened over a side.
+#'
 #' @section Posit Connect:
 #' Use [scans_app_connect()] when Connect content observability is enabled. It
 #' reads native OTLP traces for named deployed applications and supplies the

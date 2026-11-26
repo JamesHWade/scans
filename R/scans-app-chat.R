@@ -329,8 +329,17 @@ scans_app_ask_server <- function(
             snapshot$manifest$revision_id
           )
         ) {
-          state$opened_investigation(snapshot)
-          state$viewing_chat_snapshot(TRUE)
+          side <- state$comparison_side(snapshot)
+          if (is.null(side)) {
+            state$opened_investigation(snapshot)
+            state$viewing_chat_snapshot(TRUE)
+          } else {
+            shiny::updateSelectInput(
+              session,
+              "scans_app_application",
+              selected = side
+            )
+          }
         }
         chat_target(reference)
       }

@@ -256,3 +256,104 @@ test_that("the view shows a pattern that stopped applying and both units", {
   expect_no_match(html, "event_error: resolved", fixed = TRUE)
   expect_match(html, "output_tokens: 4 tokens → 9 k tokens", fixed = TRUE)
 })
+
+test_that("a comparison keeps each side on its saved analysis", {
+  skip_if_not_installed("vitals")
+  skip_if_not_installed("jsonlite")
+  comparison <- comparison_app_fixture()
+  candidate <- "Candidate: Support assistant candidate"
+  path <- withr::local_tempfile(fileext = ".json")
+  write_investigation(comparison$pairing$baseline, path)
+  saved_investigation <- read_investigation(path)
+  app <- scans_app(comparison, investigations = TRUE)
+
+  html <- as.character(
+    app$httpHandler(list(
+      PATH_INFO = "/",
+      REQUEST_METHOD = "GET",
+      QUERY_STRING = ""
+    ))$content
+  )
+  expect_match(html, "scans_app_save_investigation", fixed = TRUE)
+  expect_no_match(html, "scans_app_open_investigation", fixed = TRUE)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$flushReact()
+    investigation_ack_inputs(session)
+    saved <- comparison$pairing$baseline$analysis$findings
+    expect_no_match(
+      output$scans_app_investigation_status$html,
+      "Apply current scanners",
+      fixed = TRUE
+    )
+    session$setInputs(
+      scans_app_scans = character(),
+      scans_app_rescan_investigation = 1L
+    )
+    expect_false(rescan_investigation())
+    expect_identical(data()$findings, saved)
+
+    session$setInputs(
+      scans_app_open_investigation = data.frame(datapath = path)
+    )
+    expect_null(opened_investigation())
+
+    # Any other path that opens an investigation, such as a review import,
+    # is left by a comparison link.
+    opened_investigation(saved_investigation)
+    session$flushReact()
+    session$setInputs(
+      scans_app_hash = scans_app_hash(candidate, "vitals/regress/epoch-000001")
+    )
+    session$setInputs(scans_app_application = candidate)
+    session$flushReact()
+    expect_null(opened_investigation())
+    expect_identical(application(), candidate)
+    expect_identical(
+      data()$info$trajectory_id[[selected()]],
+      "vitals/regress/epoch-000001"
+    )
+  })
+})
+
+test_that("Ask evidence from the other side switches sides in a comparison", {
+  skip_if_not_installed("vitals")
+  skip_if_not_installed("shinychat", "0.5.0")
+  skip_if_not_installed("ellmer", "0.5.0")
+  comparison <- comparison_app_fixture()
+  baseline <- "Baseline: Support assistant baseline"
+  candidate <- "Candidate: Support assistant candidate"
+  app <- scans_app(comparison, chat_factory = scans_test_chat)
+
+  shiny::testServer(app$serverFuncSource(), {
+    session$setInputs(scans_app_application = candidate)
+    session$flushReact()
+    session$setInputs(
+      scans_app_view = "trajectory",
+      scans_app_ask_scope = "trajectory",
+      scans_app_inspect = "vitals/regress/epoch-000001"
+    )
+    session$setInputs(scans_app_ask_user_input = list("What failed?"))
+    scans_test_drain(session, function() {
+      !is.null(chat_state$module$last_turn())
+    })
+    key <- ls(chat_state$references)[[1L]]
+    session$setInputs(scans_app_application = baseline)
+    session$flushReact()
+    session$setInputs(scans_app_chat_evidence = key)
+    # testServer has no browser to apply the application switch.
+    session$setInputs(scans_app_application = candidate)
+    session$flushReact()
+    expect_null(opened_investigation())
+    expect_identical(application(), candidate)
+    expect_identical(selected_trajectory_id(), "vitals/regress/epoch-000001")
+
+    session$setInputs(
+      scans_app_hash = scans_app_hash(baseline, "vitals/same/epoch-000001")
+    )
+    session$setInputs(scans_app_application = baseline)
+    session$flushReact()
+    expect_identical(application(), baseline)
+    expect_identical(selected_trajectory_id(), "vitals/same/epoch-000001")
+  })
+})

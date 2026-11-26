@@ -278,6 +278,22 @@ by the counts in `cases`; the Shiny code computes no change, count, or test.
 The view is capped at 100 cases and 100 excluded trajectories and says so
 when it truncates.
 
+A comparison is a fixed pair of saved analyses, and the panel reports only
+that pair. So while a comparison is the source, nothing replaces or
+reanalyses a side: with `investigations = TRUE` the app keeps "Save visible
+trajectories" but offers no "Open an investigation" and no "Apply current
+scanners", and the server ignores both inputs. Ask evidence cited from the
+other side switches the application selector to that side instead of opening
+the snapshot as a separate investigation. Any other path that opens an
+investigation over a side (a review import's evidence) is left when a
+comparison link is followed, so every link can switch sides.
+
+Rejected: refusing `scans_app(comparison, investigations = TRUE)` (it would
+also remove saving a side, which works, and leave the Ask path, which opens
+snapshots without `investigations`); reanalysing a side and recomputing the
+comparison in the app (the app holds no diagnostic logic, and the panel
+would then report a comparison no saved value records).
+
 Rejected: a `comparison =` argument beside two separately supplied sources
 (the comparison already holds both investigations, and a second copy could
 disagree with it); a third value of the app's view switch (saved view state
