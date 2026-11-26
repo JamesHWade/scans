@@ -166,6 +166,16 @@ test_that("the conversations export has one row per trajectory in view", {
   )
 })
 
+test_that("the report's pattern table counts affected over assessed", {
+  fixture <- export_fixture()
+  text <- paste(
+    export_report(fixture$performance, "Cohort"),
+    collapse = "\n"
+  )
+  expect_match(text, "| warning | 2 of 3 assessed |", fixed = TRUE)
+  expect_no_match(text, "| 2 of 5 |", fixed = TRUE)
+})
+
 test_that("CSV exports name users only when asked", {
   fixture <- export_fixture()
   link <- scans_app_link(
@@ -330,7 +340,7 @@ test_that("the report states counts with denominators and omits content", {
   )
   expect_match(
     text,
-    "| Event errors | error | 2 of 5 | 2 | Oct 03 | 3 events report errors |",
+    "| Event errors | error | 2 of 3 assessed | 2 | Oct 03 | 3 events report errors |",
     fixed = TRUE
   )
   expect_match(

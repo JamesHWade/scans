@@ -384,7 +384,11 @@ export_report <- function(
         export_md_table(tibble::tibble(
           Pattern = scans_app_pattern_label(patterns$scan),
           Severity = patterns$severity,
-          Affected = sprintf("%d of %d", patterns$trajectories, headline$n),
+          Affected = sprintf(
+            "%d of %d assessed",
+            patterns$trajectories,
+            patterns$assessed
+          ),
           `Users affected` = ifelse(
             is.na(patterns$users),
             "unknown",

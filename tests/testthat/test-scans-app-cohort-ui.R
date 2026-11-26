@@ -272,3 +272,11 @@ test_that("counts in the findings pane and header agree in number", {
     fixed = TRUE
   )
 })
+
+test_that("pattern rows state affected over the trajectories the scan assessed", {
+  skip_if_not_installed("htmltools")
+  skip_if_not_installed("shiny")
+  html <- as.character(cohort_overview_html(cohort_fixture_data(), 1:5))
+  expect_match(html, "2 of 3 assessed", fixed = TRUE)
+  expect_match(html, ": 2 of 3 assessed conversations.", fixed = TRUE)
+})

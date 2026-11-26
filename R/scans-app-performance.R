@@ -560,11 +560,11 @@ scans_app_patterns_ui <- function(
         `data-scans-pattern` = row$scan,
         `aria-pressed` = if (identical(selected, row$scan)) "true" else "false",
         `aria-label` = sprintf(
-          "%s, %s: %d of %d %s. %s. Show these %s.",
+          "%s, %s: %d of %d assessed %s. %s. Show these %s.",
           label,
           row$severity,
           row$trajectories,
-          n,
+          row$assessed,
           noun$many,
           row$evidence,
           noun$many
@@ -579,7 +579,7 @@ scans_app_patterns_ui <- function(
         ),
         htmltools::tags$span(
           class = "scans-app-cell-meter",
-          sprintf("%d of %d", row$trajectories, n),
+          sprintf("%d of %d assessed", row$trajectories, row$assessed),
           scans_app_meter(row$share, row$severity)
         ),
         if (users_known) {

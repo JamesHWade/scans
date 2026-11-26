@@ -287,11 +287,20 @@ cohort_patterns <- function(
       drop = FALSE
     ]
     started <- affected$at[!is.na(affected$at)]
+    # A trajectory this scan could not assess is not an unaffected one, so
+    # the share is over the trajectories it did assess.
+    assessed <- length(unique(data$assessments$trajectory_id[
+      data$assessments$scan == scan &
+        data$assessments$trajectory_id %in% ids &
+        data$assessments$status %in%
+          c("assessed_no_findings", "assessed_with_findings")
+    ]))
     tibble::tibble(
       scan = scan,
       severity = if (any(rows$severity %in% "error")) "error" else "warning",
       trajectories = nrow(affected),
-      share = nrow(affected) / length(ids),
+      assessed = assessed,
+      share = if (assessed > 0L) nrow(affected) / assessed else NA_real_,
       findings = nrow(rows),
       users = if (users_known) {
         length(unique(affected$user[!is.na(affected$user)]))
@@ -323,6 +332,7 @@ cohort_patterns <- function(
       scan = character(),
       severity = character(),
       trajectories = integer(),
+      assessed = integer(),
       share = double(),
       findings = integer(),
       users = integer(),
